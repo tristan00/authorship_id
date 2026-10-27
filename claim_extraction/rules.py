@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from .normalize import COUNTRIES, COUNTRY_ALIASES, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, STATE_NAMES, number, value
+from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, STATE_NAMES, number, value
 
 CITIES = set(json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8")))
 
@@ -30,6 +30,9 @@ GENERATIONS = words("generation")
 IDEOLOGIES = words("political_ideology")
 LANGUAGE_NAMES = "(?:" + "|".join(sorted((*LANGUAGES, *LANGUAGE_ALIASES), key=len, reverse=True)) + ")"
 COUNTRY_NAMES = "(?:" + "|".join(re.escape(name) for name in sorted((*COUNTRIES, *COUNTRY_ALIASES), key=len, reverse=True) if len(name) > 2) + ")"
+ORIENTATIONS = "(?:" + "|".join(re.escape(word) for word in sorted(LOOKUP["sexual_orientation"], key=len, reverse=True) if len(word) > 2) + "|bi)"
+RACES = words("race_ethnicity")
+DEMONYM_NAMES = "(?:" + "|".join(re.escape(name) for name in sorted(DEMONYMS, key=len, reverse=True)) + ")"
 NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
@@ -80,17 +83,24 @@ PHRASES = {
                            r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?! (?:couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
                            rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:[a-z]+ ){{0,2}}?(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer|heterosexual|homosexual)\b(?! (?:friend|couple|bar|club|marriage|people|men|women|guys))",
-                           r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:white|black|asian|trans|young|old|older) )*(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer) (?:man|woman|guy|girl|person|male|female|dude)\b"),
+                           r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:white|black|asian|trans|young|old|older) )*(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer) (?:man|woman|guy|girl|person|male|female|dude)\b",
+                           rf"\bas an? (?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?({ORIENTATIONS})\b(?! (?:couple|bar|club|man's|woman's|ally|friend|show|character|porn|film|movie|icon|rights))",
+                           r"\b(?:soy|sou|je suis|ich bin|bin|sono) (?:\w+ )?(gay|bi|bisexual|hetero|heterosexual|homosexual|lesbiana|lésbica|bissexual|bisexuel|bisexuelle|lesbienne)\b",
+                           rf"(?:^|[.!,;] )(?:[a-z]+ )?({ORIENTATIONS}) here\b"),
     "race_ethnicity": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(white|black|asian|latino|latina|hispanic|indian|desi|arab|mixed|biracial|caucasian|chinese|filipina|filipino|korean|japanese|mexican|pakistani)\b(?! (?:women|men|girls|guys|people|couples?|cock|bull|dick))",
                        r"(?:^|[.!,;] )(white|black|asian|latino|latina|hispanic|desi|arab|caucasian|filipina|filipino|mexican) (?:[a-z]+ )?here\b",
                        rf"\b{I} {A}(?:[a-z]+ ){{0,3}}?(white|black|asian|hispanic|latino|latina|mixed|biracial|mixed race|native american|middle eastern|arab|caucasian)(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself))?{END}(?! (?:people|folks|neighborhood|area|community|friends|culture))",
                        r"\bas an? (white|black|asian|hispanic|latino|latina|mixed|biracial|mixed race|native american|middle eastern|arab) (?:man|woman|guy|girl|person|male|female|dude|american|mom|dad|mother|father)\b",
-                       r"\bas an? (mexican|indian|chinese|korean|japanese|filipino|filipina|pakistani|desi|caucasian|african american|asian american)\b"),
+                       r"\bas an? (mexican|indian|chinese|korean|japanese|filipino|filipina|pakistani|desi|caucasian|african american|asian american)\b",
+                       rf"\b({RACES}) (?:guy|girl|male|female|man|woman|couple|baddie|dude|bottom|top|bbw|milf|daddy|boy|twink|stud|bull|wife|hubby) (?:looking|with|here|seeking|wanting|needs|needing|in|from|for)\b",
+                       rf"(?:lbs|kg|\d['’]\d{{1,2}}\"?|\d{{2}}\s?[mf]?)\s*,\s*({RACES})\s*[,./]"),
     "nationality": (rf"\b{I} (?:also )?{A}(american|british|canadian|australian|irish|german|french|italian|spanish|dutch|swedish|norwegian|danish|finnish|polish|russian|ukrainian|mexican|brazilian|indian|pakistani|chinese|japanese|korean|filipino|filipina|turkish|greek|portuguese|scottish|welsh|english|kiwi|aussie|brit|swiss|austrian|belgian|romanian|hungarian|czech|israeli|egyptian|nigerian|south african|argentinian|colombian|vietnamese|iranian|new zealander)(?: citizen)?{END}(?! (?:food|people|culture|company|government|accent|guy|girl|man|woman|friend))",
                     r"\bas an? (american|british|canadian|australian|irish|german|french|italian|spanish|dutch|swede|norwegian|dane|finn|polish|russian|ukrainian|mexican|brazilian|indian|pakistani|filipino|filipina|brit|aussie|kiwi|israeli|scot|new zealander)(?: citizen| person| myself)?\b(?! (?:company|government|food))",
                     r"(?:^|[.!,;] )(american|brit|british|canadian|aussie|australian|kiwi|irish|german|dutch|swede|indian|filipino|filipina|mexican) here\b",
                     r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(american|brit|british|canadian|aussie|australian|kiwi|irish|german|dutch|swede|indian|filipino|filipina|mexican|italian|french|polish|brazilian|turkish)\b(?! (?:women|men|girls|guys|food|people))",
-                    r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\b(?:male|female|guy|girl|man|woman))\s+from (?:the )?(usa|us|uk|england|scotland|canada|australia|india|poland|italy|germany|france|spain|ireland|mexico|brazil|philippines|pakistan|turkey|netherlands|sweden|norway|denmark|portugal|greece|romania|egypt|nigeria|south africa|new zealand)\b"),
+                    r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\b(?:male|female|guy|girl|man|woman))\s+from (?:the )?(usa|us|uk|england|scotland|canada|australia|india|poland|italy|germany|france|spain|ireland|mexico|brazil|philippines|pakistan|turkey|netherlands|sweden|norway|denmark|portugal|greece|romania|egypt|nigeria|south africa|new zealand)\b",
+                    rf"(?:\[\s?[mf]{{1,2}}4[mfa]\w*\s?\]|\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|/\s?m\s?/)\W{{0,4}}({COUNTRY_NAMES}|{DEMONYM_NAMES})\b(?! (?:women|men|girls|guys|food|people|couples?))",
+                    rf"\b{I} (?!not\b)(?:also |a |an |half |proudly )?({DEMONYM_NAMES})\b(?! (?:food|people|culture|company|government|accent|friend|girlfriend|boyfriend|wife|husband|music))"),
     "language": (r"\bmy (?:native|first|mother) (?:language|tongue) is ([a-z]+)\b", r"\b([a-z]+) is my (?:native|first|mother) (?:language|tongue)\b",
                  rf"\b{I} {A}native ([a-z]+) speaker\b",
                  rf"\bi (?:only |also |can |do |mainly |mostly |natively |fluently |still )?(?:speak|talk in|grew up speaking) (?:fluent |native |only |some |basic |a little |good )?({LANGUAGE_NAMES})\b"),
@@ -179,6 +189,7 @@ EMPLOYMENT = {"a full-time student": "student", "a full time student": "student"
 PERIODS = {"hour": 2080, "hr": 2080, "hourly": 2080, "/h": 2080, "week": 52, "wk": 52, "weekly": 52, "month": 12, "mo": 12, "monthly": 12}
 EARNINGS = re.compile(r"(.+?)\s*(?:(?:a|an|per|/|every)\s*)?(year|yr|annum|month|mo|hour|hr|week|wk|annually|yearly|monthly|hourly|weekly|/h)?"
                       r"(?:\s+(?:tc|base|base salary|salary|gross|pre[- ]tax|before tax|after tax|take home|ote))?$")
+ORIENTATION_WORDS = {"lesbiana": "lesbian", "lésbica": "lesbian", "lesbienne": "lesbian", "bissexual": "bisexual", "bisexuel": "bisexual", "bisexuelle": "bisexual"}
 BELIEFS = {"christ": "christian", "christin": "christian", "muslimin": "muslim", "not religious": "no religion"}
 GENDERED = {"mom": "female", "mother": "female", "mum": "female", "wife": "female", "dad": "male", "father": "male", "husband": "male"}
 
@@ -206,6 +217,8 @@ def resolve(field, raw):
     if field == "birth_year":
         raw = raw.lstrip("'’")
         return value(field, "19" + raw if re.fullmatch(r"[4-9]\d", raw) else raw)
+    if field == "sexual_orientation":
+        return ORIENTATION_WORDS.get(raw) or value(field, raw)
     if field == "religion":
         return BELIEFS.get(raw) or value(field, raw)
     if field == "gender":
