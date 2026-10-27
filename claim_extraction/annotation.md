@@ -58,7 +58,7 @@ Hard failures, never partial output:
 
 ## Rules extractor
 
-`rules.extract` lowercases the text, removes quoted lines, quoted strings and links, and maps curly primes to `'` and `"`. It then applies, in order: age and gender tags (`28F`, `m24`, `[M4F]`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), a two-digit age at the start of the text or in brackets, standalone heights in feet and inches, centimetres or metres, weights when a height or age is present, then first-person phrase patterns per field. Places are matched against countries, first-level regions and `cities.json`; occupations against `jobs.json` and a list of job nouns. Vocabularies for religion, mental health, generation, ideology, orientation, race and languages come from the value tables in `normalize.py`; country names and demonyms from its country tables. Income reads hourly, weekly and monthly amounts and scales them to a year (2080, 52, 12). Bare weights without a unit are read as pounds from 100 and as kilograms below. Two-digit birth years (`born in 96`) become 19xx. Spanish, Portuguese, French, German and Italian forms are covered for age, gender, orientation and atheism.
+`rules.extract` lowercases the text, removes quoted lines, quoted strings and links, and maps curly primes to `'` and `"`. It then applies, in order: age and gender tags (`28F`, `m24`, `[M4F]`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), a two-digit age at the start of the text or in brackets, standalone heights in feet and inches, centimetres or metres, weights when a height or age is present, then first-person phrase patterns per field. Places are matched against countries, first-level regions and `cities.json`; occupations against `jobs.json` and a list of job nouns. Vocabularies for religion, mental health, generation, ideology, orientation, race and languages come from the value tables in `normalize.py`; country names and demonyms from its country tables. Income reads hourly, weekly and monthly amounts and scales them to a year (2080, 52, 12). Bare weights without a unit are read as pounds from 100 and as kilograms below. Two-digit birth years (`born in 96`) become 19xx, and a text that is only a year from 1930 to 2013 (or a date in those years) is read as a birth year, which matches how the voters label such replies. Spanish, Portuguese, French, German and Italian forms are covered for age, gender, orientation and atheism. Names that are both a city and a first-level region resolve to the city when the labels mostly use the city (Delhi, New York, Berlin, Auckland and a few others).
 
 `jobs.json` is built from panel1m train labels and voter answers. `cities.json` is the GeoNames `cities15000` names plus city labels seen at least twice in panel1m train, without names of three letters or less, names that appear lowercase in panel1m train text at least half as often as capitalized, and names whose train precision is below 0.34 over at least two false positives.
 
@@ -66,42 +66,42 @@ Candidate patterns come from mining 1-3 token contexts around each train label's
 
 | split | texts | precision | recall | micro F1 |
 |---|---|---|---|---|
-| panel1m train | 899,826 | 0.680 | 0.682 | 0.681 |
-| panel1m validation | 49,738 | 0.677 | 0.679 | 0.678 |
+| panel1m train | 899,826 | 0.680 | 0.688 | 0.684 |
+| panel1m validation | 49,738 | 0.675 | 0.685 | 0.680 |
 
 F1 by field before this round (commit ce75191) and now, ordered by train label count:
 
 | field | train labels | train before | train now | validation labels | validation before | validation now |
 |---|---|---|---|---|---|---|
 | age | 20800 | 0.83 | 0.84 | 1188 | 0.83 | 0.84 |
-| gender | 13133 | 0.68 | 0.68 | 768 | 0.67 | 0.67 |
+| gender | 13133 | 0.68 | 0.68 | 768 | 0.67 | 0.68 |
 | residence_city | 2497 | 0.46 | 0.48 | 137 | 0.37 | 0.37 |
 | marital_status | 1836 | 0.47 | 0.51 | 92 | 0.48 | 0.50 |
-| residence_country | 1678 | 0.35 | 0.38 | 110 | 0.42 | 0.44 |
+| residence_country | 1678 | 0.35 | 0.39 | 110 | 0.42 | 0.44 |
 | occupation | 1455 | 0.44 | 0.45 | 94 | 0.45 | 0.49 |
-| residence_state | 1325 | 0.43 | 0.45 | 72 | 0.41 | 0.42 |
-| parental_status | 1284 | 0.33 | 0.37 | 59 | 0.31 | 0.36 |
+| residence_state | 1325 | 0.43 | 0.45 | 72 | 0.41 | 0.43 |
+| parental_status | 1284 | 0.33 | 0.39 | 59 | 0.31 | 0.40 |
 | height | 1198 | 0.78 | 0.80 | 58 | 0.77 | 0.86 |
 | race_ethnicity | 1167 | 0.47 | 0.50 | 82 | 0.53 | 0.60 |
 | nationality | 1117 | 0.45 | 0.51 | 66 | 0.42 | 0.52 |
-| sexual_orientation | 1071 | 0.50 | 0.52 | 71 | 0.44 | 0.43 |
-| relationship_status | 612 | 0.13 | 0.18 | 30 | 0.28 | 0.36 |
-| employment_status | 594 | 0.18 | 0.23 | 28 | 0.00 | 0.00 |
+| sexual_orientation | 1071 | 0.50 | 0.54 | 71 | 0.44 | 0.46 |
+| relationship_status | 612 | 0.13 | 0.20 | 30 | 0.28 | 0.35 |
+| employment_status | 594 | 0.18 | 0.26 | 28 | 0.00 | 0.00 |
 | weight | 533 | 0.70 | 0.71 | 41 | 0.72 | 0.78 |
 | origin_country | 456 | 0.28 | 0.40 | 39 | 0.28 | 0.33 |
 | mental_health | 390 | 0.36 | 0.42 | 22 | 0.45 | 0.50 |
 | religion | 349 | 0.43 | 0.52 | 32 | 0.36 | 0.40 |
-| education_subject | 281 | 0.04 | 0.34 | 13 | 0.25 | 0.53 |
-| income | 274 | 0.07 | 0.16 | 15 | 0.00 | 0.00 |
-| birth_year | 240 | 0.12 | 0.25 | 11 | 0.00 | 0.40 |
+| education_subject | 281 | 0.04 | 0.42 | 13 | 0.25 | 0.48 |
+| income | 274 | 0.07 | 0.25 | 15 | 0.00 | 0.10 |
+| birth_year | 240 | 0.12 | 0.61 | 11 | 0.00 | 0.70 |
 | generation | 197 | 0.43 | 0.52 | 8 | 0.00 | 0.17 |
 | education | 150 | 0.24 | 0.35 | 6 | 0.29 | 0.22 |
-| origin_city | 141 | 0.26 | 0.28 | 10 | 0.14 | 0.14 |
-| language | 128 | 0.09 | 0.30 | 4 | 0.00 | 0.50 |
-| origin_state | 115 | 0.28 | 0.32 | 7 | 0.55 | 0.67 |
+| origin_city | 141 | 0.26 | 0.33 | 10 | 0.14 | 0.14 |
+| language | 128 | 0.09 | 0.32 | 4 | 0.00 | 0.50 |
+| origin_state | 115 | 0.28 | 0.33 | 7 | 0.55 | 0.67 |
 | political_ideology | 63 | 0.37 | 0.44 | 2 | 0.00 | 0.00 |
 
-political_compass has no resolved labels: across panel1m the voters answer it only with values outside its value set ("left", "center-left", "not stated").
+political_compass has no resolved labels. Across panel1m the voters mostly answer it with values outside its value set ("left", "center-left", "not stated"); the in-set forms ("centrist", "center", "lib-right") already map in `normalize.py`, occur 14 times over all three voters, and never twice on the same text.
 
 ## Limitations
 
