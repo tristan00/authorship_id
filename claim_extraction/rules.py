@@ -95,7 +95,12 @@ PHRASES = {
                r"(?<!\ba )(?<!\bthe )(?<!\bother )(?<!\bthat )(?<!\bthis )\b(male|female|guy|girl|man|woman|dude|lady)\s+here\b",
                r"(?:^|[\]\)\-|:]\s*|\d{2}\s*,?\s*)(?:[a-z]+ ){0,2}?(male|female|guy|girl|man|woman|dude|lady|boy|femboy|milf)\s+(?:here\s+)?(?:looking|seeking|searching|wanting|needing)\b",
                r"\b(?:soy|sou|je suis|ich bin|sono) (?:un |una |uma |um |une |ein |eine )?(hombre|mujer|chica|chico|homem|mulher|homme|femme|mann|frau|ragazzo|ragazza|garota|garoto|menina|menino)\b",
-               rf"\b{I} (?:a |an |also a |also an )(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:autistic|bisexual|curious|bi-curious|bicurious|lesbian|queer|divorced|christian|muslim|catholic|jewish|mexican|indian|latina|latino|black|white|asian|cis|disabled|neurodivergent|married|single|gay|straight|trans|young|old|older|tall|short|fat|chubby|petite|curvy|skinny|fit|grown|normal|regular|average) ){1,3}(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))"),
+               rf"\b{I} (?:a |an |also a |also an )(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:autistic|bisexual|curious|bi-curious|bicurious|lesbian|queer|divorced|christian|muslim|catholic|jewish|mexican|indian|latina|latino|black|white|asian|cis|disabled|neurodivergent|married|single|gay|straight|trans|young|old|older|tall|short|fat|chubby|petite|curvy|skinny|fit|grown|normal|regular|average) ){1,3}(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))",
+               rf"\b{I} (?:also |just |only |still |literally |actually )?(?:a |an )(?:\d{{2}}\s?(?:yo|y/o|years? old|yr old|year-old)\s+)?(?:(?!good\b|bad\b|big\b|real\b|lucky\b)[a-z-]+ ){{0,3}}?(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who|that|and|or|you|in|on|with|from|for|like|than))",
+               rf"\b{I} (?:also )?(?:an? )?(ftm|mtf|nb|enby|non-binary|nonbinary|transmasc|transfem|trans masc|trans fem|a transman|a transwoman)\b",
+               r"(?:^|[\s(\[])\d0'?s\s+(male|female|guy|girl|man|woman|m|f)\b",
+               r"(?:^|[\s(\[])\d{2}\s*,\s*([mf])\b(?!\s*[/']\s*\d)",
+               r"[\(\[]\s*(male|female)\s*[\)\]]"),
     "sexual_orientation": (r"(?:^|\W)[\-|/]\s*(straight|gay|bi|bisexual)\s*[\-|/]",
                            r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:(?!not\b|seconds|minutes|hours|days)[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?! (?:up\b|away\b|out\b|to\b|couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
@@ -243,6 +248,7 @@ ORIENTATION_WORDS = {"lesbiana": "lesbian", "lésbica": "lesbian", "lesbienne": 
 BELIEFS = {"christ": "christian", "christin": "christian", "muslimin": "muslim", "not religious": "no religion"}
 GENDERED = {"mom": "female", "mother": "female", "mum": "female", "wife": "female", "dad": "male", "father": "male", "husband": "male", "milf": "female",
             "femboy": "male", "chica": "female", "chico": "male", "homem": "male", "mulher": "female", "homme": "male", "femme": "female", "mann": "male",
+            "transmasc": "male", "transfem": "female", "trans masc": "male", "trans fem": "female", "a transman": "male", "a transwoman": "female",
             "ragazzo": "male", "ragazza": "female", "garota": "female", "garoto": "male", "menina": "female", "menino": "male"}
 
 
