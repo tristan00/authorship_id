@@ -58,34 +58,50 @@ Hard failures, never partial output:
 
 ## Rules extractor
 
-`rules.extract` lowercases the text and removes quoted lines, quoted strings and links, then applies, in order: age and gender tags (`28F`, `m24`, `[M4F]`, `32 straight man`, `male, 23`, `[F]`), a two-digit age at the start of the text or in brackets, standalone heights and (with a height or age present) weights, then first-person phrase patterns per field. Places are matched against countries, first-level regions and `cities.json`; occupations against `jobs.json` and a list of job nouns. `jobs.json` is built from panel1m train labels and voter answers. `cities.json` is the GeoNames `cities15000` names plus city labels seen at least twice in panel1m train, without names of three letters or less, names that appear lowercase in panel1m train text at least half as often as capitalized, and names whose train precision is below 0.34 over at least two false positives.
+`rules.extract` lowercases the text, removes quoted lines, quoted strings and links, and maps curly primes to `'` and `"`. It then applies, in order: age and gender tags (`28F`, `m24`, `[M4F]`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), a two-digit age at the start of the text or in brackets, standalone heights in feet and inches, centimetres or metres, weights when a height or age is present, then first-person phrase patterns per field. Places are matched against countries, first-level regions and `cities.json`; occupations against `jobs.json` and a list of job nouns. Vocabularies for religion, mental health, generation, ideology, orientation, race and languages come from the value tables in `normalize.py`; country names and demonyms from its country tables. Income reads hourly, weekly and monthly amounts and scales them to a year (2080, 52, 12). Bare weights without a unit are read as pounds from 100 and as kilograms below. Two-digit birth years (`born in 96`) become 19xx. Spanish, Portuguese, French, German and Italian forms are covered for age, gender, orientation and atheism.
 
-Patterns are kept only when their precision on panel1m train is above about half the micro F1 (about 0.33).
+`jobs.json` is built from panel1m train labels and voter answers. `cities.json` is the GeoNames `cities15000` names plus city labels seen at least twice in panel1m train, without names of three letters or less, names that appear lowercase in panel1m train text at least half as often as capitalized, and names whose train precision is below 0.34 over at least two false positives.
+
+Candidate patterns come from mining 1-3 token contexts around each train label's surface form and ranking them by train precision and support. A pattern is added when its precision on panel1m train is above about half the micro F1 (about 0.34).
 
 | split | texts | precision | recall | micro F1 |
 |---|---|---|---|---|
-| panel1m train | 899,826 | 0.687 | 0.657 | 0.672 |
-| panel1m validation | 49,738 | 0.683 | 0.652 | 0.667 |
+| panel1m train | 899,826 | 0.680 | 0.682 | 0.681 |
+| panel1m validation | 49,738 | 0.677 | 0.679 | 0.678 |
 
-Validation by field, ordered by label count:
+F1 by field before this round (commit ce75191) and now, ordered by train label count:
 
-| field | labels | precision | recall | F1 |
-|---|---|---|---|---|
-| age | 1188 | 0.82 | 0.85 | 0.83 |
-| gender | 768 | 0.57 | 0.81 | 0.67 |
-| residence_city | 137 | 0.51 | 0.29 | 0.37 |
-| residence_country | 110 | 0.67 | 0.31 | 0.42 |
-| occupation | 94 | 0.68 | 0.34 | 0.45 |
-| marital_status | 92 | 0.53 | 0.43 | 0.48 |
-| race_ethnicity | 82 | 0.68 | 0.44 | 0.53 |
-| residence_state | 72 | 0.52 | 0.33 | 0.41 |
-| sexual_orientation | 71 | 0.51 | 0.39 | 0.44 |
-| nationality | 66 | 0.58 | 0.33 | 0.42 |
-| parental_status | 59 | 0.54 | 0.22 | 0.31 |
-| height | 58 | 0.82 | 0.72 | 0.77 |
-| weight | 41 | 0.84 | 0.63 | 0.72 |
+| field | train labels | train before | train now | validation labels | validation before | validation now |
+|---|---|---|---|---|---|---|
+| age | 20800 | 0.83 | 0.84 | 1188 | 0.83 | 0.84 |
+| gender | 13133 | 0.68 | 0.68 | 768 | 0.67 | 0.67 |
+| residence_city | 2497 | 0.46 | 0.48 | 137 | 0.37 | 0.37 |
+| marital_status | 1836 | 0.47 | 0.51 | 92 | 0.48 | 0.50 |
+| residence_country | 1678 | 0.35 | 0.38 | 110 | 0.42 | 0.44 |
+| occupation | 1455 | 0.44 | 0.45 | 94 | 0.45 | 0.49 |
+| residence_state | 1325 | 0.43 | 0.45 | 72 | 0.41 | 0.42 |
+| parental_status | 1284 | 0.33 | 0.37 | 59 | 0.31 | 0.36 |
+| height | 1198 | 0.78 | 0.80 | 58 | 0.77 | 0.86 |
+| race_ethnicity | 1167 | 0.47 | 0.50 | 82 | 0.53 | 0.60 |
+| nationality | 1117 | 0.45 | 0.51 | 66 | 0.42 | 0.52 |
+| sexual_orientation | 1071 | 0.50 | 0.52 | 71 | 0.44 | 0.43 |
+| relationship_status | 612 | 0.13 | 0.18 | 30 | 0.28 | 0.36 |
+| employment_status | 594 | 0.18 | 0.23 | 28 | 0.00 | 0.00 |
+| weight | 533 | 0.70 | 0.71 | 41 | 0.72 | 0.78 |
+| origin_country | 456 | 0.28 | 0.40 | 39 | 0.28 | 0.33 |
+| mental_health | 390 | 0.36 | 0.42 | 22 | 0.45 | 0.50 |
+| religion | 349 | 0.43 | 0.52 | 32 | 0.36 | 0.40 |
+| education_subject | 281 | 0.04 | 0.34 | 13 | 0.25 | 0.53 |
+| income | 274 | 0.07 | 0.16 | 15 | 0.00 | 0.00 |
+| birth_year | 240 | 0.12 | 0.25 | 11 | 0.00 | 0.40 |
+| generation | 197 | 0.43 | 0.52 | 8 | 0.00 | 0.17 |
+| education | 150 | 0.24 | 0.35 | 6 | 0.29 | 0.22 |
+| origin_city | 141 | 0.26 | 0.28 | 10 | 0.14 | 0.14 |
+| language | 128 | 0.09 | 0.30 | 4 | 0.00 | 0.50 |
+| origin_state | 115 | 0.28 | 0.32 | 7 | 0.55 | 0.67 |
+| political_ideology | 63 | 0.37 | 0.44 | 2 | 0.00 | 0.00 |
 
-The remaining fields have fewer than 40 validation labels each.
+political_compass has no resolved labels: across panel1m the voters answer it only with values outside its value set ("left", "center-left", "not stated").
 
 ## Limitations
 
@@ -94,4 +110,4 @@ The remaining fields have fewer than 40 validation labels each.
 - "my wife", "my boyfriend" and "my son" are rarely labeled as marital, relationship or parental status, so those patterns are mostly excluded ("my husband" and "my wife and I" stay); relationship status stays near 0.1 recall.
 - Residence is often unlabeled in personal ads ("m 43 wellington", "#losangeles") and when stated as "here in X", so tag-and-place and "here in" patterns stay below the precision bar.
 - Countries are rarely labeled when only a state or city is stated, so the extractor does not derive one from the other.
-- Employment status, income, birth year, generation, language and political fields are too rare in validation to measure.
+- Employment status, income, birth year, generation, education, language and the political fields have fewer than 30 panel1m validation labels each.
