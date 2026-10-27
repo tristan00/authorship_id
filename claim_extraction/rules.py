@@ -137,7 +137,11 @@ PHRASES = {
                        r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )",
                        rf"\b(?:i|we) (?:just |recently |originally )?(?:moved|immigrated|emigrated|came|relocated) (?:here |over |to [a-z]+ |to the [a-z]+ )?from (?:the )?{PLACE}",
                        rf"\bmy (?:home ?country|homeland|home town|hometown|country of origin|motherland|native country) is (?:the )?{PLACE}",
-                       rf"(?:, |\b(?:guy|girl|man|woman|male|female|year old|years old|yo|y/o|graduate|dude|student|lady|boy|couple|[mf]|\d{{2}}[mf]|i'm|i’m|im|i am|originally)\s+)from (?:the )?({COUNTRY_NAMES})\b"),
+                       rf"(?:, |\b(?:guy|girl|man|woman|male|female|year old|years old|yo|y/o|graduate|dude|student|lady|boy|couple|[mf]|\d{{2}}[mf]|i'm|i’m|im|i am|originally)\s+)from (?:the )?({COUNTRY_NAMES})\b",
+                       rf"\b(?:{I} )?an? native of (?:the )?{PLACE}",
+                       rf"\b([a-z][a-z.'-]*(?: [a-z][a-z.'-]*){{0,2}}) born and (?:raised|bred)\b|\bborn and (?:raised|bred) in (?:the )?{PLACE}",
+                       rf"\b{I} (?:\d{{2}} )?(?:yo |year old )?(?:male |female |guy |girl )?born in (?:a small town |the )?{PLACE}",
+                       rf"\bas (?:someone|a person|a guy|a girl|somebody) (?:originally )?from (?:the )?{PLACE}"),
     "height": (rf"\b{I} (?:an? |only |about |around |like |also )?(\d\s*(?:'|’|ft|foot|feet)\s*\d{{0,2}}(?:\"|”|in)?|\d\s*(?:'|’)\s*\d{{1,2}}|1[4-9]\d\s*cm|2[0-2]\d\s*cm|1[.,]\d\d\s*m)(?=$|[\s.,!?;)])(?! (?:away|from|deep|wide|long|tall [a-z]+ (?:fence|wall|tree)))",
                r"\bmy height is (\d\s*(?:'|’|ft|foot|feet)\s*\d{0,2}(?:\"|”)?|1[4-9]\d\s*cm|2[0-2]\d\s*cm)\b"),
     "weight": (r"\b(?:i |and |i currently |currently |my )?(?:weigh|weight|weighing|current weight)\s*(?:is|of|:|=|-|in at)?\s*(?:about |around |like |roughly |~)?(\d{2,3}(?:\.\d)?(?:\s?(?:lbs?|pounds|kgs?|kilos|kilograms|st|stone))?)\b(?!\s*(?:%|lbs? (?:of|more|less)|ago))",
@@ -202,6 +206,7 @@ COMPILED = {field: [re.compile(pattern) for pattern in patterns] for field, patt
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
 FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "central", "northern", "southern", "eastern", "western", "upstate",
           "downtown", "greater", "rural", "northeast", "northwest", "southeast", "southwest", "far", "midwest"}
+CITY_FIRST = {"delhi", "auckland", "berlin", "mexico city", "hamburg", "metro manila", "rio de janeiro", "sao paulo", "new york"}
 PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "residence_city"),
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
 SKIP = re.compile(r"^\s*>.*$|\"[^\"\n]{0,300}\"|“[^”\n]{0,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
@@ -300,7 +305,7 @@ def place(kind, raw):
     country_field, state_field, city_field = PLACE_FIELDS[kind]
     words = raw.replace(",", " ").split()
     country, words = peel(country_field, words)
-    region, words = peel(state_field, words)
+    region, words = (None, words) if " ".join(words) in CITY_FIRST else peel(state_field, words)
     if words and len(words) <= 3 and (town := value(city_field, " ".join(words))) in CITIES:
         found[city_field] = town
     elif words:
