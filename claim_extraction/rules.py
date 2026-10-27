@@ -39,8 +39,11 @@ TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + 
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
 AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:/%x'’-]|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D)|(?![mft]\b|nb|[mf]{1,3}4|yo\b|y/o|yrs?\b|ftm|mtf)[a-z]|\s*[?!€\"”]|\s+years?\?|\s*(?:and|&|//?|–)\s*\d|\s+(?:is|in|plus|bucks|dollars|volts?)\b)")
 AGE_BRACKET = re.compile(r"[\[\(]\s*(\d{2})\s*[\]\)]")
-HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!\ba )(?<!\ban )(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)(?:\.\d)?\s*(?:\"|”|''|’’|in\b|inches)?|[4-7]\s*(?:'|’|ft\.?|foot|feet)(?=\s*(?:tall|,|\d|with\b|and\b|$)))(?![\w'’]|\s*\?)")
+HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!\ba )(?<!\ban )(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)(?:\.\d)?\s*(?:\"|”|''|’’|in\b|inches)?|[4-7]\s*(?:'|’|ft\.?|foot|feet)(?=\s*(?:tall|height|hung|,|\d|with\b|and\b|[.!)|/]|$)))(?![\w'’]|\s*\?)")
 WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|kilos))\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain))")
+HEIGHT_METRIC = re.compile(r"(?<![\w.,$])(1[4-9]\d\s?cm|2[0-2]\d\s?cm|1[.,][4-9]\d\s?m\b|1[.,][4-9]\d(?=\s*(?:,|/|\||e\b|y\b|and\b|tall\b|\d{2,3}\s?kgs?\b|$)))")
+PEOPLE = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur)\b")
+PRIMES = str.maketrans({"‘": "'", "´": "'", "′": "'", "″": '"'})
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
 ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|latino|hispanic|indian|fit|tall|short|chubby|fat|hot|horny|lonely|bored|average|older|young)"
 AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
@@ -296,8 +299,8 @@ def tags(text, found):
 
 
 def stats(text, found):
-    for match in HEIGHT_ANY.finditer(text):
-        if not OTHER.search(text[max(0, match.start() - 25):match.start()]) and (height := value("height", match.group(1))) is not None:
+    for match in (*HEIGHT_ANY.finditer(text), *HEIGHT_METRIC.finditer(text)):
+        if not PEOPLE.search(text[max(0, match.start() - 25):match.start()]) and (height := value("height", match.group(1))) is not None:
             found["height"] = height
             break
     if "height" in found or "age" in found:
@@ -308,7 +311,7 @@ def stats(text, found):
 
 
 def extract(text):
-    text = SKIP.sub(" ", text.lower())
+    text = SKIP.sub(" ", text.lower()).translate(PRIMES)
     found = {}
     tags(text, found)
     stats(text, found)
