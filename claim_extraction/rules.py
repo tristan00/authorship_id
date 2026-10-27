@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from .normalize import LOOKUP, STATE_NAMES, value
+from .normalize import LOOKUP, STATE_NAMES, number, value
 
 CITIES = set(json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8")))
 
@@ -19,7 +19,11 @@ def words(field):
 RELIGIONS = words("religion")
 CONDITIONS = "(?:" + "|".join(re.escape(word) for word in sorted(set(LOOKUP["mental_health"]) - {"add", "ed", "borderline"}, key=len, reverse=True)) + "|an eating disorder)"
 SEVERITY = r"(?:(?:severe|chronic|diagnosed|mild|moderate|clinical|major|pretty|really|bad|terrible|crippling|unmedicated|untreated|official|some|a|an|both|combined|inattentive|high functioning|level \d) )*"
-NOT_INSTITUTION =r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
+AMOUNT = r"\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)?|\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)\b|\d{2,3},\d{3}\b"
+PERIOD = (r"(?:\s*(?:a|an|per|/|every)\s*(?:year|yr|annum|month|mo|hour|hr|week|wk)\b|\s*(?:annually|yearly|monthly|hourly|weekly|/h)\b"
+          r"|\s+(?:tc|base|salary|gross|pre[- ]tax|before tax|after tax|take home|ote)\b)?")
+ROUGHLY = r"(?:about |around |roughly |like |over |under |almost |nearly |~|just |only |a little over |close to )?"
+NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
@@ -56,7 +60,8 @@ PHRASES = {
             rf"\b{I} {A}(\d{{2}})[- ]?(?:years?|yr)[- ]old\b", r"\bas an? (\d{2})[- ]?(?:years?|yr)[- ]old\b", r"(?:\bi(?:'ve| have)? |^|[.!?,] )(?:just |recently )?turned (\d{2})\b(?! (?:years|minutes|weeks|percent|%))",
             r"\ban? (\d{2}) ?(?:yo|y/o)\b", r"\b(?:tengo|tenho|j'ai|j’ai) (\d{2}) (?:años|anos|ans)\b", r"(?:\bich |^)bin (\d{2})\b",
             r"\bmy age is (\d{2})\b", r"\bi'?m (\d{2}) now\b"),
-    "birth_year": (r"\bi was born in (\d{4})\b",),
+    "birth_year": (r"(?:\bi(?:'m| am|’m|m)? (?:was )?|\(|^)born (?:in |on )?(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?((?:19|20)\d\d|'?[4-9]\d)\b",
+                   rf"\b{I} (?:a |an )?((?:19|20)\d\d)\b(?! (?:model|edition|version|car|truck))", r"(?:^|[.!,;(] *)((?:19|20)\d\d) (?:baby|babies|kid|here)\b"),
     "generation": (rf"\b{I} {A}(millennial|boomer|baby boomer|gen ?z|gen ?x|zoomer|gen alpha)\b", r"\bas an? (millennial|boomer|gen ?z(?:er)?|gen ?x(?:er)?|zoomer)\b",
                    r"\bfellow (millennial|boomer|gen ?z|gen ?x|zoomer)s?\b"),
     "gender": (rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))",
@@ -94,8 +99,8 @@ PHRASES = {
     "weight": (r"\bi (?:currently )?weigh (?:about |around |like )?(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos|st|stone)?)\b",
                rf"\b{I} (?:currently |now )?(?:at )?(\d{{2,3}}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos))\b(?! (?:of|down|lost|heavier|lighter|more|less|weight))",
                r"\bmy (?:current )?weight is (\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos)?)\b"),
-    "income": (r"\bi (?:make|earn|gross) (?:about |around |roughly |like |over )?(\$\s?\d[\d,]*(?:\.\d+)?\s*k?)(?: (?:a|per) year|/yr|/year| annually| yearly| salary)?(?! (?:a|per) (?:month|week|hour|day)|/(?:mo|month|hr|hour|wk|week))",
-               r"\bmy (?:annual |yearly )?salary is (?:about |around )?(\$\s?\d[\d,]*(?:\.\d+)?\s*k?)\b"),
+    "income": (rf"\bi(?:'m| am|’m)? (?:make|earn|gross|making|earning|grossing|clear|take home|bring in)\s+{ROUGHLY}({AMOUNT}{PERIOD})(?! (?:together|combined|between us))",
+               rf"\bmy (?:annual |yearly |base |current |gross |net |total )?(?:salary|income|pay|wage|comp|compensation|tc|take home)(?: is| was|:| of| =)?\s*{ROUGHLY}({AMOUNT}{PERIOD})"),
     "education": (rf"\bi (?:have|hold|got|earned|finished) (?:a |an |my )?(bachelor'?s|bachelors|master'?s|masters|phd|ph\.d|doctorate|associate'?s|bsc|msc|mba|ba|bs|ma|ms|jd|md)(?: degree)?\b",),
     "education_subject": (rf"\bi(?:'m| am)? (?:currently )?(?:studying|majoring in|a student of) ([a-z][a-z ]+?)(?=$|[.,!?;)]| at | in | and | but | so | with | because)",
                           r"\bi (?:study|major in) ([a-z][a-z ]+?)(?=$|[.,!?;)]| at | in | and | but | so | with | because)",
@@ -146,6 +151,9 @@ EMPLOYMENT = {"a full-time student": "student", "a full time student": "student"
               "self employed": "self-employed", "jobless": "unemployed", "between jobs": "unemployed", "laid off": "unemployed",
               "out of work": "unemployed", "disabled": "unable to work", "on disability": "unable to work", "a homemaker": "homemaker",
               "a housewife": "homemaker"}
+PERIODS = {"hour": 2080, "hr": 2080, "hourly": 2080, "/h": 2080, "week": 52, "wk": 52, "weekly": 52, "month": 12, "mo": 12, "monthly": 12}
+EARNINGS = re.compile(r"(.+?)\s*(?:(?:a|an|per|/|every)\s*)?(year|yr|annum|month|mo|hour|hr|week|wk|annually|yearly|monthly|hourly|weekly|/h)?"
+                      r"(?:\s+(?:tc|base|base salary|salary|gross|pre[- ]tax|before tax|after tax|take home|ote))?$")
 BELIEFS = {"christ": "christian", "christin": "christian", "muslimin": "muslim", "not religious": "no religion"}
 GENDERED = {"mom": "female", "mother": "female", "mum": "female", "wife": "female", "dad": "male", "father": "male", "husband": "male"}
 
@@ -168,6 +176,10 @@ def resolve(field, raw):
         return CHILDREN.get(raw, "parent")
     if field == "employment_status":
         return EMPLOYMENT.get(raw.replace("self-employed", "self employed"), None) or value(field, raw)
+    if field == "income":
+        return earnings(raw)
+    if field == "birth_year":
+        return value(field, "19" + raw if re.fullmatch(r"[4-9]\d", raw) else raw)
     if field == "religion":
         return BELIEFS.get(raw) or value(field, raw)
     if field == "gender":
@@ -175,6 +187,16 @@ def resolve(field, raw):
     if field == "generation":
         return value(field, re.sub(r"(?<=[zx])er$", "", raw))
     return value(field, raw)
+
+
+def earnings(raw):
+    match = EARNINGS.fullmatch(re.sub(r"\bmil\b", "million", raw))
+    if not match:
+        return None
+    amount, unit = number(match.group(1))
+    if amount is None or unit is not None:
+        return None
+    return value("income", str(round(amount * PERIODS.get(match.group(2), 1))))
 
 
 def peel(field, words):
