@@ -19,10 +19,12 @@ def words(field):
 RELIGIONS = words("religion")
 CONDITIONS = "(?:" + "|".join(re.escape(word) for word in sorted(set(LOOKUP["mental_health"]) - {"add", "ed", "borderline"}, key=len, reverse=True)) + "|an eating disorder)"
 SEVERITY = r"(?:(?:severe|chronic|diagnosed|mild|moderate|clinical|major|pretty|really|bad|terrible|crippling|unmedicated|untreated|official|some|a|an|both|combined|inattentive|high functioning|level \d) )*"
-AMOUNT = r"\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)?|\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)\b|\d{2,3},\d{3}\b"
+AMOUNT = (r"(?:\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)?|\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)\b|\d{2,3},\d{3}\b"
+          r"|\d{1,3}(?:\.\d{1,2})?(?=\s*(?:an|a|per|/)\s*(?:hour|hr)\b))")
 PERIOD = (r"(?:\s*(?:a|an|per|/|every)\s*(?:year|yr|annum|month|mo|hour|hr|week|wk)\b|\s*(?:annually|yearly|monthly|hourly|weekly|/h)\b"
           r"|\s+(?:tc|base|salary|gross|pre[- ]tax|before tax|after tax|take home|ote)\b)?")
-ROUGHLY = r"(?:about |around |roughly |like |over |under |almost |nearly |~|just |only |a little over |close to )?"
+ROUGHLY = r"(?:about |around |roughly |like |over |under |almost |nearly |~|just |only |a little over |close to |approximately |a bit over |upwards of )?"
+NOT_SAVINGS = r"(?! (?:together|combined|between us|in (?:savings|debt|loans?)))"
 DEGREES = r"(?:bachelor'?s|bachelors|bachelor|master'?s|masters|master|phd|ph\.d\.?|doctorate|associate'?s|associates|bsc|msc|mba|ba|bs|ma|ms|jd|md|bcom|beng|meng|mph|msw|edd|pharmd|dvm)"
 SUBJECT_END = r"(?=$|[.,!?;:)\]/]| at | from | and | but | so | with | because | which | where | in \d| in the | i | while | before | after | for | to )"
 NOT_DEMONYM = r"(?!(?:french|german|spanish|japanese|chinese|korean|italian|international|exchange|foreign|indian|asian)\b)"
@@ -137,7 +139,9 @@ PHRASES = {
     "weight": (r"\b(?:i |and |i currently |currently |my )?(?:weigh|weight|weighing|current weight)\s*(?:is|of|:|=|-|in at)?\s*(?:about |around |like |roughly |~)?(\d{2,3}(?:\.\d)?(?:\s?(?:lbs?|pounds|kgs?|kilos|kilograms|st|stone))?)\b(?!\s*(?:%|lbs? (?:of|more|less)|ago))",
                rf"\b{I} (?:currently |now )?(?:at )?(\d{{2,3}}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos))\b(?! (?:of|down|lost|heavier|lighter|more|less|weight))",
                r"\bmy (?:current )?weight is (\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos)?)\b"),
-    "income": (rf"\bi(?:'m| am|’m)? (?:make|earn|gross|making|earning|grossing|clear|take home|bring in)\s+{ROUGHLY}({AMOUNT}{PERIOD})(?! (?:together|combined|between us))",
+    "income": (rf"\b(?:i|and|currently) (?:currently |only |still |now |also |probably |actually |personally |usually |typically )?(?:make|made|earn|earned|gross|grossed|net|netted|clear|take home|bring in|brought in)\s+{ROUGHLY}({AMOUNT}{PERIOD}){NOT_SAVINGS}",
+               rf"\b{I} (?:currently |now |only |still )?(?:making|earning|grossing|netting|clearing|paid)\s+{ROUGHLY}({AMOUNT}{PERIOD}){NOT_SAVINGS}",
+               rf"\bi (?:get|got) paid\s+{ROUGHLY}({AMOUNT}{PERIOD})", rf"\bi (?:charge|bill)\s+{ROUGHLY}({AMOUNT}{PERIOD})",
                rf"\bmy (?:annual |yearly |base |current |gross |net |total )?(?:salary|income|pay|wage|comp|compensation|tc|take home)(?: is| was|:| of| =)?\s*{ROUGHLY}({AMOUNT}{PERIOD})"),
     "education": (rf"\bi (?:have|hold|got|earned|finished|did|completed|received|just got|just finished|am finishing|'m finishing|’m finishing|am doing|'m doing|’m doing|am pursuing|'m pursuing|’m pursuing|have done|also have|only have|already have) (?:a |an |my |a literal |only a |two |both )?({DEGREES}|college degree|university degree|law degree|medical degree)(?: degree| degrees)?\b",
                   rf"\bmy ({DEGREES})(?: degree)? (?:is |was )?in\b", rf"\bas someone with an? ({DEGREES}|college degree)\b"),
