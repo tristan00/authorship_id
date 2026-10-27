@@ -120,7 +120,7 @@ PHRASES = {
                     rf"\b{I} (?!not\b)(?:also |a |an |half |proudly )?({DEMONYM_NAMES})\b(?! (?:food|people|culture|company|government|accent|friend|girlfriend|boyfriend|wife|husband|music))"),
     "language": (r"\bmy (?:native|first|mother) (?:language|tongue) is ([a-z]+)\b", r"\b([a-z]+) is my (?:native|first|mother) (?:language|tongue)\b",
                  rf"\b{I} {A}native ([a-z]+) speaker\b",
-                 rf"\bi (?:only |also |can |do |mainly |mostly |natively |fluently |still )?(?:speak|talk in|grew up speaking) (?:fluent |native |only |some |basic |a little |good )?({LANGUAGE_NAMES})\b"),
+                 rf"\b(?:i|we) (?:only |also |can |do |mainly |mostly |natively |fluently |still )?(?:speak|talk in|grew up speaking) (?:fluent |native |only |some |basic |a little |good )?({LANGUAGE_NAMES})\b"),
     "religion": (rf"\b{I} (?!not\b|now\b)(?:also |a |an )?(?:[a-z]+ ){{0,2}}?(jew|{RELIGIONS}|not religious)\b{NOT_INSTITUTION}",
                  rf"\bas an? (jew|{RELIGIONS})\b{NOT_INSTITUTION}", rf"(?:^|[.!,;] )(?:[a-z]+ )?({RELIGIONS}) here\b",
                  rf"{STRICT_TAG}({RELIGIONS})\b(?! (?:women|men|girls|guys|people|wife|husband))",
