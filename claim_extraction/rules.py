@@ -161,7 +161,10 @@ PHRASES = {
                    r"\bi (?:currently |now |also |still )?work (?:in|at a|in a|for a) ([a-z]+(?: [a-z]+)?)(?= (?:and|as|for|at|so|but|which|company|firm|office|industry|field|department|setting)\b|[.,!?;)]|$)",
                    rf"(?<!left )(?<!quit )(?<!lost )\b(?:my (?:job|work|career|role) as|my day job is|i got a job as|i took a job as|i'm employed as|i am employed as|i’m employed as) an? {JOB}"),
     "employment_status": (rf"\b(?:i|{I}|i've been|i’ve been|i have been) (?:currently |now |also |still )?(?:work|working) (full[- ]time|part[- ]time)\b", r"\bi (?:currently|now) (work)\b(?! (?:on|out|through))",
-                          rf"\b(?:{I}|i've been|i’ve been|i have been) (?:currently |now |happily |fully )?(retired|unemployed|self[- ]employed|a student|a full[- ]time student|a college student|a university student|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|a homemaker|a housewife|on disability|disabled|a freelancer|freelance|jobless|between jobs|laid off|out of work)\b",),
+                          rf"\b(?:{I}|i've been|i’ve been|i have been) (?:currently |now |happily |fully )?(retired|unemployed|self[- ]employed|a student|a full[- ]time student|a college student|a university student|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|a homemaker|a housewife|on disability|disabled|a freelancer|freelance|jobless|between jobs|laid off|out of work)\b",
+                          r"\b(?:i(?:'m|’m| am|m)?|i've been|i’ve been|i have been|i got|i was just|i just got|recently|currently|still) (?:currently |still |now |recently |just |been )?(unemployed|laid off|jobless|between jobs|out of work|job hunting|looking for (?:a )?(?:job|work)|job searching|without a job)\b(?! (?:people|folks|friends?|guy|men|women))",
+                          rf"\bi (work for myself|run my own business|own my own business|do freelance)\b|\b{I} (?:a |an )?(self[- ]employed|a freelancer|freelancing|an independent contractor|a business owner|my own boss)\b",
+                          r"(?:\b\d{2}\s?(?:yo|y/o)?\s?[mf]?\b|\b[mf]\s?\d{2}\b|\[?[mf]4\w+\]?)[ ,/-]+(?:[a-z]+ ){0,2}?(retired)\b"),
     "marital_status": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(married)\b",
                        r"\b(?:i've|i have|we've|we have) been (married) (?:for )?", r"\b(married) (?:man|woman|guy|male|female|dad|mom|couple) here\b",
                        r"\b(?:we are|we're) an? (?:\w+ )?(married) couple\b",
@@ -211,7 +214,13 @@ EMPLOYMENT = {"a full-time student": "student", "a full time student": "student"
               "a university student": "student", "a student": "student", "a freelancer": "self-employed", "freelance": "self-employed",
               "self employed": "self-employed", "jobless": "unemployed", "between jobs": "unemployed", "laid off": "unemployed",
               "out of work": "unemployed", "disabled": "unable to work", "on disability": "unable to work", "a homemaker": "homemaker",
-              "a housewife": "homemaker"}
+              "a housewife": "homemaker", "job hunting": "unemployed", "looking for a job": "unemployed", "looking for work": "unemployed",
+              "looking for job": "unemployed", "job searching": "unemployed", "without a job": "unemployed", "on ssdi": "unable to work",
+              "on ssi": "unable to work", "on pip": "unable to work", "work for myself": "self-employed", "run my own business": "self-employed",
+              "own my own business": "self-employed", "do freelance": "self-employed", "freelancing": "self-employed",
+              "an independent contractor": "self-employed", "a business owner": "self-employed", "my own boss": "self-employed",
+              "in college": "student", "in uni": "student", "in university": "student", "at university": "student", "at uni": "student",
+              "in grad school": "student", "in law school": "student", "in med school": "student", "in nursing school": "student"}
 PERIODS = {"hour": 2080, "hr": 2080, "hourly": 2080, "/h": 2080, "week": 52, "wk": 52, "weekly": 52, "month": 12, "mo": 12, "monthly": 12}
 EARNINGS = re.compile(r"(.+?)\s*(?:(?:a|an|per|/|every)\s*)?(year|yr|annum|month|mo|hour|hr|week|wk|annually|yearly|monthly|hourly|weekly|/h)?"
                       r"(?:\s+(?:tc|base|base salary|salary|gross|pre[- ]tax|before tax|after tax|take home|ote))?$")
