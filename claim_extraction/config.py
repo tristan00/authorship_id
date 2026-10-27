@@ -10,3 +10,4 @@ ANNOTATIONS = Path(r"D:\reddit_data\annotations")
 SAMPLE_TEXTS = 100_000
 SAMPLE_MAX_BYTES = 10_000
 SAMPLE_PERCENT = 0.05
+SPLITS = (("train", 90), ("validation", 95), ("test", 100))
