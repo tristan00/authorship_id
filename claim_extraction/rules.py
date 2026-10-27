@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from .normalize import LANGUAGE_ALIASES, LANGUAGES, LOOKUP, STATE_NAMES, number, value
+from .normalize import COUNTRIES, COUNTRY_ALIASES, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, STATE_NAMES, number, value
 
 CITIES = set(json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8")))
 
@@ -29,6 +29,7 @@ NOT_DEMONYM = r"(?!(?:french|german|spanish|japanese|chinese|korean|italian|inte
 GENERATIONS = words("generation")
 IDEOLOGIES = words("political_ideology")
 LANGUAGE_NAMES = "(?:" + "|".join(sorted((*LANGUAGES, *LANGUAGE_ALIASES), key=len, reverse=True)) + ")"
+COUNTRY_NAMES = "(?:" + "|".join(re.escape(name) for name in sorted((*COUNTRIES, *COUNTRY_ALIASES), key=len, reverse=True) if len(name) > 2) + ")"
 NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
@@ -101,7 +102,10 @@ PHRASES = {
                           rf"#\s?{PLACE}", rf"\[?[mf]4[mfa]\w*\]?\W{{0,4}}{PLACE}",
                           rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|[mf]4[mfa]\w*\]?|\b\d{{2}})\s+(?:\w+\s+)?(?:in|from)\s+(?:the\s+)?{PLACE}"),
     "origin_country": (rf"\b{I} (?:originally )?from (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which | originally)",
-                       r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )"),
+                       r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )",
+                       rf"\b(?:i|we) (?:just |recently |originally )?(?:moved|immigrated|emigrated|came|relocated) (?:here |over |to [a-z]+ |to the [a-z]+ )?from (?:the )?{PLACE}",
+                       rf"\bmy (?:home ?country|homeland|home town|hometown|country of origin|motherland|native country) is (?:the )?{PLACE}",
+                       rf"(?:, |\b(?:guy|girl|man|woman|male|female|year old|years old|yo|y/o|graduate|dude|student|lady|boy|couple|[mf]|\d{{2}}[mf]|i'm|i’m|im|i am|originally)\s+)from (?:the )?({COUNTRY_NAMES})\b"),
     "height": (rf"\b{I} (?:an? |only |about |around |like |also )?(\d\s*(?:'|’|ft|foot|feet)\s*\d{{0,2}}(?:\"|”|in)?|\d\s*(?:'|’)\s*\d{{1,2}}|1[4-9]\d\s*cm|2[0-2]\d\s*cm|1[.,]\d\d\s*m)(?=$|[\s.,!?;)])(?! (?:away|from|deep|wide|long|tall [a-z]+ (?:fence|wall|tree)))",
                r"\bmy height is (\d\s*(?:'|’|ft|foot|feet)\s*\d{0,2}(?:\"|”)?|1[4-9]\d\s*cm|2[0-2]\d\s*cm)\b"),
     "weight": (r"\bi (?:currently )?weigh (?:about |around |like )?(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos|st|stone)?)\b",
