@@ -1,6 +1,6 @@
 Do not quote me, unless i explicitly ask you to.
 
-No comments, no docstrings,. git commit message length is 20 words maximum. 
+No comments, no docstrings,. no git commit messages
 
 Agents are not allowed to edit this file in any circumstances. 
 
@@ -18,3 +18,6 @@ If using subagents, you are responsible for making sure they don't run too long.
 
 Avoid treating this project as a file dump. Files here eed to have ongoing use to the project. models, reports, and other files that are not helpful on an ongoing purpose should be placed elsewhere.
 
+No git commit attribution allowed ever. no branch names that include codex ever.
+
+claim attributes can only be single values, either a numerical or a flat categorical.
