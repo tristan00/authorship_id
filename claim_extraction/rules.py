@@ -23,6 +23,9 @@ AMOUNT = r"\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)?|\d[\d,]*(?:\.\d+)?\s?(
 PERIOD = (r"(?:\s*(?:a|an|per|/|every)\s*(?:year|yr|annum|month|mo|hour|hr|week|wk)\b|\s*(?:annually|yearly|monthly|hourly|weekly|/h)\b"
           r"|\s+(?:tc|base|salary|gross|pre[- ]tax|before tax|after tax|take home|ote)\b)?")
 ROUGHLY = r"(?:about |around |roughly |like |over |under |almost |nearly |~|just |only |a little over |close to )?"
+DEGREES = r"(?:bachelor'?s|bachelors|bachelor|master'?s|masters|master|phd|ph\.d\.?|doctorate|associate'?s|associates|bsc|msc|mba|ba|bs|ma|ms|jd|md|bcom|beng|meng|mph|msw|edd|pharmd|dvm)"
+SUBJECT_END = r"(?=$|[.,!?;:)\]/]| at | from | and | but | so | with | because | which | where | in \d| in the | i | while | before | after | for | to )"
+NOT_DEMONYM = r"(?!(?:french|german|spanish|japanese|chinese|korean|italian|international|exchange|foreign|indian|asian)\b)"
 NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
@@ -101,9 +104,12 @@ PHRASES = {
                r"\bmy (?:current )?weight is (\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos)?)\b"),
     "income": (rf"\bi(?:'m| am|’m)? (?:make|earn|gross|making|earning|grossing|clear|take home|bring in)\s+{ROUGHLY}({AMOUNT}{PERIOD})(?! (?:together|combined|between us))",
                rf"\bmy (?:annual |yearly |base |current |gross |net |total )?(?:salary|income|pay|wage|comp|compensation|tc|take home)(?: is| was|:| of| =)?\s*{ROUGHLY}({AMOUNT}{PERIOD})"),
-    "education": (rf"\bi (?:have|hold|got|earned|finished) (?:a |an |my )?(bachelor'?s|bachelors|master'?s|masters|phd|ph\.d|doctorate|associate'?s|bsc|msc|mba|ba|bs|ma|ms|jd|md)(?: degree)?\b",),
-    "education_subject": (rf"\bi(?:'m| am)? (?:currently )?(?:studying|majoring in|a student of) ([a-z][a-z ]+?)(?=$|[.,!?;)]| at | in | and | but | so | with | because)",
-                          r"\bi (?:study|major in) ([a-z][a-z ]+?)(?=$|[.,!?;)]| at | in | and | but | so | with | because)",
+    "education": (rf"\bi (?:have|hold|got|earned|finished|did|completed|received|just got|just finished|am finishing|'m finishing|’m finishing|am doing|'m doing|’m doing|am pursuing|'m pursuing|’m pursuing|have done|also have|only have|already have) (?:a |an |my |a literal |only a |two |both )?({DEGREES}|college degree|university degree|law degree|medical degree)(?: degree| degrees)?\b",
+                  rf"\bmy ({DEGREES})(?: degree)? (?:is |was )?in\b", rf"\bas someone with an? ({DEGREES}|college degree)\b"),
+    "education_subject": (rf"\bi(?:'m| am|’m)? (?:currently )?(?:study|studied|studying|majored in|major in|majoring in|minored in|a student of|went to (?:college|school|uni|university) for) ([a-z][a-z -]+?){SUBJECT_END}",
+                          rf"\b(?:i (?:have|hold|got|earned|did|finished|completed|received|am doing|'m doing|’m doing|am finishing|'m finishing|’m finishing|am pursuing|'m pursuing|’m pursuing)|my) (?:a |an |my )?(?:{DEGREES}|degree|diploma|major|minor)(?: degree)? in ([a-z][a-z -]+?){SUBJECT_END}",
+                          rf"\b{I} (?:a |an )?(?:\d+[a-z]* year |first year |second year |third year |final year |senior |junior |freshman |sophomore |current |recent |grad |graduate |college |university |uni |phd |masters? |undergrad )*{NOT_DEMONYM}([a-z-]+(?: [a-z-]+)?) (?:student|major|grad|graduate|minor)\b",
+                          rf"(?:\b\d{{2}}\s?[mf]?\b|\b[mf]\s?\d{{2}}\b)[ ,]+(?:[a-z]+ )?{NOT_DEMONYM}([a-z-]+(?: [a-z-]+)?) (?:student|major)\b",
                           r"\bmy (?:degree|major) is (?:in )?([a-z][a-z ]+?)(?=$|[.,!?;)]| and | but | so | from)"),
     "occupation": (rf"\b{I} an? (?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}(?:{JOB_TITLES}|{JOB_HEADS}))s?{END}(?! (?:friend|wife|husband|mom|dad|fan))",
                    rf"\b(?:i|{I}|i've been|i’ve been|i have been|currently|now) (?:currently |now )?(?:work|working) as an? {JOB}",
