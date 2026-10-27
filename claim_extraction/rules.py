@@ -17,7 +17,9 @@ def words(field):
 
 
 RELIGIONS = words("religion")
-NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
+CONDITIONS = "(?:" + "|".join(re.escape(word) for word in sorted(set(LOOKUP["mental_health"]) - {"add", "ed", "borderline"}, key=len, reverse=True)) + "|an eating disorder)"
+SEVERITY = r"(?:(?:severe|chronic|diagnosed|mild|moderate|clinical|major|pretty|really|bad|terrible|crippling|unmedicated|untreated|official|some|a|an|both|combined|inattentive|high functioning|level \d) )*"
+NOT_INSTITUTION =r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
@@ -116,7 +118,9 @@ PHRASES = {
                         rf"\b{I} (?:also |now )?{A}(?:single |new |first[- ]time |proud |working |stay[- ]at[- ]home )?(mom|mother|dad|father|mum|parent)\b(?! (?:of|to) (?:a|an|my|the|two) (?:dog|cat|pet|puppy|kitten|plant|fur))",
                         r"\bas an? (?:single |new |first[- ]time |working |stay[- ]at[- ]home )?(mom|mother|dad|father|mum|parent)\b",
                         rf"\b{I} (?:currently )?(pregnant)\b"),
-    "mental_health": (r"\bi (?:have|was diagnosed with|got diagnosed with|suffer from|struggle with|live with|deal with|have been diagnosed with) (?:severe |chronic |diagnosed |mild |moderate |clinical |major |pretty |really |bad |terrible |crippling |a |an )*(adhd|add|autism|asd|depression|anxiety|ocd|ptsd|cptsd|c-ptsd|bipolar(?: disorder)?|bpd|borderline personality disorder|schizophrenia|anorexia|bulimia|an eating disorder|social anxiety|generalized anxiety disorder|gad|mdd|major depressive disorder)\b",
+    "mental_health": (rf"\bi (?:also |do |still |actually |definitely |both )?(?:have|suffer from|struggle with|live with|deal with|am dealing with|'m dealing with|’m dealing with) {SEVERITY}({CONDITIONS})\b",
+                      rf"\bi(?:'ve|’ve| have| was| got| am|'m|’m)? (?:been )?(?:officially |formally |recently |finally |also )?diagnosed (?:with |as )?(?:having )?{SEVERITY}({CONDITIONS})\b",
+                      rf"\b{I} (?:an? )?(?:[a-z]+ ){{1,3}}with (?:my |unmedicated |severe |diagnosed )?({CONDITIONS})\b",
                       rf"\b{I} (?:also )?(autistic|bipolar|schizophrenic|an alcoholic|an addict)\b",
                       r"\bas (?:someone|a person|an adult|a woman|a man|a guy|a girl) with (adhd|autism|depression|anxiety|ocd|ptsd|bipolar(?: disorder)?|bpd)\b"),
     "political_ideology": (rf"\b{I} {A}(?:proud |lifelong |life-long |staunch |die[- ]hard )?(liberal|conservative|socialist|communist|anarchist|libertarian|progressive|centrist|nationalist|marxist|moderate|democratic socialist)\b(?! (?:party|government|state|country|city|state|area|parents|family|friends|media))",
