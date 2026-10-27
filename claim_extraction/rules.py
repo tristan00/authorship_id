@@ -179,6 +179,7 @@ def resolve(field, raw):
     if field == "income":
         return earnings(raw)
     if field == "birth_year":
+        raw = raw.lstrip("'’")
         return value(field, "19" + raw if re.fullmatch(r"[4-9]\d", raw) else raw)
     if field == "religion":
         return BELIEFS.get(raw) or value(field, raw)
