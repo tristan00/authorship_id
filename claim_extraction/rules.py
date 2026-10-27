@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from .normalize import value
+from .normalize import STATE_NAMES, value
 
 CITIES = json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8"))
 
@@ -19,6 +19,8 @@ WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|k
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
 TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfat]\w*(?:[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
+JOBS = json.loads(Path(__file__).with_name("jobs.json").read_text(encoding="utf-8"))
+JOB_TITLES = "(?:" + "|".join(re.escape(title) for title in sorted(JOBS, key=len, reverse=True)) + ")"
 JOB_HEADS = (r"(?:nurse|rn|teacher|professor|lecturer|tutor|librarian|doctor|physician|surgeon|dentist|pharmacist|paramedic|emt|therapist|psychologist|"
              r"engineer|developer|programmer|dev|architect|scientist|biologist|chemist|physicist|researcher|economist|lawyer|attorney|paralegal|"
              r"electrician|plumber|carpenter|welder|mechanic|technician|firefighter|cop|police officer|officer|soldier|veteran|vet|veterinarian|"
@@ -48,7 +50,9 @@ PHRASES = {
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
                            rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:[a-z]+ ){{0,2}}?(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer|heterosexual|homosexual)\b(?! (?:friend|couple|bar|club|marriage|people|men|women|guys))",
                            r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:white|black|asian|trans|young|old|older) )*(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer) (?:man|woman|guy|girl|person|male|female|dude)\b"),
-    "race_ethnicity": (rf"\b{I} {A}(?:[a-z]+ ){{0,3}}?(white|black|asian|hispanic|latino|latina|mixed|biracial|mixed race|native american|middle eastern|arab|caucasian)(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself))?{END}(?! (?:people|folks|neighborhood|area|community|friends|culture))",
+    "race_ethnicity": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(white|black|asian|latino|latina|hispanic|indian|desi|arab|mixed|biracial|caucasian|chinese|filipina|filipino|korean|japanese|mexican|pakistani)\b(?! (?:women|men|girls|guys|people|couples?|cock|bull|dick))",
+                       r"(?:^|[.!,;] )(white|black|asian|latino|latina|hispanic|desi|arab|caucasian|filipina|filipino|mexican) (?:[a-z]+ )?here\b",
+                       rf"\b{I} {A}(?:[a-z]+ ){{0,3}}?(white|black|asian|hispanic|latino|latina|mixed|biracial|mixed race|native american|middle eastern|arab|caucasian)(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself))?{END}(?! (?:people|folks|neighborhood|area|community|friends|culture))",
                        r"\b(?<!his )(?<!her )(?<!she )(?<!he )(?<!the )(?<!your )(?<!my )(white|black|asian|latino|latina|hispanic) (?:male|female|man|woman|guy|girl|boi|boy|dude|bottom|top|teen|mom|dad|milf|twink|bro)\b(?! (?:who|that|with|and (?:a|an) ))",
                        r"\bas an? (white|black|asian|hispanic|latino|latina|mixed|biracial|mixed race|native american|middle eastern|arab) (?:man|woman|guy|girl|person|male|female|dude|american|mom|dad|mother|father)\b"),
     "nationality": (rf"\b{I} {A}(american|british|canadian|australian|irish|german|french|italian|spanish|dutch|swedish|norwegian|danish|finnish|polish|russian|ukrainian|mexican|brazilian|indian|pakistani|chinese|japanese|korean|filipino|filipina|turkish|greek|portuguese|scottish|welsh|english|kiwi|aussie|brit|swiss|austrian|belgian|romanian|hungarian|czech|israeli|egyptian|nigerian|south african|argentinian|colombian|vietnamese|iranian|new zealander)(?: citizen)?{END}(?! (?:food|people|culture|company|government|accent|guy|girl|man|woman|friend))",
@@ -63,7 +67,8 @@ PHRASES = {
     "religion": (rf"\b{I} {A}(christian|catholic|muslim|jewish|jew|hindu|buddhist|sikh|atheist|agnostic|mormon|protestant|pagan|baptist|evangelical|orthodox christian|not religious|non-religious)\b(?! (?:school|church|family|friend|parents|household))",
                  r"\bas an? (christian|catholic|muslim|jew|hindu|buddhist|sikh|atheist|agnostic|mormon|protestant|pagan|baptist|evangelical)\b(?! (?:school|church|family|friend|parents|household))"),
     "residence_country": (rf"\b(?:{I}|me|i live|i'm living|im living|living|based|located|i stay|staying|currently|here|i reside)\s+(?:\w+\s+)?(?:in|near|around|outside(?: of)?|out of)\s+(?:the\s+)?{PLACE}",
-                          rf"#\s?{PLACE}", rf"\[?[mf]4[mfa]\w*\]?\W{{0,4}}{PLACE}"),
+                          rf"#\s?{PLACE}", rf"\[?[mf]4[mfa]\w*\]?\W{{0,4}}{PLACE}",
+                          rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|[mf]4[mfa]\w*\]?|\b\d{{2}})\s+(?:\w+\s+)?(?:in|from)\s+(?:the\s+)?{PLACE}"),
     "origin_country": (rf"\b{I} (?:originally )?from (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which | originally)",
                        r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )"),
     "height": (rf"\b{I} (?:only |about |around |like )?(\d\s*(?:'|’|ft|foot|feet)\s*\d{{0,2}}(?:\"|”|in)?|\d\s*(?:'|’)\s*\d{{1,2}}|1[4-9]\d\s*cm|2[0-2]\d\s*cm|1[.,]\d\d\s*m)(?=$|[\s.,!?;)])(?! (?:away|from|deep|wide|long|tall [a-z]+ (?:fence|wall|tree)))",
@@ -77,12 +82,20 @@ PHRASES = {
     "education_subject": (rf"\bi(?:'m| am)? (?:currently )?(?:studying|majoring in|a student of) ([a-z][a-z ]+?)(?=$|[.,!?;)]| at | in | and | but | so | with | because)",
                           r"\bi (?:study|major in) ([a-z][a-z ]+?)(?=$|[.,!?;)]| at | in | and | but | so | with | because)",
                           r"\bmy (?:degree|major) is (?:in )?([a-z][a-z ]+?)(?=$|[.,!?;)]| and | but | so | from)"),
-    "occupation": (rf"\b{I} an? (?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}{JOB_HEADS})s?{END}(?! (?:friend|wife|husband|mom|dad|fan))",
-                   rf"\bi work as an? (?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}{JOB_HEADS}){END}"),
+    "occupation": (rf"\b{I} an? (?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}(?:{JOB_TITLES}|{JOB_HEADS}))s?{END}(?! (?:friend|wife|husband|mom|dad|fan))",
+                   rf"\bi (?:currently |now )?work as an? (?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}(?:{JOB_TITLES}|{JOB_HEADS})){END}",
+                   rf"\bmy (?:job|work|career) as an? (?:{JOB_MODIFIERS} )*({JOB_TITLES}){END}",
+                   rf"(?:^|[.!,;] )(?:{JOB_MODIFIERS} )*({JOB_TITLES}) here\b"),
     "employment_status": (rf"\b{I} (?:currently |now |happily |fully )?(retired|unemployed|self[- ]employed|a student|a full[- ]time student|a college student|a university student|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|a homemaker|a housewife|on disability|disabled|a freelancer|freelance|jobless|between jobs|laid off|out of work)\b",),
-    "marital_status": (r"\bmy (husband|wife|hubby|spouse)\b(?! (?:and i (?:are|were) divorced|left|died|passed))", rf"\b{I} (?:happily |newly )?(married|divorced|widowed|a widow|a widower|separated)\b(?! (?:to|for) (?:my|a)? ?(?:job|work|career))"),
+    "marital_status": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(married)\b",
+                       r"\b(?:i've|i have|we've|we have) been (married) (?:for )?", r"\b(married) (?:man|woman|guy|male|female|dad|mom|couple) here\b",
+                       r"\b(?:we are|we're) an? (?:\w+ )?(married) couple\b",
+                       r"\bmy (husband|wife|hubby|spouse)\b(?! (?:and i (?:are|were) divorced|left|died|passed))", rf"\b{I} (?:happily |newly )?(married|divorced|widowed|a widow|a widower|separated)\b(?! (?:to|for) (?:my|a)? ?(?:job|work|career))"),
     "relationship_status": (rf"\b{I} (?:happily |newly |currently |still )?(engaged|single|in a relationship)\b(?! (?:to|for) (?:my|a)? ?(?:job|work|career)|(?: and)? (?:ready|looking) to mingle)",),
-    "parental_status": (r"\b(?:single |new |first[- ]time |proud )?(mom|mum|mother|dad|father) (?:of|to) (?:a |an |one\b|two|three|four|five|\d|my |twins)",
+    "parental_status": (r"\bi have (?:a |an |one |two |three |four |five |\d+ |young |grown |adult |little )*(kids|children|sons?|daughters?|toddlers?)\b",
+                        r"\bi (gave birth)\b", r"\bas an? (?:\w+ )?(parent|mom|mum|dad|mother|father) (?:of|to)\b",
+                        r"(?:^|[.!,;] )(mom|dad|parent|mum|mother|father) here\b",
+                        r"\b(?:single |new |first[- ]time |proud )?(mom|mum|mother|dad|father) (?:of|to) (?:a |an |one\b|two|three|four|five|\d|my |twins)",
                         r"(?<!your )(?<!her )(?<!his )(?<!my )\bsingle (mom|mum|dad|mother|father)\b",
                         rf"\b{I} (?:also |now )?{A}(?:single |new |first[- ]time |proud |working |stay[- ]at[- ]home )?(mom|mother|dad|father|mum|parent)\b(?! (?:of|to) (?:a|an|my|the|two) (?:dog|cat|pet|puppy|kitten|plant|fur))",
                         r"\bas an? (?:single |new |first[- ]time |working |stay[- ]at[- ]home )?(mom|mother|dad|father|mum|parent)\b",
@@ -95,6 +108,9 @@ PHRASES = {
     "political_compass": (rf"\b{I} {A}(auth ?left|auth ?right|lib ?left|lib ?right|authleft|authright|libleft|libright)\b",),
 }
 COMPILED = {field: [re.compile(pattern) for pattern in patterns] for field, patterns in PHRASES.items()}
+COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
+FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "central", "northern", "southern", "eastern", "western", "upstate",
+          "downtown", "greater", "rural", "northeast", "northwest", "southeast", "southwest", "far", "midwest"}
 PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "residence_city"),
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
 SKIP = re.compile(r"^\s*>.*$|\"[^\"\n]{0,300}\"|“[^”\n]{0,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
@@ -120,6 +136,8 @@ def search(field, text):
 
 
 def resolve(field, raw):
+    if field == "occupation":
+        return JOBS.get(raw) or value(field, raw)
     if field == "mental_health":
         return value(field, DIAGNOSES.get(raw, raw))
     if field == "marital_status":
@@ -143,7 +161,7 @@ def peel(field, words):
 
 
 def places(kind, raw):
-    words = raw.replace(",", " ").split()
+    words = [COMPACT.get(word, word) for word in raw.replace(",", " ").split() if word not in FILLER]
     for end in range(len(words), 0, -1):
         if found := place(kind, " ".join(words[:end])):
             return found
