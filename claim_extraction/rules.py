@@ -121,7 +121,7 @@ PHRASES = {
                        rf"(?:, |\b(?:guy|girl|man|woman|male|female|year old|years old|yo|y/o|graduate|dude|student|lady|boy|couple|[mf]|\d{{2}}[mf]|i'm|i’m|im|i am|originally)\s+)from (?:the )?({COUNTRY_NAMES})\b"),
     "height": (rf"\b{I} (?:an? |only |about |around |like |also )?(\d\s*(?:'|’|ft|foot|feet)\s*\d{{0,2}}(?:\"|”|in)?|\d\s*(?:'|’)\s*\d{{1,2}}|1[4-9]\d\s*cm|2[0-2]\d\s*cm|1[.,]\d\d\s*m)(?=$|[\s.,!?;)])(?! (?:away|from|deep|wide|long|tall [a-z]+ (?:fence|wall|tree)))",
                r"\bmy height is (\d\s*(?:'|’|ft|foot|feet)\s*\d{0,2}(?:\"|”)?|1[4-9]\d\s*cm|2[0-2]\d\s*cm)\b"),
-    "weight": (r"\bi (?:currently )?weigh (?:about |around |like )?(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos|st|stone)?)\b",
+    "weight": (r"\b(?:i |and |i currently |currently |my )?(?:weigh|weight|weighing|current weight)\s*(?:is|of|:|=|-|in at)?\s*(?:about |around |like |roughly |~)?(\d{2,3}(?:\.\d)?(?:\s?(?:lbs?|pounds|kgs?|kilos|kilograms|st|stone))?)\b(?!\s*(?:%|lbs? (?:of|more|less)|ago))",
                rf"\b{I} (?:currently |now )?(?:at )?(\d{{2,3}}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos))\b(?! (?:of|down|lost|heavier|lighter|more|less|weight))",
                r"\bmy (?:current )?weight is (\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kg|kgs|kilos)?)\b"),
     "income": (rf"\bi(?:'m| am|’m)? (?:make|earn|gross|making|earning|grossing|clear|take home|bring in)\s+{ROUGHLY}({AMOUNT}{PERIOD})(?! (?:together|combined|between us))",
@@ -217,6 +217,10 @@ def resolve(field, raw):
         return CHILDREN.get(raw, "parent")
     if field == "employment_status":
         return EMPLOYMENT.get(raw.replace("self-employed", "self employed"), None) or value(field, raw)
+    if field == "weight":
+        raw = raw.replace("kilograms", "kg")
+    if field == "weight" and re.fullmatch(r"\d{2,3}(?:\.\d)?", raw):
+        return value(field, raw + (" lbs" if float(raw) >= 100 else " kg"))
     if field == "income":
         return earnings(raw)
     if field == "birth_year":
