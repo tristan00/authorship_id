@@ -70,7 +70,7 @@ PHRASES = {
                    rf"\b{I} (?:a |an )?((?:19|20)\d\d)\b(?! (?:model|edition|version|car|truck))", r"(?:^|[.!,;(] *)((?:19|20)\d\d) (?:baby|babies|kid|here)\b"),
     "generation": (rf"\b{I} {A}(millennial|boomer|baby boomer|gen ?z|gen ?x|zoomer|gen alpha)\b", r"\bas an? (millennial|boomer|gen ?z(?:er)?|gen ?x(?:er)?|zoomer)\b",
                    r"\bfellow (millennial|boomer|gen ?z|gen ?x|zoomer)s?\b",
-                  rf"(?:^|[.!,;(] *)(?:[a-z]+ )?({GENERATIONS}) here\b", rf"\b{I} (?:a |an |also a |also an |also |an old |a young |a fellow |an elder |an older |a younger |a late |an early |a geriatric )?({GENERATIONS})\b(?! (?:parents|kids|children|friends|generation))", rf"\(\s*({GENERATIONS}) (?:male|female|man|woman|guy|girl|here|myself|mom|dad)\b", rf"\bwe ({GENERATIONS})\b"),
+                   rf"(?:^|[.!,;(] *)(?:[a-z]+ )?({GENERATIONS}) here\b", rf"\b{I} (?:a |an |also a |also an |also |an old |a young |a fellow |an elder |an older |a younger |a late |an early |a geriatric )?({GENERATIONS})\b(?! (?:parents|kids|children|friends|generation))", rf"\(\s*({GENERATIONS}) (?:male|female|man|woman|guy|girl|here|myself|mom|dad)\b", rf"\bwe ({GENERATIONS})\b"),
     "gender": (rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))",
                r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|mom|mother|dad|father|wife|husband)\b",
                rf"\b{I} {A}(non-?binary|nonbinary|enby|trans (?:man|woman|guy|girl))\b",
@@ -92,7 +92,7 @@ PHRASES = {
                     r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\b(?:male|female|guy|girl|man|woman))\s+from (?:the )?(usa|us|uk|england|scotland|canada|australia|india|poland|italy|germany|france|spain|ireland|mexico|brazil|philippines|pakistan|turkey|netherlands|sweden|norway|denmark|portugal|greece|romania|egypt|nigeria|south africa|new zealand)\b"),
     "language": (r"\bmy (?:native|first|mother) (?:language|tongue) is ([a-z]+)\b", r"\b([a-z]+) is my (?:native|first|mother) (?:language|tongue)\b",
                  rf"\b{I} {A}native ([a-z]+) speaker\b",
-                rf"\bi (?:only |also |can |do |mainly |mostly |natively |fluently |still )?(?:speak|talk in|grew up speaking) (?:fluent |native |only |some |basic |a little |good )?({LANGUAGE_NAMES})\b"),
+                 rf"\bi (?:only |also |can |do |mainly |mostly |natively |fluently |still )?(?:speak|talk in|grew up speaking) (?:fluent |native |only |some |basic |a little |good )?({LANGUAGE_NAMES})\b"),
     "religion": (rf"\b{I} (?!not\b|now\b)(?:also |a |an )?(?:[a-z]+ ){{0,2}}?(jew|{RELIGIONS}|not religious)\b{NOT_INSTITUTION}",
                  rf"\bas an? (jew|{RELIGIONS})\b{NOT_INSTITUTION}", rf"(?:^|[.!,;] )(?:[a-z]+ )?({RELIGIONS}) here\b",
                  rf"{STRICT_TAG}({RELIGIONS})\b(?! (?:women|men|girls|guys|people|wife|husband))",
@@ -142,7 +142,7 @@ PHRASES = {
                       r"\bas (?:someone|a person|an adult|a woman|a man|a guy|a girl) with (adhd|autism|depression|anxiety|ocd|ptsd|bipolar(?: disorder)?|bpd)\b"),
     "political_ideology": (rf"\b{I} {A}(?:proud |lifelong |life-long |staunch |die[- ]hard )?(liberal|conservative|socialist|communist|anarchist|libertarian|progressive|centrist|nationalist|marxist|moderate|democratic socialist)\b(?! (?:party|government|state|country|city|state|area|parents|family|friends|media))",
                            r"\bas an? (?:proud |lifelong |staunch )?(liberal|conservative|socialist|communist|anarchist|libertarian|progressive|centrist|marxist|democratic socialist)\b(?! (?:party|government|state|country|city|media))",
-                          rf"\b{I} (?!not\b)(?:a |an |also a |also |pretty |very |extremely |fairly |generally |openly |still |basically |raging |self[- ]described |proud |lifelong |staunch )*({IDEOLOGIES})\b(?! (?:party|government|state|country|city|area|parents|family|friends|media|news|policies|politicians|people|men|women))", rf"(?:^|[.!,;] )(?:[a-z]+ )?({IDEOLOGIES}) here\b", rf"\bmy (?:politics|views|political views|political leanings) (?:are|is) (?:pretty |very |mostly |generally )?({IDEOLOGIES})\b", rf"\b(?:am|{I}) (?:an? )?({IDEOLOGIES}) myself\b"),
+                           rf"\b{I} (?!not\b)(?:a |an |also a |also |pretty |very |extremely |fairly |generally |openly |still |basically |raging |self[- ]described |proud |lifelong |staunch )*({IDEOLOGIES})\b(?! (?:party|government|state|country|city|area|parents|family|friends|media|news|policies|politicians|people|men|women))", rf"(?:^|[.!,;] )(?:[a-z]+ )?({IDEOLOGIES}) here\b", rf"\bmy (?:politics|views|political views|political leanings) (?:are|is) (?:pretty |very |mostly |generally )?({IDEOLOGIES})\b", rf"\b(?:am|{I}) (?:an? )?({IDEOLOGIES}) myself\b"),
     "political_compass": (rf"\b{I} {A}(auth ?left|auth ?right|lib ?left|lib ?right|authleft|authright|libleft|libright)\b",),
 }
 COMPILED = {field: [re.compile(pattern) for pattern in patterns] for field, patterns in PHRASES.items()}
