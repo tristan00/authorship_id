@@ -1,0 +1,7 @@
+.idea/
+__pycache__/
+*.pyc
+data/
+.venv/
+.ipynb_checkpoints/
+*.pdf
