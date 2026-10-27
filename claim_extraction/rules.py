@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .normalize import STATE_NAMES, value
 
-CITIES = json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8"))
+CITIES = set(json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8")))
 
 I = r"(?:i'm|i’m|im|i am)"
 A = r"(?:an? )?"
@@ -12,11 +12,15 @@ END = r"(?=$|[\s.,!?;:)\]]|'s)"
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
-AGE_START = re.compile(r"^\W{0,3}(\d{2})(?![\d.,:/%x'’-]|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+))")
+AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:/%x'’-]|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D))")
 AGE_BRACKET = re.compile(r"[\[\(]\s*(\d{2})\s*[\]\)]")
 HEIGHT_ANY = re.compile(r"(?<![\w.$/-])([4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)?(?:\.\d)?\s*(?:\"|”|''|’’|in\b|inches)?)(?![\w'’])")
 WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|kilos))\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain))")
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
+ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|latino|hispanic|indian|fit|tall|short|chubby|fat|hot|horny|lonely|bored|average|older|young)"
+AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
+GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\b(male|female|guy|girl|man|woman|dude|lady),?\s*(\d{2})\b(?!\s*(?:%|years? ago|[a-z]))")
+GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
 TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfat]\w*(?:[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
 JOBS = json.loads(Path(__file__).with_name("jobs.json").read_text(encoding="utf-8"))
@@ -33,18 +37,21 @@ JOB_MODIFIERS = (r"(?:registered|licensed|certified|senior|junior|full[- ]time|p
                  r"special ed|professional|freelance|self[- ]employed|practicing|working|qualified|trained|practising|new|young|lead|head|staff|"
                  r"\d{2}[- ]?(?:years?|yr)[- ]old|\d{2}(?: ?[mf])?|male|female|woman|man|black|white|gay|straight|trans)")
 
+JOB = rf"(?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}(?:{JOB_TITLES}|{JOB_HEADS})){END}"
 PLACE = r"([a-z][a-z.'-]*(?:,? [a-z][a-z.'-]*){0,3})"
 
 PHRASES = {
     "age": (rf"\b{I} (?:only |almost |nearly |just |now |about |turning |currently )?(\d{{2}})(?:\s?(?:years? old|yo|y/o|yrs? old|yrs))?{END}(?! (?:years? ago|minutes|hours|days|weeks|months|times|percent|%|lbs?|kg|pounds))",
-            rf"\b{I} {A}(\d{{2}})[- ]?(?:years?|yr)[- ]old\b", r"\bas an? (\d{2})[- ]?(?:years?|yr)[- ]old\b", r"\bi(?: just)? turned (\d{2})\b(?! (?:years|minutes|percent|%))",
+            rf"\b{I} {A}(\d{{2}})[- ]?(?:years?|yr)[- ]old\b", r"\bas an? (\d{2})[- ]?(?:years?|yr)[- ]old\b", r"(?:\bi(?:'ve| have)? |^|[.!?,] )(?:just |recently )?turned (\d{2})\b(?! (?:years|minutes|weeks|percent|%))",
+            r"\ban? (\d{2}) ?(?:yo|y/o)\b", r"\b(?:tengo|tenho|j'ai|j’ai) (\d{2}) (?:años|anos|ans)\b", r"(?:\bich |^)bin (\d{2})\b",
             r"\bmy age is (\d{2})\b", r"\bi'?m (\d{2}) now\b"),
     "birth_year": (r"\bi was born in (\d{4})\b",),
     "generation": (rf"\b{I} {A}(millennial|boomer|baby boomer|gen ?z|gen ?x|zoomer|gen alpha)\b", r"\bas an? (millennial|boomer|gen ?z(?:er)?|gen ?x(?:er)?|zoomer)\b",
                    r"\bfellow (millennial|boomer|gen ?z|gen ?x|zoomer)s?\b"),
     "gender": (rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))",
                r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|mom|mother|dad|father|wife|husband)\b",
-               rf"\b{I} {A}(non-?binary|nonbinary|enby|trans (?:man|woman|guy|girl))\b"),
+               rf"\b{I} {A}(non-?binary|nonbinary|enby|trans (?:man|woman|guy|girl))\b",
+               r"(?<!\ba )(?<!\bthe )(?<!\bother )(?<!\bthat )(?<!\bthis )\b(male|female|guy|girl|man|woman|dude|lady)\s+here\b"),
     "sexual_orientation": (r"(?:^|\W)[\-|/]\s*(straight|gay|bi|bisexual)\s*[\-|/]",
                            r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?! (?:couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
@@ -53,12 +60,9 @@ PHRASES = {
     "race_ethnicity": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(white|black|asian|latino|latina|hispanic|indian|desi|arab|mixed|biracial|caucasian|chinese|filipina|filipino|korean|japanese|mexican|pakistani)\b(?! (?:women|men|girls|guys|people|couples?|cock|bull|dick))",
                        r"(?:^|[.!,;] )(white|black|asian|latino|latina|hispanic|desi|arab|caucasian|filipina|filipino|mexican) (?:[a-z]+ )?here\b",
                        rf"\b{I} {A}(?:[a-z]+ ){{0,3}}?(white|black|asian|hispanic|latino|latina|mixed|biracial|mixed race|native american|middle eastern|arab|caucasian)(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself))?{END}(?! (?:people|folks|neighborhood|area|community|friends|culture))",
-                       r"\b(?<!his )(?<!her )(?<!she )(?<!he )(?<!the )(?<!your )(?<!my )(white|black|asian|latino|latina|hispanic) (?:male|female|man|woman|guy|girl|boi|boy|dude|bottom|top|teen|mom|dad|milf|twink|bro)\b(?! (?:who|that|with|and (?:a|an) ))",
                        r"\bas an? (white|black|asian|hispanic|latino|latina|mixed|biracial|mixed race|native american|middle eastern|arab) (?:man|woman|guy|girl|person|male|female|dude|american|mom|dad|mother|father)\b"),
     "nationality": (rf"\b{I} {A}(american|british|canadian|australian|irish|german|french|italian|spanish|dutch|swedish|norwegian|danish|finnish|polish|russian|ukrainian|mexican|brazilian|indian|pakistani|chinese|japanese|korean|filipino|filipina|turkish|greek|portuguese|scottish|welsh|english|kiwi|aussie|brit|swiss|austrian|belgian|romanian|hungarian|czech|israeli|egyptian|nigerian|south african|argentinian|colombian|vietnamese|iranian|new zealander)(?: citizen)?{END}(?! (?:food|people|culture|company|government|accent|guy|girl|man|woman|friend))",
                     r"\bas an? (american|british|canadian|australian|irish|german|french|italian|spanish|dutch|swede|norwegian|dane|finn|polish|russian|ukrainian|mexican|brazilian|indian|pakistani|filipino|filipina|brit|aussie|kiwi|israeli|scot|new zealander)(?: citizen| person| myself)?\b(?! (?:company|government|food))",
-                    r"\bi(?:'m| am) an? ([a-z]+(?: [a-z]+)?) citizen\b",
-                    r"\b(?:fellow|another|proud) (american|brit|british|canadian|aussie|australian|kiwi|irish|german|dutch|swede|indian|filipino|filipina|mexican|scot)\b",
                     r"(?:^|[.!,;] )(american|brit|british|canadian|aussie|australian|kiwi|irish|german|dutch|swede|indian|filipino|filipina|mexican) here\b",
                     r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(american|brit|british|canadian|aussie|australian|kiwi|irish|german|dutch|swede|indian|filipino|filipina|mexican|italian|french|polish|brazilian|turkish)\b(?! (?:women|men|girls|guys|food|people))",
                     r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\b(?:male|female|guy|girl|man|woman))\s+from (?:the )?(usa|us|uk|england|scotland|canada|australia|india|poland|italy|germany|france|spain|ireland|mexico|brazil|philippines|pakistan|turkey|netherlands|sweden|norway|denmark|portugal|greece|romania|egypt|nigeria|south africa|new zealand)\b"),
@@ -83,10 +87,10 @@ PHRASES = {
                           r"\bi (?:study|major in) ([a-z][a-z ]+?)(?=$|[.,!?;)]| at | in | and | but | so | with | because)",
                           r"\bmy (?:degree|major) is (?:in )?([a-z][a-z ]+?)(?=$|[.,!?;)]| and | but | so | from)"),
     "occupation": (rf"\b{I} an? (?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}(?:{JOB_TITLES}|{JOB_HEADS}))s?{END}(?! (?:friend|wife|husband|mom|dad|fan))",
-                   rf"\bi (?:currently |now )?work as an? (?:{JOB_MODIFIERS} )*((?:[a-z]+ ){{0,2}}(?:{JOB_TITLES}|{JOB_HEADS})){END}",
-                   rf"\bmy (?:job|work|career) as an? (?:{JOB_MODIFIERS} )*({JOB_TITLES}){END}",
+                   rf"\b(?:i|{I}|i've been|i’ve been|i have been|currently|now) (?:currently |now )?(?:work|working) as an? {JOB}",
+                   rf"\bi(?:'ve|’ve| have) been an? {JOB}", rf"(?:^|[.!?] )as an? {JOB}(?:,| who| myself| i\b)",
                    rf"(?:^|[.!,;] )(?:{JOB_MODIFIERS} )*({JOB_TITLES}) here\b"),
-    "employment_status": (rf"\b{I} (?:currently |now |happily |fully )?(retired|unemployed|self[- ]employed|a student|a full[- ]time student|a college student|a university student|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|a homemaker|a housewife|on disability|disabled|a freelancer|freelance|jobless|between jobs|laid off|out of work)\b",),
+    "employment_status": (rf"\b(?:{I}|i've been|i’ve been|i have been) (?:currently |now |happily |fully )?(retired|unemployed|self[- ]employed|a student|a full[- ]time student|a college student|a university student|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|a homemaker|a housewife|on disability|disabled|a freelancer|freelance|jobless|between jobs|laid off|out of work)\b",),
     "marital_status": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(married)\b",
                        r"\b(?:i've|i have|we've|we have) been (married) (?:for )?", r"\b(married) (?:man|woman|guy|male|female|dad|mom|couple) here\b",
                        r"\b(?:we are|we're) an? (?:\w+ )?(married) couple\b",
@@ -94,7 +98,7 @@ PHRASES = {
     "relationship_status": (rf"\b{I} (?:happily |newly |currently |still )?(engaged|single|in a relationship)\b(?! (?:to|for) (?:my|a)? ?(?:job|work|career)|(?: and)? (?:ready|looking) to mingle)",),
     "parental_status": (r"\bi have (?:a |an |one |two |three |four |five |\d+ |young |grown |adult |little )*(kids|children|sons?|daughters?|toddlers?)\b",
                         r"\bi (gave birth)\b", r"\bas an? (?:\w+ )?(parent|mom|mum|dad|mother|father) (?:of|to)\b",
-                        r"(?:^|[.!,;] )(mom|dad|parent|mum|mother|father) here\b",
+                        r"(?:^|[.!,;] )(?:(?!would|ftm|first)[a-z]+ ){0,3}(mom|dad|parent|mum|mother|father) here\b",
                         r"\b(?:single |new |first[- ]time |proud )?(mom|mum|mother|dad|father) (?:of|to) (?:a |an |one\b|two|three|four|five|\d|my |twins)",
                         r"(?<!your )(?<!her )(?<!his )(?<!my )\bsingle (mom|mum|dad|mother|father)\b",
                         rf"\b{I} (?:also |now )?{A}(?:single |new |first[- ]time |proud |working |stay[- ]at[- ]home )?(mom|mother|dad|father|mum|parent)\b(?! (?:of|to) (?:a|an|my|the|two) (?:dog|cat|pet|puppy|kitten|plant|fur))",
@@ -192,6 +196,14 @@ def tags(text, found):
             found.setdefault("age", age)
             found.setdefault("gender", value("gender", sex))
             break
+    if match := AGE_GENDER.search(text):
+        found.setdefault("age", value("age", match.group(1)))
+        found.setdefault("gender", value("gender", match.group(2)))
+    if match := GENDER_AGE.search(text):
+        found.setdefault("gender", value("gender", match.group(1)))
+        found.setdefault("age", value("age", match.group(2)))
+    if match := GENDER_BRACKET.search(text):
+        found.setdefault("gender", value("gender", match.group(1)))
     if match := TAG_FOR.search(text):
         found.setdefault("gender", value("gender", match.group(2)))
         if match.group(1) or match.group(3):
