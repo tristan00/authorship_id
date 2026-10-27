@@ -91,9 +91,9 @@ PHRASES = {
                r"\b(?:soy|sou|je suis|ich bin|sono) (?:un |una |uma |um |une |ein |eine )?(hombre|mujer|chica|chico|homem|mulher|homme|femme|mann|frau|ragazzo|ragazza|garota|garoto|menina|menino)\b",
                rf"\b{I} (?:a |an |also a |also an )(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:autistic|bisexual|curious|bi-curious|bicurious|lesbian|queer|divorced|christian|muslim|catholic|jewish|mexican|indian|latina|latino|black|white|asian|cis|disabled|neurodivergent|married|single|gay|straight|trans|young|old|older|tall|short|fat|chubby|petite|curvy|skinny|fit|grown|normal|regular|average) ){1,3}(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))"),
     "sexual_orientation": (r"(?:^|\W)[\-|/]\s*(straight|gay|bi|bisexual)\s*[\-|/]",
-                           r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?! (?:couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
+                           r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:(?!not\b|seconds|minutes|hours|days)[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?! (?:up\b|away\b|out\b|to\b|couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
-                           rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:[a-z]+ ){{0,2}}?(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer|heterosexual|homosexual)\b(?! (?:friend|couple|bar|club|marriage|people|men|women|guys))",
+                           rf"\b{I} (?!not\b|never\b|no\b)(?:an? )?(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?!not\b)[a-z]+ ){{0,2}}?(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer|heterosexual|homosexual)\b(?! (?:friend|couple|bar|club|marriage|people|men|women|guys))",
                            r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:white|black|asian|trans|young|old|older) )*(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer) (?:man|woman|guy|girl|person|male|female|dude)\b",
                            rf"\bas an? (?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?({ORIENTATIONS})\b(?! (?:couple|bar|club|man's|woman's|ally|friend|show|character|porn|film|movie|icon|rights))",
                            r"\b(?:soy|sou|je suis|ich bin|bin|sono) (?:\w+ )?(gay|bi|bisexual|hetero|heterosexual|homosexual|lesbiana|lésbica|bissexual|bisexuel|bisexuelle|lesbienne)\b",
@@ -194,7 +194,7 @@ PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "r
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
 SKIP = re.compile(r"^\s*>.*$|\"[^\"\n]{0,300}\"|“[^”\n]{0,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
 WORD_CODES = {"on", "in", "me", "hi", "ma", "or", "ok", "oh", "de", "la", "co", "id", "al", "ne", "mo", "ms", "ar", "ab", "ns", "nb", "sk", "mb"}
-HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was)\W+(?:\w+\W+){0,3}$")
+HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
 DIAGNOSES = {"add": "adhd", "asd": "autism", "an eating disorder": "eating disorder", "an alcoholic": "addiction", "an addict": "addiction", "cptsd": "ptsd",
              "c-ptsd": "ptsd", "autistic": "autism", "schizophrenic": "schizophrenia", "bipolar": "bipolar disorder"}
 MARRIED = {"husband": "married", "wife": "married", "hubby": "married", "spouse": "married", "a widow": "widowed", "a widower": "widowed"}
