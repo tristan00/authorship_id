@@ -2,13 +2,22 @@ import json
 import re
 from pathlib import Path
 
-from .normalize import STATE_NAMES, value
+from .normalize import LOOKUP, STATE_NAMES, value
 
 CITIES = set(json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8")))
 
 I = r"(?:i'm|i’m|im|i am)"
 A = r"(?:an? )?"
 END = r"(?=$|[\s.,!?;:)\]]|'s)"
+STRICT_TAG = r"(?:\b\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?"
+
+
+def words(field):
+    return "(?:" + "|".join(re.escape(word) for word in sorted(LOOKUP[field], key=len, reverse=True) if len(word) > 3) + ")"
+
+
+RELIGIONS = words("religion")
+NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|university|college|majority|country|state))"
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
@@ -69,8 +78,10 @@ PHRASES = {
                     r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\b(?:male|female|guy|girl|man|woman))\s+from (?:the )?(usa|us|uk|england|scotland|canada|australia|india|poland|italy|germany|france|spain|ireland|mexico|brazil|philippines|pakistan|turkey|netherlands|sweden|norway|denmark|portugal|greece|romania|egypt|nigeria|south africa|new zealand)\b"),
     "language": (r"\bmy (?:native|first|mother) (?:language|tongue) is ([a-z]+)\b", r"\b([a-z]+) is my (?:native|first|mother) (?:language|tongue)\b",
                  rf"\b{I} {A}native ([a-z]+) speaker\b"),
-    "religion": (rf"\b{I} {A}(christian|catholic|muslim|jewish|jew|hindu|buddhist|sikh|atheist|agnostic|mormon|protestant|pagan|baptist|evangelical|orthodox christian|not religious|non-religious)\b(?! (?:school|church|family|friend|parents|household))",
-                 r"\bas an? (christian|catholic|muslim|jew|hindu|buddhist|sikh|atheist|agnostic|mormon|protestant|pagan|baptist|evangelical)\b(?! (?:school|church|family|friend|parents|household))"),
+    "religion": (rf"\b{I} (?!not\b|now\b)(?:also |a |an )?(?:[a-z]+ ){{0,2}}?(jew|{RELIGIONS}|not religious)\b{NOT_INSTITUTION}",
+                 rf"\bas an? (jew|{RELIGIONS})\b{NOT_INSTITUTION}", rf"(?:^|[.!,;] )(?:[a-z]+ )?({RELIGIONS}) here\b",
+                 rf"{STRICT_TAG}({RELIGIONS})\b(?! (?:women|men|girls|guys|people|wife|husband))",
+                 r"\b(?:ich bin|bin) (?:auch |selber )?(atheist|christ|christin|muslim|muslimin)\b"),
     "residence_country": (rf"\b(?:{I}|i live|we live|living|based|located|i stay|currently|i reside)\s+(?:(?:currently|still|now|actually|also|just|living|based|located|residing)\s+)?(?:in|near|around|outside(?: of)?)\s+(?:the\s+)?{PLACE}",
                           rf"#\s?{PLACE}", rf"\[?[mf]4[mfa]\w*\]?\W{{0,4}}{PLACE}",
                           rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|[mf]4[mfa]\w*\]?|\b\d{{2}})\s+(?:\w+\s+)?(?:in|from)\s+(?:the\s+)?{PLACE}"),
@@ -130,6 +141,7 @@ EMPLOYMENT = {"a full-time student": "student", "a full time student": "student"
               "self employed": "self-employed", "jobless": "unemployed", "between jobs": "unemployed", "laid off": "unemployed",
               "out of work": "unemployed", "disabled": "unable to work", "on disability": "unable to work", "a homemaker": "homemaker",
               "a housewife": "homemaker"}
+BELIEFS = {"christ": "christian", "christin": "christian", "muslimin": "muslim", "not religious": "no religion"}
 GENDERED = {"mom": "female", "mother": "female", "mum": "female", "wife": "female", "dad": "male", "father": "male", "husband": "male"}
 
 
@@ -151,6 +163,8 @@ def resolve(field, raw):
         return CHILDREN.get(raw, "parent")
     if field == "employment_status":
         return EMPLOYMENT.get(raw.replace("self-employed", "self employed"), None) or value(field, raw)
+    if field == "religion":
+        return BELIEFS.get(raw) or value(field, raw)
     if field == "gender":
         return GENDERED.get(raw) or value(field, raw)
     if field == "generation":
