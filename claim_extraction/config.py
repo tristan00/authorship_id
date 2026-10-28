@@ -15,6 +15,7 @@ SPLITS = (("train", 90), ("validation", 95), ("test", 100))
 WEIGHTS = Path(r"D:\reddit_data\models\claim_extraction.json")
 FIT_FOLDS = 3
 FIT_C = (0.3, 1.0, 3.0)
+FIT_TOL = 1e-6
 FIT_THRESHOLDS = tuple(step / 40 for step in range(2, 39))
 FIT_MIN_COUNT = 3
 WORKERS = 22

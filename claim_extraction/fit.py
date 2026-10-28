@@ -12,7 +12,7 @@ from scipy.sparse import csr_matrix, hstack
 from sklearn.linear_model import LogisticRegression
 
 from . import LOG, timed
-from .config import FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_THRESHOLDS, WEIGHTS, WORKERS
+from .config import FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_THRESHOLDS, FIT_TOL, WEIGHTS, WORKERS
 from .labels import examples
 from .rules import cross, features
 
@@ -69,7 +69,7 @@ def collect(month, datasets):
 def train(matrix, targets, texts, c, fold):
     start = time.time()
     held = texts % FIT_FOLDS == fold
-    model = LogisticRegression(C=c, max_iter=5000).fit(matrix[~held], targets[~held])
+    model = LogisticRegression(C=c, max_iter=5000, tol=FIT_TOL).fit(matrix[~held], targets[~held])
     return (model.predict_proba(matrix[held])[:, 1] if held.any() else model), time.time() - start
 
 
