@@ -463,8 +463,9 @@ SCAN_GATES = {pattern: (requirements(sre_parse.parse(pattern.pattern, pattern.fl
                         quick(pattern.pattern, pattern.flags)) for pattern in SCANS}
 SPOTTED = sorted({*ENABLES, *(literal for _, _, _, _, rest, _ in COMPILED for option in rest for literal in option),
                   *(literal for options, _, _ in SCAN_GATES.values() for option in options for literal in option)})
-PREFIXES = {literal: {literal[:size] for size in range(1, len(literal) + 1)}.intersection(SPOTTED) for literal in SPOTTED}
-FINDER = re.compile(f"(?=({trie(SPOTTED)}))")
+SINGLES = {literal for literal in SPOTTED if len(literal) == 1}
+PREFIXES = {literal: {literal[:size] for size in range(2, len(literal) + 1)}.intersection(SPOTTED) for literal in SPOTTED if len(literal) > 1}
+FINDER = re.compile(f"(?=({trie(sorted(PREFIXES))}))")
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
 FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "central", "northern", "southern", "eastern", "western", "upstate",
           "downtown", "greater", "rural", "northeast", "northwest", "southeast", "southwest", "far", "midwest"}
@@ -790,7 +791,7 @@ def features(raw):
     shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}",
              f"caps={'none' if not capitals else 'most' if capitals * 2 > letters else 'some'}"}
     found = defaultdict(list)
-    present = set().union(*map(PREFIXES.__getitem__, set(FINDER.findall(text))))
+    present = SINGLES.intersection(text).union(*map(PREFIXES.__getitem__, set(FINDER.findall(text))))
     digits = DIGIT.search(text) is not None
     for field, result, source, (start, end), flag in (*tags(text, present, digits), *stats(text, present, digits), *phrases(text, present, digits),
                                                       *mentions(text, words)):
