@@ -1,8 +1,12 @@
 import json
 import re
+from collections import Counter, defaultdict
+from functools import cache
+from itertools import islice
 from pathlib import Path
 
-from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, STATE_NAMES, number, value
+from .config import NUMERIC, WEIGHTS
+from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, STATE_NAMES, STATES, country, number, state, value
 
 CITIES = set(json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8")))
 
@@ -51,6 +55,17 @@ ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|lat
 AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
 GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\b(male|female|guy|girl|man|woman|dude|lady),?\s*(\d{2})\b(?!\s*(?:%|years? ago)|[a-z])")
 GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
+TOKEN = re.compile(r"[a-z0-9][a-z0-9'’-]*|[^\sa-z0-9]")
+NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?![\w.,:/%-]|\s*%)")
+MATCHES = 3
+BROAD = ("vocab", "number")
+VOCAB_MATCHES = 4
+VOCAB_FIELDS = ("race_ethnicity", "sexual_orientation", "religion", "marital_status", "relationship_status", "mental_health", "political_ideology",
+                "generation", "employment_status")
+GENDER_WORDS = {"male", "female", "man", "woman", "guy", "girl", "dude", "lady", "boy", "gal", "mom", "dad", "wife", "husband", "mother", "father",
+                "non-binary", "nonbinary", "enby", "trans woman", "trans man", "femboy", "milf"}
+PARENT_WORDS = {f"{owner} {child}" for owner in ("my", "our") for child in ("son", "daughter", "kids", "kid", "children", "child", "baby", "toddler", "boys", "girls",
+                                                                  "newborn", "stepson", "stepdaughter", "sons", "daughters", "twins", "grandkids")} | {"pregnant"}
 BARE_TAG = re.compile(r"^\W*(?:[mf]\s*\d{2}|\d{2}\s*[mf])\W*$")
 TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr]\w*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
@@ -271,13 +286,6 @@ GENDERED = {"mom": "female", "mother": "female", "mum": "female", "wife": "femal
             "ragazzo": "male", "ragazza": "female", "garota": "female", "garoto": "male", "menina": "female", "menino": "male"}
 
 
-def search(field, text):
-    for pattern in COMPILED[field]:
-        for match in pattern.finditer(text):
-            if not HYPOTHETICAL.search(re.split(r"[.!?\n(]", text[max(0, match.start() - 40):match.start()])[-1]):
-                yield next(group for group in match.groups() if group is not None)
-
-
 def resolve(field, raw):
     if field == "occupation":
         return JOBS.get(raw) or value(field, raw)
@@ -351,56 +359,122 @@ def place(kind, raw):
     return found
 
 
-def tags(text, found):
-    for match in (*TAG_SELF.finditer(text), *TAG_ANY.finditer(text)):
-        age, sex = (match.group(1), match.group(2)) if match.group(1) else (match.group(4), match.group(3))
-        if (age := value("age", age)) is not None:
-            found.setdefault("age", age)
-            if not (match.group(3) and match.re is TAG_ANY and match.start() > 3):
-                found.setdefault("gender", value("gender", sex))
-            break
-    if match := AGE_GENDER.search(text):
-        found.setdefault("age", value("age", match.group(1)))
-        found.setdefault("gender", value("gender", match.group(2)))
-    if match := GENDER_AGE.search(text):
-        found.setdefault("gender", value("gender", match.group(1)))
-        found.setdefault("age", value("age", match.group(2)))
-    if match := GENDER_BRACKET.search(text):
-        found.setdefault("gender", value("gender", match.group(1)))
-    if (match := TAG_FOR.search(text)) and (match.group(1) or match.group(3) or "age" in found or "\n" in text.strip()):
-        found.setdefault("gender", value("gender", match.group(2)))
-        if match.group(1) or match.group(3):
-            found.setdefault("age", value("age", match.group(1) or match.group(3)))
-    if match := AGE_START.search(text) or AGE_BRACKET.search(text):
-        found.setdefault("age", value("age", match.group(1)))
+def tags(text):
+    for name, pattern in (("tag_self", TAG_SELF), ("tag_any", TAG_ANY)):
+        for match in islice(pattern.finditer(text), MATCHES):
+            age, sex, form = (match.group(1), match.group(2), "nx") if match.group(1) else (match.group(4), match.group(3), "xn")
+            yield "age", value("age", age), f"{name}_{form}", match.span(), ""
+            yield "gender", value("gender", sex), f"{name}_{form}", match.span(), ""
+    for name, pattern, age, sex in (("age_gender", AGE_GENDER, 1, 2), ("gender_age", GENDER_AGE, 2, 1)):
+        for match in islice(pattern.finditer(text), MATCHES):
+            yield "age", value("age", match.group(age)), name, match.span(), ""
+            yield "gender", value("gender", match.group(sex)), name, match.span(), ""
+    for match in islice(GENDER_BRACKET.finditer(text), MATCHES):
+        yield "gender", value("gender", match.group(1)), "gender_bracket", match.span(), ""
+    for match in islice(TAG_FOR.finditer(text), MATCHES):
+        age = match.group(1) or match.group(3)
+        yield "gender", value("gender", match.group(2)), "tag_for_age" if age else "tag_for", match.span(), ""
+        if age:
+            yield "age", value("age", age), "tag_for_age", match.span(), ""
+    for name, pattern in (("age_start", AGE_START), ("age_bracket", AGE_BRACKET), ("number", NUMBER)):
+        for match in islice(pattern.finditer(text), MATCHES):
+            yield "age", value("age", match.group(1)), name, match.span(), ""
 
 
-def stats(text, found):
-    for match in (*HEIGHT_ANY.finditer(text), *HEIGHT_METRIC.finditer(text)):
-        if not PEOPLE.search(text[max(0, match.start() - 25):match.start()]) and (height := value("height", match.group(1))) is not None:
-            found["height"] = height
-            break
-    if "height" in found or "age" in found:
-        for match in WEIGHT_ANY.finditer(text):
-            if not OTHER.search(text[max(0, match.start() - 25):match.start()]) and (weight := value("weight", match.group(1))) is not None:
-                found["weight"] = weight
+def stats(text):
+    for field, name, pattern, near in (("height", "height_any", HEIGHT_ANY, PEOPLE), ("height", "height_metric", HEIGHT_METRIC, PEOPLE),
+                                       ("weight", "weight_any", WEIGHT_ANY, OTHER)):
+        for match in islice(pattern.finditer(text), MATCHES):
+            yield field, value(field, match.group(1)), name, match.span(), "people" if near.search(text[max(0, match.start() - 25):match.start()]) else ""
+
+
+def phrases(text):
+    for field, patterns in COMPILED.items():
+        for index, pattern in enumerate(patterns):
+            for match in islice(pattern.finditer(text), MATCHES):
+                flag = "hypothetical" if HYPOTHETICAL.search(re.split(r"[.!?\n(]", text[max(0, match.start() - 40):match.start()])[-1]) else ""
+                raw = next(group for group in match.groups() if group is not None).strip()
+                if field in PLACE_FIELDS:
+                    for key, result in places(field, raw).items():
+                        yield key, result, f"{field}#{index}", match.span(), flag
+                else:
+                    yield field, resolve(field, raw), f"{field}#{index}", match.span(), flag
+
+
+@cache
+def vocabulary():
+    words = {"residence_country": {*COUNTRIES, *COUNTRY_ALIASES}, "origin_country": {*COUNTRIES, *COUNTRY_ALIASES},
+             "nationality": {*DEMONYMS, *COUNTRIES, *COUNTRY_ALIASES}, "language": {*LANGUAGES, *LANGUAGE_ALIASES},
+             "residence_state": {*STATE_NAMES, *(code for code in STATES if len(code) > 2)}, "residence_city": CITIES, "gender": GENDER_WORDS,
+             "parental_status": PARENT_WORDS, **{field: set(LOOKUP[field]) for field in VOCAB_FIELDS}}
+    table = defaultdict(list)
+    for field, entries in words.items():
+        for word in entries:
+            if len(word) > 2 and (result := resolve(field, word) or (field in PLACE_FIELDS and country(word)) or (field == "residence_state" and state(word))):
+                table[tuple(TOKEN.findall(word))].append((field, result))
+    return table, max(map(len, table))
+
+
+def mentions(text):
+    table, longest = vocabulary()
+    spans = list(TOKEN.finditer(text))
+    words = [span.group(0) for span in spans]
+    seen = Counter()
+    index = 0
+    while index < len(words):
+        for size in range(min(longest, len(words) - index), 0, -1):
+            if found := table.get(tuple(words[index:index + size])):
+                for field, result in found:
+                    if seen[field] < VOCAB_MATCHES:
+                        seen[field] += 1
+                        yield field, result, "vocab", (spans[index].start(), spans[index + size - 1].end()), ""
+                index += size - 1
                 break
+        index += 1
+
+
+def bucket(number, edges):
+    return next((f"<{edge}" for edge in edges if number < edge), f">={edges[-1]}")
+
+
+def features(raw):
+    text = SKIP.sub(" ", raw.lower()).translate(PRIMES)
+    lines = "multi" if "\n" in text.strip() else "one"
+    shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}"}
+    found = defaultdict(list)
+    for field, result, source, (start, end), flag in (*tags(text), *stats(text), *phrases(text), *mentions(text)):
+        if result is not None:
+            found[field].append((result, source, start, end, flag))
+    context = {f"has_{field}" for field in found}
+    for field, candidates in found.items():
+        counts = Counter(result for result, *_ in candidates)
+        pick = next((index for index, (_, source, _, _, flag) in enumerate(candidates) if not flag and source not in BROAD), None)
+        seen = set()
+        for rank, (result, source, start, end, flag) in enumerate(candidates):
+            if (result, source) in seen:
+                continue
+            seen.add((result, source))
+            left = TOKEN.findall(text[max(0, start - 30):start])[-2:] or ["^"]
+            right = TOKEN.findall(text[end:end + 30])[:1] or ["$"]
+            kind = "phrase" if "#" in source else source if source in BROAD else "pattern"
+            general = {f"kind={kind}", f"pick={rank == pick}", f"position={bucket(start, (3, 40, 200))}", f"same={min(counts[result], 3)}",
+                       f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *({flag} if flag else ())}
+            general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
+            own = {f"source={source}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
+                   *({f"value={result}"} if field not in NUMERIC else ())}
+            own |= {f"source={source}|{feature}" for feature in (*general, *own) if not feature.startswith(("source=", "left2=", "has_", "kind="))}
+            yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
+
+
+@cache
+def weights():
+    return json.loads(WEIGHTS.read_text(encoding="utf-8"))
 
 
 def extract(text):
-    text = SKIP.sub(" ", text.lower()).translate(PRIMES)
-    found = {"gender": None} if BARE_TAG.match(text) else {}
-    tags(text, found)
-    stats(text, found)
-    for field in PHRASES:
-        for raw in search(field, text):
-            if field in PLACE_FIELDS:
-                for key, result in places(field, raw.strip()).items():
-                    found.setdefault(key, result)
-                if any(key in found for key in PLACE_FIELDS[field]):
-                    break
-                continue
-            if (result := resolve(field, raw.strip())) is not None:
-                found.setdefault(field, result)
-                break
-    return {field: result for field, result in found.items() if result is not None}
+    model, best = weights(), {}
+    for field, result, found in features(text):
+        score = model["bias"] + sum(model["weights"].get(feature, 0.0) for feature in found)
+        if score > model["cutoffs"][field] and score > best.get(field, (float("-inf"),))[0]:
+            best[field] = (score, result)
+    return {field: result for field, (_, result) in best.items()}
