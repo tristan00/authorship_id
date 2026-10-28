@@ -6,6 +6,7 @@ from itertools import islice
 from pathlib import Path
 
 from .config import NUMERIC, WEIGHTS
+from .normalize import CITIES as CITY_ALIASES
 from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, REGIONS, STATE_NAMES, STATES, country, number, state, value
 
 CITIES = json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8"))
@@ -188,7 +189,8 @@ PHRASES = {
                           rf"\b{I} (?:a |an )?[a-z]+ (?:living |based |located )?in (?:the )?({COUNTRY_NAMES})\b",
                           rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|\[\s?[mf]4\w+\s?\])\s*[-|,]\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*(?:[-|,(]|$)",
                           r"\b(?:in|from|near) (?:the )?([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*\(\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) area\s*\)",
-                          r"(?:^|[.!,;(\]|-]\s*)([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)[- ]based\b(?! (?:company|companies|firm|business|brand|startup|clients?|team|server|bank|agency|band|artist|rapper))"),
+                          r"(?:^|[.!,;(\]|-]\s*)([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)[- ]based\b(?! (?:company|companies|firm|business|brand|startup|clients?|team|server|bank|agency|band|artist|rapper))",
+                          r"(?:^|[\s,(])([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) (?:resident|local)\b(?! (?:evil|news|police|business|government|election|elections))"),
     "origin_country": (rf"\b{I} (?:originally )?from (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which | originally)",
                        r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )",
                        rf"\b(?:i|we) (?:just |recently |originally )?(?:moved|immigrated|emigrated|came|relocated) (?:here |over |to [a-z]+ |to the [a-z]+ )?from (?:the )?{PLACE}",
@@ -232,12 +234,15 @@ PHRASES = {
                        r"\b(?:happily|newly|recently|just got|i got|i'm|i’m|im|i am|i've been|i’ve been|i have been|we got|we've been|we’ve been) (married)\b(?! (?:to (?:my|a)? ?(?:job|work|career)|people|couples?|men|women|man|woman))",
                        r"(?:\b\d{2}\s?(?:yo|y/o)?\s?[mf]?\b|\b[mf]\s?\d{2}\b|\b[mf]\b|\[?[mf]4\w+\]?)[ ,/-]+(?:[a-z]+ ){0,2}?(married)\b",
                        r"\b(married) (?:man|woman|guy|male|female|dad|mom|mother|father|bi|white|black|straight|hispanic|asian|couple|mf|m|f)\b",
-                       r"\b(?:my|the) (wife|husband|hubby) (?:is out|is away|is gone|is asleep|is at work|went|left for|travels|is travelling|is traveling|works|is working)\b"),
+                       r"\b(?:my|the) (wife|husband|hubby) (?:is out|is away|is gone|is asleep|is at work|went|left for|travels|is travelling|is traveling|works|is working)\b",
+                       r"\b(?:soy|estoy|sou|estou|je suis|ich bin|sono|ik ben) (casad[oa]|mariée?|verheiratet|sposat[oa]|getrouwd|divorciad[oa]|divorcée?|geschieden|separad[oa]|viud[oa]|veuf|veuve|verwitwet)\b",
+                       r"\b(?:mi|meu|minha|mon|ma|mein|meine|mio|mia|mijn) (marido|esposo|esposa|mari|femme|mann|frau|marito|moglie|man|vrouw)\b"),
     "relationship_status": (rf"\b{I} (?:happily |newly |currently |still )?(engaged|single|in a relationship)\b(?! (?:to|for) (?:my|a)? ?(?:job|work|career)|(?: and)? (?:ready|looking) to mingle)",
                             r"\bi(?:'ve|’ve| have) been (single|in a relationship|engaged|dating)\b",
                             r"(?:\b\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\b[mf]\b)\s*,\s*(single|engaged|taken)\b",
                             rf"\b(?:{I}|i've been|i’ve been|i have been|i got|we got|we're|we’re|we are|we just got|i just got|recently|newly) (?:happily |newly |currently |still |recently |just |finally |now |also |completely |very |totally )?(single|engaged|dating someone|seeing someone|in a (?:committed |serious |long[- ]term |long[- ]distance |happy |new |monogamous |open |poly(?:amorous)? )?relationship|taken|unattached)\b(?! (?:to (?:my|a)? ?(?:job|work|career)|people|folks|moms?|dads?|parents?|men|women|guys|girls|friends?|ladies)|(?: and)? (?:ready|looking) to mingle)",
-                            r"\b(?:being|been|happily|still|and still|whos been|who's been|i stay|staying) (single)\b(?! (?:mom|dad|parent|mother|father|moms|dads|women|men|ladies|people))"),
+                            r"\b(?:being|been|happily|still|and still|whos been|who's been|i stay|staying) (single)\b(?! (?:mom|dad|parent|mother|father|moms|dads|women|men|ladies|people))",
+                            r"\b(?:soy|estoy|sou|estou|je suis|ich bin|sono|ik ben) (solter[oa]|solteir[oa]|célibataire|single|singolo|vrijgezel|en couple|in einer beziehung|fidanzat[oa]|namorando|en una relación|in een relatie)\b"),
     "parental_status": (r"\bi have (?:a |an |one |two |three |four |five |\d+ |young |grown |adult |little )*(kids|children|sons?|daughters?|toddlers?)\b",
                         r"\bi (gave birth)\b", r"\bas an? (?:\w+ )?(parent|mom|mum|dad|mother|father) (?:of|to)\b",
                         r"(?:^|[.!,;] )(?:(?!would|ftm|first)[a-z]+ ){0,3}(mom|dad|parent|mum|mother|father) here\b",
@@ -250,6 +255,8 @@ PHRASES = {
                         r"(?:^|[\s\]\)])(dad|mom|mum) (?:looking|seeking|wanting|needs|needing|here|of \d|of two|of three|with)\b",
                         r"\b(?:i|we) (?:have|got|had) (?:a |an |one |two |three |four |five |\d+ )?(?:(?:little|young|grown|adult|teenage|beautiful|amazing|wonderful|new|newborn|\d{1,2}[- ]?(?:yo|year[- ]old|month[- ]old|yr[- ]old)) )*(kids?|children|sons?|daughters?|toddlers?|babies|baby|twins|newborn|teenagers?|boys|girls)\b(?! (?:friend|in (?:my|the) class|at school))",
                         r"(?:^|[\s,.(])(?:one|two|three|four|five|\d) (kids|children|sons|daughters)\b",
+                        r"\b(?:tengo|tenemos|tenho|temos|j'ai|nous avons|ich habe|wir haben|ho|abbiamo|ik heb|wij hebben) (?:\w+ )?(hijos|hijas|filhos|filhas|enfants|kinder|figli|figlie|kinderen)\b",
+                        r"\b(no tengo hijos|não tenho filhos|je n'ai pas d'enfants|ich habe keine kinder|non ho figli)\b",
                         r"\b(?:my|our|i have an?|we have an?) (?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)[- ](?:year|yr|month|week)s?[- ](old)\b"),
     "mental_health": (rf"\bi (?:also |do |still |actually |definitely |both )?(?:have|suffer from|struggle with|live with|deal with|am dealing with|'m dealing with|’m dealing with) {SEVERITY}({CONDITIONS})\b",
                       rf"\bi(?:'ve|’ve| have| was| got| am|'m|’m)? (?:been )?(?:officially |formally |recently |finally |also )?diagnosed (?:with |as )?(?:having )?{SEVERITY}({CONDITIONS})\b",
@@ -297,12 +304,19 @@ MEASURES = {"usd", "dollars", "dollar", "bucks", "euros", "k", "mins", "min", "m
          "followers", "subs", "votes", "comments", "posts", "items", "words", "div", "hp", "gb", "tb", "fps"}
 DIAGNOSES = {"add": "adhd", "asd": "autism", "an eating disorder": "eating disorder", "an alcoholic": "addiction", "an addict": "addiction", "cptsd": "ptsd",
              "c-ptsd": "ptsd", "autistic": "autism", "schizophrenic": "schizophrenia", "bipolar": "bipolar disorder"}
-MARRIED = {"husband": "married", "wife": "married", "hubby": "married", "spouse": "married", "a widow": "widowed", "a widower": "widowed"}
+MARRIED = {"husband": "married", "wife": "married", "hubby": "married", "spouse": "married", "a widow": "widowed", "a widower": "widowed",
+           **dict.fromkeys(("casado", "casada", "marié", "mariée", "verheiratet", "sposato", "sposata", "getrouwd", "marido", "esposo", "esposa", "mari",
+                            "femme", "mann", "frau", "marito", "moglie", "man", "vrouw"), "married"),
+           **dict.fromkeys(("divorciado", "divorciada", "divorcé", "divorcée", "geschieden"), "divorced"),
+           **dict.fromkeys(("separado", "separada"), "separated"), **dict.fromkeys(("viudo", "viuda", "veuf", "veuve", "verwitwet"), "widowed")}
 CHILDREN = {"pregnant": "expecting", **dict.fromkeys(("no kids", "no children", "childfree", "child free", "child-free", "childless", "not a parent",
                                                       "don't have kids", "dont have kids", "do not have kids", "don't have children",
-                                                      "do not have children"), "no children")}
+                                                      "do not have children", "no tengo hijos", "não tenho filhos", "je n'ai pas d'enfants",
+                                                      "ich habe keine kinder", "non ho figli"), "no children")}
 PARTNERS = {"my gf": "in a relationship", "my bf": "in a relationship", "my girlfriend": "in a relationship", "my boyfriend": "in a relationship",
-            "my partner": "in a relationship", "my fiance": "engaged", "my fiancé": "engaged", "my fiancee": "engaged", "my fiancée": "engaged"}
+            "my partner": "in a relationship", "my fiance": "engaged", "my fiancé": "engaged", "my fiancee": "engaged", "my fiancée": "engaged",
+            **dict.fromkeys(("soltero", "soltera", "solteiro", "solteira", "célibataire", "single", "singolo", "vrijgezel"), "single"),
+            **dict.fromkeys(("en couple", "in einer beziehung", "fidanzato", "fidanzata", "namorando", "en una relación", "in een relatie"), "in a relationship")}
 EMPLOYMENT = {"a full-time student": "student", "a full time student": "student", "a college student": "student",
               "a university student": "student", "a student": "student", "a freelancer": "self-employed", "freelance": "self-employed",
               "self employed": "self-employed", "jobless": "unemployed", "between jobs": "unemployed", "laid off": "unemployed",
@@ -385,6 +399,8 @@ def places(kind, raw):
 
 def place(kind, raw):
     country_field, state_field, city_field = PLACE_FIELDS[kind]
+    if raw.rstrip(".") in CITY_ALIASES:
+        return {city_field: CITY_ALIASES[raw.rstrip(".")]}, ""
     words = raw.replace(",", " ").split()
     country, words = peel(country_field, words)
     region, words = (None, words) if " ".join(words) in CITY_FIRST else peel(state_field, words)
@@ -449,7 +465,7 @@ def phrases(text):
 def vocabulary():
     words = {"residence_country": {*COUNTRIES, *COUNTRY_ALIASES}, "origin_country": {*COUNTRIES, *COUNTRY_ALIASES},
              "nationality": {*DEMONYMS, *COUNTRIES, *COUNTRY_ALIASES}, "language": {*LANGUAGES, *LANGUAGE_ALIASES},
-             "residence_state": {*STATE_NAMES, *STATES}, "residence_city": CITIES, "gender": GENDER_WORDS,
+             "residence_state": {*STATE_NAMES, *STATES}, "residence_city": {*CITIES, *CITY_ALIASES}, "gender": GENDER_WORDS,
              "parental_status": PARENT_WORDS | set(CHILDREN) | {"mom", "mum", "dad", "mother", "father", "mommy", "parent"}, "occupation": set(JOBS),
              "education": set(LOOKUP["education"]), "education_subject": SUBJECT_WORDS, **{field: set(LOOKUP[field]) for field in VOCAB_FIELDS}}
     words["relationship_status"] |= set(PARTNERS)
