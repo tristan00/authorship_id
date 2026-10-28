@@ -539,15 +539,15 @@ FLAGS = {"🇺🇸": "united states", "🇬🇧": "united kingdom", "🇨🇦": 
 US_UPPER = re.compile(r"\bUS\b")
 MARKS = {pattern: needed(sre_parse.parse(pattern.pattern, pattern.flags)) for pattern in (SKIP, US_UPPER)}
 REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
-HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
+HYPOTHETICAL = quick(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
 TAIL = r"\b(?:\W+[\w']+){0,3}\W*$"
-CUES = {"other": re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|him|they|they're|their|them|you|you're|your|ur|u|my (?:wife|husband|son|daughter|kids?|mom|dad|mother|father|brother|sister|bf|gf|boyfriend|girlfriend|partner|friend|cousin|grandma|grandpa|ex|baby|child|children))" + TAIL),
-        "negated": re.compile(r"\b(?:not|never|no longer|isn't|aren't|wasn't|ain't|don't|dont|doesn't|nor|neither|no)" + TAIL),
-        "we": re.compile(r"\b(?:we|we're|us|our|both)" + TAIL),
-        "past": re.compile(r"\b(?:used to|when i was|back when|back in|as a kid|growing up|at the time|formerly|former|previously|was|were|had been|turned|became)" + TAIL),
+CUES = {"other": quick(r"\b(?:he|she|he's|she's|hes|shes|his|her|him|they|they're|their|them|you|you're|your|ur|u|my (?:wife|husband|son|daughter|kids?|mom|dad|mother|father|brother|sister|bf|gf|boyfriend|girlfriend|partner|friend|cousin|grandma|grandpa|ex|baby|child|children))" + TAIL),
+        "negated": quick(r"\b(?:not|never|no longer|isn't|aren't|wasn't|ain't|don't|dont|doesn't|nor|neither|no)" + TAIL),
+        "we": quick(r"\b(?:we|we're|us|our|both)" + TAIL),
+        "past": quick(r"\b(?:used to|when i was|back when|back in|as a kid|growing up|at the time|formerly|former|previously|was|were|had been|turned|became)" + TAIL),
         "if": HYPOTHETICAL,
-        "generic": re.compile(r"\b(?:people|everyone|everybody|anyone|anybody|guys|men|women|folks|someone|somebody|nobody|most|many|all|americans|those|these)" + TAIL),
-        "compare": re.compile(r"\b(?:than|over|under|above|below|between|from|in their|in our|in your|at least|at most)\W*$")}
+        "generic": quick(r"\b(?:people|everyone|everybody|anyone|anybody|guys|men|women|folks|someone|somebody|nobody|most|many|all|americans|those|these)" + TAIL),
+        "compare": quick(r"\b(?:than|over|under|above|below|between|from|in their|in our|in your|at least|at most)\W*$")}
 QUESTION = re.compile(r"\W*(?:are|is|am|any|anyone|anybody|who|what|where|how|do|does|did|can|could|would|should|will)\b")
 SUBJECT_AFTER = re.compile(r"\W{0,3}(?:she|he|they|she's|he's|they're|his|her|their)\b")
 RANGE = re.compile(r"\s*(?:-|to)\s*\d")
@@ -799,13 +799,12 @@ def cues(text, start, end, numeric):
     opening = max(text.rfind(mark, 0, start) for mark in ".!?\n") + 1
     closing = min((index for index in (text.find(mark, end) for mark in ".!?\n") if index >= 0), default=len(text))
     before = text[max(opening, start - 40):start]
-    after = TOKEN.findall(text[end:end + 30])[:2]
     found = {name for name, pattern in CUES.items() if pattern.search(before)}
     if text[closing:closing + 1] == "?" or QUESTION.match(text[opening:start]):
         found.add("question")
     if SUBJECT_AFTER.match(text, end):
         found.add("other")
-    if numeric and after and (after[0] in MEASURES or (after[0] in ("years", "year", "yrs", "yr") and after[1:] != ["old"]) or after[0] in ("-", "to") and RANGE.match(text[end:end + 8])):
+    if numeric and (after := TOKEN.findall(text[end:end + 30])[:2]) and (after[0] in MEASURES or (after[0] in ("years", "year", "yrs", "yr") and after[1:] != ["old"]) or after[0] in ("-", "to") and RANGE.match(text[end:end + 8])):
         found.add("unit")
     return found
 
@@ -888,27 +887,26 @@ def features(raw):
             left = before[-2:] or ["^"]
             right = after[:1] or ["$"]
             kind = "phrase" if "#" in source else source if source in BROAD else "pattern"
-            general = {f"kind={kind}", f"pick={rank == pick}", f"position={bucket(start, (3, 40, 200))}", f"same={min(counts[result], 3)}",
-                       f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *flag.split(), *(f"cue={cue}" for cue in cues(text, start, end, field in NUMERIC))}
-            general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
-            general.add(f"self={bool(SELF.intersection(before))}")
-            general.add(f"line={bucket(sum(lengths[text.count(chr(10), 0, start):text.count(chr(10), 0, end) + 1]), (3, 6, 12, 30))}")
-            general.add(f"upper={any(map(str.isupper, cased[start:end]))}")
+            base = {f"pick={rank == pick}", f"position={bucket(start, (3, 40, 200))}", f"same={min(counts[result], 3)}", f"values={min(len(counts), 3)}",
+                    f"rank={min(rank, 3)}", *shape, *flag.split(), *(f"cue={cue}" for cue in cues(text, start, end, field in NUMERIC))}
             span = cased[start:end]
+            shared = [*base, f"self={bool(SELF.intersection(before))}",
+                      f"line={bucket(sum(lengths[text.count(chr(10), 0, start):text.count(chr(10), 0, end) + 1]), (3, 6, 12, 30))}",
+                      f"upper={any(map(str.isupper, span))}"]
+            specific = [f"left={left[-1]}", f"right={right[0]}", f"value={result}" if field not in NUMERIC else f"range={bucket(int(result), RANGES[field])}"]
             form = ("U" if any(map(str.isupper, span)) else "l" if any(map(str.isalpha, span)) else "n") + ("s" if start < 3 else "e") + \
                    ("p" if text[max(0, start - 1):start + 1].strip()[:1] in ("(", "[") else "")
-            own = {f"source={source}", f"source={source}|form={form}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
-                   *(f"near={word}" for word in (*before, *after)),
-                   f"value={result}" if field not in NUMERIC else f"range={bucket(int(result), RANGES[field])}"}
             if field.startswith("residence_"):
-                own.add(f"placed={placed(text, end)}")
+                specific.append(f"placed={placed(text, end)}")
             if kind == "vocab" and field not in SYNONYM_FIELDS and text[start:end] != result:
-                own.add(f"word={text[start:end]}")
+                specific.append(f"word={text[start:end]}")
             if kind == "phrase":
-                own.add(f"lead={lead(text, start)}")
+                specific.append(f"lead={lead(text, start)}")
             elif kind in ("pattern", "number", "amount"):
-                own.add(f"shape={DIGIT.sub('0', text[start:end]) if end - start <= 16 else 'long'}")
-            own |= {f"source={source}|{feature}" for feature in (*general, *own) if not feature.startswith(("source=", "left2=", "has_", "kind=", "near="))}
+                specific.append(f"shape={DIGIT.sub('0', text[start:end]) if end - start <= 16 else 'long'}")
+            general = {f"kind={kind}", *shared, *(f"kind={kind}|{feature}" for feature in base)}
+            own = {f"source={source}", f"source={source}|form={form}", f"left2={' '.join(left)}", *context, *(f"near={word}" for word in (*before, *after)),
+                   *specific, *(f"source={source}|{feature}" for feature in (*shared, *specific))}
             yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
 
 
