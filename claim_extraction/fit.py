@@ -107,6 +107,7 @@ def search(matrix, texts, fields, targets, labels):
     c = max(tuned, key=lambda key: tuned[key][1])
     cutoffs = tuned[c][0]
     LOG.info("search c=%s oof=%.4f cutoffs=%s", c, tuned[c][1], cutoffs)
+    LOG.info("search fields=%s", {field: round(f1(counts[c, cutoffs[field], field], labels[field]), 4) for field in FIELDS if labels[field]})
     return results[c, FIT_FOLDS][0], c, cutoffs
 
 

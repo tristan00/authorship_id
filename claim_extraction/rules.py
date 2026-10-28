@@ -190,7 +190,9 @@ PHRASES = {
                           rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|\[\s?[mf]4\w+\s?\])\s*[-|,]\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*(?:[-|,(]|$)",
                           r"\b(?:in|from|near) (?:the )?([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*\(\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) area\s*\)",
                           r"(?:^|[.!,;(\]|-]\s*)([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)[- ]based\b(?! (?:company|companies|firm|business|brand|startup|clients?|team|server|bank|agency|band|artist|rapper))",
-                          r"(?:^|[\s,(])([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) (?:resident|local)\b(?! (?:evil|news|police|business|government|election|elections))"),
+                          r"(?:^|[\s,(])([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) (?:resident|local)\b(?! (?:evil|news|police|business|government|election|elections))",
+                          rf"\b{I} (?:also |originally )?from (?:the )?{PLACE}",
+                          rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|\[\s?[mf]4\w+\s?\]|^\W*\d{{2}})\s+(?:from |in )?(?:the )?({COUNTRY_NAMES})\b"),
     "origin_country": (rf"\b{I} (?:originally )?from (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which | originally)",
                        r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )",
                        rf"\b(?:i|we) (?:just |recently |originally )?(?:moved|immigrated|emigrated|came|relocated) (?:here |over |to [a-z]+ |to the [a-z]+ )?from (?:the )?{PLACE}",
@@ -229,7 +231,13 @@ PHRASES = {
                           rf"\bi (work for myself|run my own business|own my own business|do freelance)\b|\b{I} (?:a |an )?(self[- ]employed|a freelancer|freelancing|an independent contractor|a business owner|my own boss)\b",
                           r"(?:\b\d{2}\s?(?:yo|y/o)?\s?[mf]?\b|\b[mf]\s?\d{2}\b|\[?[mf]4\w+\]?)[ ,/-]+(?:[a-z]+ ){0,2}?(retired)\b",
                           rf"\b(?:{I}|i've been|i’ve been|i have been|now|currently) (?:currently |now |still )?(working) as an?\b",
-                          rf"\b(?:{I}|i've been|i’ve been) (?:currently |now |gainfully |fully |also )?(employed)\b(?! (?:by|at|as|with))"),
+                          rf"\b(?:{I}|i've been|i’ve been) (?:currently |now |gainfully |fully |also )?(employed)\b(?! (?:by|at|as|with))",
+                          r"\bi (?:already |currently |still |also |now )?(?:have|got|hold|held|took|started|landed) (?:a |my |two |multiple |a full[- ]time |a part[- ]time |a new |a good |a decent |a stable )?(job|jobs)\b",
+                          r"\b(?:i|we) (?:both |currently |still |also )?(?:work|working) (full[- ]time|part[- ]time)\b",
+                          r"\bi(?:'m|’m| am) (?:on )?(salary|salaried|hourly)\b",
+                          r"\b(?:at|from|to|after|before|leaving|left) (work|my job)\b",
+                          r"\bmy (boss|coworkers?|co-workers?|shift|manager|employer)\b",
+                          r"\bi (don't have a job|dont have a job|do not have a job|can't find a job|cant find a job|can't find work|lost my job|got fired|was fired|got laid off|was laid off|haven't worked)\b"),
     "marital_status": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(married)\b",
                        r"\b(?:i've|i have|we've|we have) been (married) (?:for )?", r"\b(married) (?:man|woman|guy|male|female|dad|mom|couple) here\b",
                        r"\bmy (husband)\b(?! (?:and i (?:are|were) divorced|left|died|passed))", r"\bmy (wife) and i\b(?! (?:are|were) divorced)", rf"\b{I} (?:happily |newly )?(married|divorced|widowed|a widow|a widower|separated)\b(?! (?:to|for) (?:my|a)? ?(?:job|work|career))",
@@ -330,7 +338,11 @@ EMPLOYMENT = {"a full-time student": "student", "a full time student": "student"
               "own my own business": "self-employed", "do freelance": "self-employed", "freelancing": "self-employed",
               "an independent contractor": "self-employed", "a business owner": "self-employed", "my own boss": "self-employed",
               "in college": "student", "in uni": "student", "in university": "student", "at university": "student", "at uni": "student",
-              "in grad school": "student", "in law school": "student", "in med school": "student", "in nursing school": "student"}
+              "in grad school": "student", "in law school": "student", "in med school": "student", "in nursing school": "student",
+              **dict.fromkeys(("jobs", "full-time", "part-time", "salary", "salaried", "hourly", "my job", "boss", "coworker", "coworkers", "co-worker",
+                               "co-workers", "shift", "manager", "employer"), "employed"),
+              **dict.fromkeys(("don't have a job", "dont have a job", "do not have a job", "can't find a job", "cant find a job", "can't find work",
+                               "lost my job", "got fired", "was fired", "got laid off", "was laid off", "haven't worked"), "unemployed")}
 PERIODS = {"hour": 2080, "hr": 2080, "hourly": 2080, "/h": 2080, "week": 52, "wk": 52, "weekly": 52, "month": 12, "mo": 12, "monthly": 12}
 EARNINGS = re.compile(r"(.+?)\s*(?:(?:a|an|per|/|every)\s*)?(year|yr|annum|month|mo|hour|hr|week|wk|annually|yearly|monthly|hourly|weekly|/h)?"
                       r"(?:\s+(?:tc|base|base salary|salary|gross|pre[- ]tax|before tax|after tax|take home|ote))?$")
@@ -504,6 +516,11 @@ def mentions(text):
         index += 1
 
 
+RANGES = {"age": (13, 16, 18, 21, 25, 30, 40, 50, 65, 80, 100), "birth_year": (1940, 1960, 1975, 1985, 1995, 2005, 2010),
+          "height": (140, 155, 165, 175, 185, 195, 210), "weight": (40, 55, 70, 85, 100, 120, 150, 200),
+          "income": (5000, 15000, 30000, 50000, 80000, 120000, 200000, 500000)}
+
+
 def bucket(number, edges):
     return next((f"<{edge}" for edge in edges if number < edge), f">={edges[-1]}")
 
@@ -523,11 +540,26 @@ def cues(text, start, end, numeric):
     return found
 
 
+def blank(value, spans):
+    pieces, last = [], 0
+    for start, end in spans:
+        pieces += [value[last:start], " "]
+        last = end
+    return "".join(pieces) + value[last:]
+
+
 def features(raw):
-    text = SKIP.sub(" ", US_UPPER.sub("USA", raw).lower()).translate(PRIMES)
+    base = US_UPPER.sub("USA", raw)
+    lowered = base.lower()
+    spans = [match.span() for match in SKIP.finditer(lowered)]
+    text = blank(lowered, spans).translate(PRIMES)
+    cased = blank(base, spans).translate(PRIMES) if len(lowered) == len(base) else text
     lines = "multi" if "\n" in text.strip() else "one"
     first = sum(token in SELF for token in TOKEN.findall(text))
-    shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}"}
+    letters = sum(ch.isalpha() for ch in cased)
+    capitals = sum(ch.isupper() for ch in cased)
+    shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}",
+             f"caps={'none' if not capitals else 'most' if capitals * 2 > letters else 'some'}"}
     found = defaultdict(list)
     for field, result, source, (start, end), flag in (*tags(text), *stats(text), *phrases(text), *mentions(text)):
         if result is not None:
@@ -561,9 +593,10 @@ def features(raw):
                        f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *flag.split(), *(f"cue={cue}" for cue in cues(text, start, end, field in NUMERIC))}
             general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
             general.add(f"self={bool(SELF.intersection(before))}")
+            general.add(f"upper={any(ch.isupper() for ch in cased[start:end])}")
             own = {f"source={source}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
                    *(f"near={word}" for word in (*before, *after)),
-                   *({f"value={result}"} if field not in NUMERIC else ())}
+                   f"value={result}" if field not in NUMERIC else f"range={bucket(int(result), RANGES[field])}"}
             own |= {f"source={source}|{feature}" for feature in (*general, *own) if not feature.startswith(("source=", "left2=", "has_", "kind=", "near="))}
             yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
 

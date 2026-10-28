@@ -79,57 +79,57 @@ Over panel1m, panel1m_b and panel200k this gives 141,609 resolved labels, agains
 Candidates come from three kinds of sources, up to three matches per pattern:
 
 - patterns: age and gender tags (`28F`, `m24`, `[M4F]`, `m4f27`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), a two-digit age at the start of the text or in brackets, a text that is only a number, ages written as words ("nineteen", "sixty-six"), heights in feet and inches (also `5"3`, and `6ft` or `6 foot` before any word), centimetres or metres (`1,80`), weights, a unit-less weight right after a height (`5'9 150`, read as pounds from 100 up and as kilograms below), and flag emoji for countries;
-- phrases: first-person patterns per field (`PHRASES`), including Spanish, Portuguese, French, German, Italian and Dutch forms for marital status ("estoy casado", "mi marido"), relationship status ("je suis célibataire") and children ("tenemos dos hijos", "no tengo hijos"), "X resident" for residence, a job title after an age/gender tag ("27m, iit grad, software engineer", "34m phd scientist") or after "i'm NAME, a", "and work in X", orientation words not before a hyphen ("bi-weekly") or after "be" ("gonna be straight"), and for gender "(I'm M)", "29 single m here", "as an aging male", "this is a man", "bi guy(32)" and "agender"/"genderfluid", with places matched against countries, first-level regions and `cities.json` and occupations against `jobs.json` and a list of job nouns;
+- phrases: first-person patterns per field (`PHRASES`), including Spanish, Portuguese, French, German, Italian and Dutch forms for marital status ("estoy casado", "mi marido"), relationship status ("je suis célibataire") and children ("tenemos dos hijos", "no tengo hijos"), "X resident", "I'm from X" and a country right after an age/gender tag ("25m belgium") for residence, employment from "i have a job", "we work full time", "i'm salaried", "at work", "my boss" and "i don't have a job" / "lost my job" / "got laid off", a job title after an age/gender tag ("27m, iit grad, software engineer", "34m phd scientist") or after "i'm NAME, a", "and work in X", orientation words not before a hyphen ("bi-weekly") or after "be" ("gonna be straight"), and for gender "(I'm M)", "29 single m here", "as an aging male", "this is a man", "bi guy(32)" and "agender"/"genderfluid", with places matched against countries, first-level regions and `cities.json` and occupations against `jobs.json` and a list of job nouns;
 - broad mentions: any vocabulary word of a field anywhere in the text (gender words, countries, demonyms, regions, cities, languages, race, orientation, religion, marital, relationship, employment, mental health, ideology, generation, `jobs.json` titles, degrees, study subjects, "my son", "my son's", "no kids", "mom", "my gf", "pregnant", ...), the voters' own values in `values.json`, any money amount for income, and any standalone two-digit number for age, also before a comma or full stop and with a `yo`/`yrs` suffix. Vocabulary is read in sorted order so the per-field cap of four mentions, and with it the fit, does not depend on string hashing. Numeric candidates are bounded by `config.CANDIDATE_BOUNDS`, which allows ages from 1 to 120 because the voters label ages below 13 (mostly texts that are only a number).
 
 Every candidate also gets context cues from its own sentence: another person as the subject before it ("he", "her", "my wife", "you") or right after it ("at 33, she"), negation, "we"/"us", past-tense context ("used to", "when i was", "turned"), hypothetical context, generic subjects ("people", "everyone"), comparisons ("than", "over", "in their"), a question sentence, and for numbers a unit or range right after ("15 matches", "10 years of", "20-25"). Conditions that used to discard a match are flags instead: hypothetical context before a phrase ("if", "would", "used to be", ...), another person mentioned before a height or weight, and a text that is only a tag (`M35`, whose gender the voters rarely label). The first unflagged pattern or phrase candidate of a field, which is what first-match rules would return, is marked `pick`.
 
-Features per candidate: source, kind, `pick`, rank, position, how many candidates share the value, how many values compete, text length and line count, the number of first-person words in the text (0, 1-2, 3-7, 8 or more), the bare-tag flag, the fields that have candidates, the value for categorical fields, the two tokens before and one after the match, the four tokens on each side as a bag, and whether a first-person word ("i", "my", "me", ...) is among the four before. Every feature appears both on its own and crossed with the field, so small fields share the general weights; source-specific features are also crossed with the source.
+Features per candidate: source, kind, `pick`, rank, position, how many candidates share the value, how many values compete, text length and line count, the number of first-person words in the text (0, 1-2, 3-7, 8 or more), how much of the text is capitalized (none, some, most), whether the matched span has a capital letter (uppercase "M32" tags are gender-labeled 55% of the time against 14% for lowercase "m32"), the value range for numeric fields (age 13, 16, 18, ... 100; height, weight, income and birth year likewise), the bare-tag flag, the fields that have candidates, the value for categorical fields, the two tokens before and one after the match, the four tokens on each side as a bag, and whether a first-person word ("i", "my", "me", ...) is among the four before. Every feature appears both on its own and crossed with the field, so small fields share the general weights; source-specific features are also crossed with the source.
 
-`fit` trains one logistic regression over all candidates of the train splits of the given datasets (features seen at least 3 times). The regularization C and per-field probability cutoffs (0.05 to 0.95 in steps of 0.025) are chosen on 3-fold out-of-fold predictions on train: starting from the best single threshold, three passes of coordinate ascent set each field's cutoff to maximize pooled micro F1. Cutoffs that instead maximized each field's own F1, capped at the global threshold, cost about 0.007 out-of-fold micro F1, mostly in false positives on small fields. The weights are stored outside the repository as a model artifact. Candidates are collected in `config.WORKERS` processes, each with its own feature table that the main process remaps, and the nine cross-validation fits run in parallel with the three full fits, one per C; on panel1m and panel1m_b train the whole fit takes about 3 minutes and `evaluate` about 5 seconds per validation split.
+The fit log reports out-of-fold F1 per field. `fit` trains one logistic regression over all candidates of the train splits of the given datasets (features seen at least 3 times). The regularization C and per-field probability cutoffs (0.05 to 0.95 in steps of 0.025) are chosen on 3-fold out-of-fold predictions on train: starting from the best single threshold, three passes of coordinate ascent set each field's cutoff to maximize pooled micro F1. Cutoffs that instead maximized each field's own F1, capped at the global threshold, cost about 0.007 out-of-fold micro F1, mostly in false positives on small fields. The weights are stored outside the repository as a model artifact. Candidates are collected in `config.WORKERS` processes, each with its own feature table that the main process remaps, and the nine cross-validation fits run in parallel with the three full fits, one per C; on panel1m and panel1m_b train the whole fit takes about 3 minutes and `evaluate` about 5 seconds per validation split.
 
 `jobs.json` is built from panel1m train labels and voter answers. `cities.json` is the GeoNames `cities15000` names plus city labels seen at least twice in panel1m train, without names of three letters or less, names that appear lowercase in panel1m train text at least half as often as capitalized, and names whose train precision is below 0.34 over at least two false positives, plus the 48 city labels seen at least twice in panel1m and panel1m_b train that this left out (Philadelphia, Pittsburgh, Calgary, Perth, Madrid, Tokyo, ...) unless they are written lowercase more than twice as often as capitalized, with a country or state when most of their labels name one, plus 115 city names that any single voter gave at least three times on panel1m and panel1m_b train (Nagpur, Fresno, Ankara, Bologna, Johannesburg, ...) under the same case rule. City aliases from `normalize.py` ("nyc", "philly", "la") are mentions too, and a place that is exactly an alias is read as that city first, so "I live in LA" is Los Angeles while "Lafayette, LA" stays Louisiana.
 
 `values.json` holds the label values outside the value sets (and, for occupation and study subject, outside the SOC and CIP groups) that occur at least twice among panel1m and panel1m_b train labels, have at least three characters, and match their field's train label in at least 1% of the train texts that mention them; the mention is a candidate with the voters' wording as its value (marital status "single", orientation "m4m", mental health "depressed", ...).
 
-The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 115,285 labels, 1,579,150 candidates). Cross-validation chose C = 0.3; with the tuned cutoffs the out-of-fold micro F1 is 0.722. Pooled scores count the three validation splits together (13,211 labels); "before round 1" is the model fitted on the corrected labels before the candidate and cutoff changes since. Round 1 sorted validation misses into categories, so all three validation splits saw some rule work; from round 2 on, development reads train errors and out-of-fold scores only, and validation is used for scoring.
+The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 115,285 labels). Cross-validation chose C = 0.3; with the tuned cutoffs the out-of-fold micro F1 is 0.726. Pooled scores count the three validation splits together (13,211 labels); "before round 1" is the model fitted on the corrected labels before the candidate, feature and cutoff changes since. Round 1 sorted validation misses into categories, so all three validation splits saw some rule work; from round 2 on, development reads train errors and out-of-fold scores only, and validation is used for scoring.
 
 | validation micro F1 | panel1m | panel1m_b | panel200k | pooled |
 |---|---|---|---|---|
 | before round 1 | 0.713 | 0.708 | 0.701 | 0.706 |
-| current | 0.727 | 0.722 | 0.712 | 0.718 |
+| current | 0.729 | 0.725 | 0.716 | 0.722 |
 
-Validation F1 by field on each split and pooled over all three (pooled precision 0.762, recall 0.679), with the pooled F1 before round 1. Fields are ordered by pooled validation label count.
+Validation F1 by field on each split and pooled over all three (pooled precision 0.767, recall 0.681), with the pooled F1 before round 1. Fields are ordered by pooled validation label count.
 
 | field | pooled labels | panel1m | panel1m_b | panel200k | pooled | before round 1 |
 |---|---|---|---|---|---|---|
-| age | 4853 | 0.87 | 0.88 | 0.87 | 0.87 | 0.86 |
-| gender | 3090 | 0.75 | 0.74 | 0.74 | 0.74 | 0.74 |
-| residence_city | 599 | 0.55 | 0.56 | 0.57 | 0.56 | 0.56 |
+| age | 4853 | 0.88 | 0.88 | 0.87 | 0.88 | 0.86 |
+| gender | 3090 | 0.75 | 0.74 | 0.75 | 0.75 | 0.74 |
+| residence_city | 599 | 0.57 | 0.55 | 0.58 | 0.57 | 0.56 |
 | occupation | 521 | 0.51 | 0.38 | 0.40 | 0.42 | 0.44 |
-| marital_status | 457 | 0.57 | 0.55 | 0.61 | 0.59 | 0.58 |
-| residence_country | 456 | 0.53 | 0.49 | 0.45 | 0.48 | 0.49 |
-| sexual_orientation | 355 | 0.49 | 0.59 | 0.58 | 0.56 | 0.56 |
-| race_ethnicity | 354 | 0.75 | 0.71 | 0.61 | 0.67 | 0.64 |
-| residence_state | 350 | 0.53 | 0.50 | 0.55 | 0.53 | 0.55 |
-| parental_status | 302 | 0.42 | 0.48 | 0.40 | 0.42 | 0.41 |
-| nationality | 296 | 0.56 | 0.58 | 0.58 | 0.57 | 0.57 |
-| height | 283 | 0.91 | 0.83 | 0.82 | 0.84 | 0.81 |
-| mental_health | 151 | 0.56 | 0.48 | 0.49 | 0.50 | 0.43 |
-| relationship_status | 133 | 0.38 | 0.19 | 0.20 | 0.25 | 0.28 |
-| employment_status | 132 | 0.15 | 0.30 | 0.20 | 0.21 | 0.32 |
-| origin_country | 128 | 0.43 | 0.60 | 0.37 | 0.44 | 0.43 |
-| weight | 122 | 0.83 | 0.71 | 0.71 | 0.75 | 0.76 |
-| religion | 109 | 0.47 | 0.63 | 0.45 | 0.50 | 0.51 |
-| education | 107 | 0.17 | 0.35 | 0.28 | 0.28 | 0.24 |
-| education_subject | 88 | 0.30 | 0.40 | 0.43 | 0.39 | 0.42 |
-| income | 71 | 0.35 | 0.40 | 0.39 | 0.38 | 0.27 |
-| generation | 55 | 0.53 | 0.67 | 0.44 | 0.52 | 0.49 |
-| birth_year | 51 | 0.70 | 0.48 | 0.51 | 0.55 | 0.55 |
-| language | 47 | 0.31 | 0.48 | 0.15 | 0.31 | 0.26 |
-| origin_city | 37 | 0.15 | 0.44 | 0.22 | 0.24 | 0.18 |
-| origin_state | 31 | 0.00 | 0.00 | 0.22 | 0.11 | 0.46 |
-| political_ideology | 27 | 0.00 | 0.00 | 0.24 | 0.11 | 0.24 |
+| marital_status | 457 | 0.56 | 0.54 | 0.58 | 0.57 | 0.58 |
+| residence_country | 456 | 0.54 | 0.48 | 0.45 | 0.48 | 0.49 |
+| sexual_orientation | 355 | 0.46 | 0.62 | 0.55 | 0.54 | 0.56 |
+| race_ethnicity | 354 | 0.74 | 0.68 | 0.60 | 0.66 | 0.64 |
+| residence_state | 350 | 0.53 | 0.49 | 0.56 | 0.54 | 0.55 |
+| parental_status | 302 | 0.45 | 0.51 | 0.40 | 0.44 | 0.41 |
+| nationality | 296 | 0.52 | 0.59 | 0.58 | 0.57 | 0.57 |
+| height | 283 | 0.92 | 0.82 | 0.82 | 0.85 | 0.81 |
+| mental_health | 151 | 0.55 | 0.44 | 0.50 | 0.50 | 0.43 |
+| relationship_status | 133 | 0.35 | 0.15 | 0.18 | 0.22 | 0.28 |
+| employment_status | 132 | 0.10 | 0.33 | 0.20 | 0.21 | 0.32 |
+| origin_country | 128 | 0.48 | 0.60 | 0.35 | 0.45 | 0.43 |
+| weight | 122 | 0.83 | 0.70 | 0.73 | 0.76 | 0.76 |
+| religion | 109 | 0.44 | 0.59 | 0.43 | 0.47 | 0.51 |
+| education | 107 | 0.19 | 0.35 | 0.27 | 0.28 | 0.24 |
+| education_subject | 88 | 0.30 | 0.39 | 0.38 | 0.36 | 0.42 |
+| income | 71 | 0.40 | 0.40 | 0.53 | 0.48 | 0.27 |
+| generation | 55 | 0.29 | 0.67 | 0.44 | 0.48 | 0.49 |
+| birth_year | 51 | 0.70 | 0.48 | 0.53 | 0.56 | 0.55 |
+| language | 47 | 0.31 | 0.43 | 0.15 | 0.29 | 0.26 |
+| origin_city | 37 | 0.00 | 0.25 | 0.22 | 0.17 | 0.18 |
+| origin_state | 31 | 0.31 | 0.44 | 0.21 | 0.29 | 0.46 |
+| political_ideology | 27 | 0.18 | 0.00 | 0.22 | 0.16 | 0.24 |
 | political_compass | 6 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
 
 panel1m_b labels relationship status 24% less often per train text than panel1m (5.1 against 6.8 per 10,000) and parental status 16% less, from per-server voter variance. The combined model learns the lower rate, which is why relationship status drops on both validation splits.
