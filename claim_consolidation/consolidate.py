@@ -43,7 +43,7 @@ FROM text_claims c JOIN texts t USING (record_id) WHERE t.author !~* %s
 """
 FLAIR_EVIDENCE = """
 INSERT INTO claim_evidence SELECT DISTINCT t.author, 'flair', t.author_flair_text, f.field, f.value
-FROM texts t JOIN flair_claims f ON f.flair = t.author_flair_text WHERE t.author !~* %s
+FROM texts t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text WHERE t.author !~* %s
 """
 CLAIMS = """
 SELECT author, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author, field
