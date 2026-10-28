@@ -16,3 +16,4 @@ matplotlib==3.11.2
 pypdf==6.21.0
 reportlab==5.0.1
 optuna==5.0.0
+pyahocorasick==2.3.1

@@ -9,6 +9,8 @@ from pathlib import Path
 from re import _constants as sre
 from re import _parser as sre_parse
 
+import ahocorasick
+
 from .config import NUMERIC, WEIGHTS
 from .normalize import CITIES as CITY_ALIASES
 from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, REGIONS, STATE_NAMES, STATES, country, number, state, value
@@ -491,22 +493,6 @@ def need(options):
     return reduce(or_, (OPTIONS[frozenset(option)] for option in options), 0)
 
 
-def trie(words):
-    root = {}
-    for word in words:
-        node = root
-        for ch in word:
-            node = node.setdefault(ch, {})
-        node[""] = {}
-    return arms(root)
-
-
-def arms(node):
-    branches = [re.escape(ch) + arms(child) for ch, child in sorted(node.items()) if ch]
-    body = branches[0] if len(branches) == 1 else "(?:" + "|".join(branches) + ")" if branches else ""
-    return f"(?:{body})?" if "" in node and branches else body
-
-
 SPELLINGS = 64
 SHORTEST = 3
 PHRASE_GATES = [(field, index, quick(pattern), *gates(pattern)) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
@@ -518,18 +504,18 @@ OPTIONS = {option: 1 << index for index, option in enumerate(dict.fromkeys(froze
 COMPILED = [(field, index, pattern, need(options)) for field, index, pattern, _, options in PHRASE_GATES]
 SCAN_NEEDS = {pattern: (fast, need(options)) for pattern, (fast, _, options) in SCAN_GATES.items()}
 ALWAYS = {position for position, (*_, gate, _) in enumerate(PHRASE_GATES) if gate is None}
-GATED, BITS = defaultdict(set), defaultdict(int)
-for position, (*_, gate, _) in enumerate(PHRASE_GATES):
-    for literal in gate or ():
-        GATED[literal].add(position)
+BITS = defaultdict(int)
 for option, bit in OPTIONS.items():
     for literal in option:
         BITS[literal] |= bit
-PREFIXES = {literal: {literal[:size] for size in range(1, len(literal) + 1)}.intersection(BITS) for literal in BITS}
-MASKS = {literal: reduce(or_, map(BITS.__getitem__, prefixes)) for literal, prefixes in PREFIXES.items()}
-ENABLED = {literal: set().union(*(GATED.get(prefix, ()) for prefix in prefixes)) for literal, prefixes in PREFIXES.items()}
-SINGLES = {literal for literal in BITS if len(literal) == 1}
-FINDER = re.compile(f"(?=({trie(sorted(BITS.keys() - SINGLES))}))")
+ENABLED = {literal: set() for literal in BITS}
+for position, (*_, gate, _) in enumerate(PHRASE_GATES):
+    for literal in gate or ():
+        ENABLED[literal].add(position)
+FINDER = ahocorasick.Automaton()
+for literal in BITS:
+    FINDER.add_word(literal, literal)
+FINDER.make_automaton()
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
 FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "central", "northern", "southern", "eastern", "western", "upstate",
           "downtown", "greater", "rural", "northeast", "northwest", "southeast", "southwest", "far", "midwest"}
@@ -859,8 +845,8 @@ def features(raw):
     words = TOKEN.findall(text)
     found = defaultdict(list)
     normal = DIGIT.sub("0", WHITESPACE.sub(" ", text))
-    literals = {*filter(normal.__contains__, SINGLES), *FINDER.findall(normal)}
-    missing = ~reduce(or_, map(MASKS.__getitem__, literals), 0)
+    literals = {literal for _, literal in FINDER.iter(normal)}
+    missing = ~reduce(or_, map(BITS.__getitem__, literals), 0)
     for field, result, source, (start, end), flag in (*tags(text, missing), *stats(text, missing), *phrases(text, literals, missing),
                                                       *mentions(text, words)):
         if result is not None:
