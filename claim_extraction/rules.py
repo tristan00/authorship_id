@@ -315,6 +315,8 @@ def spelled(op, av):
         return {chr(av)}
     if op is sre.IN and len(av) <= 8 and all(kind is sre.LITERAL for kind, _ in av):
         return {chr(code) for _, code in av}
+    if op in (sre.AT, sre.ASSERT, sre.ASSERT_NOT):
+        return {""}
     if op is sre.SUBPATTERN:
         return spelling(av[3])
     if op is sre.BRANCH:
@@ -335,18 +337,56 @@ def spelling(items):
     return strings
 
 
+def joined(strings, parts, backward=False):
+    if len(strings) * len(parts) > SPELLINGS:
+        return None
+    return {part + string if backward else string + part for string in strings for part in parts}
+
+
+def ends(items, backward):
+    exact, fixed = {""}, set()
+    for op, av in reversed(items) if backward else items:
+        part = spelled(op, av)
+        found = (part, set()) if part is not None else edges(op, av, backward)
+        if found is None or (inner := joined(exact, found[0], backward)) is None or (outer := joined(exact, found[1], backward)) is None:
+            return set(), exact | fixed
+        exact, fixed = inner, fixed | outer
+        if not exact:
+            break
+    return exact, fixed
+
+
+def edges(op, av, backward):
+    if op is sre.SUBPATTERN:
+        return ends(av[3], backward)
+    if op is sre.BRANCH:
+        found = [ends(branch, backward) for branch in av[1]]
+        return set().union(*(exact for exact, _ in found)), set().union(*(fixed for _, fixed in found))
+    if op in (sre.MAX_REPEAT, sre.MIN_REPEAT, sre.POSSESSIVE_REPEAT) and av[0] >= 1:
+        exact, fixed = ends(av[2], backward)
+        return (exact, fixed) if av[1] == 1 else (set(), exact | fixed)
+    return None
+
+
 def requirements(items):
     options, strings = [], {""}
     for op, av in [*items, (None, None)]:
         part = spelled(op, av)
-        if part is not None and len(strings) * len(part) <= SPELLINGS:
-            strings = {left + right for left in strings for right in part}
+        if part is not None and (longer := joined(strings, part)) is not None:
+            strings = longer
             continue
-        if "" not in strings:
-            options.append(minimal(strings))
-        strings = part if part is not None else {""}
+        head, tail = (None, None) if part is not None else (edges(op, av, False), edges(op, av, True))
+        option = (joined(strings, head[0] | head[1]) if head else None) or strings
+        if "" not in option:
+            options.append(minimal(option))
         if part is not None:
+            strings = part
             continue
+        if tail is None:
+            strings = {""}
+        else:
+            carried = joined(strings, tail[0])
+            strings = tail[1] | (tail[0] if carried is None else carried)
         if op is sre.SUBPATTERN:
             found = needed(av[3])
         elif op is sre.BRANCH:
@@ -435,7 +475,7 @@ def quick(pattern, flags=0):
 def gates(pattern):
     items = sre_parse.parse(pattern)
     gate = needed(items)
-    return gate, [option for option in requirements(items) if option is not gate], digital(items)
+    return gate, [option for option in requirements(items) if option != gate], digital(items)
 
 
 def trie(words):
