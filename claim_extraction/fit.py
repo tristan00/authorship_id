@@ -10,6 +10,7 @@ import numpy as np
 from joblib import Parallel, delayed
 from scipy.sparse import csr_matrix, hstack
 from sklearn.linear_model import LogisticRegression
+from threadpoolctl import threadpool_limits
 
 from . import LOG, timed
 from .config import FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_THRESHOLDS, FIT_TOL, WEIGHTS, WORKERS
@@ -69,8 +70,10 @@ def collect(month, datasets):
 def train(matrix, targets, texts, c, fold):
     start = time.time()
     held = texts % FIT_FOLDS == fold
-    model = LogisticRegression(C=c, max_iter=5000, tol=FIT_TOL).fit(matrix[~held], targets[~held])
-    return (model.predict_proba(matrix[held])[:, 1] if held.any() else model), time.time() - start
+    with threadpool_limits(1):
+        model = LogisticRegression(C=c, max_iter=5000, tol=FIT_TOL).fit(matrix[~held], targets[~held])
+        result = model.predict_proba(matrix[held])[:, 1] if held.any() else model
+    return result, time.time() - start
 
 
 def best(probabilities, texts, fields, targets):
