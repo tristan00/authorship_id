@@ -1,6 +1,6 @@
 # Flair claims
 
-`flairs.json` maps a (subreddit, author flair) pair to self-claims, one entry `{subreddit, flair, field, value}` per field. Fields and values are claim_extraction's, each a single number or category. `python -m claim_flair load` replaces `flair_claims` with these entries in one transaction. Consolidation joins `texts` to `flair_claims` on subreddit and flair (`FLAIR_EVIDENCE`), and each distinct flair claim of an author is one piece of evidence next to the author's text claims.
+`flairs.json` maps a (subreddit, author flair) pair to self-claims, one entry `{subreddit, flair, field, value}` per field. Fields and values are claim_extraction's, each a single number or category. `python -m claim_flair load` replaces `flair_claims` with these entries in one transaction.
 
 ## How the mapping was built
 
@@ -8,7 +8,7 @@ The mapping is built once, from the 2026-03 month. The scripts and intermediate 
 
 Flairs: every (subreddit, flair, author) of a text with a non-empty author flair, without the `NOT_PEOPLE` authors. That is 6.1M triples, 1.8M (subreddit, flair) pairs, 1.68M distinct flairs and 3.04M authors.
 
-Text evidence: each author's `text_claims` counted by field and value. The author's text value for a field is the untied majority, as in consolidation's `decide()`: 7.6M (author, field) values over 3.81M authors.
+Text evidence: each author's `text_claims` counted by field and value. The author's text value for a field is the value claimed in the most of the author's texts, when no other value is claimed as often: 7.6M (author, field) values over 3.81M authors.
 
 Proposals come from two sources.
 
