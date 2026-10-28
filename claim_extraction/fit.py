@@ -2,13 +2,12 @@ import json
 import math
 from collections import Counter, defaultdict
 from itertools import product
-from multiprocessing import Pool
 
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LogisticRegression
 
 from . import LOG, timed
-from .config import ANNOTATIONS, FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_THRESHOLDS, WEIGHTS, WORKERS
+from .config import ANNOTATIONS, FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_THRESHOLDS, WEIGHTS
 from .rules import features
 
 
@@ -34,10 +33,9 @@ def examples(item):
 @timed
 def collect(month, datasets):
     items, labels = [], Counter()
-    with Pool(WORKERS) as pool:
-        for index, (fields, found) in enumerate(pool.imap(examples, records(month, datasets), chunksize=1000)):
-            labels.update(fields)
-            items.extend(((index, field), names, target) for field, names, target in found)
+    for index, (fields, found) in enumerate(map(examples, records(month, datasets))):
+        labels.update(fields)
+        items.extend(((index, field), names, target) for field, names, target in found)
     LOG.info("collect texts=%d labels=%d candidates=%d", index + 1, sum(labels.values()), len(items))
     return items, labels
 
