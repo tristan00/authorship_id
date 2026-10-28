@@ -482,7 +482,9 @@ def quick(pattern, flags=0):
 
 def gates(pattern, flags=0):
     items = sre_parse.parse(pattern, flags)
-    return needed(items), [*requirements(items), *([{"0"}] if digital(items) else [])]
+    gate = needed(items)
+    options = [option for option in requirements(items) if option == gate or min(map(len, option)) >= SHORTEST]
+    return gate, [*options, *([{"0"}] if digital(items) else [])]
 
 
 def need(options):
@@ -506,6 +508,7 @@ def arms(node):
 
 
 SPELLINGS = 64
+SHORTEST = 3
 PHRASE_GATES = [(field, index, quick(pattern), *gates(pattern)) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
 SCANS = (TAG_SELF, TAG_ANY, TAG_DASH, AGE_GENDER, GENDER_AGE, GENDER_PAREN, PRONOUN_TAG, BARE_GENDER, RACE_GENDER, GENDER_BRACKET, TAG_FOR, AGE_START,
          AGE_BRACKET, NUMBER, BARE_NUMBER, WORD_NUMBER, HEIGHT_ANY, HEIGHT_METRIC, WEIGHT_ANY, WEIGHT_AFTER, INCOME_ANY, YEAR)
