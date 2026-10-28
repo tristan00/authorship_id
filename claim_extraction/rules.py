@@ -57,7 +57,7 @@ WEIGHT_AFTER = re.compile(r"(?:[4-7]\s*(?:'|ft\.?|foot|feet)\s*(?:1[01]|\d)?\s*(
 WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|kilos))\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain))")
 HEIGHT_METRIC = re.compile(r"(?<![\w.,$])(1[4-9]\d\s?cm|2[0-2]\d\s?cm|1[.,][4-9]\d\s?m\b|1[.,][4-9]\d(?![\d,%]|\.\d|\s*(?:€|eur|usd|dollars?|bucks|km|miles?|mi\b|hours?|h\b)))")
 PEOPLE = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur)\b")
-PRIMES = str.maketrans({"‘": "'", "’": "'", "´": "'", "′": "'", "″": '"', "ʻ": "'", "ʼ": "'", "​": None, "‌": None, "‍": None, "⁠": None, "﻿": None})
+PRIMES = {"‘": "'", "’": "'", "´": "'", "′": "'", "″": '"', "ʻ": "'", "ʼ": "'", "​": "", "‌": "", "‍": "", "⁠": "", "﻿": ""}
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
 ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|latino|hispanic|indian|fit|tall|short|chubby|fat|hot|horny|lonely|bored|average|older|young)"
 AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:(?:" + ADJECTIVES + r"|(?!years?\b|ago\b|of\b|and\b|or\b|the\b|a\b|an\b|to\b|for\b|with\b|people\b|times?\b|minutes?\b|hours?\b|days?\b|weeks?\b|months?\b)[a-z]+)\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
@@ -487,6 +487,7 @@ FLAGS = {"🇺🇸": "united states", "🇬🇧": "united kingdom", "🇨🇦": 
          "🇦🇹": "austria", "🇱🇻": "latvia", "🇱🇹": "lithuania", "🇪🇪": "estonia", "🇧🇩": "bangladesh", "🇮🇩": "indonesia", "🇲🇾": "malaysia",
          "🇸🇬": "singapore", "🇻🇳": "vietnam", "🇹🇭": "thailand"}
 US_UPPER = re.compile(r"\bUS\b")
+MARKS = {pattern: needed(sre_parse.parse(pattern.pattern, pattern.flags)) for pattern in (SKIP, US_UPPER)}
 REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
 HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
 TAIL = r"\b(?:\W+[\w']+){0,3}\W*$"
@@ -781,12 +782,22 @@ def blank(value, spans):
     return "".join(pieces) + value[last:]
 
 
+def straighten(value):
+    for old, new in PRIMES.items():
+        value = value.replace(old, new)
+    return value
+
+
+def possible(pattern, text):
+    return any(map(text.__contains__, MARKS[pattern]))
+
+
 def features(raw):
-    base = US_UPPER.sub("USA", raw)
+    base = US_UPPER.sub("USA", raw) if possible(US_UPPER, raw) else raw
     lowered = base.lower()
-    spans = [match.span() for match in SKIP.finditer(lowered)]
-    text = blank(lowered, spans).translate(PRIMES)
-    cased = blank(base, spans).translate(PRIMES) if len(lowered) == len(base) else text
+    spans = [match.span() for match in SKIP.finditer(lowered)] if possible(SKIP, lowered) else []
+    text = straighten(blank(lowered, spans))
+    cased = straighten(blank(base, spans)) if len(lowered) == len(base) else text
     lines = "multi" if "\n" in text.strip() else "one"
     words = TOKEN.findall(text)
     first = sum(map(SELF.__contains__, words))
