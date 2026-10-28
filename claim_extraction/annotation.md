@@ -39,6 +39,19 @@ On a 1.92M-text slice, the staged claims equal single-process `rules.claims` on 
 
 Up to 16 workers the rows come from the 1.92M-text slice, where the 3 s worker start is part of the wall time. From 20 workers they come from separate 9.6M-text slices read cold from disk.
 
+The 2026-03 run read 371,780,434 texts, the same count as a direct query of the population, of which 64,507 were over 10,000 bytes. It wrote 23,532,072 claims on 14,329,043 texts, 6.33 per 100 texts against 6.40 predicted on panel200k validation. Extraction took about 43 minutes over 24 workers, plus 14 s for the finish step.
+
+The heap's first ~8M pages interleave posts with comments, because the loader read both dumps in parallel; the rest is comments only. The mixed region yields about 11.7 claims per 100 texts and ran at about 105,000 texts/s. The comment-only region yields about 2.3 and ran at about 150,000. Over the whole month, posts are 12.2% of texts with 35.21 claims per 100, against 35.55 predicted on panel200k validation, where posts are also 12.2%. Comments have 2.32 against 2.33. Every field with at least 0.1 claims per 100 texts is within 9% of its validation rate. The larger ratios (origin state 1.72, language 1.49, employment 1.36, origin country 0.76) are on fields with 7 to 51 validation predictions per 100,000 texts.
+
+On a fresh random sample of 100,000 texts from the month, the stored claims equal single-process `rules.claims` and `rules.extract` exactly. The table has no duplicate (record_id, field) and no span outside its text.
+
+Two texts stopped earlier attempts; each was fixed with identical output on the validation and fit-feature checks, and the run resumed from its finished parts.
+
+- An income amount with hundreds of digits parsed to infinity, which `round()` cannot convert. `earnings` and `normalize.bounded` now treat a non-finite amount like any out-of-range number.
+- A post with 17,550 consecutive newlines kept `TAG_FOR` backtracking cubically through `\s*[\[\(]?\s*`, so its part never finished. Both such runs are now written as `\s*(?:[\[\(]\s*)?` and `\s*(?:[\]\)]\s*)?(?:[-–|:]\s*)?`. The rewrite gives the same matches on 2M random strings and the post now takes 12 s.
+
+Of all patterns, only `TAG_SELF`, `TAG_ANY` and `TAG_FOR` grow faster than linearly on long whitespace runs. They grow quadratically: about 2 s for 16,000 newlines.
+
 ## Datasets
 
 Each dataset lives in `D:\reddit_data\annotations\<month>\<dataset>\`:
