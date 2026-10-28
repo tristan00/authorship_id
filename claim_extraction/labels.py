@@ -22,6 +22,14 @@ def vote(ballots):
     return resolved
 
 
+def examples(month, dataset, split):
+    root = ANNOTATIONS / month / dataset
+    labels = {row["id"]: row["values"] for row in map(json.loads, open(root / "labels.jsonl", encoding="utf-8")) if row["split"] == split}
+    for row in map(json.loads, open(root / "records.jsonl", encoding="utf-8")):
+        if row["id"] in labels:
+            yield row["id"], row["text"], labels[row["id"]]
+
+
 def read_voter(directory):
     answers = {}
     for path in sorted(directory.glob("[0-9][0-9].jsonl")):

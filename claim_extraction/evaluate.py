@@ -5,34 +5,19 @@ from multiprocessing import Pool
 
 from . import LOG, timed
 from .config import ANNOTATIONS, FIELDS, WORKERS
+from .labels import examples
 from .rules import extract
 
 ERROR_SAMPLES = 20
 
 
-def load(month, dataset, split):
-    root = ANNOTATIONS / month / dataset
-    labels = {}
-    for line in open(root / "labels.jsonl", encoding="utf-8"):
-        row = json.loads(line)
-        if row["split"] == split:
-            labels[row["id"]] = row["values"]
-    texts = {}
-    for line in open(root / "records.jsonl", encoding="utf-8"):
-        row = json.loads(line)
-        if row["id"] in labels:
-            texts[row["id"]] = row["text"]
-    return texts, labels
-
-
-def score(texts, labels):
+def score(rows):
     counts = {field: Counter() for field in FIELDS}
     errors = defaultdict(list)
     wrong = {field: Counter() for field in FIELDS}
     with Pool(WORKERS) as pool:
-        predictions = pool.map(extract, texts.values(), chunksize=500)
-    for (record_id, text), predicted in zip(texts.items(), predictions):
-        expected = labels[record_id]
+        predictions = pool.map(extract, [text for _, text, _ in rows], chunksize=500)
+    for (record_id, text, expected), predicted in zip(rows, predictions):
         for field in FIELDS:
             guess, truth = predicted.get(field), expected.get(field)
             if guess is not None and guess == truth:
@@ -63,9 +48,9 @@ def report(counts):
 
 @timed
 def evaluate(month, dataset, split):
-    texts, labels = load(month, dataset, split)
-    counts, errors, wrong = score(texts, labels)
-    result = {"dataset": dataset, "split": split, "texts": len(texts), **report(counts)}
+    rows = list(examples(month, dataset, split))
+    counts, errors, wrong = score(rows)
+    result = {"dataset": dataset, "split": split, "texts": len(rows), **report(counts)}
     if split == "train":
         rng = random.Random(0)
         result["wrong"] = {field: [[guess, truth, n] for (guess, truth), n in common.most_common(20)] for field, common in wrong.items() if common}
@@ -73,5 +58,5 @@ def evaluate(month, dataset, split):
     out = ANNOTATIONS / month / "evaluations"
     out.mkdir(exist_ok=True)
     (out / f"{dataset}_{split}.json").write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
-    LOG.info("evaluate %s %s texts=%d micro=%s", dataset, split, len(texts), result["micro"])
+    LOG.info("evaluate %s %s texts=%d micro=%s", dataset, split, len(rows), result["micro"])
     return result
