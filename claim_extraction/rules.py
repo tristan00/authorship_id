@@ -313,9 +313,9 @@ PHRASES = {
 
 def spelled(op, av):
     if op is sre.LITERAL:
-        return {chr(av)}
-    if op is sre.IN and len(av) <= 8 and all(kind is sre.LITERAL for kind, _ in av):
-        return {chr(code) for _, code in av}
+        return {" " if chr(av).isspace() else chr(av)}
+    if op is sre.IN and len(av) <= 8 and all(kind is sre.LITERAL or (kind, code) == (sre.CATEGORY, sre.CATEGORY_SPACE) for kind, code in av):
+        return {" " if kind is sre.CATEGORY or chr(code).isspace() else chr(code) for kind, code in av}
     if op in (sre.AT, sre.ASSERT, sre.ASSERT_NOT):
         return {""}
     if op is sre.SUBPATTERN:
@@ -323,6 +323,8 @@ def spelled(op, av):
     if op is sre.BRANCH:
         branches = [spelling(branch) for branch in av[1]]
         return None if None in branches else set().union(*branches)
+    if op in (sre.MAX_REPEAT, sre.MIN_REPEAT, sre.POSSESSIVE_REPEAT) and spelling(av[2]) == {" "}:
+        return {" "} if av[0] else {"", " "}
     if op is sre.MAX_REPEAT and av[0] == 0 and av[1] == 1 and (part := spelling(av[2])) is not None:
         return {"", *part}
     return None
@@ -334,14 +336,14 @@ def spelling(items):
         part = spelled(op, av)
         if part is None or len(strings) * len(part) > SPELLINGS:
             return None
-        strings = {left + right for left in strings for right in part}
+        strings = {(left + right).replace("  ", " ") for left in strings for right in part}
     return strings
 
 
 def joined(strings, parts, backward=False):
     if len(strings) * len(parts) > SPELLINGS:
         return None
-    return {part + string if backward else string + part for string in strings for part in parts}
+    return {(part + string if backward else string + part).replace("  ", " ") for string in strings for part in parts}
 
 
 def ends(items, backward):
@@ -537,6 +539,7 @@ FLAGS = {"🇺🇸": "united states", "🇬🇧": "united kingdom", "🇨🇦": 
          "🇦🇹": "austria", "🇱🇻": "latvia", "🇱🇹": "lithuania", "🇪🇪": "estonia", "🇧🇩": "bangladesh", "🇮🇩": "indonesia", "🇲🇾": "malaysia",
          "🇸🇬": "singapore", "🇻🇳": "vietnam", "🇹🇭": "thailand"}
 US_UPPER = re.compile(r"\bUS\b")
+WHITESPACE = re.compile(r"\s{2,}|[^\S ]")
 MARKS = {pattern: needed(sre_parse.parse(pattern.pattern, pattern.flags)) for pattern in (SKIP, US_UPPER)}
 REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
 HYPOTHETICAL = quick(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
@@ -847,7 +850,8 @@ def features(raw):
     text = straighten(blank(lowered, spans))
     words = TOKEN.findall(text)
     found = defaultdict(list)
-    literals = SINGLES.intersection(text).union(FINDER.findall(text))
+    normal = WHITESPACE.sub(" ", text)
+    literals = SINGLES.intersection(normal).union(FINDER.findall(normal))
     missing = ~reduce(or_, map(MASKS.__getitem__, literals), 1 if DIGIT.search(text) else 0)
     for field, result, source, (start, end), flag in (*tags(text, missing), *stats(text, missing), *phrases(text, literals, missing),
                                                       *mentions(text, words)):
