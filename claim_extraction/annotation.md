@@ -79,7 +79,7 @@ Over panel1m, panel1m_b and panel200k this gives 141,609 resolved labels, agains
 Candidates come from three kinds of sources, up to three matches per pattern:
 
 - patterns: age and gender tags (`28F`, `m24`, `[M4F]`, `m4f27`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), tags with a dash or underscore (`m-45`, `21-f`, `20y-m`), a two-digit age at the start of the text (also `20y` and `22/oklahoma`) or in brackets, a text that is only a number, ages written as words ("nineteen", "sixty-six"), heights in feet and inches (also `5"3`, and `6ft` or `6 foot` before any word), centimetres or metres (`1,80`), weights, a unit-less weight right after a height (`5'9 150`, read as pounds from 100 up and as kilograms below), and flag emoji for countries;
-- phrases: first-person patterns per field (`PHRASES`), including Spanish, Portuguese, French, German, Italian and Dutch forms for marital status ("estoy casado", "mi marido"), relationship status ("je suis célibataire") and children ("tenemos dos hijos", "no tengo hijos"), birth years from "born ... 1996" anywhere, "dob" or "date of birth" with a date and "born in Tulsa in 1970", with two-digit years from 00 to 13 read as 2000s, "X resident" for residence ("I'm from X" and a country right after a tag were tried and lowered residence country F1), employment from "i have a job", "we work full time", "i'm salaried", "at work", "my boss" and "i don't have a job" / "lost my job" / "got laid off", a job title after an age/gender tag ("27m, iit grad, software engineer", "34m phd scientist") or after "i'm NAME, a", "and work in X", orientation words not before a hyphen ("bi-weekly") or after "be" ("gonna be straight"), relationship and children from "in a healthy relationship", "i'm a 22-year-old mom", "30 latino dad", "married with kids" and "my first kiddo", "I (21f) am" as a first-person form in every pattern, and for gender "mid 30s fit female", "19 german guy", "i'm married and a man", gender as a list item (", Male, Canadian"), "(I'm M)", "29 single m here", "as an aging male", "this is a man", "bi guy(32)" and "agender"/"genderfluid", with places matched against countries, first-level regions and `cities.json` and occupations against `jobs.json` and a list of job nouns;
+- phrases: first-person patterns per field (`PHRASES`), including Spanish, Portuguese, French, German, Italian and Dutch forms for marital status ("estoy casado", "mi marido"), relationship status ("je suis célibataire") and children ("tenemos dos hijos", "no tengo hijos"), birth years from "born ... 1996" anywhere, "dob" or "date of birth" with a date and "born in Tulsa in 1970", with two-digit years from 00 to 13 read as 2000s, "X resident", "I've lived in X", "we live on the westside of X", "I'm London based", "my state X" and "vivo en" / "je vis à" / "ich wohne in X" for residence ("I'm from X" and a country right after a tag were tried and lowered residence country F1), income from "i bring home 45k" and "income: $72k", employment from "i have a job", "we work full time", "i'm salaried", "at work", "my boss", "i freelance", "... for a living" and "i don't have a job" / "lost my job" / "got laid off" (also with a curly apostrophe), a job title after an age/gender tag ("27m, iit grad, software engineer", "34m phd scientist") or after "i'm NAME, a", "and work in X", orientation words not before a hyphen ("bi-weekly") or after "be" ("gonna be straight"), relationship and children from "in a healthy relationship", "i'm a 22-year-old mom", "30 latino dad", "married with kids", "with 2 young kids", "we had a baby", "had my first child" and "my first kiddo", "I (21f) am" as a first-person form in every pattern, and for gender "mid 30s fit female", "19 german guy", "i'm married and a man", gender as a list item (", Male, Canadian"), "(I'm M)", "29 single m here", "as an aging male", "this is a man", "bi guy(32)" and "agender"/"genderfluid", with places matched against countries, first-level regions and `cities.json` and occupations against `jobs.json` and a list of job nouns;
 - broad mentions: any vocabulary word of a field anywhere in the text (gender words, countries, demonyms, regions, cities, languages, race, orientation, religion, marital, relationship, employment, mental health, ideology, generation, `jobs.json` titles, degrees, study subjects, "my son", "my son's", "no kids", "mom", "my gf", "pregnant", ...), the voters' own values in `values.json`, any money amount for income, and any standalone two-digit number for age, also before a comma or full stop and with a `yo`/`yrs`/`y` suffix or a hyphenated `-year-old`. Vocabulary is read in sorted order so the per-field cap of four mentions, and with it the fit, does not depend on string hashing. Numeric candidates are bounded by `config.CANDIDATE_BOUNDS`, which allows ages from 1 to 120 because the voters label ages below 13 (mostly texts that are only a number).
 
 Every candidate also gets context cues from its own sentence: another person as the subject before it ("he", "her", "my wife", "you") or right after it ("at 33, she"), negation, "we"/"us", past-tense context ("used to", "when i was", "turned"), hypothetical context, generic subjects ("people", "everyone"), comparisons ("than", "over", "in their"), a question sentence, and for numbers a unit or range right after ("15 matches", "10 years of", "20-25"). Conditions that used to discard a match are flags instead: hypothetical context before a phrase ("if", "would", "used to be", ...), another person mentioned before a height or weight, and a text that is only a tag (`M35`, whose gender the voters rarely label). The first unflagged pattern or phrase candidate of a field, which is what first-match rules would return, is marked `pick`.
@@ -92,44 +92,44 @@ The fit log reports out-of-fold F1 per field. `fit` trains one logistic regressi
 
 `values.json` holds the label values outside the value sets (and, for occupation and study subject, outside the SOC and CIP groups) that occur at least twice among panel1m and panel1m_b train labels, have at least three characters, and match their field's train label in at least 1% of the train texts that mention them; the mention is a candidate with the voters' wording as its value (marital status "single", orientation "m4m", mental health "depressed", ...).
 
-The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 115,285 labels). Cross-validation chose C = 0.3 for both passes; with the tuned cutoffs the out-of-fold micro F1 is 0.729 and the macro F1 (mean over fields) 0.492. Tuning cutoffs on micro F1 alone gave the same micro F1 and a macro F1 of 0.461 when it was last compared. Pooled scores count the three validation splits together (13,211 labels); "before round 1" is the model fitted on the corrected labels before the candidate, feature and cutoff changes since. Round 1 sorted validation misses into categories, so all three validation splits saw some rule work; from round 2 on, development reads train errors and out-of-fold scores only, and validation is used for scoring.
+The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 115,285 labels). Cross-validation chose C = 0.3 for both passes; with the tuned cutoffs the out-of-fold micro F1 is 0.729 and the macro F1 (mean over fields) 0.493. Tuning cutoffs on micro F1 alone gave the same micro F1 and a macro F1 of 0.461 when it was last compared. Pooled scores count the three validation splits together (13,211 labels); "before round 1" is the model fitted on the corrected labels before the candidate, feature and cutoff changes since. Round 1 sorted validation misses into categories, so all three validation splits saw some rule work; from round 2 on, development reads train errors and out-of-fold scores only, and validation is used for scoring.
 
 | validation micro F1 | panel1m | panel1m_b | panel200k | pooled |
 |---|---|---|---|---|
 | before round 1 | 0.713 | 0.708 | 0.701 | 0.706 |
-| current | 0.737 | 0.731 | 0.719 | 0.726 |
+| current | 0.737 | 0.732 | 0.719 | 0.726 |
 
-Validation F1 by field on each split and pooled over all three (pooled precision 0.739, recall 0.713), with the pooled F1 before round 1. Fields are ordered by pooled validation label count.
+Validation F1 by field on each split and pooled over all three (pooled precision 0.743, recall 0.711), with the pooled F1 before round 1. Fields are ordered by pooled validation label count.
 
 | field | pooled labels | panel1m | panel1m_b | panel200k | pooled | before round 1 |
 |---|---|---|---|---|---|---|
 | age | 4853 | 0.88 | 0.89 | 0.87 | 0.88 | 0.86 |
 | gender | 3090 | 0.76 | 0.75 | 0.75 | 0.75 | 0.74 |
 | residence_city | 599 | 0.58 | 0.59 | 0.60 | 0.59 | 0.56 |
-| occupation | 521 | 0.53 | 0.39 | 0.43 | 0.45 | 0.44 |
-| marital_status | 457 | 0.58 | 0.59 | 0.65 | 0.62 | 0.58 |
-| residence_country | 456 | 0.58 | 0.54 | 0.51 | 0.53 | 0.49 |
-| sexual_orientation | 355 | 0.50 | 0.59 | 0.60 | 0.57 | 0.56 |
-| race_ethnicity | 354 | 0.76 | 0.72 | 0.59 | 0.67 | 0.64 |
-| residence_state | 350 | 0.59 | 0.51 | 0.59 | 0.57 | 0.55 |
-| parental_status | 302 | 0.43 | 0.51 | 0.42 | 0.45 | 0.41 |
-| nationality | 296 | 0.56 | 0.58 | 0.59 | 0.58 | 0.57 |
-| height | 283 | 0.92 | 0.83 | 0.84 | 0.86 | 0.81 |
-| mental_health | 151 | 0.55 | 0.51 | 0.48 | 0.50 | 0.43 |
-| relationship_status | 133 | 0.41 | 0.25 | 0.20 | 0.27 | 0.28 |
-| employment_status | 132 | 0.25 | 0.28 | 0.28 | 0.27 | 0.32 |
-| origin_country | 128 | 0.47 | 0.61 | 0.35 | 0.45 | 0.43 |
-| weight | 122 | 0.83 | 0.70 | 0.75 | 0.77 | 0.76 |
-| religion | 109 | 0.56 | 0.73 | 0.47 | 0.56 | 0.51 |
-| education | 107 | 0.18 | 0.41 | 0.31 | 0.31 | 0.24 |
-| education_subject | 88 | 0.38 | 0.36 | 0.47 | 0.41 | 0.42 |
-| income | 71 | 0.47 | 0.43 | 0.51 | 0.49 | 0.27 |
-| generation | 55 | 0.53 | 0.64 | 0.43 | 0.51 | 0.49 |
-| birth_year | 51 | 0.73 | 0.58 | 0.67 | 0.66 | 0.55 |
-| language | 47 | 0.20 | 0.42 | 0.29 | 0.32 | 0.26 |
-| origin_city | 37 | 0.13 | 0.36 | 0.24 | 0.23 | 0.18 |
+| occupation | 521 | 0.52 | 0.42 | 0.44 | 0.45 | 0.44 |
+| marital_status | 457 | 0.58 | 0.60 | 0.64 | 0.62 | 0.58 |
+| residence_country | 456 | 0.55 | 0.47 | 0.50 | 0.51 | 0.49 |
+| sexual_orientation | 355 | 0.52 | 0.59 | 0.59 | 0.57 | 0.56 |
+| race_ethnicity | 354 | 0.75 | 0.69 | 0.61 | 0.67 | 0.64 |
+| residence_state | 350 | 0.59 | 0.52 | 0.58 | 0.57 | 0.55 |
+| parental_status | 302 | 0.46 | 0.53 | 0.43 | 0.46 | 0.41 |
+| nationality | 296 | 0.58 | 0.57 | 0.60 | 0.59 | 0.57 |
+| height | 283 | 0.90 | 0.84 | 0.84 | 0.85 | 0.81 |
+| mental_health | 151 | 0.54 | 0.50 | 0.48 | 0.50 | 0.43 |
+| relationship_status | 133 | 0.41 | 0.31 | 0.17 | 0.27 | 0.28 |
+| employment_status | 132 | 0.25 | 0.27 | 0.29 | 0.28 | 0.32 |
+| origin_country | 128 | 0.49 | 0.66 | 0.34 | 0.46 | 0.43 |
+| weight | 122 | 0.82 | 0.70 | 0.75 | 0.76 | 0.76 |
+| religion | 109 | 0.56 | 0.73 | 0.47 | 0.55 | 0.51 |
+| education | 107 | 0.21 | 0.37 | 0.32 | 0.31 | 0.24 |
+| education_subject | 88 | 0.31 | 0.38 | 0.46 | 0.40 | 0.42 |
+| income | 71 | 0.47 | 0.45 | 0.51 | 0.49 | 0.27 |
+| generation | 55 | 0.50 | 0.59 | 0.43 | 0.49 | 0.49 |
+| birth_year | 51 | 0.73 | 0.61 | 0.67 | 0.67 | 0.55 |
+| language | 47 | 0.29 | 0.38 | 0.24 | 0.30 | 0.26 |
+| origin_city | 37 | 0.13 | 0.36 | 0.19 | 0.21 | 0.18 |
 | origin_state | 31 | 0.53 | 0.55 | 0.35 | 0.45 | 0.46 |
-| political_ideology | 27 | 0.43 | 0.00 | 0.26 | 0.26 | 0.24 |
+| political_ideology | 27 | 0.40 | 0.00 | 0.25 | 0.24 | 0.24 |
 | political_compass | 6 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
 
 panel1m_b labels relationship status 24% less often per train text than panel1m (5.1 against 6.8 per 10,000) and parental status 16% less, from per-server voter variance. The combined model learns the lower rate, which is why relationship status drops on both validation splits.

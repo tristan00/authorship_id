@@ -200,7 +200,12 @@ PHRASES = {
                           rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|\[\s?[mf]4\w+\s?\])\s*[-|,]\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*(?:[-|,(]|$)",
                           r"\b(?:in|from|near) (?:the )?([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*\(\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) area\s*\)",
                           r"(?:^|[.!,;(\]|-]\s*)([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)[- ]based\b(?! (?:company|companies|firm|business|brand|startup|clients?|team|server|bank|agency|band|artist|rapper))",
-                          r"(?:^|[\s,(])([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) (?:resident|local)\b(?! (?:evil|news|police|business|government|election|elections))"),
+                          r"(?:^|[\s,(])([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) (?:resident|local)\b(?! (?:evil|news|police|business|government|election|elections))",
+                          rf"\b(?:i(?:'ve|’ve| have|ve)|we(?:'ve|’ve| have)) (?:always |only |now |just |mostly )?(?:lived|been living|been) in (?:the )?{PLACE}",
+                          rf"\b(?:i|we) live (?:on|in) the (?:[a-z]+ )?[a-z]*(?:side|part|outskirts|suburbs|edge|area|middle) of (?:the )?{PLACE}",
+                          rf"\b{I} (?:in |from )?([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)[- ]based\b",
+                          rf"\b(?:vivo|moro|resido|estoy|estou|je vis|j'habite|j’habite|ich wohne|ik woon|abito) (?:en|em|in|à|a|au|aux|no|na|nel|nella|dans)\s+(?:le |la |les |l'|el |o |a )?([^\W\d_]+(?:[ -][^\W\d_]+){{0,2}})",
+                          rf"\bmy (?:home )?(?:state|city|town|country)(?: is|,|:)? (?:of )?{PLACE}"),
     "origin_country": (rf"\b{I} (?:originally )?from (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which | originally)",
                        r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )",
                        rf"\b(?:i|we) (?:just |recently |originally )?(?:moved|immigrated|emigrated|came|relocated) (?:here |over |to [a-z]+ |to the [a-z]+ )?from (?:the )?{PLACE}",
@@ -214,7 +219,9 @@ PHRASES = {
     "income": (rf"\b(?:i|and|currently) (?:currently |only |still |now |also |probably |actually |personally |usually |typically )?(?:make|made|earn|earned|gross|grossed|net|netted|clear|take home|bring in|brought in)\s+{ROUGHLY}({AMOUNT}{PERIOD}){NOT_SAVINGS}",
                rf"\b{I} (?:currently |now |only |still )?(?:making|earning|grossing|netting|clearing|paid)\s+{ROUGHLY}({AMOUNT}{PERIOD}){NOT_SAVINGS}",
                rf"\bmy (?:annual |yearly |base |current |gross |net |total )?(?:salary|income|pay|wage|comp|compensation|tc|take home)(?: is| was|:| of| =)?\s*{ROUGHLY}({AMOUNT}{PERIOD})",
-               rf"\bwe (?:make|earn|bring in|gross|take home)\s+{ROUGHLY}({AMOUNT}{PERIOD})"),
+               rf"\bwe (?:make|earn|bring in|gross|take home)\s+{ROUGHLY}({AMOUNT}{PERIOD})",
+               rf"\bi (?:currently |usually |only )?(?:bring home|take home|clear|pull in|pull)\s+{ROUGHLY}({AMOUNT}{PERIOD}){NOT_SAVINGS}",
+               rf"\b(?:income|salary|annual income|yearly income)\s*[:=-]\s*{ROUGHLY}({AMOUNT}{PERIOD})"),
     "education": (rf"\bi (?:have|hold|got|earned|finished|did|completed|received|just got|just finished|am finishing|'m finishing|’m finishing|am doing|'m doing|’m doing|am pursuing|'m pursuing|’m pursuing|have done|also have|only have|already have) (?:a |an |my |a literal |only a |two |both )?({DEGREES}|college degree|university degree|law degree|medical degree)(?: degree| degrees)?\b",
                   rf"\bmy ({DEGREES})(?: degree)? (?:is |was )?in\b"),
     "education_subject": (rf"\bi(?:'m| am|’m)? (?:currently )?(?:study|studied|studying|majored in|major in|majoring in|minored in|a student of|went to (?:college|school|uni|university) for) ([a-z][a-z -]+?){SUBJECT_END}",
@@ -236,7 +243,7 @@ PHRASES = {
     "employment_status": (rf"\b(?:i|{I}|i've been|i’ve been|i have been) (?:currently |now |also |still )?(?:work|working) (full[- ]time|part[- ]time)\b", r"\bi (?:currently|now) (work)\b(?! (?:on|out|through))",
                           rf"\b(?:{I}|i've been|i’ve been|i have been) (?:currently |now |happily |fully )?(retired|unemployed|self[- ]employed|a student|a full[- ]time student|a college student|a university student|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|a homemaker|a housewife|on disability|disabled|a freelancer|freelance|jobless|between jobs|laid off|out of work)\b",
                           r"\b(?:i(?:'m|’m| am|m)?|i've been|i’ve been|i have been|i got|i was just|i just got|recently|currently|still) (?:currently |still |now |recently |just |been )?(unemployed|laid off|jobless|between jobs|out of work|job hunting|looking for (?:a )?(?:job|work)|job searching|without a job)\b(?! (?:people|folks|friends?|guy|men|women))",
-                          rf"\bi (work for myself|run my own business|own my own business|do freelance)\b|\b{I} (?:a |an )?(self[- ]employed|a freelancer|freelancing|an independent contractor|a business owner|my own boss)\b",
+                          rf"\bi (work for myself|run my own business|own my own business|do freelance|freelance)\b|\b{I} (?:a |an )?(self[- ]employed|a freelancer|freelancing|an independent contractor|a business owner|my own boss)\b",
                           r"(?:\b\d{2}\s?(?:yo|y/o)?\s?[mf]?\b|\b[mf]\s?\d{2}\b|\[?[mf]4\w+\]?)[ ,/-]+(?:[a-z]+ ){0,2}?(retired)\b",
                           rf"\b(?:{I}|i've been|i’ve been|i have been|now|currently) (?:currently |now |still )?(working) as an?\b",
                           rf"\b(?:{I}|i've been|i’ve been) (?:currently |now |gainfully |fully |also )?(employed)\b(?! (?:by|at|as|with))",
@@ -245,7 +252,8 @@ PHRASES = {
                           r"\bi(?:'m|’m| am) (?:on )?(salary|salaried|hourly)\b",
                           r"\b(?:at|from|to|after|before|leaving|left) (work|my job)\b",
                           r"\bmy (boss|coworkers?|co-workers?|shift|manager|employer)\b",
-                          r"\bi (don't have a job|dont have a job|do not have a job|can't find a job|cant find a job|can't find work|lost my job|got fired|was fired|got laid off|was laid off|haven't worked)\b"),
+                          r"\bi (don['’]?t have a job|do not have a job|can['’]?t find a job|can['’]?t find work|lost my job|got fired|was fired|got laid off|was laid off|haven['’]?t worked)\b",
+                          r"\bi (?:[a-z]+ ){1,4}(for a living)\b"),
     "marital_status": (r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?(married)\b",
                        r"\b(?:i've|i have|we've|we have) been (married) (?:for )?", r"\b(married) (?:man|woman|guy|male|female|dad|mom|couple) here\b",
                        r"\bmy (husband)\b(?! (?:and i (?:are|were) divorced|left|died|passed))", r"\bmy (wife) and i\b(?! (?:are|were) divorced)", rf"\b{I} (?:happily |newly )?(married|divorced|widowed|a widow|a widower|separated)\b(?! (?:to|for) (?:my|a)? ?(?:job|work|career))",
@@ -280,7 +288,8 @@ PHRASES = {
                         r"\b(no tengo hijos|não tenho filhos|je n'ai pas d'enfants|ich habe keine kinder|non ho figli)\b",
                         rf"\b{I} (?:also |now |just )?{A}(?:[\w-]+ ){{0,2}}?(mom|mother|dad|father|mum|parent)\b(?! (?:of|to) (?:a|an|my|the|two) (?:dog|cat|pet|puppy|kitten|plant|fur))",
                         r"(?:^|[\s,(\[])\d{2}\s*[mf]?\s+(?:[a-z]+ ){0,2}?(dad|mom|mum|father|mother)\b",
-                        r"\b(?:married |now |am |i'm |im )?with (kids|children|a kid|two kids|three kids|\d kids)\b",
+                        r"\b(?:married |now |am |i'm |im )?with ((?:a |an |one |two |three |four |\d )?(?:young |little |small |grown |adult |teenage )?(?:kids|children|kid|child|sons|daughters))\b",
+                        r"(?:\b(?:i|we) |(?:^|[.!?]) *)(?:just |recently |finally |also )?(?:had|welcomed|adopted) (?:a |an |our |my )?(?:first |second |third |new |beautiful |baby )?(baby|child|kid|son|daughter|twins|babies)\b(?! (?:brother|sister|cousin|of|in|at|with you|over))",
                         r"\bmy (?:first |little |\d |two |three )?(kiddos?|little ones?|firstborn|first born)\b",
                         r"\b(?:my|our|i have an?|we have an?) (?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)[- ](?:year|yr|month|week)s?[- ](old)\b"),
     "mental_health": (rf"\bi (?:also |do |still |actually |definitely |both )?(?:have|suffer from|struggle with|live with|deal with|am dealing with|'m dealing with|’m dealing with) {SEVERITY}({CONDITIONS})\b",
@@ -349,14 +358,15 @@ EMPLOYMENT = {"a full-time student": "student", "a full time student": "student"
               "a housewife": "homemaker", "job hunting": "unemployed", "looking for a job": "unemployed", "looking for work": "unemployed",
               "looking for job": "unemployed", "job searching": "unemployed", "without a job": "unemployed", "on ssdi": "unable to work",
               "on ssi": "unable to work", "on pip": "unable to work", "work for myself": "self-employed", "run my own business": "self-employed",
-              "own my own business": "self-employed", "do freelance": "self-employed", "freelancing": "self-employed",
+              "own my own business": "self-employed", "do freelance": "self-employed", "freelancing": "self-employed", "for a living": "employed",
               "an independent contractor": "self-employed", "a business owner": "self-employed", "my own boss": "self-employed",
               "in college": "student", "in uni": "student", "in university": "student", "at university": "student", "at uni": "student",
               "in grad school": "student", "in law school": "student", "in med school": "student", "in nursing school": "student",
               **dict.fromkeys(("jobs", "full-time", "part-time", "salary", "salaried", "hourly", "my job", "boss", "coworker", "coworkers", "co-worker",
                                "co-workers", "shift", "manager", "employer"), "employed"),
               **dict.fromkeys(("don't have a job", "dont have a job", "do not have a job", "can't find a job", "cant find a job", "can't find work",
-                               "lost my job", "got fired", "was fired", "got laid off", "was laid off", "haven't worked"), "unemployed")}
+                               "lost my job", "got fired", "was fired", "got laid off", "was laid off", "haven't worked", "cant find work",
+                               "havent worked"), "unemployed")}
 PERIODS = {"hour": 2080, "hr": 2080, "hourly": 2080, "/h": 2080, "week": 52, "wk": 52, "weekly": 52, "month": 12, "mo": 12, "monthly": 12}
 EARNINGS = re.compile(r"(.+?)\s*(?:(?:a|an|per|/|every)\s*)?(year|yr|annum|month|mo|hour|hr|week|wk|annually|yearly|monthly|hourly|weekly|/h)?"
                       r"(?:\s+(?:tc|base|base salary|salary|gross|pre[- ]tax|before tax|after tax|take home|ote))?$")
@@ -382,7 +392,7 @@ def resolve(field, raw):
     if field == "relationship_status":
         return PARTNERS.get(raw) or value(field, raw)
     if field == "employment_status":
-        return EMPLOYMENT.get(raw.replace("self-employed", "self employed"), None) or value(field, raw)
+        return EMPLOYMENT.get(raw.replace("’", "'").replace("self-employed", "self employed"), None) or value(field, raw)
     if field == "weight":
         raw = raw.replace("kilograms", "kg")
     if field == "weight" and re.fullmatch(r"\d{2,3}(?:\.\d)?", raw):
