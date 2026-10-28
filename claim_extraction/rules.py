@@ -845,19 +845,11 @@ def features(raw):
     lowered = base.lower()
     spans = [match.span() for match in SKIP.finditer(lowered)] if possible(SKIP, lowered) else []
     text = straighten(blank(lowered, spans))
-    cased = straighten(blank(base, spans)) if len(lowered) == len(base) else text
-    lines = "multi" if "\n" in text.strip() else "one"
     words = TOKEN.findall(text)
-    first = sum(map(SELF.__contains__, words))
-    letters = sum(map(str.isalpha, cased))
-    capitals = sum(map(str.isupper, cased))
-    shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}",
-             f"caps={'none' if not capitals else 'most' if capitals * 2 > letters else 'some'}"}
     found = defaultdict(list)
     literals = SINGLES.intersection(text).union(FINDER.findall(text))
     missing = ~reduce(or_, map(MASKS.__getitem__, literals), 1 if DIGIT.search(text) else 0)
     for field, result, source, (start, end), flag in (*tags(text, missing), *stats(text, missing), *phrases(text, literals, missing),
-
                                                       *mentions(text, words)):
         if result is not None:
             found[field].append((result, source, start, end, flag))
@@ -872,7 +864,15 @@ def features(raw):
     for result, _, start, end, flag in [*found["nationality"]]:
         found["residence_country"].append((result, "from_nationality", start, end, flag))
     found = {field: candidates for field, candidates in found.items() if candidates}
-    lengths = [len(words)] if "\n" not in text else [len(TOKEN.findall(part)) for part in text.split("\n")] if found else []
+    if not found:
+        return
+    cased = straighten(blank(base, spans)) if len(lowered) == len(base) else text
+    letters = sum(map(str.isalpha, cased))
+    capitals = sum(map(str.isupper, cased))
+    shape = {f"lines={'multi' if chr(10) in text.strip() else 'one'}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}",
+             f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(sum(map(SELF.__contains__, words)), (1, 3, 8))}",
+             f"caps={'none' if not capitals else 'most' if capitals * 2 > letters else 'some'}"}
+    lengths = [len(words)] if "\n" not in text else [len(TOKEN.findall(part)) for part in text.split("\n")]
     context = {f"has_{field}" for field in found}
     for field, candidates in found.items():
         counts = Counter(result for result, *_ in candidates)
