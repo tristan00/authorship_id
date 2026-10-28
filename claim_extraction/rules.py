@@ -408,7 +408,11 @@ ENABLES = defaultdict(list)
 for position, (_, _, _, gate, _, _) in enumerate(COMPILED):
     for literal in gate or ():
         ENABLES[literal].append(position)
-SPOTTED = sorted({*ENABLES, *(literal for _, _, _, _, rest, _ in COMPILED for option in rest for literal in option)})
+SCANS = (TAG_SELF, TAG_ANY, TAG_DASH, AGE_GENDER, GENDER_AGE, GENDER_PAREN, PRONOUN_TAG, BARE_GENDER, RACE_GENDER, GENDER_BRACKET, TAG_FOR, AGE_START,
+         AGE_BRACKET, NUMBER, BARE_NUMBER, WORD_NUMBER, HEIGHT_ANY, HEIGHT_METRIC, WEIGHT_ANY, WEIGHT_AFTER, INCOME_ANY, YEAR)
+SCAN_GATES = {pattern: (requirements(sre_parse.parse(pattern.pattern, pattern.flags)), digital(sre_parse.parse(pattern.pattern, pattern.flags))) for pattern in SCANS}
+SPOTTED = sorted({*ENABLES, *(literal for _, _, _, _, rest, _ in COMPILED for option in rest for literal in option),
+                  *(literal for options, _ in SCAN_GATES.values() for option in options for literal in option)})
 PREFIXES = {literal: {literal[:size] for size in range(1, len(literal) + 1)}.intersection(SPOTTED) for literal in SPOTTED}
 FINDER = re.compile(f"(?=({trie(SPOTTED)}))")
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
@@ -559,63 +563,57 @@ def place(kind, raw):
     return found, "partial" if words and town not in CITIES else ""
 
 
-@cache
-def needs_digit(pattern):
-    return digital(sre_parse.parse(pattern.pattern, pattern.flags))
+def hits(pattern, text, present, digits):
+    options, numeric = SCAN_GATES[pattern]
+    if numeric and not digits or any(option.isdisjoint(present) for option in options):
+        return ()
+    return islice(pattern.finditer(text), MATCHES)
 
 
-def hits(pattern, text, digits):
-    return islice(pattern.finditer(text), MATCHES) if digits or not needs_digit(pattern) else ()
-
-
-def tags(text):
-    digits = DIGIT.search(text) is not None
+def tags(text, present, digits):
     for name, pattern in (("tag_self", TAG_SELF), ("tag_any", TAG_ANY), ("tag_dash", TAG_DASH)):
-        for match in hits(pattern, text, digits):
+        for match in hits(pattern, text, present, digits):
             age, sex, form = (match.group(1), match.group(2), "nx") if match.group(1) else (match.group(4), match.group(3), "xn")
             yield "age", value("age", age), f"{name}_{form}", match.span(), ""
             yield "gender", value("gender", sex), f"{name}_{form}", match.span(), ""
     for name, pattern, age, sex in (("age_gender", AGE_GENDER, 1, 2), ("gender_age", GENDER_AGE, 2, 1), ("gender_paren", GENDER_PAREN, 2, 1)):
-        for match in hits(pattern, text, digits):
+        for match in hits(pattern, text, present, digits):
             yield "age", value("age", match.group(age)), name, match.span(), ""
             yield "gender", value("gender", match.group(sex)), name, match.span(), ""
-    for match in hits(PRONOUN_TAG, text, digits):
+    for match in hits(PRONOUN_TAG, text, present, digits):
         yield "gender", value("gender", PRONOUN_GENDER[match.group(1)]), "pronoun", match.span(), ""
     for name, pattern in (("gender_bare", BARE_GENDER), ("race_gender", RACE_GENDER)):
-        for match in hits(pattern, text, digits):
+        for match in hits(pattern, text, present, digits):
             yield "gender", value("gender", match.group(1)), name, match.span(), ""
-    for match in hits(GENDER_BRACKET, text, digits):
+    for match in hits(GENDER_BRACKET, text, present, digits):
         yield "gender", value("gender", match.group(1)), "gender_bracket", match.span(), ""
-    for match in hits(TAG_FOR, text, digits):
+    for match in hits(TAG_FOR, text, present, digits):
         age = match.group(1) or match.group(3)
         yield "gender", value("gender", match.group(2)), "tag_for_age" if age else "tag_for", match.span(), ""
         if age:
             yield "age", value("age", age), "tag_for_age", match.span(), ""
     for name, pattern in (("age_start", AGE_START), ("age_bracket", AGE_BRACKET), ("number", NUMBER), ("age_bare", BARE_NUMBER)):
-        for match in hits(pattern, text, digits):
+        for match in hits(pattern, text, present, digits):
             yield "age", value("age", match.group(1)), name, match.span(), ""
-    for match in hits(WORD_NUMBER, text, digits):
+    for match in hits(WORD_NUMBER, text, present, digits):
         tens, unit, teen = match.groups()
         yield "age", value("age", str(TEENS[teen] if teen else TENS[tens] + UNITS.get(unit, 0))), "age_word", match.span(), ""
 
 
-def stats(text):
-    digits = DIGIT.search(text) is not None
+def stats(text, present, digits):
     for field, name, pattern, near in (("height", "height_any", HEIGHT_ANY, PEOPLE), ("height", "height_metric", HEIGHT_METRIC, PEOPLE),
                                        ("weight", "weight_any", WEIGHT_ANY, OTHER)):
-        for match in hits(pattern, text, digits):
+        for match in hits(pattern, text, present, digits):
             yield field, value(field, match.group(1)), name, match.span(), "people" if near.search(text[max(0, match.start() - 25):match.start()]) else ""
-    for match in hits(WEIGHT_AFTER, text, digits):
+    for match in hits(WEIGHT_AFTER, text, present, digits):
         yield "weight", resolve("weight", match.group(1)), "weight_after_height", match.span(), "people" if OTHER.search(text[max(0, match.start() - 25):match.start()]) else ""
-    for match in hits(INCOME_ANY, text, digits):
+    for match in hits(INCOME_ANY, text, present, digits):
         yield "income", earnings(match.group(1).strip()), "amount", match.span(), ""
-    for match in hits(YEAR, text, digits):
+    for match in hits(YEAR, text, present, digits):
         yield "birth_year", value("birth_year", match.group(1)), "year", match.span(), ""
 
 
-def phrases(text):
-    present = set().union(*map(PREFIXES.__getitem__, set(FINDER.findall(text))))
-    digits = DIGIT.search(text) is not None
+def phrases(text, present, digits):
     active = ALWAYS.union(*(ENABLES[literal] for literal in present if literal in ENABLES))
     for position in sorted(active):
         field, index, pattern, _, rest, digital = COMPILED[position]
@@ -740,7 +738,10 @@ def features(raw):
     shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}",
              f"caps={'none' if not capitals else 'most' if capitals * 2 > letters else 'some'}"}
     found = defaultdict(list)
-    for field, result, source, (start, end), flag in (*tags(text), *stats(text), *phrases(text), *mentions(text)):
+    present = set().union(*map(PREFIXES.__getitem__, set(FINDER.findall(text))))
+    digits = DIGIT.search(text) is not None
+    for field, result, source, (start, end), flag in (*tags(text, present, digits), *stats(text, present, digits), *phrases(text, present, digits),
+                                                      *mentions(text)):
         if result is not None:
             found[field].append((result, source, start, end, flag))
     for kind in ("residence", "origin"):
