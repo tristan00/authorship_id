@@ -482,11 +482,11 @@ def quick(pattern, flags=0):
 
 def gates(pattern, flags=0):
     items = sre_parse.parse(pattern, flags)
-    return needed(items), requirements(items), digital(items)
+    return needed(items), [*requirements(items), *([{"0"}] if digital(items) else [])]
 
 
-def need(options, numeric):
-    return reduce(or_, (OPTIONS[frozenset(option)] for option in options), int(numeric))
+def need(options):
+    return reduce(or_, (OPTIONS[frozenset(option)] for option in options), 0)
 
 
 def trie(words):
@@ -510,13 +510,13 @@ PHRASE_GATES = [(field, index, quick(pattern), *gates(pattern)) for field, patte
 SCANS = (TAG_SELF, TAG_ANY, TAG_DASH, AGE_GENDER, GENDER_AGE, GENDER_PAREN, PRONOUN_TAG, BARE_GENDER, RACE_GENDER, GENDER_BRACKET, TAG_FOR, AGE_START,
          AGE_BRACKET, NUMBER, BARE_NUMBER, WORD_NUMBER, HEIGHT_ANY, HEIGHT_METRIC, WEIGHT_ANY, WEIGHT_AFTER, INCOME_ANY, YEAR)
 SCAN_GATES = {pattern: (quick(pattern.pattern, pattern.flags), *gates(pattern.pattern, pattern.flags)) for pattern in SCANS}
-OPTIONS = {option: 2 << index for index, option in enumerate(dict.fromkeys(frozenset(option) for *_, options, _ in (*PHRASE_GATES, *SCAN_GATES.values())
+OPTIONS = {option: 1 << index for index, option in enumerate(dict.fromkeys(frozenset(option) for *_, options in (*PHRASE_GATES, *SCAN_GATES.values())
                                                                           for option in options))}
-COMPILED = [(field, index, pattern, need(options, numeric)) for field, index, pattern, _, options, numeric in PHRASE_GATES]
-SCAN_NEEDS = {pattern: (fast, need(options, numeric)) for pattern, (fast, _, options, numeric) in SCAN_GATES.items()}
-ALWAYS = {position for position, (*_, gate, _, _) in enumerate(PHRASE_GATES) if gate is None}
+COMPILED = [(field, index, pattern, need(options)) for field, index, pattern, _, options in PHRASE_GATES]
+SCAN_NEEDS = {pattern: (fast, need(options)) for pattern, (fast, _, options) in SCAN_GATES.items()}
+ALWAYS = {position for position, (*_, gate, _) in enumerate(PHRASE_GATES) if gate is None}
 GATED, BITS = defaultdict(set), defaultdict(int)
-for position, (*_, gate, _, _) in enumerate(PHRASE_GATES):
+for position, (*_, gate, _) in enumerate(PHRASE_GATES):
     for literal in gate or ():
         GATED[literal].add(position)
 for option, bit in OPTIONS.items():
@@ -855,10 +855,9 @@ def features(raw):
     text = straighten(blank(lowered, spans))
     words = TOKEN.findall(text)
     found = defaultdict(list)
-    normal = WHITESPACE.sub(" ", text)
-    normal = DIGIT.sub("0", normal) if DIGIT.search(normal) else normal
+    normal = DIGIT.sub("0", WHITESPACE.sub(" ", text))
     literals = {*filter(normal.__contains__, SINGLES), *FINDER.findall(normal)}
-    missing = ~reduce(or_, map(MASKS.__getitem__, literals), 1 if DIGIT.search(text) else 0)
+    missing = ~reduce(or_, map(MASKS.__getitem__, literals), 0)
     for field, result, source, (start, end), flag in (*tags(text, missing), *stats(text, missing), *phrases(text, literals, missing),
                                                       *mentions(text, words)):
         if result is not None:
