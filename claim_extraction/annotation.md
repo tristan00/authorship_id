@@ -30,9 +30,10 @@ Sampling draws random readable texts of the month (body or title only) of at mos
 | dataset | texts | use |
 |---|---|---|
 | `panel1m` | 999,865 | train for rule development, validation for metrics only, test held out to the end |
+| `panel1m_b` | 1,000,000 | second sample of the same month, disjoint from `panel1m`, same voters and splits |
 | `panel40k` | 40,000 | earlier pilot; its `labels.jsonl` predates `normalize.py` |
 
-`panel1m` has 33,186 train, 1,899 validation and 1,981 test texts with at least one resolved value.
+`panel1m` has 33,186 train, 1,899 validation and 1,981 test texts with at least one resolved value; `panel1m_b` has 32,507, 1,841 and 1,763. Resolved counts per field in `panel1m_b` are within 8% of `panel1m` for every field with more than 1,000 labels, except parental status (−15%). Smaller fields differ by up to 25% (relationship status −24%, origin state −25%, generation −20%, income +13%), mostly because gemma4-12b recall on them changes between servers (see below).
 
 ## Labeling
 
@@ -54,9 +55,9 @@ Hard failures, never partial output:
 
 ### Per-start variance of gemma4-12b
 
-gemma4-12b answers a text without claims either with a bare `none` or with every field listed as `none`. Which one it prefers is fixed for the life of one vLLM server and changes between starts. On the same first 2,000 panel1m records, with identical prompt, sampling, weights and vLLM install, thirteen starts gave a mean answer length from 88 to 433 characters (panel1m: 161) and from 51 to 150 texts/s. The spread is the same at 0.80 and 0.85 GPU memory, with and without FlashInfer autotuning, with a fresh autotune cache and without prefix caching, so no single setting pins it. Small per-start numeric differences likely flip a near-tie on the first output tokens.
+gemma4-12b answers a text without claims either with a bare `none` or with every field listed as `none`. Which one it prefers is fixed for the life of one vLLM server and changes between starts. On the same first 2,000 panel1m records, with identical prompt, sampling, weights and vLLM install, nineteen starts gave a mean answer length from 88 to 433 characters (panel1m: 161) and from 51 to 150 texts/s. The spread is the same at 0.80 and 0.85 GPU memory, with and without FlashInfer autotuning, with a fresh autotune cache and without prefix caching, so no single setting pins it. Small per-start numeric differences likely flip a near-tie on the first output tokens.
 
-The style does not change the labels. A list of `none` lines parses to `none`, and every start agrees with the panel1m answers on 1,947 to 1,962 of the 2,000 parsed labels, long or short style alike. On the 88 of those texts where the panel1m answer has values, every start agrees on only 46 to 62, so gemma4-12b labels vary that much between any two servers.
+The style does not change the labels. A list of `none` lines parses to `none`, and every start agrees with the panel1m answers on 1,947 to 1,962 of the 2,000 parsed labels, long or short style alike. On the 88 of those texts where the panel1m answer has values, every start agrees on only 46 to 62, so gemma4-12b labels vary that much between any two servers. Over whole shards the per-field rate moves too: panel1m's own two gemma4-12b servers (shards 00-13 and 14-19) found 1,737 and 1,404 relationship status values per million texts, 464 and 263 generation and 621 and 267 birth year, while gemma4-26b stays within a few percent across servers.
 
 `label1m.py` therefore gates each server start for speed and sanity. It replays the first 2,000 panel1m records and accepts the server only at 97% parsed label agreement with the voter's panel1m answers and at least 100 texts/s; otherwise it restarts, up to 20 times, then raises. Each attempt logs answer length, rate and agreement, and all remaining shards of the voter run on the accepted server. panel1m_b gemma4-12b shards 00-09 come from a long-style server at about 68 texts/s, and 10-19 from a gated one. The gemma4-26b and qwen3-4b answers did not drift between panel1m and panel1m_b (bare `none` share 0.95 and 0.97 on every shard of both).
 
