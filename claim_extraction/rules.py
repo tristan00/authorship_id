@@ -838,6 +838,11 @@ def possible(pattern, text):
 
 
 def features(raw):
+    for field, result, general, own in groups(raw):
+        yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
+
+
+def groups(raw):
     base = US_UPPER.sub("USA", raw) if possible(US_UPPER, raw) else raw
     lowered = base.lower()
     spans = [match.span() for match in SKIP.finditer(lowered)] if possible(SKIP, lowered) else []
@@ -905,30 +910,40 @@ def features(raw):
             general = {f"kind={kind}", *shared, *(f"kind={kind}|{feature}" for feature in base)}
             own = {f"source={source}", f"source={source}|form={form}", f"left2={' '.join(left)}", *context, *(f"near={word}" for word in (*before, *after)),
                    *specific, *(f"source={source}|{feature}" for feature in (*shared, *specific))}
-            yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
+            yield field, result, general, own
 
 
 @cache
 def weights():
     model = json.loads(WEIGHTS.read_text(encoding="utf-8"))
-    first, second = model["first"]["weights"], model["weights"]
-    index = {feature: position for position, feature in enumerate({**first, **second}, 1)}
-    return (model["first"]["bias"], model["bias"], model["cutoffs"], index, [0.0, *(first.get(feature, 0.0) for feature in index)],
-            [0.0, *(second.get(feature, 0.0) for feature in index)])
+    first, second, cutoffs = model["first"]["weights"], model["weights"], model["cutoffs"]
+    bare, named = [], defaultdict(list)
+    for name in {**first, **second}:
+        field, _, feature = name.partition("|")
+        if field in cutoffs:
+            named[field].append(feature)
+        else:
+            bare.append(name)
+    tables, firsts, seconds = {}, [0.0], [0.0]
+    for field in cutoffs:
+        tables[field] = {feature: len(firsts) + offset for offset, feature in enumerate(dict.fromkeys((*bare, *named[field])))}
+        firsts += [first.get(feature, 0.0) + first.get(f"{field}|{feature}", 0.0) for feature in tables[field]]
+        seconds += [second.get(feature, 0.0) + second.get(f"{field}|{feature}", 0.0) for feature in tables[field]]
+    return model["first"]["bias"], model["bias"], cutoffs, tables, firsts, seconds
 
 
 def cross(field, tops):
-    return {f"{field}|top_{other}={bucket(probability, TOP_EDGES)}" for other, probability in tops.items() if other != field}
+    return {f"top_{other}={bucket(probability, TOP_EDGES)}" for other, probability in tops.items() if other != field}
 
 
 def extract(text):
-    (first_bias, bias, cutoffs, index, first, second), best, tops = weights(), {}, {}
-    candidates = [(field, result, [*filter(None, map(index.get, found))]) for field, result, found in features(text)]
-    for field, result, found in candidates:
-        score = first_bias + sum(map(first.__getitem__, found))
+    (first_bias, bias, cutoffs, tables, first, second), best, tops = weights(), {}, {}
+    found = [(field, result, [*filter(None, map(tables[field].get, general | own))]) for field, result, general, own in groups(text)]
+    for field, result, ids in found:
+        score = first_bias + sum(map(first.__getitem__, ids))
         tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
-    for field, result, found in candidates:
-        score = bias + sum(map(second.__getitem__, chain(found, filter(None, map(index.get, cross(field, tops))))))
+    for field, result, ids in found:
+        score = bias + sum(map(second.__getitem__, chain(ids, filter(None, map(tables[field].get, cross(field, tops))))))
         if score > cutoffs[field] and score > best.get(field, (float("-inf"),))[0]:
             best[field] = (score, result)
     return {field: result for field, (_, result) in best.items()}

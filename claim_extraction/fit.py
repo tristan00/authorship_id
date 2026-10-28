@@ -138,7 +138,7 @@ def crossing(probabilities, texts, fields):
             tops[text][FIELDS[field]] = probability
     ids, indices, indptr = {}, array("i"), array("q", [0])
     for text, field in zip(texts.tolist(), fields.tolist()):
-        indices.extend(ids.setdefault(name, len(ids)) for name in sorted(cross(FIELDS[field], tops[text])))
+        indices.extend(ids.setdefault(name, len(ids)) for name in sorted(f"{FIELDS[field]}|{name}" for name in cross(FIELDS[field], tops[text])))
         indptr.append(len(indices))
     matrix = csr_matrix((np.ones(len(indices), dtype=np.float32), np.frombuffer(indices, dtype=np.int32), np.frombuffer(indptr, dtype=np.int64)),
                         shape=(len(texts), len(ids)))
