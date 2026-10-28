@@ -12,6 +12,32 @@ Labels for measuring text self-claim extraction come from three local LLM voters
    `python -m claim_extraction fit --month 2026-03 --datasets panel1m panel1m_b --start D:\reddit_data\models\claim_extraction.json`
 6. Score the extractor on one split of each dataset, written to `<month>/evaluations/<dataset>_<split>.json`:
    `python -m claim_extraction evaluate --month 2026-03 --datasets panel1m panel1m_b --split validation`
+7. Extract claims from every readable text of the month into `text_claims` (`record_id`, `field`, `value`, `start_char`, `end_char`), which consolidation and the explorer read:
+   `python -m claim_extraction extract --month 2026-03 --reset`
+   Without `--reset` a stopped run resumes. `--pages FIRST LAST` limits a run to a block range and leaves the result in the staging table.
+
+### Month extraction
+
+`extract` reads the same texts as sampling: `text_status` available or title_only, text not null, `created_utc` inside the month. Texts over 10,000 bytes, which sampling leaves out, are kept. They are about 5 per million texts and take under 0.03% of extraction time. The table is split into parts of `EXTRACT_PAGES` = 1,000 heap pages (about 21,000 texts). Each worker reads a part with a TID range scan, `COPY (SELECT ... WHERE ctid >= '(first,0)' AND ctid < '(last,0)') TO STDOUT`, so each part is read sequentially from the heap without an index. Range scans on `record_id` would jump around the 170 GB heap, since `record_id` correlates only 0.57 with physical order. The parent never sees texts, only part numbers and counts.
+
+Each part is one transaction: read, extract with `rules.claims`, COPY the claims into the unlogged `text_claims_stage`, and mark the part finished in `text_claims_parts` with its texts, claims, CPU seconds and read, extract and write seconds. A worker that dies loses only its open part, so a rerun without `--reset` continues with the unfinished parts. A server restart empties the unlogged staging table, and the run refuses to continue until rerun with `--reset`. When every part is finished, the staging table is made logged, indexed on `record_id`, analyzed and renamed to `text_claims`, and the parts table is dropped. Each worker loads the model once and keeps one connection, so 24 workers take about 260 MB each.
+
+Claim spans are code-point offsets into the stored text, as the explorer slices it. `rules.claims` maps the winning candidate's span back through the rewrites: `US` to `USA`, lowercasing that changes length, blanked quotes and links, and removed zero-width characters. On validation, all 9,178 spans in untouched texts match the stored text exactly. Of 3,593 spans in rewritten texts, 3,591 match after the same rewrite; the other two end on a blanked link and cover the link.
+
+On a 1.92M-text slice, the staged claims equal single-process `rules.claims` on a 10% subsample, and parts write no duplicate rows. Reading takes 3.5% of a worker's time and writing 0.05%, and Postgres used 0.2 cores at most. Workers are CPU-bound, so throughput is set by the CPU. The Ultra 9 285K has 8 performance cores (logical CPUs 0, 1, 10-13, 22, 23) at about 10,900 texts/s for one pinned process and 16 efficiency cores at about 8,200. Pinned processes running together lose 9-13% to shared caches: about 184,000 texts/s across all 24 cores.
+
+| workers | texts/s (wall) | texts/s per worker while busy |
+|---|---|---|
+| 1 | 11,200 | 11,400 |
+| 4 | 40,900 | 11,100 |
+| 8 | 70,400 | 10,500 |
+| 16 | 106,400 | 8,800 |
+| 20 | 155,800 | 8,500 |
+| 22 | 156,700 | 7,900 |
+| 23 | 159,800 | 7,700 |
+| 24 | 165,600 | 7,700 |
+
+Up to 16 workers the rows come from the 1.92M-text slice, where the 3 s worker start is part of the wall time. From 20 workers they come from separate 9.6M-text slices read cold from disk.
 
 ## Datasets
 

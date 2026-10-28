@@ -19,3 +19,5 @@ FIT_TOL = 1e-6
 FIT_THRESHOLDS = tuple(step / 40 for step in range(2, 39))
 FIT_MIN_COUNT = 3
 WORKERS = 22
+EXTRACT_WORKERS = 24
+EXTRACT_PAGES = 1_000

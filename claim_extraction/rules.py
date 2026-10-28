@@ -854,16 +854,36 @@ def possible(pattern, text):
     return any(map(text.__contains__, MARKS[pattern]))
 
 
-def features(raw):
-    for field, result, general, own in groups(raw):
-        yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
-
-
-def groups(raw):
+def prepare(raw):
     base = US_UPPER.sub("USA", raw) if possible(US_UPPER, raw) else raw
     lowered = base.lower()
     spans = [match.span() for match in SKIP.finditer(lowered)] if possible(SKIP, lowered) else []
-    text = straighten(blank(lowered, spans))
+    return base, lowered, spans, straighten(blank(lowered, spans))
+
+
+def boundaries(raw, base, lowered, spans):
+    bounds, last = [], 0
+    for match in US_UPPER.finditer(raw) if possible(US_UPPER, raw) else ():
+        bounds += range(last, match.start())
+        bounds += (match.start(), match.start() + 1, match.end())
+        last = match.end()
+    bounds += range(last, len(raw) + 1)
+    if len(lowered) != len(base):
+        bounds = [*chain.from_iterable([bound] * len(char.lower()) for bound, char in zip(bounds, base)), bounds[-1]]
+    blanked, last = [], 0
+    for start, end in spans:
+        blanked += bounds[last:start + 1]
+        last = end
+    blanked += bounds[last:]
+    return [bound for bound, char in zip(blanked, blank(lowered, spans)) if PRIMES.get(char) != ""] + [blanked[-1]]
+
+
+def features(raw):
+    for field, result, _, general, own in groups(*prepare(raw)):
+        yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
+
+
+def groups(base, lowered, spans, text):
     words = TOKEN.findall(text)
     found = defaultdict(list)
     normal = DIGIT.sub("0", WHITESPACE.sub(" ", text))
@@ -927,7 +947,7 @@ def groups(raw):
             general = {f"kind={kind}", *shared, *(f"kind={kind}|{feature}" for feature in base)}
             own = {f"source={source}", f"source={source}|form={form}", f"left2={' '.join(left)}", *context, *(f"near={word}" for word in (*before, *after)),
                    *specific, *(f"source={source}|{feature}" for feature in (*shared, *specific))}
-            yield field, result, general, own
+            yield field, result, (start, end), general, own
 
 
 @cache
@@ -953,14 +973,26 @@ def cross(field, tops):
     return {f"top_{other}={bucket(probability, TOP_EDGES)}" for other, probability in tops.items() if other != field}
 
 
-def extract(text):
+def scored(prepared):
     (first_bias, bias, cutoffs, tables, first, second), best, tops = weights(), {}, {}
-    found = [(field, result, [*filter(None, map(tables[field].get, chain(general, own)))]) for field, result, general, own in groups(text)]
-    for field, result, ids in found:
+    found = [(field, result, span, [*filter(None, map(tables[field].get, chain(general, own)))]) for field, result, span, general, own in groups(*prepared)]
+    for field, result, _, ids in found:
         score = first_bias + sum(map(first.__getitem__, ids))
         tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
-    for field, result, ids in found:
+    for field, result, span, ids in found:
         score = bias + sum(map(second.__getitem__, chain(ids, filter(None, map(tables[field].get, cross(field, tops))))))
         if score > cutoffs[field] and score > best.get(field, (float("-inf"),))[0]:
-            best[field] = (score, result)
-    return {field: result for field, (_, result) in best.items()}
+            best[field] = (score, result, span)
+    return best
+
+
+def extract(raw):
+    return {field: result for field, (_, result, _) in scored(prepare(raw)).items()}
+
+
+def claims(raw):
+    prepared = prepare(raw)
+    if not (best := scored(prepared)):
+        return []
+    bounds = boundaries(raw, *prepared[:3])
+    return [(field, result, bounds[start], bounds[end]) for field, (_, result, (start, end)) in best.items()]
