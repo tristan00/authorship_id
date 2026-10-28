@@ -771,7 +771,7 @@ def vocabulary():
 
 def mentions(text, words):
     _, trie = vocabulary()
-    spans = None
+    spans, positions = [], TOKEN.finditer(text)
     seen = Counter()
     resume = 0
     for index in [index for index, word in enumerate(words) if word in trie]:
@@ -784,7 +784,7 @@ def mentions(text, words):
             if None in node:
                 found, end = node[None], last
         if found:
-            spans = spans or [match.span() for match in TOKEN.finditer(text)]
+            spans += [match.span() for match in islice(positions, end + 1 - len(spans))]
             for field, result in found:
                 if seen[field] < VOCAB_MATCHES:
                     seen[field] += 1
@@ -857,7 +857,7 @@ def features(raw):
     found = defaultdict(list)
     normal = WHITESPACE.sub(" ", text)
     normal = DIGIT.sub("0", normal) if DIGIT.search(normal) else normal
-    literals = SINGLES.intersection(normal).union(FINDER.findall(normal))
+    literals = {*filter(normal.__contains__, SINGLES), *FINDER.findall(normal)}
     missing = ~reduce(or_, map(MASKS.__getitem__, literals), 1 if DIGIT.search(text) else 0)
     for field, result, source, (start, end), flag in (*tags(text, missing), *stats(text, missing), *phrases(text, literals, missing),
                                                       *mentions(text, words)):
