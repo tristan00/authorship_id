@@ -47,7 +47,8 @@ NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|unive
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
-AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:/%x'’-]|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D)|(?![mft]\b|nb|[mf]{1,3}4|yo\b|y/o|yrs?\b|ftm|mtf)[a-z]|\s*[?!€\"”]|\s+years?\?|\s*(?:and|&|//?|–)\s*\d|\s+(?:is|in|plus|bucks|dollars|volts?|million|mil|hp|pro|hours?|more|was|march|euros?|karma|ways|fps|milliarden)\b)")
+TAG_DASH = re.compile(r"(?<![\w$.,'’#/-])(?:(\d{2})y?\s?[-_]\s?([mf])|([mf])\s?[-_]\s?(\d{2}))(?![a-z0-9'’-])")
+AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:%x'’-]|/\s*\d|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D)|(?![mfty]\b|nb|[mf]{1,3}4|yo\b|y/o|yrs?\b|ftm|mtf)[a-z]|\s*[?!€\"”]|\s+years?\?|\s*(?:and|&|//?|–)\s*\d|\s+(?:is|in|plus|bucks|dollars|volts?|million|mil|hp|pro|hours?|more|was|march|euros?|karma|ways|fps|milliarden)\b)")
 AGE_BRACKET = re.compile(r"[\[\(]\s*(\d{2})\s*[\]\)]")
 HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!\ba )(?<!\ban )(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)(?:\.\d)?\s*(?:\"|”|''|’’|in\b|inches)?|[4-7]\s*[\"”]\s*(?:1[01]|\d)(?!\d|\.\d)|[4-7]\s*(?:ft\.?|foot|feet)\b|[4-7]\s*(?:'|’)(?=\s*(?:tall|height|hung|,|\d|with\b|and\b|[.!)|/]|$)))(?![\w'’]|\s*\?)")
 WEIGHT_AFTER = re.compile(r"(?:[4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)?\s*(?:\"|”|''|’’|in\b|inches)?|1[4-9]\d\s?cm|1[.,][4-9]\d\s?m?)\s*[,/|;-]?\s*(\d{2,3})(?![\d.]|\s*(?:cm|in\b|inch|%|years?|yo\b|y/o|yrs?))")
@@ -62,7 +63,7 @@ GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\
 GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
 GENDER_PAREN = re.compile(r"\b(male|female|guy|girl|man|woman|dude|lady|boy|[mf])\s*\(\s*(\d{2})\s*\)")
 TOKEN = re.compile(r"[a-z0-9][a-z0-9'’-]*|[^\sa-z0-9]")
-NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?:\s?(?:yo|y/o|y\.o|yrs?|years?))?(?![\w:/%-]|[.,]\d|\s*%)")
+NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?:\s?(?:yo|y/o|y\.o|yrs?|years?|y)|-(?:years?|yrs?|yo|y)(?:[- ]old)?)?(?![\w:/%-]|[.,]\d|\s*%)")
 BARE_NUMBER = re.compile(r"^\W*(\d{1,3})\W*$")
 TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
 UNITS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
@@ -85,6 +86,9 @@ SUBJECT_WORDS = {"computer science", "engineering", "psychology", "biology", "ch
                  "accounting", "finance", "marketing", "economics", "sociology", "political science", "history", "law", "education", "english", "philosophy",
                  "art", "music", "film", "journalism", "architecture", "statistics", "neuroscience", "biochemistry", "linguistics", "anthropology"}
 BARE_TAG = re.compile(r"^\W*(?:[mf]\s*\d{2}|\d{2}\s*[mf])\W*$")
+LEAD = re.compile(r"\W*(?:\d{2}\s?[mf]\b|[mf]\s?\d{2}\b|\[?[mf]4)")
+DIGIT = re.compile(r"\d")
+LEAD_WORD = re.compile(r"\W*([a-z0-9][a-z0-9'’-]*)")
 TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr][a-z]*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
 JOBS = json.loads(Path(__file__).with_name("jobs.json").read_text(encoding="utf-8"))
@@ -127,7 +131,10 @@ PHRASES = {
                    rf"\b{I} (?:a |an )?((?:19|20)\d\d)\b(?! (?:model|edition|version|car|truck))", r"(?:^|[.!,;(] *)((?:19|20)\d\d) (?:baby|babies|kid|here)\b",
                    r"(?:\bbeing |, |[.!;] )born (?:in |on )?(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?((?:19|20)\d\d|'?[4-9]\d)\b",
                    r"^\W*((?:19[3-9]|200)\d|201[0-3])\W*$",
-                   r"^\W*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{1,2}(?:st|nd|rd|th)?,? |\d{1,2}/\d{1,2}/)((?:19[3-9]|200)\d)\W*$"),
+                   r"^\W*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{1,2}(?:st|nd|rd|th)?,? |\d{1,2}/\d{1,2}/)((?:19[3-9]|200)\d)\W*$",
+                   r"\bborn (?:in |on )?(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? (?:\d{1,2}(?:st|nd|rd|th)?,? )?|\d{1,2}[./-]\d{1,2}[./-])?((?:19|20)\d\d|'?(?:[4-9]\d|0\d|1[0-3]))\b(?! (?:years?|yrs?|months?|weeks?|days?|hours?|minutes?|mins?)\b)",
+                   r"\b(?:dob|d\.o\.b\.?|date of birth|birth ?date)\s*(?:is\s*)?[:=-]?\s*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{1,2}(?:st|nd|rd|th)?,? |\d{1,2}(?:st|nd|rd|th)? (?:of )?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*,? |\d{1,2}[./-]\d{1,2}[./-])?((?:19|20)\d\d)\b",
+                   r"\bborn (?:and raised )?in (?:[a-z]+,? ){1,3}in ((?:19|20)\d\d)\b"),
     "generation": (rf"\b{I} {A}(millennial|boomer|baby boomer|gen ?z|gen ?x|zoomer|gen alpha)\b", r"\bas an? (millennial|boomer|gen ?z(?:er)?|gen ?x(?:er)?|zoomer)\b",
                    rf"(?:^|[.!,;(] *)(?:[a-z]+ )?({GENERATIONS}) here\b", rf"\b{I} (?:a |an |also a |also an |also |an old |a young |a fellow |an elder |an older |a younger |a late |an early |a geriatric )?({GENERATIONS})\b(?! (?:parents|kids|children|friends|generation))", rf"\bwe ({GENERATIONS})\b"),
     "gender": (rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))",
@@ -384,7 +391,7 @@ def resolve(field, raw):
         return earnings(raw)
     if field == "birth_year":
         raw = raw.lstrip("'’")
-        return value(field, "19" + raw if re.fullmatch(r"[4-9]\d", raw) else raw)
+        return value(field, "19" + raw if re.fullmatch(r"[4-9]\d", raw) else "20" + raw if re.fullmatch(r"0\d|1[0-3]", raw) else raw)
     if field == "sexual_orientation":
         return ORIENTATION_WORDS.get(raw) or value(field, raw)
     if field == "religion":
@@ -434,7 +441,7 @@ def place(kind, raw):
 
 
 def tags(text):
-    for name, pattern in (("tag_self", TAG_SELF), ("tag_any", TAG_ANY)):
+    for name, pattern in (("tag_self", TAG_SELF), ("tag_any", TAG_ANY), ("tag_dash", TAG_DASH)):
         for match in islice(pattern.finditer(text), MATCHES):
             age, sex, form = (match.group(1), match.group(2), "nx") if match.group(1) else (match.group(4), match.group(3), "xn")
             yield "age", value("age", age), f"{name}_{form}", match.span(), ""
@@ -548,6 +555,12 @@ def cues(text, start, end, numeric):
     return found
 
 
+def lead(text, start):
+    word = LEAD_WORD.match(text, start)
+    word = word.group(1) if word else ""
+    return "tag" if LEAD.match(text, start) else "num" if word[:1].isdigit() else "self" if word in SELF else "other"
+
+
 def blank(value, spans):
     pieces, last = [], 0
     for start, end in spans:
@@ -608,6 +621,10 @@ def features(raw):
             own = {f"source={source}", f"source={source}|form={form}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
                    *(f"near={word}" for word in (*before, *after)),
                    f"value={result}" if field not in NUMERIC else f"range={bucket(int(result), RANGES[field])}"}
+            if kind == "phrase":
+                own.add(f"lead={lead(text, start)}")
+            elif kind in ("pattern", "number", "amount"):
+                own.add(f"shape={DIGIT.sub('0', text[start:end]) if end - start <= 16 else 'long'}")
             own |= {f"source={source}|{feature}" for feature in (*general, *own) if not feature.startswith(("source=", "left2=", "has_", "kind=", "near="))}
             yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
 
