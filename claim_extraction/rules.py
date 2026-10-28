@@ -6,9 +6,9 @@ from itertools import islice
 from pathlib import Path
 
 from .config import NUMERIC, WEIGHTS
-from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, STATE_NAMES, STATES, country, number, state, value
+from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, REGIONS, STATE_NAMES, STATES, country, number, state, value
 
-CITIES = set(json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8")))
+CITIES = json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8"))
 
 I = r"(?:i'm|i’m|im|i am)"
 A = r"(?:an? )?"
@@ -58,7 +58,7 @@ GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
 TOKEN = re.compile(r"[a-z0-9][a-z0-9'’-]*|[^\sa-z0-9]")
 NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?![\w.,:/%-]|\s*%)")
 MATCHES = 3
-BROAD = ("vocab", "number")
+BROAD = ("vocab", "number", "from_city", "from_state", "from_nationality")
 SELF = {"i", "i'm", "i’m", "im", "me", "my", "myself"}
 VOCAB_MATCHES = 4
 VOCAB_FIELDS = ("race_ethnicity", "sexual_orientation", "religion", "marital_status", "relationship_status", "mental_health", "political_ideology",
@@ -249,6 +249,8 @@ PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "r
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
 SKIP = re.compile(r"^\s*>.*$|\"[^\"\n]{6,300}\"|“[^”\n]{6,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
 WORD_CODES = {"on", "in", "me", "hi", "ma", "or", "ok", "oh", "de", "la", "co", "id", "al", "ne", "mo", "ms", "ar", "ab", "ns", "nb", "sk", "mb"}
+SHORT_PLACES = {"uk", "nz", *(code for code in STATES if len(code) == 2 and code not in WORD_CODES)}
+REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
 HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
 DIAGNOSES = {"add": "adhd", "asd": "autism", "an eating disorder": "eating disorder", "an alcoholic": "addiction", "an addict": "addiction", "cptsd": "ptsd",
              "c-ptsd": "ptsd", "autistic": "autism", "schizophrenic": "schizophrenia", "bipolar": "bipolar disorder"}
@@ -326,27 +328,20 @@ def peel(field, words):
 
 def places(kind, raw):
     words = [COMPACT.get(word, word) for word in raw.replace(",", " ").split() if word not in FILLER]
-    for end in range(len(words), 0, -1):
-        if found := place(kind, " ".join(words[:end])):
-            return found
-    return {}
+    found = [place(kind, " ".join(words[:end])) for end in range(len(words), 0, -1)]
+    return next((item for item in found if item[0] and not item[1]), next((item for item in found if item[0]), ({}, "")))
 
 
 def place(kind, raw):
-    found = {}
     country_field, state_field, city_field = PLACE_FIELDS[kind]
     words = raw.replace(",", " ").split()
     country, words = peel(country_field, words)
     region, words = (None, words) if " ".join(words) in CITY_FIRST else peel(state_field, words)
-    if words and len(words) <= 3 and (town := value(city_field, " ".join(words))) in CITIES:
-        found[city_field] = town
-    elif words:
-        return {}
-    if region is not None:
-        found[state_field] = region
-    if country is not None:
-        found[country_field] = country
-    return found
+    town = value(city_field, " ".join(words)) if words and len(words) <= 3 else None
+    if words and town not in CITIES and (town is None or (country is None and region is None)):
+        return {}, ""
+    found = {key: result for key, result in ((city_field, town), (state_field, region), (country_field, country)) if result is not None}
+    return found, "partial" if words and town not in CITIES else ""
 
 
 def tags(text):
@@ -385,8 +380,9 @@ def phrases(text):
                 flag = "hypothetical" if HYPOTHETICAL.search(re.split(r"[.!?\n(]", text[max(0, match.start() - 40):match.start()])[-1]) else ""
                 raw = next(group for group in match.groups() if group is not None).strip()
                 if field in PLACE_FIELDS:
-                    for key, result in places(field, raw).items():
-                        yield key, result, f"{field}#{index}", match.span(), flag
+                    found, partial = places(field, raw)
+                    for key, result in found.items():
+                        yield key, result, f"{field}#{index}", match.span(), " ".join(filter(None, (flag, partial)))
                 else:
                     yield field, resolve(field, raw), f"{field}#{index}", match.span(), flag
 
@@ -395,13 +391,13 @@ def phrases(text):
 def vocabulary():
     words = {"residence_country": {*COUNTRIES, *COUNTRY_ALIASES}, "origin_country": {*COUNTRIES, *COUNTRY_ALIASES},
              "nationality": {*DEMONYMS, *COUNTRIES, *COUNTRY_ALIASES}, "language": {*LANGUAGES, *LANGUAGE_ALIASES},
-             "residence_state": {*STATE_NAMES, *(code for code in STATES if len(code) > 2)}, "residence_city": CITIES, "gender": GENDER_WORDS,
+             "residence_state": {*STATE_NAMES, *STATES}, "residence_city": CITIES, "gender": GENDER_WORDS,
              "parental_status": PARENT_WORDS, "occupation": set(JOBS),
              "education": set(LOOKUP["education"]), "education_subject": SUBJECT_WORDS, **{field: set(LOOKUP[field]) for field in VOCAB_FIELDS}}
     table = defaultdict(list)
     for field, entries in words.items():
         for word in sorted(entries):
-            if len(word) > 2 and (result := resolve(field, word) or (field in PLACE_FIELDS and country(word)) or (field == "residence_state" and state(word))):
+            if (len(word) > 2 or word in SHORT_PLACES) and (result := resolve(field, word) or (field in PLACE_FIELDS and country(word)) or (field == "residence_state" and state(word))):
                 table[tuple(TOKEN.findall(word))].append((field, result))
     return table, max(map(len, table))
 
@@ -436,6 +432,17 @@ def features(raw):
     for field, result, source, (start, end), flag in (*tags(text), *stats(text), *phrases(text), *mentions(text)):
         if result is not None:
             found[field].append((result, source, start, end, flag))
+    for kind in ("residence", "origin"):
+        for result, _, start, end, flag in [*found[f"{kind}_city"]]:
+            for field, derived in zip(("country", "state"), CITIES.get(result, ("", ""))):
+                if derived:
+                    found[f"{kind}_{field}"].append((derived, "from_city", start, end, flag))
+        for result, _, start, end, flag in [*found[f"{kind}_state"]]:
+            if result in REGION_COUNTRY:
+                found[f"{kind}_country"].append((REGION_COUNTRY[result], "from_state", start, end, flag))
+    for result, _, start, end, flag in [*found["nationality"]]:
+        found["residence_country"].append((result, "from_nationality", start, end, flag))
+    found = {field: candidates for field, candidates in found.items() if candidates}
     context = {f"has_{field}" for field in found}
     for field, candidates in found.items():
         counts = Counter(result for result, *_ in candidates)
@@ -451,7 +458,7 @@ def features(raw):
             right = after[:1] or ["$"]
             kind = "phrase" if "#" in source else source if source in BROAD else "pattern"
             general = {f"kind={kind}", f"pick={rank == pick}", f"position={bucket(start, (3, 40, 200))}", f"same={min(counts[result], 3)}",
-                       f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *({flag} if flag else ())}
+                       f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *flag.split()}
             general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
             general.add(f"self={bool(SELF.intersection(before))}")
             own = {f"source={source}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
