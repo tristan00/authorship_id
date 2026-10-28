@@ -816,11 +816,6 @@ def lead(text, start):
     return "tag" if LEAD.match(text, start) else "num" if word[:1].isdigit() else "self" if word in SELF else "other"
 
 
-def line(text, start, end):
-    closing = text.find("\n", end)
-    return text[text.rfind("\n", 0, start) + 1:closing if closing >= 0 else len(text)]
-
-
 def blank(value, spans):
     pieces, last = [], 0
     for start, end in spans:
@@ -871,6 +866,7 @@ def features(raw):
     for result, _, start, end, flag in [*found["nationality"]]:
         found["residence_country"].append((result, "from_nationality", start, end, flag))
     found = {field: candidates for field, candidates in found.items() if candidates}
+    lengths = [len(words)] if "\n" not in text else [len(TOKEN.findall(part)) for part in text.split("\n")] if found else []
     context = {f"has_{field}" for field in found}
     for field, candidates in found.items():
         counts = Counter(result for result, *_ in candidates)
@@ -889,10 +885,10 @@ def features(raw):
                        f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *flag.split(), *(f"cue={cue}" for cue in cues(text, start, end, field in NUMERIC))}
             general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
             general.add(f"self={bool(SELF.intersection(before))}")
-            general.add(f"line={bucket(len(TOKEN.findall(line(text, start, end))), (3, 6, 12, 30))}")
-            general.add(f"upper={any(ch.isupper() for ch in cased[start:end])}")
+            general.add(f"line={bucket(sum(lengths[text.count(chr(10), 0, start):text.count(chr(10), 0, end) + 1]), (3, 6, 12, 30))}")
+            general.add(f"upper={any(map(str.isupper, cased[start:end]))}")
             span = cased[start:end]
-            form = ("U" if any(ch.isupper() for ch in span) else "l" if any(ch.isalpha() for ch in span) else "n") + ("s" if start < 3 else "e") + \
+            form = ("U" if any(map(str.isupper, span)) else "l" if any(map(str.isalpha, span)) else "n") + ("s" if start < 3 else "e") + \
                    ("p" if text[max(0, start - 1):start + 1].strip()[:1] in ("(", "[") else "")
             own = {f"source={source}", f"source={source}|form={form}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
                    *(f"near={word}" for word in (*before, *after)),
