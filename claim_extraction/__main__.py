@@ -10,11 +10,12 @@ def main():
     parser.add_argument("--month", required=True)
     parser.add_argument("--datasets", nargs="+", required=True)
     parser.add_argument("--split", default="validation")
+    parser.add_argument("--splits", nargs="+", choices=("train", "validation", "test"))
     args = parser.parse_args()
     setup_logging(LOGS / "claim_extraction.log")
     if args.command == "sample":
         from .sample import sample
-        sample(args.month, args.datasets)
+        sample(args.month, args.datasets, args.splits)
     elif args.command == "labels":
         from .labels import labels
         for dataset in args.datasets:

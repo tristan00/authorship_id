@@ -25,12 +25,13 @@ Each dataset lives in `D:\reddit_data\annotations\<month>\<dataset>\`:
 | `labels.jsonl` | `{"id", "split", "values": {field: value}}` per text |
 | `labels_report.json` | values per voter, resolved values per field, texts with and without values per split |
 
-Sampling draws random readable texts of the month (body or title only) of at most 10,000 UTF-8 bytes. Splits are fixed per record id (`crc32(id) % 100`): train below 90, validation below 95, test the rest.
+Sampling draws random readable texts of the month (body or title only) of at most 10,000 UTF-8 bytes, leaving out every id already in a dataset of that month, and raises if the table sample holds fewer than it needs. Splits are fixed per record id (`crc32(id) % 100`): train below 90, validation below 95, test the rest. `--splits validation test` keeps only ids whose split is listed and draws 100,000 texts per listed split, scaling the table sample to the narrowest split: `python -m claim_extraction sample --month 2026-03 --datasets panel200k --splits validation test`
 
 | dataset | texts | use |
 |---|---|---|
 | `panel1m` | 999,865 | train for rule development, validation for metrics only, test held out to the end |
 | `panel1m_b` | 1,000,000 | second sample of the same month, disjoint from `panel1m`, same voters and splits |
+| `panel200k` | 200,000 | 100,000 validation and 100,000 test texts of the same month, disjoint from every other dataset, same voters |
 | `panel40k` | 40,000 | earlier pilot; its `labels.jsonl` predates `normalize.py` |
 
 `panel1m` has 33,186 train, 1,899 validation and 1,981 test texts with at least one resolved value; `panel1m_b` has 32,507, 1,841 and 1,763. Resolved counts per field in `panel1m_b` are within 8% of `panel1m` for every field with more than 1,000 labels, except parental status (−15%). Smaller fields differ by up to 25% (relationship status −24%, origin state −25%, generation −20%, income +13%), mostly because gemma4-12b recall on them changes between servers (see below).
