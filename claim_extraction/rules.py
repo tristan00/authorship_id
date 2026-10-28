@@ -5,6 +5,8 @@ from collections import Counter, defaultdict
 from functools import cache
 from itertools import islice
 from pathlib import Path
+from re import _constants as sre
+from re import _parser as sre_parse
 
 from .config import NUMERIC, WEIGHTS
 from .normalize import CITIES as CITY_ALIASES
@@ -306,7 +308,40 @@ PHRASES = {
                            r"\bas an? (?:proud |lifelong |staunch )?(liberal|conservative|socialist|communist|anarchist|libertarian|progressive|centrist|marxist|democratic socialist)\b(?! (?:party|government|state|country|city|media))",
                            rf"\b{I} (?!not\b)(?:a |an |also a |also |pretty |very |extremely |fairly |generally |openly |still |basically |raging |self[- ]described |proud |lifelong |staunch )*({IDEOLOGIES})\b(?! (?:party|government|state|country|city|area|parents|family|friends|media|news|policies|politicians|people|men|women))", rf"(?:^|[.!,;] )(?:[a-z]+ )?({IDEOLOGIES}) here\b"),
 }
-COMPILED = {field: [re.compile(pattern) for pattern in patterns] for field, patterns in PHRASES.items()}
+
+
+def needed(items):
+    options, run = [], ""
+    for op, av in [*items, (None, None)]:
+        if op is sre.LITERAL:
+            run += chr(av)
+            continue
+        if run:
+            options.append({run})
+            run = ""
+        if op is sre.SUBPATTERN:
+            found = needed(av[3])
+        elif op is sre.BRANCH:
+            branches = [needed(branch) for branch in av[1]]
+            found = None if None in branches else set().union(*branches)
+        elif op in (sre.MAX_REPEAT, sre.MIN_REPEAT, sre.POSSESSIVE_REPEAT) and av[0] >= 1:
+            found = needed(av[2])
+        else:
+            found = None
+        if found:
+            options.append(found)
+    return max(options, key=lambda strings: min(map(len, strings)), default=None)
+
+
+COMPILED = [(field, index, re.compile(pattern), needed(sre_parse.parse(pattern))) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
+ALWAYS = {position for position, (_, _, _, gate) in enumerate(COMPILED) if gate is None}
+ENABLES = defaultdict(list)
+for position, (_, _, _, gate) in enumerate(COMPILED):
+    for literal in gate or ():
+        ENABLES[literal].append(position)
+LITERALS = defaultdict(list)
+for literal in sorted(ENABLES):
+    LITERALS[literal[:2]].append(literal)
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
 FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "central", "northern", "southern", "eastern", "western", "upstate",
           "downtown", "greater", "rural", "northeast", "northwest", "southeast", "southwest", "far", "midwest"}
@@ -499,17 +534,19 @@ def stats(text):
 
 
 def phrases(text):
-    for field, patterns in COMPILED.items():
-        for index, pattern in enumerate(patterns):
-            for match in islice(pattern.finditer(text), MATCHES):
-                flag = "hypothetical" if HYPOTHETICAL.search(re.split(r"[.!?\n(]", text[max(0, match.start() - 40):match.start()])[-1]) else ""
-                raw = next(group for group in match.groups() if group is not None).strip()
-                if field in PLACE_FIELDS:
-                    found, partial = places(field, raw)
-                    for key, result in found.items():
-                        yield key, result, f"{field}#{index}", match.span(), " ".join(filter(None, (flag, partial)))
-                else:
-                    yield field, resolve(field, raw), f"{field}#{index}", match.span(), flag
+    pairs = LITERALS.keys() & {text[index:index + 2] for index in range(len(text))}.union(text)
+    active = ALWAYS.union(*(ENABLES[literal] for pair in pairs for literal in LITERALS[pair] if literal in text))
+    for position in sorted(active):
+        field, index, pattern, _ = COMPILED[position]
+        for match in islice(pattern.finditer(text), MATCHES):
+            flag = "hypothetical" if HYPOTHETICAL.search(re.split(r"[.!?\n(]", text[max(0, match.start() - 40):match.start()])[-1]) else ""
+            raw = next(group for group in match.groups() if group is not None).strip()
+            if field in PLACE_FIELDS:
+                found, partial = places(field, raw)
+                for key, result in found.items():
+                    yield key, result, f"{field}#{index}", match.span(), " ".join(filter(None, (flag, partial)))
+            else:
+                yield field, resolve(field, raw), f"{field}#{index}", match.span(), flag
 
 
 @cache
