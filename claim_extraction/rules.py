@@ -335,7 +335,7 @@ def spelling(items):
     return strings
 
 
-def needed(items):
+def requirements(items):
     options, strings = [], {""}
     for op, av in [*items, (None, None)]:
         part = spelled(op, av)
@@ -358,7 +358,31 @@ def needed(items):
             found = None
         if found:
             options.append(found)
-    return max(options, key=lambda strings: min(map(len, strings)), default=None)
+    return options
+
+
+def needed(items):
+    return max(requirements(items), key=lambda strings: min(map(len, strings)), default=None)
+
+
+def numeral(op, av):
+    return (op is sre.LITERAL and chr(av) in "0123456789" or op is sre.CATEGORY and av is sre.CATEGORY_DIGIT
+            or op is sre.RANGE and chr(av[0]) in "0123456789" and chr(av[1]) in "0123456789")
+
+
+def digital(items):
+    for op, av in items:
+        if (op is sre.LITERAL and numeral(op, av) or op is sre.IN and all(numeral(kind, arg) for kind, arg in av)
+                or op is sre.SUBPATTERN and digital(av[3]) or op is sre.BRANCH and all(digital(branch) for branch in av[1])
+                or op in (sre.MAX_REPEAT, sre.MIN_REPEAT, sre.POSSESSIVE_REPEAT) and av[0] >= 1 and digital(av[2])):
+            return True
+    return False
+
+
+def gates(pattern):
+    items = sre_parse.parse(pattern)
+    gate = needed(items)
+    return gate, [option for option in requirements(items) if option is not gate], digital(items)
 
 
 def trie(words):
@@ -378,14 +402,15 @@ def arms(node):
 
 
 SPELLINGS = 64
-COMPILED = [(field, index, re.compile(pattern), needed(sre_parse.parse(pattern))) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
-ALWAYS = {position for position, (_, _, _, gate) in enumerate(COMPILED) if gate is None}
+COMPILED = [(field, index, re.compile(pattern), *gates(pattern)) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
+ALWAYS = {position for position, (_, _, _, gate, _, _) in enumerate(COMPILED) if gate is None}
 ENABLES = defaultdict(list)
-for position, (_, _, _, gate) in enumerate(COMPILED):
+for position, (_, _, _, gate, _, _) in enumerate(COMPILED):
     for literal in gate or ():
         ENABLES[literal].append(position)
-REACH = {literal: set().union(*(ENABLES.get(literal[:size], ()) for size in range(1, len(literal) + 1))) for literal in ENABLES}
-FINDER = re.compile(f"(?=({trie(sorted(ENABLES))}))")
+SPOTTED = sorted({*ENABLES, *(literal for _, _, _, _, rest, _ in COMPILED for option in rest for literal in option)})
+PREFIXES = {literal: {literal[:size] for size in range(1, len(literal) + 1)}.intersection(SPOTTED) for literal in SPOTTED}
+FINDER = re.compile(f"(?=({trie(SPOTTED)}))")
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
 FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "central", "northern", "southern", "eastern", "western", "upstate",
           "downtown", "greater", "rural", "northeast", "northwest", "southeast", "southwest", "far", "midwest"}
@@ -534,20 +559,6 @@ def place(kind, raw):
     return found, "partial" if words and town not in CITIES else ""
 
 
-def numeral(op, av):
-    return (op is sre.LITERAL and chr(av) in "0123456789" or op is sre.CATEGORY and av is sre.CATEGORY_DIGIT
-            or op is sre.RANGE and chr(av[0]) in "0123456789" and chr(av[1]) in "0123456789")
-
-
-def digital(items):
-    for op, av in items:
-        if (op is sre.LITERAL and numeral(op, av) or op is sre.IN and all(numeral(kind, arg) for kind, arg in av)
-                or op is sre.SUBPATTERN and digital(av[3]) or op is sre.BRANCH and all(digital(branch) for branch in av[1])
-                or op in (sre.MAX_REPEAT, sre.MIN_REPEAT, sre.POSSESSIVE_REPEAT) and av[0] >= 1 and digital(av[2])):
-            return True
-    return False
-
-
 @cache
 def needs_digit(pattern):
     return digital(sre_parse.parse(pattern.pattern, pattern.flags))
@@ -603,9 +614,13 @@ def stats(text):
 
 
 def phrases(text):
-    active = ALWAYS.union(*(REACH[match.group(1)] for match in FINDER.finditer(text)))
+    present = set().union(*map(PREFIXES.__getitem__, set(FINDER.findall(text))))
+    digits = DIGIT.search(text) is not None
+    active = ALWAYS.union(*(ENABLES[literal] for literal in present if literal in ENABLES))
     for position in sorted(active):
-        field, index, pattern, _ = COMPILED[position]
+        field, index, pattern, _, rest, digital = COMPILED[position]
+        if digital and not digits or any(option.isdisjoint(present) for option in rest):
+            continue
         for match in islice(pattern.finditer(text), MATCHES):
             flag = "hypothetical" if HYPOTHETICAL.search(re.split(r"[.!?\n(]", text[max(0, match.start() - 40):match.start()])[-1]) else ""
             raw = next(group for group in match.groups() if group is not None).strip()
