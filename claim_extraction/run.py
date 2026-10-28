@@ -1,11 +1,10 @@
 import time
-from datetime import datetime, timezone
 from functools import cache
 from multiprocessing import Pool
 
 import psycopg
 
-from database import DSN, LOGS
+from database import DSN, LOGS, bounds
 from reddit_dumps import setup_logging
 
 from . import LOG, timed
@@ -28,12 +27,6 @@ ALTER TABLE text_claims_stage RENAME TO text_claims;
 ANALYZE text_claims;
 DROP TABLE text_claims_parts;
 """
-
-
-def bounds(month):
-    start = datetime.strptime(month, "%Y-%m").replace(tzinfo=timezone.utc)
-    end = start.replace(year=start.year + start.month // 12, month=start.month % 12 + 1)
-    return int(start.timestamp()), int(end.timestamp())
 
 
 def start():
