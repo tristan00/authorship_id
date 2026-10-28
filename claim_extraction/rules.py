@@ -99,7 +99,7 @@ PRONOUN_TAG = re.compile(r"\b(she|he|they)\s*/\s*(?:her|hers|him|his|them|they|s
 PRONOUN_GENDER = {"she": "female", "he": "male", "they": "non-binary"}
 BARE_GENDER = re.compile(r"^\W*([mf])\W*$")
 RACE_GENDER = re.compile(r"(?<![\w$#.,'/])\d{2}\s?[wbh]([mf])\b")
-TAG_FOR = re.compile(r"(?<![a-z0-9])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr][a-z]*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
+TAG_FOR = re.compile(r"(?<![a-z0-9])(\d{2})?\s*(?:[\[\(]\s*)?([mf])\s*4\s*[mfatr][a-z]*(?:\s*(?:[\]\)]\s*)?(?:[-–|:]\s*)?(\d{2})\b)?", re.M)
 
 JOBS = json.loads(Path(__file__).with_name("jobs.json").read_text(encoding="utf-8"))
 JOB_TITLES = "(?:" + "|".join(re.escape(title) for title in sorted(JOBS, key=len, reverse=True)) + ")"
