@@ -1,6 +1,6 @@
 # Claims annotation
 
-Labels for measuring text self-claim extraction come from three local LLM voters served by vLLM through the separate `D:\local_annotator` package, driven by `label1m.py`. `claim_extraction/annotation.json` defines the fields and their value sets; `normalize.py` maps every voter answer onto them. The voters do not use the prompt in `annotation.json`.
+Labels for measuring text self-claim extraction come from three local LLM voters served by vLLM through the separate `D:\local_annotator` package, driven by `label1m.py`. `claim_extraction/annotation.json` defines the fields and their value sets; `normalize.py` maps voter answers onto them where an answer is a known form of a value and otherwise keeps the voter's value. The voters do not use the prompt in `annotation.json`.
 
 ## Pipeline
 
@@ -66,7 +66,9 @@ The style does not change the labels. A list of `none` lines parses to `none`, a
 
 ## Normalization and voting
 
-`normalize.parse` reads one answer: it maps the prompt-specific keys (`age_years`, `job_title`, `height_imperial`, `hourly_wage_usd`, ...) to the fields, then each value onto the field's value set: numbers within `config.NUMERIC` with unit conversion (feet and inches, pounds, stone, hourly times 2080, monthly times 12), closed sets through synonym tables, countries through aliases and demonyms, first-level regions through abbreviations and a region list, occupation and study subject through keyword patterns onto the SOC and CIP groups. Values with notes, guesses ("implied", "inferred"), past states, plans or ranges are dropped, as are answers with more than 12 values.
+`normalize.parse` reads one answer. The voters are the reference: parsing only unifies formats and never drops a categorical value a voter gave. It splits lines that hold several `field: value` pairs, maps the prompt-specific keys (`age_years`, `job_title`, `height_imperial`, `hourly_wage_usd`, ...) and misspelled race keys to the fields, and keeps the first answer per field. A value is lowercased and stripped of markdown, quotes, surrounding brackets, parenthetical notes and trailing punctuation. Blanks (`none`, `n/a`, `unknown`, "not stated", "not explicitly stated", template echoes such as `[value]`) give no value. Numbers are converted to one unit (feet and inches, inches, pounds, stone, hourly times 2080, monthly times 12) without plausibility bounds; a numeric answer that is not a single number ("30s", "18+", "tall", "25, 27") gives no value. A categorical value that is a known form of a value-set entry maps onto it (synonym tables, country aliases and demonyms, region abbreviations, keyword patterns onto the SOC and CIP groups for occupation and study subject); any other value is kept as the voter wrote it. Mental health keeps the first condition named.
+
+Over panel1m, panel1m_b and panel200k this gives 141,609 resolved labels, against 129,324 from the earlier parser that dropped unknown values, values with notes and numbers outside `config.NUMERIC`. 8,143 labels are outside the value sets (marital status "single", orientation "m4m", mental health "depressed", ...) and 1,878 numbers are outside `config.NUMERIC`, which now bounds only extractor candidates. 10,098 of 183,249 numeric answers are not a single number.
 
 `labels.vote` resolves a field when one answer (a value, or none) has at least two of the three votes and more votes than any other answer. There is no tiebreaker; unresolved fields are left out of `values` and count as negatives.
 
@@ -88,7 +90,7 @@ Features per candidate: source, kind, `pick`, rank, position, how many candidate
 
 `jobs.json` is built from panel1m train labels and voter answers. `cities.json` is the GeoNames `cities15000` names plus city labels seen at least twice in panel1m train, without names of three letters or less, names that appear lowercase in panel1m train text at least half as often as capitalized, and names whose train precision is below 0.34 over at least two false positives.
 
-The current weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 105,245 labels). Cross-validation chose C = 0.3 and a threshold of 0.4 (out-of-fold micro F1 0.743); on panel1m train alone it chose the same (0.735).
+The current weights, and every score below, come from the labels of the earlier parser; they need a refit and re-evaluation on the current labels. The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 105,245 labels). Cross-validation chose C = 0.3 and a threshold of 0.4 (out-of-fold micro F1 0.743); on panel1m train alone it chose the same (0.735).
 
 | validation split | texts with values | panel1m model | combined model |
 |---|---|---|---|
@@ -129,7 +131,7 @@ Validation F1 by field: first-match rules (commit 88718f3), the model fitted on 
 
 panel1m_b labels relationship status 24% less often per train text than panel1m (5.1 against 6.8 per 10,000) and parental status 16% less, from per-server voter variance. The combined model learns the lower rate, which is why relationship status drops on both validation splits.
 
-political_compass has no resolved labels. Across panel1m the voters mostly answer it with values outside its value set ("left", "center-left", "not stated"); the in-set forms ("centrist", "center", "lib-right") already map in `normalize.py`, occur 14 times over all three voters, and never twice on the same text.
+political_compass has 35 resolved labels over the three datasets, 34 of them outside its value set ("left-leaning", "right leaning", "leftist").
 
 ## Limitations
 

@@ -14,15 +14,15 @@ KEYS = {"age_years": "age", "native_language": "language", "residence_state_or_p
         "job_title": "occupation", "political_compass_quadrant": "political_compass", "racial_ethnicity": "race_ethnicity",
         "height_cm": "height", "height_metric": "height", "height_inches": "height", "height_imperial": "height",
         "weight_kg": "weight", "weight_lbs": "weight", "yearly_income_usd": "income", "monthly_income_usd": "income",
-        "hourly_wage_usd": "income"}
+        "hourly_wage_usd": "income", "sexuality": "sexual_orientation"}
 INCOME_SCALE = {"monthly_income_usd": 12, "hourly_wage_usd": 2080}
 EMPTY = re.compile(r"^(none|n/?a|null|unknown|unspecified|not .*|none .*|no .* stated|-|\\-|)$")
 DROP = re.compile(r"[\[\]():?~]|implied|inferred|former|previous|\bex\b|\bpast\b|planned|planning|want|hoping|looking|maybe|\bor\b")
 
 COUNTRY_ALIASES = {
-    "us": "united states", "u.s.": "united states", "usa": "united states", "u.s.a.": "united states", "america": "united states",
+    "us": "united states", "u.s": "united states", "usa": "united states", "u.s.a": "united states", "america": "united states",
     "united states of america": "united states", "the us": "united states", "the usa": "united states", "states": "united states",
-    "uk": "united kingdom", "u.k.": "united kingdom", "britain": "united kingdom", "great britain": "united kingdom",
+    "uk": "united kingdom", "u.k": "united kingdom", "britain": "united kingdom", "great britain": "united kingdom",
     "england": "united kingdom", "scotland": "united kingdom", "wales": "united kingdom", "northern ireland": "united kingdom",
     "aus": "australia", "oz": "australia", "nz": "new zealand", "holland": "netherlands", "the netherlands": "netherlands",
     "uae": "united arab emirates", "czechia": "czech republic", "korea": "south korea", "méxico": "mexico", "brasil": "brazil",
@@ -63,8 +63,8 @@ STATES = {
     "sc": "south carolina", "sd": "south dakota", "tn": "tennessee", "tx": "texas", "ut": "utah", "vt": "vermont", "va": "virginia",
     "wa": "washington", "wv": "west virginia", "wi": "wisconsin", "wy": "wyoming", "on": "ontario", "qc": "quebec", "bc": "british columbia",
     "ab": "alberta", "mb": "manitoba", "sk": "saskatchewan", "ns": "nova scotia", "nb": "new brunswick", "nl": "newfoundland and labrador",
-    "pei": "prince edward island", "nsw": "new south wales", "vic": "victoria", "qld": "queensland", "wa.": "western australia",
-    "washington dc": "district of columbia", "washington d.c.": "district of columbia", "d.c.": "district of columbia", "cali": "california",
+    "pei": "prince edward island", "nsw": "new south wales", "vic": "victoria", "qld": "queensland",
+    "washington dc": "district of columbia", "washington d.c": "district of columbia", "d.c": "district of columbia", "cali": "california",
     "socal": "california", "norcal": "california", "southern california": "california", "northern california": "california", "jersey": "new jersey",
 }
 REGIONS = {
@@ -92,9 +92,9 @@ REGIONS = {
     "france": ("île-de-france",),
 }
 STATE_NAMES = {region for regions in REGIONS.values() for region in regions}
-CITIES = {"nyc": "new york", "new york city": "new york", "la": "los angeles", "l.a.": "los angeles", "sf": "san francisco",
-          "philly": "philadelphia", "chi": "chicago", "vegas": "las vegas", "dc": "washington", "d.c.": "washington", "washington dc": "washington",
-          "washington d.c.": "washington", "cdmx": "mexico city", "nola": "new orleans", "atl": "atlanta", "indy": "indianapolis",
+CITIES = {"nyc": "new york", "new york city": "new york", "la": "los angeles", "l.a": "los angeles", "sf": "san francisco",
+          "philly": "philadelphia", "chi": "chicago", "vegas": "las vegas", "dc": "washington", "d.c": "washington", "washington dc": "washington",
+          "washington d.c": "washington", "cdmx": "mexico city", "nola": "new orleans", "atl": "atlanta", "indy": "indianapolis",
           "bombay": "mumbai", "new delhi": "delhi", "roma": "rome", "münchen": "munich", "köln": "cologne", "wien": "vienna",
           "praha": "prague", "lisboa": "lisbon", "bucurești": "bucharest", "kyiv": "kyiv", "kiev": "kyiv"}
 CITY_SUFFIX = re.compile(r"\s+(area|suburbs|metro|city area)$")
@@ -133,11 +133,11 @@ WORDS = {
                   "some college": ("some college", "college student", "university student", "undergrad", "undergraduate", "undergrad student", "college dropout"),
                   "associate degree": ("associate degree", "associate's degree", "associates degree", "associates", "associate's", "aa", "as degree"),
                   "bachelor's degree": ("bachelor's degree", "bachelors degree", "bachelor degree", "bachelor's", "bachelors", "bachelor", "bsc", "bs", "ba",
-                                        "b.a.", "b.s.", "college degree", "university degree", "undergraduate degree", "college graduate", "bcom", "beng"),
+                                        "b.a", "b.s", "college degree", "university degree", "undergraduate degree", "college graduate", "bcom", "beng"),
                   "master's degree": ("master's degree", "masters degree", "master degree", "master's", "masters", "master", "msc", "ms", "ma", "mba",
-                                      "m.s.", "m.a.", "meng", "mph", "msw"),
-                  "professional degree": ("professional degree", "md", "m.d.", "jd", "j.d.", "law degree", "medical degree", "dds", "pharmd", "dvm"),
-                  "doctorate": ("doctorate", "phd", "ph.d.", "ph.d", "doctoral degree", "edd")},
+                                      "m.s", "m.a", "meng", "mph", "msw"),
+                  "professional degree": ("professional degree", "md", "m.d", "jd", "j.d", "law degree", "medical degree", "dds", "pharmd", "dvm"),
+                  "doctorate": ("doctorate", "phd", "ph.d", "doctoral degree", "edd")},
     "employment_status": {"employed": ("employed", "working", "full time", "full-time", "part time", "part-time", "full time job", "employee",
                                        "working full time", "working part time", "work", "job"),
                           "self-employed": ("self-employed", "self employed", "freelance", "freelancer", "business owner", "contractor", "independent contractor"),
@@ -148,7 +148,7 @@ WORDS = {
                           "homemaker": ("homemaker", "stay at home mom", "stay at home mum", "stay-at-home mom", "stay at home dad", "sahm", "sahd", "housewife",
                                         "househusband", "stay at home parent"),
                           "unable to work": ("unable to work", "disabled", "on disability", "disability")},
-    "marital_status": {"never married": ("never married", "unmarried", "not married"), "married": ("married", "husband", "wife", "happily married", "recently married", "newlywed"),
+    "marital_status": {"never married": ("never married", "unmarried"), "married": ("married", "husband", "wife", "happily married", "recently married", "newlywed"),
                        "separated": ("separated",), "divorced": ("divorced", "divorcee"), "widowed": ("widowed", "widow", "widower")},
     "relationship_status": {"single": ("single", "unattached"),
                             "in a relationship": ("in a relationship", "relationship", "partner", "partnered", "boyfriend", "girlfriend", "dating",
@@ -233,9 +233,18 @@ LOOKUP = {field: {word: value for value, words in groups.items() for word in wor
 PARENT = re.compile(r"(?:single |new |first time |proud |step-?)?(?:mom|mum|mother|dad|father|parent)(?: of (?:a |an |one|two|three|four|five|\d+|my).*)?"
                     r"|(?:has|have|with) (?:a |an |one |two |three |four |five |\d+ |young |grown |adult )*(?:kids?|child(?:ren)?|sons?|daughters?|toddlers?|babies|baby)"
                     r"|(?:one|two|three|four|five|\d+) (?:kids|children|sons|daughters)")
-HEIGHT_IMPERIAL = re.compile(r"^(\d)\s*(?:'|’|ft\.?|feet|foot)\s*(?:(\d{1,2}(?:\.\d)?)\s*(?:\"|”|''|’’|in\.?|inches)?)?$")
-HEIGHT_METRIC = re.compile(r"^(\d(?:[.,]\d{1,2})?)\s*m$|^(\d(?:[.,]\d{1,2}))$|^(\d{3}(?:\.\d+)?)\s*(?:cm)?$")
+HEIGHT_IMPERIAL = re.compile(r"^(\d)\s*(?:'|’|ft\.?|feet|foot)\s*(?:(\d{1,2}(?:\.\d)?)\s*(?:\"|”|''|’’|in\.?|inches)?)?$|^([4-7])(?:\s+|\s*[\"”]\s*|[.,])(1[01]|\d)$")
+HEIGHT_METRIC = re.compile(r"^(\d(?:[.,]\d{1,2})?)\s*m$|^([12][.,]\d{1,2})$|^(\d{2,3}(?:\.\d+)?)\s*(?:cms?)?$|^([12])\s*m\s*(\d{2})$")
+HEIGHT_INCHES = re.compile(r"^(\d{1,2}(?:[.,]\d)?)\s*(?:\"|”|in\.?|inch|inches)$")
 NUMBER = re.compile(r"^\$?\s*(\d[\d,]*(?:\.\d+)?)\s*(k|m|thousand|million)?\s*(kg|kgs|kilos?|lbs?|pounds?|st|stone|usd|dollars|/yr|/year|a year|per year|gross|gross/year)?$")
+INCHES = ("height_inches", "height_imperial")
+NOTE = re.compile(r"\s*[(\[][^)\]]*[)\]]?")
+BLANK = re.compile(r"(?:none|n/?a|null|nil|unknown|unspecified|unclear|undisclosed|not explicitly|value|-+)(?:\W.*)?"
+                   r"|(?:not|none|no)\s+(?:\w+\s+){0,2}(?:stated|specified|provided|mentioned|given|applicable|available|known|disclosed|indicated"
+                   r"|identified|listed|determined|info|information)\b.*|")
+APPROX = re.compile(r"^(?:about|around|approx\.?|approximately|roughly|maybe|probably)\s+|\s*-?ish$")
+RACE_KEY = re.compile(r"race_?\s*ethn")
+SEGMENT = re.compile(r"[,;]\s*(?=(?:" + "|".join(map(re.escape, sorted({*FIELDS, *KEYS}, key=len, reverse=True))) + r"|race_?\s*ethn[^\W\d]*(?: ethnicity)?)\s*:)", re.I)
 
 
 def clean(raw):
@@ -261,13 +270,18 @@ def bounded(field, amount):
     return str(round(amount)) if amount is not None and low <= round(amount) <= high else None
 
 
-def height(value):
+def height(key, value):
     if match := HEIGHT_IMPERIAL.match(value):
-        return bounded("height", (int(match.group(1)) * 12 + float(match.group(2) or 0)) * 2.54)
+        feet, inches = (match.group(1), match.group(2)) if match.group(1) else (match.group(3), match.group(4))
+        return (int(feet) * 12 + float(inches or 0)) * 2.54
+    if match := HEIGHT_INCHES.match(value):
+        return float(match.group(1).replace(",", ".")) * 2.54
     if match := HEIGHT_METRIC.match(value):
         if match.group(3):
-            return bounded("height", float(match.group(3)))
-        return bounded("height", float((match.group(1) or match.group(2)).replace(",", ".")) * 100)
+            return float(match.group(3)) * (2.54 if key in INCHES and float(match.group(3)) < 100 and not value.endswith("cm") else 1)
+        if match.group(4):
+            return int(match.group(4)) * 100 + int(match.group(5))
+        return float((match.group(1) or match.group(2)).replace(",", ".")) * 100
     return None
 
 
@@ -279,14 +293,14 @@ def weight(key, value):
         amount *= 6.35
     elif unit in ("lb", "lbs", "pound", "pounds") or (key == "weight_lbs" and unit is None):
         amount *= 0.4536
-    return bounded("weight", amount)
+    return amount
 
 
 def income(key, value):
     amount, unit = number(value)
     if amount is None or unit in ("kg", "kgs", "kilo", "kilos", "lb", "lbs", "pound", "pounds", "st", "stone"):
         return None
-    return bounded("income", amount * INCOME_SCALE.get(key, 1))
+    return amount * INCOME_SCALE.get(key, 1)
 
 
 def country(value, demonyms=False):
@@ -336,21 +350,20 @@ def gender(value):
     return LOOKUP["gender"].get(value)
 
 
-def value(field, raw, key=None):
-    text = clean(raw)
-    if text is None:
-        return None
+def measure(field, text, key=None):
     if field == "age":
-        match = re.fullmatch(r"(\d{1,3})(?:\s*(?:years?|yrs?|y/?o)(?:\s*old)?)?", text)
-        return bounded("age", int(match.group(1))) if match else None
+        match = re.fullmatch(r"[mf]?\s*(\d{1,3}(?:\.\d+)?)\s*[mf]?(?:\s*(?:years?|yrs?|y/?o)(?:\s*old)?)?", text)
+        return float(match.group(1)) if match else None
     if field == "birth_year":
-        return bounded("birth_year", int(text)) if re.fullmatch(r"\d{4}", text) else None
+        return int(text) if re.fullmatch(r"\d{4}", text) else None
     if field == "height":
-        return height(text)
+        return height(key, text)
     if field == "weight":
         return weight(key, text)
-    if field == "income":
-        return income(key, text)
+    return income(key, text)
+
+
+def category(field, text):
     if field == "gender":
         return gender(text)
     if field == "race_ethnicity":
@@ -367,7 +380,7 @@ def value(field, raw, key=None):
         text = LANGUAGE_ALIASES.get(text, text)
         return text if text in LANGUAGES else None
     if field in KEYWORDS:
-        return None if text in ("student", "unemployed", "retired", "employed") else keyword(field, text)
+        return keyword(field, text)
     if field == "parental_status" and PARENT.fullmatch(text):
         return "parent"
     if field == "mental_health":
@@ -375,14 +388,47 @@ def value(field, raw, key=None):
     return LOOKUP[field].get(text)
 
 
+def value(field, raw, key=None):
+    text = clean(raw)
+    if text is None or (field in KEYWORDS and text in ("student", "unemployed", "retired", "employed")):
+        return None
+    if field in NUMERIC:
+        return bounded(field, measure(field, text, key))
+    return category(field, text)
+
+
+def tidy(raw):
+    text = raw.replace("\\n", " ").lower().strip().strip("*_`").strip()
+    if text.startswith(("\"", "'", "“")):
+        text = text.strip("\"'“”")
+    if re.fullmatch(r"\[.*\]|\(.*\)|<.*>", text):
+        text = text[1:-1].strip()
+    text = NOTE.sub("", text).strip().rstrip(".?!,;:—–- ").lstrip("~ ")
+    return None if BLANK.fullmatch(text) else text
+
+
+def label(field, raw, key):
+    text = tidy(raw)
+    if text is None:
+        return None
+    if field in NUMERIC:
+        amount = measure(field, APPROX.sub("", text), key)
+        return None if amount is None else str(round(amount))
+    return category(field, text) or (first(text) if field == "mental_health" else text)
+
+
 def parse(answer):
     values = {}
     for line in (answer or "").splitlines():
-        key, _, raw = line.strip().lstrip("-*• ").partition(":")
-        key = key.strip().strip("*").strip().lower()
-        field = KEYS.get(key, key)
-        if field not in FIELDS or ":" in raw or field in values:
-            continue
-        if (result := value(field, raw, key)) is not None:
-            values[field] = result
-    return values if len(values) <= 12 else {}
+        for part in SEGMENT.split(line):
+            key, _, raw = part.strip().lstrip("-*• ").partition(":")
+            key = key.strip().strip("*").strip().lower()
+            field = "race_ethnicity" if RACE_KEY.match(key) else KEYS.get(key, key)
+            if field not in FIELDS or field in values:
+                continue
+            repeat, colon, rest = raw.partition(":")
+            if colon and repeat.strip().strip("*").strip().lower() == key:
+                raw = rest
+            if (result := label(field, raw, key)) is not None:
+                values[field] = result
+    return values
