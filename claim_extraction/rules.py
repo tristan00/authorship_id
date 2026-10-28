@@ -14,7 +14,7 @@ VALUES = json.loads(Path(__file__).with_name("values.json").read_text(encoding="
 
 I = r"(?:i'm|i’m|im|i am)"
 A = r"(?:an? )?"
-END = r"(?=$|[\s.,!?;:)\]]|'s)"
+END = r"(?=$|[\s.,!?;:)\]/]|'s)"
 STRICT_TAG = r"(?:\b\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?"
 
 
@@ -53,7 +53,7 @@ WEIGHT_AFTER = re.compile(r"(?:[4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)?
 WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|kilos))\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain))")
 HEIGHT_METRIC = re.compile(r"(?<![\w.,$])(1[4-9]\d\s?cm|2[0-2]\d\s?cm|1[.,][4-9]\d\s?m\b|1[.,][4-9]\d(?![\d.,%]|\s*(?:€|eur|usd|dollars?|bucks|km|miles?|mi\b|hours?|h\b)))")
 PEOPLE = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur)\b")
-PRIMES = str.maketrans({"‘": "'", "´": "'", "′": "'", "″": '"', "​": None, "‌": None, "‍": None, "⁠": None, "﻿": None})
+PRIMES = str.maketrans({"‘": "'", "´": "'", "′": "'", "″": '"', "ʻ": "'", "ʼ": "'", "​": None, "‌": None, "‍": None, "⁠": None, "﻿": None})
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
 ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|latino|hispanic|indian|fit|tall|short|chubby|fat|hot|horny|lonely|bored|average|older|young)"
 AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
@@ -148,9 +148,9 @@ PHRASES = {
                r"\bthis is an? (?:[a-z-]+ )?(guy|man|woman|girl|dude|male|female|lady|boy)\b",
                rf"\b{I} (?!not\b|never\b|no\b)(?:[a-z-]+ ){{0,2}}?(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who|that|and|or|you|in|on|with|from|for|like|than))"),
     "sexual_orientation": (r"(?:^|\W)[\-|/]\s*(straight|gay|bi|bisexual)\s*[\-|/]",
-                           r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:(?!not\b|seconds|minutes|hours|days)[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?! (?:up\b|away\b|out\b|to\b|couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
+                           r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:(?!not\b|seconds|minutes|mins|hours|days)[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?![-'’])(?! (?:up\b|away\b|out\b|to\b|couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
-                           rf"\b{I} (?!not\b|never\b|no\b)(?:an? )?(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?!not\b)[a-z]+ ){{0,2}}?(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer|heterosexual|homosexual)\b(?! (?:friend|couple|bar|club|marriage|people|men|women|guys))",
+                           rf"\b{I} (?!not\b|never\b|no\b)(?:an? )?(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?!not\b|be\b|paid\b)[a-z]+ ){{0,2}}?(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer|heterosexual|homosexual)\b(?![-'’])(?! (?:friend|couple|bar|club|marriage|people|men|women|guys|up\b|forward|away|out\b|from|to\b|with you|edge|talking|a\b))",
                            r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:white|black|asian|trans|young|old|older) )*(straight|gay|bi|bisexual|lesbian|pansexual|asexual|queer) (?:man|woman|guy|girl|person|male|female|dude)\b",
                            rf"\bas an? (?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?({ORIENTATIONS})\b(?! (?:couple|bar|club|man's|woman's|ally|friend|show|character|porn|film|movie|icon|rights))",
                            r"\b(?:soy|sou|je suis|ich bin|bin|sono) (?:\w+ )?(gay|bi|bisexual|hetero|heterosexual|homosexual|lesbiana|lésbica|bissexual|bisexuel|bisexuelle|lesbienne)\b",
@@ -219,7 +219,10 @@ PHRASES = {
                    rf"\b(?:i|{I}|i've been|i’ve been|i have been|currently|now) (?:currently |now )?(?:work|working) as an? {JOB}",
                    rf"\bi(?:'ve|’ve| have) been an? {JOB}", rf"(?:^|[.!?] )as an? {JOB}(?:,| who| myself| i\b)",
                    rf"(?:^|[.!,;] )(?:{JOB_MODIFIERS} )*({JOB_TITLES}) here\b",
-                   r"\bi (?:currently |now |also |still )?work (?:in|at a|in a|for a) ([a-z]+(?: [a-z]+)?)(?= (?:and|as|for|at|so|but|which|company|firm|office|industry|field|department|setting)\b|[.,!?;)]|$)"),
+                   r"\bi (?:currently |now |also |still )?work (?:in|at a|in a|for a) ([a-z]+(?: [a-z]+)?)(?= (?:and|as|for|at|so|but|which|company|firm|office|industry|field|department|setting)\b|[.,!?;)]|$)",
+                   r"\b(?:and|also|but|currently|now) (?:currently |now |also |still )?work (?:in|at a|in a|for a) ([a-z]+(?: [a-z]+)?)(?= (?:and|as|for|at|so|but|which|company|firm|office|industry|field|department|setting)\b|[.,!?;)]|$)",
+                   rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b)[^.\n]{{0,40}}?(?:[,|/•-]\s*|\s+)((?:[a-z]+ ){{0,2}}(?:{JOB_TITLES}|{JOB_HEADS})){END}",
+                   rf"\b{I} [a-z]+(?: [a-z]+)?, an? ((?:[a-z]+ ){{0,3}}(?:{JOB_TITLES}|{JOB_HEADS})){END}"),
     "employment_status": (rf"\b(?:i|{I}|i've been|i’ve been|i have been) (?:currently |now |also |still )?(?:work|working) (full[- ]time|part[- ]time)\b", r"\bi (?:currently|now) (work)\b(?! (?:on|out|through))",
                           rf"\b(?:{I}|i've been|i’ve been|i have been) (?:currently |now |happily |fully )?(retired|unemployed|self[- ]employed|a student|a full[- ]time student|a college student|a university student|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|a homemaker|a housewife|on disability|disabled|a freelancer|freelance|jobless|between jobs|laid off|out of work)\b",
                           r"\b(?:i(?:'m|’m| am|m)?|i've been|i’ve been|i have been|i got|i was just|i just got|recently|currently|still) (?:currently |still |now |recently |just |been )?(unemployed|laid off|jobless|between jobs|out of work|job hunting|looking for (?:a )?(?:job|work)|job searching|without a job)\b(?! (?:people|folks|friends?|guy|men|women))",
