@@ -343,7 +343,7 @@ def requirements(items):
             strings = {left + right for left in strings for right in part}
             continue
         if "" not in strings:
-            options.append(strings)
+            options.append(minimal(strings))
         strings = part if part is not None else {""}
         if part is not None:
             continue
@@ -357,8 +357,12 @@ def requirements(items):
         else:
             found = None
         if found:
-            options.append(found)
+            options.append(minimal(found))
     return options
+
+
+def minimal(strings):
+    return {string for string in strings if not any(other != string and other in string for other in strings)}
 
 
 def needed(items):
