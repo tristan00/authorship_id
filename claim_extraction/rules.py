@@ -938,7 +938,7 @@ def cross(field, tops):
 
 def extract(text):
     (first_bias, bias, cutoffs, tables, first, second), best, tops = weights(), {}, {}
-    found = [(field, result, [*filter(None, map(tables[field].get, general | own))]) for field, result, general, own in groups(text)]
+    found = [(field, result, [*filter(None, map(tables[field].get, chain(general, own)))]) for field, result, general, own in groups(text)]
     for field, result, ids in found:
         score = first_bias + sum(map(first.__getitem__, ids))
         tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
