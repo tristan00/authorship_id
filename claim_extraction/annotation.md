@@ -74,7 +74,7 @@ Over panel1m, panel1m_b and panel200k this gives 141,609 resolved labels, agains
 
 ## Rules extractor
 
-`rules.extract` turns an uppercase `US` into `USA`, lowercases the text, drops zero-width characters, removes quoted lines, quoted strings of six characters or more (not starting at an inch mark such as `6'4"`) and links, and maps curly primes to `'` and `"`. It then collects candidates, scores each with one linear model, and keeps per field the best candidate whose score clears that field's cutoff.
+`rules.extract` turns an uppercase `US` into `USA`, lowercases the text, drops zero-width characters, removes quoted lines, quoted strings of six characters or more (not starting at an inch mark such as `6'4"`) and links, and maps curly apostrophes and primes to `'` and `"`, so patterns are written with `'` only. It then collects candidates, scores each with one linear model, and keeps per field the best candidate whose score clears that field's cutoff.
 
 Candidates come from three kinds of sources, up to three matches per pattern:
 
@@ -97,39 +97,39 @@ The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 115,285 
 | validation micro F1 | panel1m | panel1m_b | panel200k | pooled |
 |---|---|---|---|---|
 | before round 1 | 0.713 | 0.708 | 0.701 | 0.706 |
-| current | 0.737 | 0.732 | 0.719 | 0.726 |
+| current | 0.738 | 0.729 | 0.717 | 0.725 |
 
-Validation F1 by field on each split and pooled over all three (pooled precision 0.743, recall 0.711), with the pooled F1 before round 1. Fields are ordered by pooled validation label count.
+Validation F1 by field on each split and pooled over all three (pooled precision 0.740, recall 0.711), with the pooled F1 before round 1. Fields are ordered by pooled validation label count.
 
 | field | pooled labels | panel1m | panel1m_b | panel200k | pooled | before round 1 |
 |---|---|---|---|---|---|---|
 | age | 4853 | 0.88 | 0.89 | 0.87 | 0.88 | 0.86 |
-| gender | 3090 | 0.76 | 0.75 | 0.75 | 0.75 | 0.74 |
-| residence_city | 599 | 0.58 | 0.59 | 0.60 | 0.59 | 0.56 |
-| occupation | 521 | 0.52 | 0.42 | 0.44 | 0.45 | 0.44 |
-| marital_status | 457 | 0.58 | 0.60 | 0.64 | 0.62 | 0.58 |
-| residence_country | 456 | 0.55 | 0.47 | 0.50 | 0.51 | 0.49 |
-| sexual_orientation | 355 | 0.52 | 0.59 | 0.59 | 0.57 | 0.56 |
-| race_ethnicity | 354 | 0.75 | 0.69 | 0.61 | 0.67 | 0.64 |
-| residence_state | 350 | 0.59 | 0.52 | 0.58 | 0.57 | 0.55 |
-| parental_status | 302 | 0.46 | 0.53 | 0.43 | 0.46 | 0.41 |
-| nationality | 296 | 0.58 | 0.57 | 0.60 | 0.59 | 0.57 |
-| height | 283 | 0.90 | 0.84 | 0.84 | 0.85 | 0.81 |
-| mental_health | 151 | 0.54 | 0.50 | 0.48 | 0.50 | 0.43 |
-| relationship_status | 133 | 0.41 | 0.31 | 0.17 | 0.27 | 0.28 |
-| employment_status | 132 | 0.25 | 0.27 | 0.29 | 0.28 | 0.32 |
-| origin_country | 128 | 0.49 | 0.66 | 0.34 | 0.46 | 0.43 |
-| weight | 122 | 0.82 | 0.70 | 0.75 | 0.76 | 0.76 |
-| religion | 109 | 0.56 | 0.73 | 0.47 | 0.55 | 0.51 |
-| education | 107 | 0.21 | 0.37 | 0.32 | 0.31 | 0.24 |
-| education_subject | 88 | 0.31 | 0.38 | 0.46 | 0.40 | 0.42 |
-| income | 71 | 0.47 | 0.45 | 0.51 | 0.49 | 0.27 |
-| generation | 55 | 0.50 | 0.59 | 0.43 | 0.49 | 0.49 |
-| birth_year | 51 | 0.73 | 0.61 | 0.67 | 0.67 | 0.55 |
-| language | 47 | 0.29 | 0.38 | 0.24 | 0.30 | 0.26 |
-| origin_city | 37 | 0.13 | 0.36 | 0.19 | 0.21 | 0.18 |
+| gender | 3090 | 0.77 | 0.75 | 0.75 | 0.75 | 0.74 |
+| residence_city | 599 | 0.57 | 0.57 | 0.59 | 0.58 | 0.56 |
+| occupation | 521 | 0.50 | 0.41 | 0.42 | 0.44 | 0.44 |
+| marital_status | 457 | 0.58 | 0.57 | 0.63 | 0.61 | 0.58 |
+| residence_country | 456 | 0.56 | 0.51 | 0.49 | 0.51 | 0.49 |
+| sexual_orientation | 355 | 0.52 | 0.61 | 0.60 | 0.58 | 0.56 |
+| race_ethnicity | 354 | 0.74 | 0.72 | 0.60 | 0.67 | 0.64 |
+| residence_state | 350 | 0.58 | 0.50 | 0.60 | 0.57 | 0.55 |
+| parental_status | 302 | 0.46 | 0.54 | 0.44 | 0.47 | 0.41 |
+| nationality | 296 | 0.60 | 0.56 | 0.61 | 0.59 | 0.57 |
+| height | 283 | 0.91 | 0.83 | 0.84 | 0.85 | 0.81 |
+| mental_health | 151 | 0.55 | 0.49 | 0.47 | 0.50 | 0.43 |
+| relationship_status | 133 | 0.41 | 0.24 | 0.22 | 0.28 | 0.28 |
+| employment_status | 132 | 0.27 | 0.30 | 0.30 | 0.29 | 0.32 |
+| origin_country | 128 | 0.48 | 0.61 | 0.35 | 0.45 | 0.43 |
+| weight | 122 | 0.81 | 0.65 | 0.79 | 0.77 | 0.76 |
+| religion | 109 | 0.58 | 0.71 | 0.47 | 0.56 | 0.51 |
+| education | 107 | 0.22 | 0.34 | 0.33 | 0.31 | 0.24 |
+| education_subject | 88 | 0.31 | 0.38 | 0.45 | 0.40 | 0.42 |
+| income | 71 | 0.47 | 0.40 | 0.49 | 0.47 | 0.27 |
+| generation | 55 | 0.53 | 0.67 | 0.43 | 0.52 | 0.49 |
+| birth_year | 51 | 0.73 | 0.58 | 0.70 | 0.67 | 0.55 |
+| language | 47 | 0.29 | 0.43 | 0.21 | 0.31 | 0.26 |
+| origin_city | 37 | 0.12 | 0.36 | 0.23 | 0.23 | 0.18 |
 | origin_state | 31 | 0.53 | 0.55 | 0.35 | 0.45 | 0.46 |
-| political_ideology | 27 | 0.40 | 0.00 | 0.25 | 0.24 | 0.24 |
+| political_ideology | 27 | 0.46 | 0.00 | 0.24 | 0.25 | 0.24 |
 | political_compass | 6 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
 
 panel1m_b labels relationship status 24% less often per train text than panel1m (5.1 against 6.8 per 10,000) and parental status 16% less, from per-server voter variance. The combined model learns the lower rate, which is why relationship status drops on both validation splits.
