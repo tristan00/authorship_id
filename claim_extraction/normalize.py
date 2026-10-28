@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from pathlib import Path
 
@@ -267,7 +268,7 @@ def number(value):
 
 def bounded(field, amount):
     low, high = CANDIDATE_BOUNDS[field]
-    return str(round(amount)) if amount is not None and low <= round(amount) <= high else None
+    return str(round(amount)) if amount is not None and math.isfinite(amount) and low <= round(amount) <= high else None
 
 
 def height(key, value):

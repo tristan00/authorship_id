@@ -613,9 +613,9 @@ def earnings(raw):
     if not match:
         return None
     amount, unit = number(match.group(1))
-    if amount is None or unit is not None:
+    if amount is None or unit is not None or not math.isfinite(total := amount * PERIODS.get(match.group(2), 1)):
         return None
-    return value("income", str(round(amount * PERIODS.get(match.group(2), 1))))
+    return value("income", str(round(total)))
 
 
 def peel(field, words):
