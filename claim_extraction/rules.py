@@ -310,15 +310,43 @@ PHRASES = {
 }
 
 
+def spelled(op, av):
+    if op is sre.LITERAL:
+        return {chr(av)}
+    if op is sre.IN and len(av) <= 8 and all(kind is sre.LITERAL for kind, _ in av):
+        return {chr(code) for _, code in av}
+    if op is sre.SUBPATTERN:
+        return spelling(av[3])
+    if op is sre.BRANCH:
+        branches = [spelling(branch) for branch in av[1]]
+        return None if None in branches else set().union(*branches)
+    if op is sre.MAX_REPEAT and av[0] == 0 and av[1] == 1 and (part := spelling(av[2])) is not None:
+        return {"", *part}
+    return None
+
+
+def spelling(items):
+    strings = {""}
+    for op, av in items:
+        part = spelled(op, av)
+        if part is None or len(strings) * len(part) > SPELLINGS:
+            return None
+        strings = {left + right for left in strings for right in part}
+    return strings
+
+
 def needed(items):
-    options, run = [], ""
+    options, strings = [], {""}
     for op, av in [*items, (None, None)]:
-        if op is sre.LITERAL:
-            run += chr(av)
+        part = spelled(op, av)
+        if part is not None and len(strings) * len(part) <= SPELLINGS:
+            strings = {left + right for left in strings for right in part}
             continue
-        if run:
-            options.append({run})
-            run = ""
+        if "" not in strings:
+            options.append(strings)
+        strings = part if part is not None else {""}
+        if part is not None:
+            continue
         if op is sre.SUBPATTERN:
             found = needed(av[3])
         elif op is sre.BRANCH:
@@ -333,15 +361,31 @@ def needed(items):
     return max(options, key=lambda strings: min(map(len, strings)), default=None)
 
 
+def trie(words):
+    root = {}
+    for word in words:
+        node = root
+        for ch in word:
+            node = node.setdefault(ch, {})
+        node[""] = {}
+    return arms(root)
+
+
+def arms(node):
+    branches = [re.escape(ch) + arms(child) for ch, child in sorted(node.items()) if ch]
+    body = branches[0] if len(branches) == 1 else "(?:" + "|".join(branches) + ")" if branches else ""
+    return f"(?:{body})?" if "" in node and branches else body
+
+
+SPELLINGS = 64
 COMPILED = [(field, index, re.compile(pattern), needed(sre_parse.parse(pattern))) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
 ALWAYS = {position for position, (_, _, _, gate) in enumerate(COMPILED) if gate is None}
 ENABLES = defaultdict(list)
 for position, (_, _, _, gate) in enumerate(COMPILED):
     for literal in gate or ():
         ENABLES[literal].append(position)
-LITERALS = defaultdict(list)
-for literal in sorted(ENABLES):
-    LITERALS[literal[:2]].append(literal)
+REACH = {literal: set().union(*(ENABLES.get(literal[:size], ()) for size in range(1, len(literal) + 1))) for literal in ENABLES}
+FINDER = re.compile(f"(?=({trie(sorted(ENABLES))}))")
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
 FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "central", "northern", "southern", "eastern", "western", "upstate",
           "downtown", "greater", "rural", "northeast", "northwest", "southeast", "southwest", "far", "midwest"}
@@ -534,8 +578,7 @@ def stats(text):
 
 
 def phrases(text):
-    pairs = LITERALS.keys() & {text[index:index + 2] for index in range(len(text))}.union(text)
-    active = ALWAYS.union(*(ENABLES[literal] for pair in pairs for literal in LITERALS[pair] if literal in text))
+    active = ALWAYS.union(*(REACH[match.group(1)] for match in FINDER.finditer(text)))
     for position in sorted(active):
         field, index, pattern, _ = COMPILED[position]
         for match in islice(pattern.finditer(text), MATCHES):
