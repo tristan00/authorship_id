@@ -1,9 +1,10 @@
 import json
 import random
 from collections import Counter, defaultdict
+from multiprocessing import Pool
 
 from . import LOG, timed
-from .config import ANNOTATIONS, FIELDS
+from .config import ANNOTATIONS, FIELDS, WORKERS
 from .rules import extract
 
 ERROR_SAMPLES = 20
@@ -28,8 +29,10 @@ def score(texts, labels):
     counts = {field: Counter() for field in FIELDS}
     errors = defaultdict(list)
     wrong = {field: Counter() for field in FIELDS}
-    for record_id, text in texts.items():
-        predicted, expected = extract(text), labels[record_id]
+    with Pool(WORKERS) as pool:
+        predictions = pool.map(extract, texts.values(), chunksize=500)
+    for (record_id, text), predicted in zip(texts.items(), predictions):
+        expected = labels[record_id]
         for field in FIELDS:
             guess, truth = predicted.get(field), expected.get(field)
             if guess is not None and guess == truth:
