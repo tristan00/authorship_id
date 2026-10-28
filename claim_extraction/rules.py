@@ -58,6 +58,7 @@ ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|lat
 AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
 GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\b(male|female|guy|girl|man|woman|dude|lady),?\s*(\d{2})\b(?!\s*(?:%|years? ago)|[a-z])")
 GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
+GENDER_PAREN = re.compile(r"\b(male|female|guy|girl|man|woman|dude|lady|boy|[mf])\s*\(\s*(\d{2})\s*\)")
 TOKEN = re.compile(r"[a-z0-9][a-z0-9'’-]*|[^\sa-z0-9]")
 NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?:\s?(?:yo|y/o|y\.o|yrs?|years?))?(?![\w:/%-]|[.,]\d|\s*%)")
 BARE_NUMBER = re.compile(r"^\W*(\d{1,3})\W*$")
@@ -73,7 +74,8 @@ VOCAB_FIELDS = ("race_ethnicity", "sexual_orientation", "religion", "marital_sta
                 "generation", "employment_status")
 GENDER_WORDS = {"male", "female", "man", "woman", "guy", "girl", "dude", "lady", "boy", "gal", "mom", "dad", "wife", "husband", "mother", "father",
                 "non-binary", "nonbinary", "enby", "trans woman", "trans man", "femboy", "milf", "bloke", "lad", "girlie", "girly", "wifey", "hubby",
-                "mtf", "ftm", "transgirl", "transguy", "trans girl", "trans guy"}
+                "mtf", "ftm", "transgirl", "transguy", "trans girl", "trans guy", "homme", "mann", "mec", "hombre", "mujer", "chica", "chico", "frau",
+                "homem", "mulher", "ragazzo", "ragazza"}
 PARENT_WORDS = {f"{owner} {child}" for owner in ("my", "our") for child in ("son", "daughter", "kids", "kid", "children", "child", "baby", "toddler", "boys", "girls",
                                                                   "newborn", "stepson", "stepdaughter", "sons", "daughters", "twins", "grandkids",
                                                                   "son's", "daughter's", "kid's", "kids'", "baby's", "children's")} | {"pregnant"}
@@ -128,7 +130,7 @@ PHRASES = {
                    rf"(?:^|[.!,;(] *)(?:[a-z]+ )?({GENERATIONS}) here\b", rf"\b{I} (?:a |an |also a |also an |also |an old |a young |a fellow |an elder |an older |a younger |a late |an early |a geriatric )?({GENERATIONS})\b(?! (?:parents|kids|children|friends|generation))", rf"\bwe ({GENERATIONS})\b"),
     "gender": (rf"\b{I} {A}(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))",
                r"\bas an? (?:\d{2}[- ]?(?:years?|yr)[- ]old )?(?:(?:straight|gay|bi|single|married|white|black|asian|trans|young|old|older|tall|short|fat|average) )*(guy|man|woman|girl|dude|male|female|lady|mom|mother|dad|father|wife|husband)\b",
-               rf"\b{I} {A}(non-?binary|nonbinary|enby|trans (?:man|woman|guy|girl))\b",
+               rf"\b{I} {A}(non-?binary|nonbinary|enby|agender|genderfluid|gender fluid|genderqueer|trans (?:man|woman|guy|girl))\b",
                r"(?<!\ba )(?<!\bthe )(?<!\bother )(?<!\bthat )(?<!\bthis )\b(male|female|guy|girl|man|woman|dude|lady)\s+here\b",
                r"(?:^|[\]\)\-|:]\s*|\d{2}\s*,?\s*)(?:[a-z]+ ){0,2}?(male|female|guy|girl|man|woman|dude|lady|boy|femboy|milf)\s+(?:here\s+)?(?:looking|seeking|searching|wanting|needing)\b",
                r"\b(?:soy|sou|je suis|ich bin|sono) (?:un |una |uma |um |une |ein |eine )?(hombre|mujer|chica|chico|homem|mulher|homme|femme|mann|frau|ragazzo|ragazza|garota|garoto|menina|menino)\b",
@@ -138,7 +140,12 @@ PHRASES = {
                r"(?:^|[\s(\[])\d0'?s\s+(male|female|guy|girl|man|woman|m|f)\b",
                r"(?:^|[\s(\[])\d{2}\s*,\s*([mf])\b(?!\s*[/']\s*\d)",
                r"[\(\[]\s*(male|female)\s*[\)\]]",
-               r"[\[\(]\s*\d{2}\s*[\]\)]\s*([mf]|male|female)\b(?!\s*[/']?\s*\d)"),
+               r"[\[\(]\s*\d{2}\s*[\]\)]\s*([mf]|male|female)\b(?!\s*[/']?\s*\d)",
+               rf"\b{I} ([mf])(?![\w'’])",
+               r"(?:^|[\s,(\]])(?:(?:single|married|bi|straight|gay|white|black|horny|young|older|old|fit|hung|discreet|bored|lonely|chubby|tall|short|local|cute|shy|sub|dom)\s+){0,2}([mf])\s+(?:here|looking|seeking|searching|4\b|for\b)",
+               r"\bas an? (?!if\b)(?:[a-z-]+ ){0,2}?(guy|man|woman|girl|dude|male|female|lady|boy|mom|mother|dad|father|wife|husband)\b(?!'s| of\b)",
+               r"\bthis is an? (?:[a-z-]+ )?(guy|man|woman|girl|dude|male|female|lady|boy)\b",
+               rf"\b{I} (?!not\b|never\b|no\b)(?:[a-z-]+ ){{0,2}}?(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who|that|and|or|you|in|on|with|from|for|like|than))"),
     "sexual_orientation": (r"(?:^|\W)[\-|/]\s*(straight|gay|bi|bisexual)\s*[\-|/]",
                            r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:(?!not\b|seconds|minutes|hours|days)[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?! (?:up\b|away\b|out\b|to\b|couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
@@ -260,7 +267,7 @@ FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "c
 CITY_FIRST = {"delhi", "auckland", "berlin", "mexico city", "hamburg", "metro manila", "rio de janeiro", "sao paulo", "new york"}
 PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "residence_city"),
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
-SKIP = re.compile(r"^\s*>.*$|(?<![\d'’])\"[^\"\n]{6,300}\"|“[^”\n]{6,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
+SKIP = re.compile(r"^\s*>(?!!).*$|(?<![\d'’])\"[^\"\n]{6,300}\"|“[^”\n]{6,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
 WORD_CODES = {"on", "in", "me", "hi", "ma", "or", "ok", "oh", "de", "la", "co", "id", "al", "ne", "mo", "ms", "ar", "ab", "ns", "nb", "sk", "mb"}
 SHORT_WORDS = {"uk", "nz", "bi", *(code for code in STATES if len(code) == 2 and code not in WORD_CODES)}
 FLAGS = {"🇺🇸": "united states", "🇬🇧": "united kingdom", "🇨🇦": "canada", "🇦🇺": "australia", "🇮🇳": "india", "🇵🇭": "philippines", "🇩🇪": "germany",
@@ -273,6 +280,21 @@ FLAGS = {"🇺🇸": "united states", "🇬🇧": "united kingdom", "🇨🇦": 
 US_UPPER = re.compile(r"\bUS\b")
 REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
 HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
+TAIL = r"\b(?:\W+[\w'’]+){0,3}\W*$"
+CUES = {"other": re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|him|they|they're|their|them|you|you're|your|ur|u|my (?:wife|husband|son|daughter|kids?|mom|dad|mother|father|brother|sister|bf|gf|boyfriend|girlfriend|partner|friend|cousin|grandma|grandpa|ex|baby|child|children))" + TAIL),
+        "negated": re.compile(r"\b(?:not|never|no longer|isn't|aren't|wasn't|ain't|don't|dont|doesn't|nor|neither|no)" + TAIL),
+        "we": re.compile(r"\b(?:we|we're|us|our|both)" + TAIL),
+        "past": re.compile(r"\b(?:used to|when i was|back when|back in|as a kid|growing up|at the time|formerly|former|previously|was|were|had been|turned|became)" + TAIL),
+        "if": HYPOTHETICAL,
+        "generic": re.compile(r"\b(?:people|everyone|everybody|anyone|anybody|guys|men|women|folks|someone|somebody|nobody|most|many|all|americans|those|these)" + TAIL),
+        "compare": re.compile(r"\b(?:than|over|under|above|below|between|from|in their|in our|in your|at least|at most)\W*$")}
+QUESTION = re.compile(r"\W*(?:are|is|am|any|anyone|anybody|who|what|where|how|do|does|did|can|could|would|should|will)\b")
+SUBJECT_AFTER = re.compile(r"\W{0,3}(?:she|he|they|she's|he's|they're|his|her|their)\b")
+RANGE = re.compile(r"\s*(?:-|to)\s*\d")
+MEASURES = {"usd", "dollars", "dollar", "bucks", "euros", "k", "mins", "min", "minutes", "hours", "hrs", "hr", "days", "weeks", "months", "times", "percent", "%",
+         "matches", "games", "points", "pts", "people", "miles", "km", "meters", "metres", "feet", "ft", "inches", "lbs", "lb", "kg", "kgs", "pounds", "seconds",
+         "secs", "sec", "episodes", "pages", "levels", "rounds", "sets", "reps", "mph", "kph", "degrees", "grams", "mg", "ml", "oz", "cm", "mm", "views", "likes",
+         "followers", "subs", "votes", "comments", "posts", "items", "words", "div", "hp", "gb", "tb", "fps"}
 DIAGNOSES = {"add": "adhd", "asd": "autism", "an eating disorder": "eating disorder", "an alcoholic": "addiction", "an addict": "addiction", "cptsd": "ptsd",
              "c-ptsd": "ptsd", "autistic": "autism", "schizophrenic": "schizophrenia", "bipolar": "bipolar disorder"}
 MARRIED = {"husband": "married", "wife": "married", "hubby": "married", "spouse": "married", "a widow": "widowed", "a widower": "widowed"}
@@ -302,7 +324,7 @@ GENDERED = {"mom": "female", "mother": "female", "mum": "female", "wife": "femal
             "transmasc": "male", "transfem": "female", "trans masc": "male", "trans fem": "female", "a transman": "male", "a transwoman": "female",
             "ragazzo": "male", "ragazza": "female", "garota": "female", "garoto": "male", "menina": "female", "menino": "male",
             "bloke": "male", "lad": "male", "girlie": "female", "girly": "female", "wifey": "female", "hubby": "male", "transgirl": "female",
-            "transguy": "male", "trans girl": "female", "trans guy": "male"}
+            "transguy": "male", "trans girl": "female", "trans guy": "male", "mec": "male", "hombre": "male", "mujer": "female", "frau": "female"}
 
 
 def resolve(field, raw):
@@ -379,7 +401,7 @@ def tags(text):
             age, sex, form = (match.group(1), match.group(2), "nx") if match.group(1) else (match.group(4), match.group(3), "xn")
             yield "age", value("age", age), f"{name}_{form}", match.span(), ""
             yield "gender", value("gender", sex), f"{name}_{form}", match.span(), ""
-    for name, pattern, age, sex in (("age_gender", AGE_GENDER, 1, 2), ("gender_age", GENDER_AGE, 2, 1)):
+    for name, pattern, age, sex in (("age_gender", AGE_GENDER, 1, 2), ("gender_age", GENDER_AGE, 2, 1), ("gender_paren", GENDER_PAREN, 2, 1)):
         for match in islice(pattern.finditer(text), MATCHES):
             yield "age", value("age", match.group(age)), name, match.span(), ""
             yield "gender", value("gender", match.group(sex)), name, match.span(), ""
@@ -467,6 +489,21 @@ def bucket(number, edges):
     return next((f"<{edge}" for edge in edges if number < edge), f">={edges[-1]}")
 
 
+def cues(text, start, end, numeric):
+    opening = max(text.rfind(mark, 0, start) for mark in ".!?\n") + 1
+    closing = min((index for index in (text.find(mark, end) for mark in ".!?\n") if index >= 0), default=len(text))
+    before = text[max(opening, start - 40):start]
+    after = TOKEN.findall(text[end:end + 30])[:2]
+    found = {name for name, pattern in CUES.items() if pattern.search(before)}
+    if text[closing:closing + 1] == "?" or QUESTION.match(text[opening:start]):
+        found.add("question")
+    if SUBJECT_AFTER.match(text, end):
+        found.add("other")
+    if numeric and after and (after[0] in MEASURES or (after[0] in ("years", "year", "yrs", "yr") and after[1:] != ["old"]) or after[0] in ("-", "to") and RANGE.match(text[end:end + 8])):
+        found.add("unit")
+    return found
+
+
 def features(raw):
     text = SKIP.sub(" ", US_UPPER.sub("USA", raw).lower()).translate(PRIMES)
     lines = "multi" if "\n" in text.strip() else "one"
@@ -502,7 +539,7 @@ def features(raw):
             right = after[:1] or ["$"]
             kind = "phrase" if "#" in source else source if source in BROAD else "pattern"
             general = {f"kind={kind}", f"pick={rank == pick}", f"position={bucket(start, (3, 40, 200))}", f"same={min(counts[result], 3)}",
-                       f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *flag.split()}
+                       f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *flag.split(), *(f"cue={cue}" for cue in cues(text, start, end, field in NUMERIC))}
             general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
             general.add(f"self={bool(SELF.intersection(before))}")
             own = {f"source={source}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
