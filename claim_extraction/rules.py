@@ -379,6 +379,55 @@ def digital(items):
     return False
 
 
+def leading(items):
+    atoms = set()
+    for op, av in items:
+        part, nullable = opening(op, av)
+        if part is None:
+            return None, False
+        atoms |= part
+        if not nullable:
+            return atoms, False
+    return atoms, True
+
+
+def opening(op, av):
+    if op is sre.LITERAL:
+        return {re.escape(chr(av))}, False
+    if op is sre.IN:
+        atoms = set()
+        for kind, arg in av:
+            if kind is sre.LITERAL:
+                atoms.add(re.escape(chr(arg)))
+            elif kind is sre.RANGE:
+                atoms.add(f"{re.escape(chr(arg[0]))}-{re.escape(chr(arg[1]))}")
+            elif kind is sre.CATEGORY and arg is sre.CATEGORY_DIGIT:
+                atoms.add(r"\d")
+            else:
+                return None, False
+        return atoms, False
+    if op in (sre.AT, sre.ASSERT, sre.ASSERT_NOT):
+        return set(), True
+    if op is sre.SUBPATTERN:
+        return leading(av[3])
+    if op is sre.BRANCH:
+        parts = [leading(branch) for branch in av[1]]
+        if any(part is None for part, _ in parts):
+            return None, False
+        return set().union(*(part for part, _ in parts)), any(nullable for _, nullable in parts)
+    if op in (sre.MAX_REPEAT, sre.MIN_REPEAT, sre.POSSESSIVE_REPEAT):
+        part, nullable = leading(av[2])
+        return part, nullable or av[0] == 0
+    return None, False
+
+
+def quick(pattern, flags=0):
+    atoms, nullable = leading(sre_parse.parse(pattern, flags))
+    if atoms is None or nullable or not atoms:
+        return re.compile(pattern, flags)
+    return re.compile(f"(?=[{''.join(sorted(atoms))}]){pattern}", flags)
+
+
 def gates(pattern):
     items = sre_parse.parse(pattern)
     gate = needed(items)
@@ -402,7 +451,7 @@ def arms(node):
 
 
 SPELLINGS = 64
-COMPILED = [(field, index, re.compile(pattern), *gates(pattern)) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
+COMPILED = [(field, index, quick(pattern), *gates(pattern)) for field, patterns in PHRASES.items() for index, pattern in enumerate(patterns)]
 ALWAYS = {position for position, (_, _, _, gate, _, _) in enumerate(COMPILED) if gate is None}
 ENABLES = defaultdict(list)
 for position, (_, _, _, gate, _, _) in enumerate(COMPILED):
@@ -410,9 +459,10 @@ for position, (_, _, _, gate, _, _) in enumerate(COMPILED):
         ENABLES[literal].append(position)
 SCANS = (TAG_SELF, TAG_ANY, TAG_DASH, AGE_GENDER, GENDER_AGE, GENDER_PAREN, PRONOUN_TAG, BARE_GENDER, RACE_GENDER, GENDER_BRACKET, TAG_FOR, AGE_START,
          AGE_BRACKET, NUMBER, BARE_NUMBER, WORD_NUMBER, HEIGHT_ANY, HEIGHT_METRIC, WEIGHT_ANY, WEIGHT_AFTER, INCOME_ANY, YEAR)
-SCAN_GATES = {pattern: (requirements(sre_parse.parse(pattern.pattern, pattern.flags)), digital(sre_parse.parse(pattern.pattern, pattern.flags))) for pattern in SCANS}
+SCAN_GATES = {pattern: (requirements(sre_parse.parse(pattern.pattern, pattern.flags)), digital(sre_parse.parse(pattern.pattern, pattern.flags)),
+                        quick(pattern.pattern, pattern.flags)) for pattern in SCANS}
 SPOTTED = sorted({*ENABLES, *(literal for _, _, _, _, rest, _ in COMPILED for option in rest for literal in option),
-                  *(literal for options, _ in SCAN_GATES.values() for option in options for literal in option)})
+                  *(literal for options, _, _ in SCAN_GATES.values() for option in options for literal in option)})
 PREFIXES = {literal: {literal[:size] for size in range(1, len(literal) + 1)}.intersection(SPOTTED) for literal in SPOTTED}
 FINDER = re.compile(f"(?=({trie(SPOTTED)}))")
 COMPACT = {name.replace(" ", ""): name for name in (*STATE_NAMES, *CITIES) if " " in name}
@@ -564,10 +614,10 @@ def place(kind, raw):
 
 
 def hits(pattern, text, present, digits):
-    options, numeric = SCAN_GATES[pattern]
+    options, numeric, fast = SCAN_GATES[pattern]
     if numeric and not digits or any(option.isdisjoint(present) for option in options):
         return ()
-    return islice(pattern.finditer(text), MATCHES)
+    return islice(fast.finditer(text), MATCHES)
 
 
 def tags(text, present, digits):
