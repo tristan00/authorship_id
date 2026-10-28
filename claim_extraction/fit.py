@@ -86,7 +86,7 @@ def f1(count, total):
 
 
 @timed
-def search(matrix, texts, fields, targets, labels):
+def search(matrix, texts, fields, targets, labels, start):
     jobs = [*product(FIT_C, range(FIT_FOLDS)), *product(FIT_C, (FIT_FOLDS,))]
     results = dict(zip(jobs, Parallel(n_jobs=len(jobs))(delayed(train)(matrix, targets, texts, c, fold) for c, fold in jobs)))
     LOG.info("search seconds=%s", {f"{c}/{fold}": round(seconds) for (c, fold), (_, seconds) in results.items()})
@@ -102,7 +102,7 @@ def search(matrix, texts, fields, targets, labels):
             chosen = probabilities >= threshold
             tp = int(hits[chosen].sum())
             counts[c, threshold, field].update({"tp": tp, "fp": int(chosen.sum()) - tp})
-    tuned = {c: tune(counts, c, labels) for c in FIT_C}
+    tuned = {c: tune(counts, c, labels, start) for c in FIT_C}
     LOG.info("search %s", {c: round(score, 4) for c, (_, score) in tuned.items()})
     c = max(tuned, key=lambda key: tuned[key][1])
     cutoffs = tuned[c][0]
@@ -115,12 +115,12 @@ def search(matrix, texts, fields, targets, labels):
     return results[c, FIT_FOLDS][0], c, cutoffs, oof
 
 
-def tune(counts, c, labels):
+def tune(counts, c, labels, start):
     present = [field for field in FIELDS if labels[field]]
     total = sum(labels.values())
     score = lambda chosen: (f1(sum((counts[c, chosen[field], field] for field in FIELDS), Counter()), total) +
                             sum(f1(counts[c, chosen[field], field], labels[field]) for field in present) / len(present))
-    cutoffs = dict.fromkeys(FIELDS, max(FIT_THRESHOLDS, key=lambda t: score(dict.fromkeys(FIELDS, t))))
+    cutoffs = dict(start)
     for _ in range(3):
         for field in FIELDS:
             cutoffs[field] = max(FIT_THRESHOLDS, key=lambda t: score({**cutoffs, field: t}))
@@ -149,11 +149,20 @@ def coefficients(names, model):
 
 
 @timed
-def fit(month, datasets):
+def starting(path):
+    logits = json.loads(path.read_text(encoding="utf-8"))["cutoffs"]
+    cutoffs = {field: min(FIT_THRESHOLDS, key=lambda t: abs(t - 1 / (1 + math.exp(-logits[field])))) for field in FIELDS}
+    LOG.info("start path=%s cutoffs=%s", path, cutoffs)
+    return cutoffs
+
+
+@timed
+def fit(month, datasets, start):
     matrix, names, texts, fields, targets, labels = collect(month, datasets)
-    first, _, _, oof = search(matrix, texts, fields, targets, labels)
+    begin = starting(start)
+    first, _, _, oof = search(matrix, texts, fields, targets, labels, begin)
     extra, extra_names = crossing(oof, texts, fields)
-    model, c, cutoffs, _ = search(hstack([matrix, extra]).tocsr(), texts, fields, targets, labels)
+    model, c, cutoffs, _ = search(hstack([matrix, extra]).tocsr(), texts, fields, targets, labels, begin)
     weights = coefficients(np.concatenate([names, extra_names]), model)
     result = {"c": c, "bias": round(float(model.intercept_[0]), 4), "cutoffs": {field: round(math.log(t / (1 - t)), 4) for field, t in cutoffs.items()},
               "weights": weights, "first": {"bias": round(float(first.intercept_[0]), 4), "weights": coefficients(names, first)}}
