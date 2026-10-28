@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from .config import NUMERIC
+from .config import CANDIDATE_BOUNDS, NUMERIC
 
 FIELDS = json.loads((Path(__file__).with_name("annotation.json")).read_text(encoding="utf-8"))["fields"]
 CLOSED = {field: set(spec["values"]) for field, spec in FIELDS.items() if "values" in spec}
@@ -266,7 +266,7 @@ def number(value):
 
 
 def bounded(field, amount):
-    low, high = NUMERIC[field]
+    low, high = CANDIDATE_BOUNDS[field]
     return str(round(amount)) if amount is not None and low <= round(amount) <= high else None
 
 
