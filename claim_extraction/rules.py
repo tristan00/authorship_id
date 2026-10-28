@@ -907,7 +907,11 @@ def features(raw):
 
 @cache
 def weights():
-    return json.loads(WEIGHTS.read_text(encoding="utf-8"))
+    model = json.loads(WEIGHTS.read_text(encoding="utf-8"))
+    first, second = model["first"]["weights"], model["weights"]
+    index = {feature: position for position, feature in enumerate({**first, **second}, 1)}
+    return (model["first"]["bias"], model["bias"], model["cutoffs"], index, [0.0, *(first.get(feature, 0.0) for feature in index)],
+            [0.0, *(second.get(feature, 0.0) for feature in index)])
 
 
 def cross(field, tops):
@@ -915,14 +919,13 @@ def cross(field, tops):
 
 
 def extract(text):
-    model, best, tops = weights(), {}, {}
-    candidates = list(features(text))
-    first, second = model["first"]["weights"].get, model["weights"].get
+    (first_bias, bias, cutoffs, index, first, second), best, tops = weights(), {}, {}
+    candidates = [(field, result, [*filter(None, map(index.get, found))]) for field, result, found in features(text)]
     for field, result, found in candidates:
-        score = model["first"]["bias"] + sum(filter(None, map(first, found)))
+        score = first_bias + sum(map(first.__getitem__, found))
         tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
     for field, result, found in candidates:
-        score = model["bias"] + sum(filter(None, map(second, chain(found, cross(field, tops)))))
-        if score > model["cutoffs"][field] and score > best.get(field, (float("-inf"),))[0]:
+        score = bias + sum(map(second.__getitem__, chain(found, filter(None, map(index.get, cross(field, tops))))))
+        if score > cutoffs[field] and score > best.get(field, (float("-inf"),))[0]:
             best[field] = (score, result)
     return {field: result for field, (_, result) in best.items()}
