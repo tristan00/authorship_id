@@ -50,10 +50,10 @@ TAG_ANY = re.compile(r"(?<![\w$.,'#/])" + TAG + r"(?![a-z0-9'])")
 TAG_DASH = re.compile(r"(?<![\w$.,'#/-])(?:(\d{2})y?\s?[-_]\s?([mf])|([mf])\s?[-_]\s?(\d{2}))(?![a-z0-9'-])")
 AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:%x'-]|/\s*\d|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D)|(?![mfty]\b|nb|[mf]{1,3}4|yo\b|y/o|yrs?\b|ftm|mtf)[a-z]|\s*[?!€\"”]|\s+years?\?|\s*(?:and|&|//?|–)\s*\d|\s+(?:is|in|plus|bucks|dollars|volts?|million|mil|hp|pro|hours?|more|was|march|euros?|karma|ways|fps|milliarden)\b)")
 AGE_BRACKET = re.compile(r"[\[\(]\s*(\d{2})\s*[\]\)]")
-HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!\ba )(?<!\ban )(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|ft\.?|foot|feet)\s*(?:1[01]|\d)(?:\.\d)?\s*(?:\"|”|''|in\b|inches)?|[4-7]\s*[\"”]\s*(?:1[01]|\d)(?!\d|\.\d)|[4-7]\s*(?:ft\.?|foot|feet)\b|[4-7]\s*(?:')(?=\s*(?:tall|height|hung|,|\d|with\b|and\b|[.!)|/]|$)))(?![\w']|\s*\?)")
+HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|ft\.?|foot|feet)\s*(?:1[01]|0?\d)(?:\.\d)?\s*(?:\"|”|''|in\b|inches)?|[4-7]\s*[\"”]\s*(?:1[01]|\d)(?!\d|\.\d)|[4-7]\s*(?:ft\.?|foot|feet)\b|[4-7]\s*(?:')(?=\s*(?:tall|height|hung|,|\d|with\b|and\b|[.!)|/]|$)))(?![\w']|\s*\?)")
 WEIGHT_AFTER = re.compile(r"(?:[4-7]\s*(?:'|ft\.?|foot|feet)\s*(?:1[01]|\d)?\s*(?:\"|”|''|in\b|inches)?|1[4-9]\d\s?cm|1[.,][4-9]\d\s?m?)\s*[,/|;-]?\s*(\d{2,3})(?![\d.]|\s*(?:cm|in\b|inch|%|years?|yo\b|y/o|yrs?))")
 WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|kilos))\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain))")
-HEIGHT_METRIC = re.compile(r"(?<![\w.,$])(1[4-9]\d\s?cm|2[0-2]\d\s?cm|1[.,][4-9]\d\s?m\b|1[.,][4-9]\d(?![\d.,%]|\s*(?:€|eur|usd|dollars?|bucks|km|miles?|mi\b|hours?|h\b)))")
+HEIGHT_METRIC = re.compile(r"(?<![\w.,$])(1[4-9]\d\s?cm|2[0-2]\d\s?cm|1[.,][4-9]\d\s?m\b|1[.,][4-9]\d(?![\d,%]|\.\d|\s*(?:€|eur|usd|dollars?|bucks|km|miles?|mi\b|hours?|h\b)))")
 PEOPLE = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur)\b")
 PRIMES = str.maketrans({"‘": "'", "’": "'", "´": "'", "′": "'", "″": '"', "ʻ": "'", "ʼ": "'", "​": None, "‌": None, "‍": None, "⁠": None, "﻿": None})
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
@@ -62,15 +62,16 @@ AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?
 GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\b(male|female|guy|girl|man|woman|dude|lady),?\s*(\d{2})\b(?!\s*(?:%|years? ago)|[a-z])")
 GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
 GENDER_PAREN = re.compile(r"\b(male|female|guy|girl|man|woman|dude|lady|boy|[mf])\s*\(\s*(\d{2})\s*\)")
-TOKEN = re.compile(r"[a-z0-9][a-z0-9'-]*|[^\sa-z0-9]")
+TOKEN = re.compile(r"[a-z0-9](?:[a-z0-9']|-(?=[a-z0-9]))*|[^\sa-z0-9]")
 NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?:\s?(?:yo|y/o|y\.o|yrs?|years?|y)|-(?:years?|yrs?|yo|y)(?:[- ]old)?)?(?![\w:/%-]|[.,]\d|\s*%)")
 BARE_NUMBER = re.compile(r"^\W*(\d{1,3})\W*$")
+YEAR = re.compile(r"(?<![\w$#.,/:-])((?:19[2-9]|200)\d|201[0-3])(?![\w%/:-]|[.,]\d)")
 TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
 UNITS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
 TEENS = {"thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19}
 WORD_NUMBER = re.compile(rf"\b(?:({'|'.join(TENS)})(?:[- ]({'|'.join(UNITS)}))?|({'|'.join(TEENS)}))\b")
 MATCHES = 3
-BROAD = ("vocab", "number", "from_city", "from_state", "from_nationality", "amount")
+BROAD = ("vocab", "number", "from_city", "from_state", "from_nationality", "amount", "year")
 SELF = {"i", "i'm", "im", "me", "my", "myself"}
 VOCAB_MATCHES = 4
 VOCAB_FIELDS = ("race_ethnicity", "sexual_orientation", "religion", "marital_status", "relationship_status", "mental_health", "political_ideology",
@@ -89,7 +90,11 @@ BARE_TAG = re.compile(r"^\W*(?:[mf]\s*\d{2}|\d{2}\s*[mf])\W*$")
 LEAD = re.compile(r"\W*(?:\d{2}\s?[mf]\b|[mf]\s?\d{2}\b|\[?[mf]4)")
 DIGIT = re.compile(r"\d")
 LEAD_WORD = re.compile(r"\W*([a-z0-9][a-z0-9'-]*)")
-TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr][a-z]*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
+PRONOUN_TAG = re.compile(r"\b(she|he|they)\s*/\s*(?:her|hers|him|his|them|they|she|he)\b")
+PRONOUN_GENDER = {"she": "female", "he": "male", "they": "non-binary"}
+BARE_GENDER = re.compile(r"^\W*([mf])\W*$")
+RACE_GENDER = re.compile(r"(?<![\w$#.,'/])\d{2}\s?[wbh]([mf])\b")
+TAG_FOR = re.compile(r"(?<![a-z0-9])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr][a-z]*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
 JOBS = json.loads(Path(__file__).with_name("jobs.json").read_text(encoding="utf-8"))
 JOB_TITLES = "(?:" + "|".join(re.escape(title) for title in sorted(JOBS, key=len, reverse=True)) + ")"
@@ -460,6 +465,11 @@ def tags(text):
         for match in islice(pattern.finditer(text), MATCHES):
             yield "age", value("age", match.group(age)), name, match.span(), ""
             yield "gender", value("gender", match.group(sex)), name, match.span(), ""
+    for match in islice(PRONOUN_TAG.finditer(text), MATCHES):
+        yield "gender", value("gender", PRONOUN_GENDER[match.group(1)]), "pronoun", match.span(), ""
+    for name, pattern in (("gender_bare", BARE_GENDER), ("race_gender", RACE_GENDER)):
+        for match in islice(pattern.finditer(text), MATCHES):
+            yield "gender", value("gender", match.group(1)), name, match.span(), ""
     for match in islice(GENDER_BRACKET.finditer(text), MATCHES):
         yield "gender", value("gender", match.group(1)), "gender_bracket", match.span(), ""
     for match in islice(TAG_FOR.finditer(text), MATCHES):
@@ -484,6 +494,8 @@ def stats(text):
         yield "weight", resolve("weight", match.group(1)), "weight_after_height", match.span(), "people" if OTHER.search(text[max(0, match.start() - 25):match.start()]) else ""
     for match in islice(INCOME_ANY.finditer(text), MATCHES):
         yield "income", earnings(match.group(1).strip()), "amount", match.span(), ""
+    for match in islice(YEAR.finditer(text), MATCHES):
+        yield "birth_year", value("birth_year", match.group(1)), "year", match.span(), ""
 
 
 def phrases(text):
@@ -544,6 +556,7 @@ RANGES = {"age": (13, 16, 18, 21, 25, 30, 40, 50, 65, 80, 100), "birth_year": (1
           "height": (140, 155, 165, 175, 185, 195, 210), "weight": (40, 55, 70, 85, 100, 120, 150, 200),
           "income": (5000, 15000, 30000, 50000, 80000, 120000, 200000, 500000)}
 TOP_EDGES = (0.1, 0.25, 0.4, 0.6, 0.8)
+SYNONYM_FIELDS = {"language", "generation", "education_subject"}
 
 
 def bucket(number, edges):
@@ -563,6 +576,13 @@ def cues(text, start, end, numeric):
     if numeric and after and (after[0] in MEASURES or (after[0] in ("years", "year", "yrs", "yr") and after[1:] != ["old"]) or after[0] in ("-", "to") and RANGE.match(text[end:end + 8])):
         found.add("unit")
     return found
+
+
+def placed(text, end):
+    table, _ = vocabulary()
+    words = TOKEN.findall(text[end:end + 40])
+    words = words[1:] if words[:1] == [","] else words
+    return any(field in ("residence_state", "residence_country") for size in (1, 2, 3) for field, _ in table.get(tuple(words[:size]), ()))
 
 
 def lead(text, start):
@@ -637,6 +657,10 @@ def features(raw):
             own = {f"source={source}", f"source={source}|form={form}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
                    *(f"near={word}" for word in (*before, *after)),
                    f"value={result}" if field not in NUMERIC else f"range={bucket(int(result), RANGES[field])}"}
+            if field.startswith("residence_"):
+                own.add(f"placed={placed(text, end)}")
+            if kind == "vocab" and field not in SYNONYM_FIELDS and text[start:end] != result:
+                own.add(f"word={text[start:end]}")
             if kind == "phrase":
                 own.add(f"lead={lead(text, start)}")
             elif kind in ("pattern", "number", "amount"):
