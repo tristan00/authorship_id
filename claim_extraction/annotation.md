@@ -66,8 +66,8 @@ Candidate patterns come from mining 1-3 token contexts around each train label's
 
 | split | texts | precision | recall | micro F1 |
 |---|---|---|---|---|
-| panel1m train | 899,826 | 0.680 | 0.688 | 0.684 |
-| panel1m validation | 49,738 | 0.675 | 0.685 | 0.680 |
+| panel1m train | 899,826 | 0.679 | 0.690 | 0.684 |
+| panel1m validation | 49,738 | 0.675 | 0.686 | 0.681 |
 
 F1 by field before this round (commit ce75191) and now, ordered by train label count:
 
@@ -75,24 +75,24 @@ F1 by field before this round (commit ce75191) and now, ordered by train label c
 |---|---|---|---|---|---|---|
 | age | 20800 | 0.83 | 0.84 | 1188 | 0.83 | 0.84 |
 | gender | 13133 | 0.68 | 0.68 | 768 | 0.67 | 0.68 |
-| residence_city | 2497 | 0.46 | 0.48 | 137 | 0.37 | 0.37 |
+| residence_city | 2497 | 0.46 | 0.49 | 137 | 0.37 | 0.37 |
 | marital_status | 1836 | 0.47 | 0.51 | 92 | 0.48 | 0.50 |
 | residence_country | 1678 | 0.35 | 0.39 | 110 | 0.42 | 0.44 |
 | occupation | 1455 | 0.44 | 0.45 | 94 | 0.45 | 0.49 |
-| residence_state | 1325 | 0.43 | 0.45 | 72 | 0.41 | 0.43 |
+| residence_state | 1325 | 0.43 | 0.45 | 72 | 0.41 | 0.42 |
 | parental_status | 1284 | 0.33 | 0.39 | 59 | 0.31 | 0.40 |
 | height | 1198 | 0.78 | 0.80 | 58 | 0.77 | 0.86 |
 | race_ethnicity | 1167 | 0.47 | 0.50 | 82 | 0.53 | 0.60 |
 | nationality | 1117 | 0.45 | 0.51 | 66 | 0.42 | 0.52 |
 | sexual_orientation | 1071 | 0.50 | 0.54 | 71 | 0.44 | 0.46 |
-| relationship_status | 612 | 0.13 | 0.20 | 30 | 0.28 | 0.35 |
-| employment_status | 594 | 0.18 | 0.26 | 28 | 0.00 | 0.00 |
+| relationship_status | 612 | 0.13 | 0.23 | 30 | 0.28 | 0.38 |
+| employment_status | 594 | 0.18 | 0.28 | 28 | 0.00 | 0.00 |
 | weight | 533 | 0.70 | 0.71 | 41 | 0.72 | 0.78 |
-| origin_country | 456 | 0.28 | 0.40 | 39 | 0.28 | 0.33 |
+| origin_country | 456 | 0.28 | 0.41 | 39 | 0.28 | 0.33 |
 | mental_health | 390 | 0.36 | 0.42 | 22 | 0.45 | 0.50 |
 | religion | 349 | 0.43 | 0.52 | 32 | 0.36 | 0.40 |
 | education_subject | 281 | 0.04 | 0.42 | 13 | 0.25 | 0.48 |
-| income | 274 | 0.07 | 0.25 | 15 | 0.00 | 0.10 |
+| income | 274 | 0.07 | 0.27 | 15 | 0.00 | 0.19 |
 | birth_year | 240 | 0.12 | 0.61 | 11 | 0.00 | 0.70 |
 | generation | 197 | 0.43 | 0.52 | 8 | 0.00 | 0.17 |
 | education | 150 | 0.24 | 0.35 | 6 | 0.29 | 0.22 |
