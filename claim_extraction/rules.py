@@ -313,9 +313,10 @@ PHRASES = {
 
 def spelled(op, av):
     if op is sre.LITERAL:
-        return {" " if chr(av).isspace() else chr(av)}
-    if op is sre.IN and len(av) <= 8 and all(kind is sre.LITERAL or (kind, code) == (sre.CATEGORY, sre.CATEGORY_SPACE) for kind, code in av):
-        return {" " if kind is sre.CATEGORY or chr(code).isspace() else chr(code) for kind, code in av}
+        return {plain(av)}
+    if op is sre.IN and len(av) <= 8 and all(kind is sre.LITERAL or (kind, code) in ((sre.CATEGORY, sre.CATEGORY_SPACE), (sre.CATEGORY, sre.CATEGORY_DIGIT))
+                                             or kind is sre.RANGE and numeral(kind, code) for kind, code in av):
+        return {plain(code) if kind is sre.LITERAL else "0" if code is sre.CATEGORY_DIGIT or kind is sre.RANGE else " " for kind, code in av}
     if op in (sre.AT, sre.ASSERT, sre.ASSERT_NOT):
         return {""}
     if op is sre.SUBPATTERN:
@@ -328,6 +329,10 @@ def spelled(op, av):
     if op is sre.MAX_REPEAT and av[0] == 0 and av[1] == 1 and (part := spelling(av[2])) is not None:
         return {"", *part}
     return None
+
+
+def plain(code):
+    return " " if chr(code).isspace() else "0" if chr(code).isdecimal() else chr(code)
 
 
 def spelling(items):
@@ -851,6 +856,7 @@ def features(raw):
     words = TOKEN.findall(text)
     found = defaultdict(list)
     normal = WHITESPACE.sub(" ", text)
+    normal = DIGIT.sub("0", normal) if DIGIT.search(normal) else normal
     literals = SINGLES.intersection(normal).union(FINDER.findall(normal))
     missing = ~reduce(or_, map(MASKS.__getitem__, literals), 1 if DIGIT.search(text) else 0)
     for field, result, source, (start, end), flag in (*tags(text, missing), *stats(text, missing), *phrases(text, literals, missing),
