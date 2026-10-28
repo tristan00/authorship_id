@@ -39,7 +39,7 @@ NOT_INSTITUTION = r"(?! (?:school|church|family|friends?|parents|household|unive
 TAG = r"[\(\[]?\s*(?:(\d{2})\s*/?\s*([mf])|([mf])\s*/?\s*(\d{2}))\s*[\)\]]?"
 TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + r"(?![a-z0-9])", re.M)
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
-AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:/%x'’-]|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D)|(?![mft]\b|nb|[mf]{1,3}4|yo\b|y/o|yrs?\b|ftm|mtf)[a-z]|\s*[?!€\"”]|\s+years?\?|\s*(?:and|&|//?|–)\s*\d|\s+(?:is|in|plus|bucks|dollars|volts?)\b)")
+AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:/%x'’-]|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D)|(?![mft]\b|nb|[mf]{1,3}4|yo\b|y/o|yrs?\b|ftm|mtf)[a-z]|\s*[?!€\"”]|\s+years?\?|\s*(?:and|&|//?|–)\s*\d|\s+(?:is|in|plus|bucks|dollars|volts?|million|mil|hp|pro|hours?|more|was|march|euros?|karma|ways|fps|milliarden)\b)")
 AGE_BRACKET = re.compile(r"[\[\(]\s*(\d{2})\s*[\]\)]")
 HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!\ba )(?<!\ban )(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)(?:\.\d)?\s*(?:\"|”|''|’’|in\b|inches)?|[4-7]\s*(?:'|’|ft\.?|foot|feet)(?=\s*(?:tall|height|hung|,|\d|with\b|and\b|[.!)|/]|$)))(?![\w'’]|\s*\?)")
 WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|kilos))\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain))")
@@ -51,6 +51,7 @@ ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|lat
 AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
 GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\b(male|female|guy|girl|man|woman|dude|lady),?\s*(\d{2})\b(?!\s*(?:%|years? ago)|[a-z])")
 GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
+BARE_TAG = re.compile(r"^\W*(?:[mf]\s*\d{2}|\d{2}\s*[mf])\W*$")
 TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr]\w*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
 JOBS = json.loads(Path(__file__).with_name("jobs.json").read_text(encoding="utf-8"))
@@ -79,7 +80,15 @@ PHRASES = {
             r"\bage\s*[:=-]\s*(\d{2})\b(?!\s*[-–+]|\s*to\b)",
             r"\b(?:tengo|tenho) (\d{2})\b(?! (?:años de|anos de|meses|dias|días|horas|semanas|mil))",
             r"(?:^|[\s,(\[])(\d{2})\s+(?:milf|married|bi|uk|bbw|wife|mom|dilf|hubby|daddy|cuck|sissy|femboy|twink|bottom|top|bull|virgin|teen|petite|curvy)\b",
-            r"\b(?:we're|we are|were|are) both (\d{2})\b"),
+            r"\b(?:we're|we are|were|are) both (\d{2})\b",
+            r"(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<!\bour )(?<!\btheir )(?<!\bfav )(?<!\baverage )(?<!\bold )(?<!\ban )(?<!\ba )(?<!\bshe )(?<!\bhe )"
+            r"(?:^|(?<=[\s,(]))(\d{2})\s?(?:yo|y/o|y\.o\.?)\b(?! (?:son|daughter|kid|brother|sister|girl|boy|cousin|nephew|niece|dog|cat))",
+            r"(?:^|[.!?\n] *)at (\d{2}),", r"(?:^|[.!?\n] *)(?:being |now )?(\d{2}) years? old\b",
+            r"\bmy (\d{2})[- ]?(?:years?|yrs?|y/?o)[- ]?(?:old )?(?:ass|body|self|pussy|cock|dick|tits|butt|bones|knees|back|brain|eyes)\b",
+            r"\b(?:mam|imam|tengo|ho|har|heb|jestem|sam|tenho|j.ai|bin) (\d{2})\s*(?:lat|godin|años|anos|anni|år|jaar|ans|jahre|tuổi)",
+            r"\b(?:age|aged)\s*[:\-]?\s*(\d{2})\b(?!\s*[-–+]|\s*(?:to|and|or|through|plus)\b)(?=\s*(?:$|[,.!)]|\s*[mf]\b|\s+(?:here|and|looking|woke|male|female|guy|girl|man|woman)))",
+            r"\b(\d{2})\s?(?:yo|y/o|y\.o\.?)\s+(?:male|female|guy|girl|man|woman|dude|lady|m|f)\b", r"(?:^|[.!,;] )me (\d{2})\b", r"(\d{2})\s*歲",
+            r"(?:^|[\s(\[])(\d{2})\s*(?:top|bottom|vers|hung|bwc|bbc|sub|dom|twink|daddy)\b", r"(?:^|[\s(\[])[mf](\d{2})(?:top|bottom|vers)"),
     "birth_year": (r"(?:\bi(?:'m| am|’m|m)? (?:was )?|\(|^)born (?:in |on )?(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?((?:19|20)\d\d|'?[4-9]\d)\b",
                    rf"\b{I} (?:a |an )?((?:19|20)\d\d)\b(?! (?:model|edition|version|car|truck))", r"(?:^|[.!,;(] *)((?:19|20)\d\d) (?:baby|babies|kid|here)\b",
                    r"(?:\bbeing |, |[.!;] )born (?:in |on )?(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?((?:19|20)\d\d|'?[4-9]\d)\b",
@@ -379,7 +388,7 @@ def stats(text, found):
 
 def extract(text):
     text = SKIP.sub(" ", text.lower()).translate(PRIMES)
-    found = {}
+    found = {"gender": None} if BARE_TAG.match(text) else {}
     tags(text, found)
     stats(text, found)
     for field in PHRASES:
