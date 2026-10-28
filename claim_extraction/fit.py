@@ -1,19 +1,20 @@
 import json
 import math
 import time
+from array import array
 from collections import Counter, defaultdict
 from itertools import islice, product
 from multiprocessing import Pool
 
 import numpy as np
 from joblib import Parallel, delayed
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, hstack
 from sklearn.linear_model import LogisticRegression
 
 from . import LOG, timed
 from .config import FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_THRESHOLDS, WEIGHTS, WORKERS
 from .labels import examples
-from .rules import features
+from .rules import cross, features
 
 FIELD_INDEX = {field: index for index, field in enumerate(FIELDS)}
 CHUNK = 2000
@@ -101,32 +102,61 @@ def search(matrix, texts, fields, targets, labels):
             chosen = probabilities >= threshold
             tp = int(hits[chosen].sum())
             counts[c, threshold, field].update({"tp": tp, "fp": int(chosen.sum()) - tp})
-    total = sum(labels.values())
-    tuned = {c: tune(counts, c, total) for c in FIT_C}
+    tuned = {c: tune(counts, c, labels) for c in FIT_C}
     LOG.info("search %s", {c: round(score, 4) for c, (_, score) in tuned.items()})
     c = max(tuned, key=lambda key: tuned[key][1])
     cutoffs = tuned[c][0]
-    LOG.info("search c=%s oof=%.4f cutoffs=%s", c, tuned[c][1], cutoffs)
-    LOG.info("search fields=%s", {field: round(f1(counts[c, cutoffs[field], field], labels[field]), 4) for field in FIELDS if labels[field]})
-    return results[c, FIT_FOLDS][0], c, cutoffs
+    per_field = {field: round(f1(counts[c, cutoffs[field], field], labels[field]), 4) for field in FIELDS if labels[field]}
+    LOG.info("search c=%s oof=%.4f macro=%.4f cutoffs=%s", c, tuned[c][1], sum(per_field.values()) / len(per_field), cutoffs)
+    LOG.info("search fields=%s", per_field)
+    oof = np.zeros(len(texts))
+    for fold in range(FIT_FOLDS):
+        oof[texts % FIT_FOLDS == fold] = results[c, fold][0]
+    return results[c, FIT_FOLDS][0], c, cutoffs, oof
 
 
-def tune(counts, c, total):
-    micro = lambda chosen: f1(sum((counts[c, chosen[field], field] for field in FIELDS), Counter()), total)
-    cutoffs = dict.fromkeys(FIELDS, max(FIT_THRESHOLDS, key=lambda t: micro(dict.fromkeys(FIELDS, t))))
+def tune(counts, c, labels):
+    present = [field for field in FIELDS if labels[field]]
+    total = sum(labels.values())
+    score = lambda chosen: (f1(sum((counts[c, chosen[field], field] for field in FIELDS), Counter()), total) +
+                            sum(f1(counts[c, chosen[field], field], labels[field]) for field in present) / len(present))
+    cutoffs = dict.fromkeys(FIELDS, max(FIT_THRESHOLDS, key=lambda t: score(dict.fromkeys(FIELDS, t))))
     for _ in range(3):
         for field in FIELDS:
-            cutoffs[field] = max(FIT_THRESHOLDS, key=lambda t: micro({**cutoffs, field: t}))
-    return cutoffs, micro(cutoffs)
+            cutoffs[field] = max(FIT_THRESHOLDS, key=lambda t: score({**cutoffs, field: t}))
+    return cutoffs, f1(sum((counts[c, cutoffs[field], field] for field in FIELDS), Counter()), total)
+
+
+@timed
+def crossing(probabilities, texts, fields):
+    tops = defaultdict(dict)
+    for text, field, probability in zip(texts.tolist(), fields.tolist(), probabilities.tolist()):
+        if probability > tops[text].get(FIELDS[field], -1.0):
+            tops[text][FIELDS[field]] = probability
+    ids, indices, indptr = {}, array("i"), array("q", [0])
+    for text, field in zip(texts.tolist(), fields.tolist()):
+        indices.extend(ids.setdefault(name, len(ids)) for name in sorted(cross(FIELDS[field], tops[text])))
+        indptr.append(len(indices))
+    matrix = csr_matrix((np.ones(len(indices), dtype=np.float32), np.frombuffer(indices, dtype=np.int32), np.frombuffer(indptr, dtype=np.int64)),
+                        shape=(len(texts), len(ids)))
+    keep = np.flatnonzero(np.bincount(matrix.indices, minlength=len(ids)) >= FIT_MIN_COUNT)
+    LOG.info("crossing features=%d nonzeros=%d", len(keep), matrix.nnz)
+    return matrix[:, keep], np.array(sorted(ids, key=ids.get), dtype=object)[keep]
+
+
+def coefficients(names, model):
+    return {name: round(float(weight), 4) for name, weight in zip(names, model.coef_[0]) if abs(weight) >= 1e-3}
 
 
 @timed
 def fit(month, datasets):
     matrix, names, texts, fields, targets, labels = collect(month, datasets)
-    model, c, cutoffs = search(matrix, texts, fields, targets, labels)
-    weights = {name: round(float(weight), 4) for name, weight in zip(names, model.coef_[0]) if abs(weight) >= 1e-3}
+    first, _, _, oof = search(matrix, texts, fields, targets, labels)
+    extra, extra_names = crossing(oof, texts, fields)
+    model, c, cutoffs, _ = search(hstack([matrix, extra]).tocsr(), texts, fields, targets, labels)
+    weights = coefficients(np.concatenate([names, extra_names]), model)
     result = {"c": c, "bias": round(float(model.intercept_[0]), 4), "cutoffs": {field: round(math.log(t / (1 - t)), 4) for field, t in cutoffs.items()},
-              "weights": weights}
+              "weights": weights, "first": {"bias": round(float(first.intercept_[0]), 4), "weights": coefficients(names, first)}}
     WEIGHTS.parent.mkdir(parents=True, exist_ok=True)
     WEIGHTS.write_text(json.dumps(result, ensure_ascii=False, separators=(",", ":"), sort_keys=True), encoding="utf-8")
     LOG.info("fit datasets=%s c=%s weights=%d path=%s", datasets, c, len(weights), WEIGHTS)

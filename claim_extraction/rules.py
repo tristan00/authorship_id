@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from collections import Counter, defaultdict
 from functools import cache
@@ -12,7 +13,7 @@ from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, L
 CITIES = json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8"))
 VALUES = json.loads(Path(__file__).with_name("values.json").read_text(encoding="utf-8"))
 
-I = r"(?:i'm|i’m|im|i am)"
+I = r"(?:i'm|i’m|im|i am|i \([^)\n]{1,12}\) am|i \([^)\n]{1,12}\)['’]m)"
 A = r"(?:an? )?"
 END = r"(?=$|[\s.,!?;:)\]/]|'s)"
 STRICT_TAG = r"(?:\b\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\[?[mf]4\w+\]?)\W+(?:[a-z]+\W+){0,2}?"
@@ -56,7 +57,7 @@ PEOPLE = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husba
 PRIMES = str.maketrans({"‘": "'", "´": "'", "′": "'", "″": '"', "ʻ": "'", "ʼ": "'", "​": None, "‌": None, "‍": None, "⁠": None, "﻿": None})
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
 ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|latino|hispanic|indian|fit|tall|short|chubby|fat|hot|horny|lonely|bored|average|older|young)"
-AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
+AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:(?:" + ADJECTIVES + r"|(?!years?\b|ago\b|of\b|and\b|or\b|the\b|a\b|an\b|to\b|for\b|with\b|people\b|times?\b|minutes?\b|hours?\b|days?\b|weeks?\b|months?\b)[a-z]+)\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
 GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\b(male|female|guy|girl|man|woman|dude|lady),?\s*(\d{2})\b(?!\s*(?:%|years? ago)|[a-z])")
 GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
 GENDER_PAREN = re.compile(r"\b(male|female|guy|girl|man|woman|dude|lady|boy|[mf])\s*\(\s*(\d{2})\s*\)")
@@ -138,7 +139,7 @@ PHRASES = {
                rf"\b{I} (?:a |an |also a |also an )(?:\d{{2}}[- ]?(?:years?|yr)[- ]old )?(?:(?:autistic|bisexual|curious|bi-curious|bicurious|lesbian|queer|divorced|christian|muslim|catholic|jewish|mexican|indian|latina|latino|black|white|asian|cis|disabled|neurodivergent|married|single|gay|straight|trans|young|old|older|tall|short|fat|chubby|petite|curvy|skinny|fit|grown|normal|regular|average) ){{1,3}}(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who))",
                rf"\b{I} (?:also |just |only |still |literally |actually )?(?:a |an )(?:\d{{2}}\s?(?:yo|y/o|years? old|yr old|year-old)\s+)?(?:(?!good\b|bad\b|big\b|real\b|lucky\b)[a-z-]+ ){{0,3}}?(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who|that|and|or|you|in|on|with|from|for|like|than))",
                rf"\b{I} (?:also )?(?:an? )?(ftm|mtf|nb|enby|non-binary|nonbinary|transmasc|transfem|trans masc|trans fem|a transman|a transwoman)\b",
-               r"(?:^|[\s(\[])\d0'?s\s+(male|female|guy|girl|man|woman|m|f)\b",
+               r"(?:^|[\s(\[])\d0'?s\s+(?:[a-z]+\s+){0,2}?(male|female|guy|girl|man|woman|m|f)\b",
                r"(?:^|[\s(\[])\d{2}\s*,\s*([mf])\b(?!\s*[/']\s*\d)",
                r"[\(\[]\s*(male|female)\s*[\)\]]",
                r"[\[\(]\s*\d{2}\s*[\]\)]\s*([mf]|male|female)\b(?!\s*[/']?\s*\d)",
@@ -146,7 +147,9 @@ PHRASES = {
                r"(?:^|[\s,(\]])(?:(?:single|married|bi|straight|gay|white|black|horny|young|older|old|fit|hung|discreet|bored|lonely|chubby|tall|short|local|cute|shy|sub|dom)\s+){0,2}([mf])\s+(?:here|looking|seeking|searching|4\b|for\b)",
                r"\bas an? (?!if\b)(?:[a-z-]+ ){0,2}?(guy|man|woman|girl|dude|male|female|lady|boy|mom|mother|dad|father|wife|husband)\b(?!'s| of\b)",
                r"\bthis is an? (?:[a-z-]+ )?(guy|man|woman|girl|dude|male|female|lady|boy)\b",
-               rf"\b{I} (?!not\b|never\b|no\b)(?:[a-z-]+ ){{0,2}}?(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who|that|and|or|you|in|on|with|from|for|like|than))"),
+               rf"\b{I} (?!not\b|never\b|no\b)(?:[a-z-]+ ){{0,3}}?(guy|man|woman|girl|dude|male|female|lady|boy)\b(?! (?:friend|here|of|who|that|and|or|you|in|on|with|from|for|like|than))",
+               rf"\b{I} [^.!?\n]{{0,30}}? and an? (?:[a-z-]+ ){{0,2}}?(guy|man|woman|girl|dude|lady|male|female)\b",
+               r"(?:^|[,|/•]\s*)(male|female)\s*(?=[,|/•]|$)"),
     "sexual_orientation": (r"(?:^|\W)[\-|/]\s*(straight|gay|bi|bisexual)\s*[\-|/]",
                            r"(?:\b\d{2}\s?[mf]?|\b[mf]\s?\d{2}|\[?[mf]4\w+\]?)\W+(?:(?!not\b|seconds|minutes|mins|hours|days)[a-z]+\W+){0,2}?(straight|gay|bi|bisexual|lesbian)\b(?![-'’])(?! (?:up\b|away\b|out\b|to\b|couples?|guys|men|women|porn|friends?|people|bar|club|scene|content|stuff))",
                            r"\b(straight|gay|bi|bisexual|lesbian|pansexual)\s+(?:[a-z]+\s+)?(?:male|female|guy|girl|boy|man|woman|dude|bottom|top|m|f)\s+here\b",
@@ -190,9 +193,7 @@ PHRASES = {
                           rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|\[\s?[mf]4\w+\s?\])\s*[-|,]\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*(?:[-|,(]|$)",
                           r"\b(?:in|from|near) (?:the )?([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)\s*\(\s*([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) area\s*\)",
                           r"(?:^|[.!,;(\]|-]\s*)([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)[- ]based\b(?! (?:company|companies|firm|business|brand|startup|clients?|team|server|bank|agency|band|artist|rapper))",
-                          r"(?:^|[\s,(])([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) (?:resident|local)\b(?! (?:evil|news|police|business|government|election|elections))",
-                          rf"\b{I} (?:also |originally )?from (?:the )?{PLACE}",
-                          rf"(?:\b\d{{2}}\s?[mf]\b|\b[mf]\s?\d{{2}}\b|\[\s?[mf]4\w+\s?\]|^\W*\d{{2}})\s+(?:from |in )?(?:the )?({COUNTRY_NAMES})\b"),
+                          r"(?:^|[\s,(])([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?) (?:resident|local)\b(?! (?:evil|news|police|business|government|election|elections))"),
     "origin_country": (rf"\b{I} (?:originally )?from (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which | originally)",
                        r"\bi (?:was )?(?:born and raised|grew up|was born|was raised) in (?:the )?([a-z][a-z .'-]+?)(?=$|[.,!?;)]| and | but | so | where | which )",
                        rf"\b(?:i|we) (?:just |recently |originally )?(?:moved|immigrated|emigrated|came|relocated) (?:here |over |to [a-z]+ |to the [a-z]+ )?from (?:the )?{PLACE}",
@@ -253,6 +254,8 @@ PHRASES = {
                             r"(?:\b\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\b[mf]\b)\s*,\s*(single|engaged|taken)\b",
                             rf"\b(?:{I}|i've been|i’ve been|i have been|i got|we got|we're|we’re|we are|we just got|i just got|recently|newly) (?:happily |newly |currently |still |recently |just |finally |now |also |completely |very |totally )?(single|engaged|dating someone|seeing someone|in a (?:committed |serious |long[- ]term |long[- ]distance |happy |new |monogamous |open |poly(?:amorous)? )?relationship|taken|unattached)\b(?! (?:to (?:my|a)? ?(?:job|work|career)|people|folks|moms?|dads?|parents?|men|women|guys|girls|friends?|ladies)|(?: and)? (?:ready|looking) to mingle)",
                             r"\b(?:being|been|happily|still|and still|whos been|who's been|i stay|staying) (single)\b(?! (?:mom|dad|parent|mother|father|moms|dads|women|men|ladies|people))",
+                            r"\b(?:and|but|now|happily|currently|still) (in a (?:[a-z-]+ ){0,2}?relationship)\b",
+                            rf"\b{I} (?:happily |currently |still |now )?(in a (?:[a-z-]+ ){{0,2}}?relationship)\b(?! with (?:food|money|work|my body|alcohol))",
                             r"\b(?:soy|estoy|sou|estou|je suis|ich bin|sono|ik ben) (solter[oa]|solteir[oa]|célibataire|single|singolo|vrijgezel|en couple|in einer beziehung|fidanzat[oa]|namorando|en una relación|in een relatie)\b"),
     "parental_status": (r"\bi have (?:a |an |one |two |three |four |five |\d+ |young |grown |adult |little )*(kids|children|sons?|daughters?|toddlers?)\b",
                         r"\bi (gave birth)\b", r"\bas an? (?:\w+ )?(parent|mom|mum|dad|mother|father) (?:of|to)\b",
@@ -268,6 +271,10 @@ PHRASES = {
                         r"(?:^|[\s,.(])(?:one|two|three|four|five|\d) (kids|children|sons|daughters)\b",
                         r"\b(?:tengo|tenemos|tenho|temos|j'ai|nous avons|ich habe|wir haben|ho|abbiamo|ik heb|wij hebben) (?:\w+ )?(hijos|hijas|filhos|filhas|enfants|kinder|figli|figlie|kinderen)\b",
                         r"\b(no tengo hijos|não tenho filhos|je n'ai pas d'enfants|ich habe keine kinder|non ho figli)\b",
+                        rf"\b{I} (?:also |now |just )?{A}(?:[\w-]+ ){{0,2}}?(mom|mother|dad|father|mum|parent)\b(?! (?:of|to) (?:a|an|my|the|two) (?:dog|cat|pet|puppy|kitten|plant|fur))",
+                        r"(?:^|[\s,(\[])\d{2}\s*[mf]?\s+(?:[a-z]+ ){0,2}?(dad|mom|mum|father|mother)\b",
+                        r"\b(?:married |now |am |i'm |im )?with (kids|children|a kid|two kids|three kids|\d kids)\b",
+                        r"\bmy (?:first |little |\d |two |three )?(kiddos?|little ones?|firstborn|first born)\b",
                         r"\b(?:my|our|i have an?|we have an?) (?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)[- ](?:year|yr|month|week)s?[- ](old)\b"),
     "mental_health": (rf"\bi (?:also |do |still |actually |definitely |both )?(?:have|suffer from|struggle with|live with|deal with|am dealing with|'m dealing with|’m dealing with) {SEVERITY}({CONDITIONS})\b",
                       rf"\bi(?:'ve|’ve| have| was| got| am|'m|’m)? (?:been )?(?:officially |formally |recently |finally |also )?diagnosed (?:with |as )?(?:having )?{SEVERITY}({CONDITIONS})\b",
@@ -519,6 +526,7 @@ def mentions(text):
 RANGES = {"age": (13, 16, 18, 21, 25, 30, 40, 50, 65, 80, 100), "birth_year": (1940, 1960, 1975, 1985, 1995, 2005, 2010),
           "height": (140, 155, 165, 175, 185, 195, 210), "weight": (40, 55, 70, 85, 100, 120, 150, 200),
           "income": (5000, 15000, 30000, 50000, 80000, 120000, 200000, 500000)}
+TOP_EDGES = (0.1, 0.25, 0.4, 0.6, 0.8)
 
 
 def bucket(number, edges):
@@ -594,7 +602,10 @@ def features(raw):
             general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
             general.add(f"self={bool(SELF.intersection(before))}")
             general.add(f"upper={any(ch.isupper() for ch in cased[start:end])}")
-            own = {f"source={source}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
+            span = cased[start:end]
+            form = ("U" if any(ch.isupper() for ch in span) else "l" if any(ch.isalpha() for ch in span) else "n") + ("s" if start < 3 else "e") + \
+                   ("p" if text[max(0, start - 1):start + 1].strip()[:1] in ("(", "[") else "")
+            own = {f"source={source}", f"source={source}|form={form}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
                    *(f"near={word}" for word in (*before, *after)),
                    f"value={result}" if field not in NUMERIC else f"range={bucket(int(result), RANGES[field])}"}
             own |= {f"source={source}|{feature}" for feature in (*general, *own) if not feature.startswith(("source=", "left2=", "has_", "kind=", "near="))}
@@ -606,10 +617,18 @@ def weights():
     return json.loads(WEIGHTS.read_text(encoding="utf-8"))
 
 
+def cross(field, tops):
+    return {f"{field}|top_{other}={bucket(probability, TOP_EDGES)}" for other, probability in tops.items() if other != field}
+
+
 def extract(text):
-    model, best = weights(), {}
-    for field, result, found in features(text):
-        score = model["bias"] + sum(model["weights"].get(feature, 0.0) for feature in found)
+    model, best, tops = weights(), {}, {}
+    candidates = list(features(text))
+    for field, result, found in candidates:
+        score = model["first"]["bias"] + sum(model["first"]["weights"].get(feature, 0.0) for feature in found)
+        tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
+    for field, result, found in candidates:
+        score = model["bias"] + sum(model["weights"].get(feature, 0.0) for feature in (*found, *cross(field, tops)))
         if score > model["cutoffs"][field] and score > best.get(field, (float("-inf"),))[0]:
             best[field] = (score, result)
     return {field: result for field, (_, result) in best.items()}
