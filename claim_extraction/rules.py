@@ -59,6 +59,7 @@ TOKEN = re.compile(r"[a-z0-9][a-z0-9'’-]*|[^\sa-z0-9]")
 NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?![\w.,:/%-]|\s*%)")
 MATCHES = 3
 BROAD = ("vocab", "number")
+SELF = {"i", "i'm", "i’m", "im", "me", "my", "myself"}
 VOCAB_MATCHES = 4
 VOCAB_FIELDS = ("race_ethnicity", "sexual_orientation", "religion", "marital_status", "relationship_status", "mental_health", "political_ideology",
                 "generation", "employment_status")
@@ -444,15 +445,19 @@ def features(raw):
             if (result, source) in seen:
                 continue
             seen.add((result, source))
-            left = TOKEN.findall(text[max(0, start - 30):start])[-2:] or ["^"]
-            right = TOKEN.findall(text[end:end + 30])[:1] or ["$"]
+            before = TOKEN.findall(text[max(0, start - 60):start])[-4:]
+            after = TOKEN.findall(text[end:end + 60])[:4]
+            left = before[-2:] or ["^"]
+            right = after[:1] or ["$"]
             kind = "phrase" if "#" in source else source if source in BROAD else "pattern"
             general = {f"kind={kind}", f"pick={rank == pick}", f"position={bucket(start, (3, 40, 200))}", f"same={min(counts[result], 3)}",
                        f"values={min(len(counts), 3)}", f"rank={min(rank, 3)}", *shape, *({flag} if flag else ())}
             general |= {f"kind={kind}|{feature}" for feature in general if not feature.startswith("kind=")}
+            general.add(f"self={bool(SELF.intersection(before))}")
             own = {f"source={source}", f"left={left[-1]}", f"left2={' '.join(left)}", f"right={right[0]}", *context,
+                   *(f"near={word}" for word in (*before, *after)),
                    *({f"value={result}"} if field not in NUMERIC else ())}
-            own |= {f"source={source}|{feature}" for feature in (*general, *own) if not feature.startswith(("source=", "left2=", "has_", "kind="))}
+            own |= {f"source={source}|{feature}" for feature in (*general, *own) if not feature.startswith(("source=", "left2=", "has_", "kind=", "near="))}
             yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
 
 
