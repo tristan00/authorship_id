@@ -655,22 +655,23 @@ def vocabulary():
     return table, starts
 
 
-def mentions(text):
+def mentions(text, words):
     table, starts = vocabulary()
-    spans = list(TOKEN.finditer(text))
-    words = [span.group(0) for span in spans]
+    spans = None
     seen = Counter()
-    index = 0
-    while index < len(words):
-        for size in range(min(starts.get(words[index], 0), len(words) - index), 0, -1):
+    resume = 0
+    for index in [index for index, word in enumerate(words) if word in starts]:
+        if index < resume:
+            continue
+        for size in range(min(starts[words[index]], len(words) - index), 0, -1):
             if found := table.get(tuple(words[index:index + size])):
+                spans = spans or [match.span() for match in TOKEN.finditer(text)]
                 for field, result in found:
                     if seen[field] < VOCAB_MATCHES:
                         seen[field] += 1
-                        yield field, result, "vocab", (spans[index].start(), spans[index + size - 1].end()), ""
-                index += size - 1
+                        yield field, result, "vocab", (spans[index][0], spans[index + size - 1][1]), ""
+                resume = index + size
                 break
-        index += 1
 
 
 RANGES = {"age": (13, 16, 18, 21, 25, 30, 40, 50, 65, 80, 100), "birth_year": (1940, 1960, 1975, 1985, 1995, 2005, 2010),
@@ -732,7 +733,8 @@ def features(raw):
     text = blank(lowered, spans).translate(PRIMES)
     cased = blank(base, spans).translate(PRIMES) if len(lowered) == len(base) else text
     lines = "multi" if "\n" in text.strip() else "one"
-    first = sum(map(SELF.__contains__, TOKEN.findall(text)))
+    words = TOKEN.findall(text)
+    first = sum(map(SELF.__contains__, words))
     letters = sum(map(str.isalpha, cased))
     capitals = sum(map(str.isupper, cased))
     shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}",
@@ -741,7 +743,7 @@ def features(raw):
     present = set().union(*map(PREFIXES.__getitem__, set(FINDER.findall(text))))
     digits = DIGIT.search(text) is not None
     for field, result, source, (start, end), flag in (*tags(text, present, digits), *stats(text, present, digits), *phrases(text, present, digits),
-                                                      *mentions(text)):
+                                                      *mentions(text, words)):
         if result is not None:
             found[field].append((result, source, start, end, flag))
     for kind in ("residence", "origin"):
