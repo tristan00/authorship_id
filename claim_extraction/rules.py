@@ -3,7 +3,7 @@ import math
 import re
 from collections import Counter, defaultdict
 from functools import cache
-from itertools import islice
+from itertools import chain, islice
 from pathlib import Path
 from re import _constants as sre
 from re import _parser as sre_parse
@@ -534,46 +534,71 @@ def place(kind, raw):
     return found, "partial" if words and town not in CITIES else ""
 
 
+def numeral(op, av):
+    return (op is sre.LITERAL and chr(av) in "0123456789" or op is sre.CATEGORY and av is sre.CATEGORY_DIGIT
+            or op is sre.RANGE and chr(av[0]) in "0123456789" and chr(av[1]) in "0123456789")
+
+
+def digital(items):
+    for op, av in items:
+        if (op is sre.LITERAL and numeral(op, av) or op is sre.IN and all(numeral(kind, arg) for kind, arg in av)
+                or op is sre.SUBPATTERN and digital(av[3]) or op is sre.BRANCH and all(digital(branch) for branch in av[1])
+                or op in (sre.MAX_REPEAT, sre.MIN_REPEAT, sre.POSSESSIVE_REPEAT) and av[0] >= 1 and digital(av[2])):
+            return True
+    return False
+
+
+@cache
+def needs_digit(pattern):
+    return digital(sre_parse.parse(pattern.pattern, pattern.flags))
+
+
+def hits(pattern, text, digits):
+    return islice(pattern.finditer(text), MATCHES) if digits or not needs_digit(pattern) else ()
+
+
 def tags(text):
+    digits = DIGIT.search(text) is not None
     for name, pattern in (("tag_self", TAG_SELF), ("tag_any", TAG_ANY), ("tag_dash", TAG_DASH)):
-        for match in islice(pattern.finditer(text), MATCHES):
+        for match in hits(pattern, text, digits):
             age, sex, form = (match.group(1), match.group(2), "nx") if match.group(1) else (match.group(4), match.group(3), "xn")
             yield "age", value("age", age), f"{name}_{form}", match.span(), ""
             yield "gender", value("gender", sex), f"{name}_{form}", match.span(), ""
     for name, pattern, age, sex in (("age_gender", AGE_GENDER, 1, 2), ("gender_age", GENDER_AGE, 2, 1), ("gender_paren", GENDER_PAREN, 2, 1)):
-        for match in islice(pattern.finditer(text), MATCHES):
+        for match in hits(pattern, text, digits):
             yield "age", value("age", match.group(age)), name, match.span(), ""
             yield "gender", value("gender", match.group(sex)), name, match.span(), ""
-    for match in islice(PRONOUN_TAG.finditer(text), MATCHES):
+    for match in hits(PRONOUN_TAG, text, digits):
         yield "gender", value("gender", PRONOUN_GENDER[match.group(1)]), "pronoun", match.span(), ""
     for name, pattern in (("gender_bare", BARE_GENDER), ("race_gender", RACE_GENDER)):
-        for match in islice(pattern.finditer(text), MATCHES):
+        for match in hits(pattern, text, digits):
             yield "gender", value("gender", match.group(1)), name, match.span(), ""
-    for match in islice(GENDER_BRACKET.finditer(text), MATCHES):
+    for match in hits(GENDER_BRACKET, text, digits):
         yield "gender", value("gender", match.group(1)), "gender_bracket", match.span(), ""
-    for match in islice(TAG_FOR.finditer(text), MATCHES):
+    for match in hits(TAG_FOR, text, digits):
         age = match.group(1) or match.group(3)
         yield "gender", value("gender", match.group(2)), "tag_for_age" if age else "tag_for", match.span(), ""
         if age:
             yield "age", value("age", age), "tag_for_age", match.span(), ""
     for name, pattern in (("age_start", AGE_START), ("age_bracket", AGE_BRACKET), ("number", NUMBER), ("age_bare", BARE_NUMBER)):
-        for match in islice(pattern.finditer(text), MATCHES):
+        for match in hits(pattern, text, digits):
             yield "age", value("age", match.group(1)), name, match.span(), ""
-    for match in islice(WORD_NUMBER.finditer(text), MATCHES):
+    for match in hits(WORD_NUMBER, text, digits):
         tens, unit, teen = match.groups()
         yield "age", value("age", str(TEENS[teen] if teen else TENS[tens] + UNITS.get(unit, 0))), "age_word", match.span(), ""
 
 
 def stats(text):
+    digits = DIGIT.search(text) is not None
     for field, name, pattern, near in (("height", "height_any", HEIGHT_ANY, PEOPLE), ("height", "height_metric", HEIGHT_METRIC, PEOPLE),
                                        ("weight", "weight_any", WEIGHT_ANY, OTHER)):
-        for match in islice(pattern.finditer(text), MATCHES):
+        for match in hits(pattern, text, digits):
             yield field, value(field, match.group(1)), name, match.span(), "people" if near.search(text[max(0, match.start() - 25):match.start()]) else ""
-    for match in islice(WEIGHT_AFTER.finditer(text), MATCHES):
+    for match in hits(WEIGHT_AFTER, text, digits):
         yield "weight", resolve("weight", match.group(1)), "weight_after_height", match.span(), "people" if OTHER.search(text[max(0, match.start() - 25):match.start()]) else ""
-    for match in islice(INCOME_ANY.finditer(text), MATCHES):
+    for match in hits(INCOME_ANY, text, digits):
         yield "income", earnings(match.group(1).strip()), "amount", match.span(), ""
-    for match in islice(YEAR.finditer(text), MATCHES):
+    for match in hits(YEAR, text, digits):
         yield "birth_year", value("birth_year", match.group(1)), "year", match.span(), ""
 
 
@@ -611,17 +636,20 @@ def vocabulary():
         for word in entries:
             if (field, word) not in (found := table[tuple(TOKEN.findall(word))]):
                 found.append((field, word))
-    return table, max(map(len, table))
+    starts = {}
+    for key in table:
+        starts[key[0]] = max(starts.get(key[0], 0), len(key))
+    return table, starts
 
 
 def mentions(text):
-    table, longest = vocabulary()
+    table, starts = vocabulary()
     spans = list(TOKEN.finditer(text))
     words = [span.group(0) for span in spans]
     seen = Counter()
     index = 0
     while index < len(words):
-        for size in range(min(longest, len(words) - index), 0, -1):
+        for size in range(min(starts.get(words[index], 0), len(words) - index), 0, -1):
             if found := table.get(tuple(words[index:index + size])):
                 for field, result in found:
                     if seen[field] < VOCAB_MATCHES:
@@ -691,9 +719,9 @@ def features(raw):
     text = blank(lowered, spans).translate(PRIMES)
     cased = blank(base, spans).translate(PRIMES) if len(lowered) == len(base) else text
     lines = "multi" if "\n" in text.strip() else "one"
-    first = sum(token in SELF for token in TOKEN.findall(text))
-    letters = sum(ch.isalpha() for ch in cased)
-    capitals = sum(ch.isupper() for ch in cased)
+    first = sum(map(SELF.__contains__, TOKEN.findall(text)))
+    letters = sum(map(str.isalpha, cased))
+    capitals = sum(map(str.isupper, cased))
     shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}",
              f"caps={'none' if not capitals else 'most' if capitals * 2 > letters else 'some'}"}
     found = defaultdict(list)
@@ -761,11 +789,12 @@ def cross(field, tops):
 def extract(text):
     model, best, tops = weights(), {}, {}
     candidates = list(features(text))
+    first, second = model["first"]["weights"].get, model["weights"].get
     for field, result, found in candidates:
-        score = model["first"]["bias"] + sum(model["first"]["weights"].get(feature, 0.0) for feature in found)
+        score = model["first"]["bias"] + sum(filter(None, map(first, found)))
         tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
     for field, result, found in candidates:
-        score = model["bias"] + sum(model["weights"].get(feature, 0.0) for feature in (*found, *cross(field, tops)))
+        score = model["bias"] + sum(filter(None, map(second, chain(found, cross(field, tops)))))
         if score > model["cutoffs"][field] and score > best.get(field, (float("-inf"),))[0]:
             best[field] = (score, result)
     return {field: result for field, (_, result) in best.items()}
