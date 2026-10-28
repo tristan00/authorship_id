@@ -74,22 +74,22 @@ Candidates come from three kinds of sources, up to three matches per pattern:
 
 - patterns: age and gender tags (`28F`, `m24`, `[M4F]`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), a two-digit age at the start of the text or in brackets, heights in feet and inches, centimetres or metres, and weights;
 - phrases: first-person patterns per field (`PHRASES`), with places matched against countries, first-level regions and `cities.json` and occupations against `jobs.json` and a list of job nouns;
-- broad mentions: any vocabulary word of a field anywhere in the text (gender words, countries, demonyms, regions, cities, languages, race, orientation, religion, marital, relationship, employment, mental health, ideology, generation, "my son", "pregnant", ...), and any standalone two-digit number for age.
+- broad mentions: any vocabulary word of a field anywhere in the text (gender words, countries, demonyms, regions, cities, languages, race, orientation, religion, marital, relationship, employment, mental health, ideology, generation, `jobs.json` titles, degrees, study subjects, "my son", "pregnant", ...), and any standalone two-digit number for age. Vocabulary is read in sorted order so the per-field cap of four mentions, and with it the fit, does not depend on string hashing.
 
 Conditions that used to discard a match are flags instead: hypothetical context before a phrase ("if", "would", "used to be", ...), another person mentioned before a height or weight, and a text that is only a tag (`M35`, whose gender the voters rarely label). The first unflagged pattern or phrase candidate of a field, which is what first-match rules would return, is marked `pick`.
 
 Features per candidate: source, kind, `pick`, rank, position, how many candidates share the value, how many values compete, text length and line count, the bare-tag flag, the fields that have candidates, the value for categorical fields, and the two tokens before and one after the match. Every feature appears both on its own and crossed with the field, so small fields share the general weights; source-specific features are also crossed with the source.
 
-`fit` trains one logistic regression over all candidates of the train split (features seen at least 3 times). The regularization C and a global probability threshold are chosen by 3-fold cross-validation on train for micro F1. Each field then gets the cutoff at or below that threshold that maximizes its own out-of-fold F1, so low-F1 fields keep candidates that help them. The weights are stored outside the repository as a model artifact.
+`fit` trains one logistic regression over all candidates of the train splits of the given datasets (features seen at least 3 times). The regularization C and a global probability threshold are chosen by 3-fold cross-validation on train for micro F1. Each field then gets the cutoff at or below that threshold that maximizes its own out-of-fold F1, so low-F1 fields keep candidates that help them. The weights are stored outside the repository as a model artifact.
 
 `jobs.json` is built from panel1m train labels and voter answers. `cities.json` is the GeoNames `cities15000` names plus city labels seen at least twice in panel1m train, without names of three letters or less, names that appear lowercase in panel1m train text at least half as often as capitalized, and names whose train precision is below 0.34 over at least two false positives.
 
-Cross-validation on train chose C = 1 and a threshold of 0.4 (out-of-fold micro F1 0.730). Train scores below are in-sample.
+Cross-validation on train chose C = 1 and a threshold of 0.4 (out-of-fold micro F1 0.730) on panel1m. Train scores below are in-sample.
 
 | split | texts | precision | recall | micro F1 |
 |---|---|---|---|---|
-| panel1m train | 899,826 | 0.773 | 0.751 | 0.762 |
-| panel1m validation | 49,738 | 0.749 | 0.722 | 0.735 |
+| panel1m train | 899,826 | 0.766 | 0.763 | 0.764 |
+| panel1m validation | 49,738 | 0.738 | 0.728 | 0.733 |
 
 Validation F1 by field, first-match rules (commit 88718f3) and now, ordered by train label count:
 
@@ -98,30 +98,30 @@ Validation F1 by field, first-match rules (commit 88718f3) and now, ordered by t
 | age | 20800 | 1188 | 0.84 | 0.88 | 0.88 |
 | gender | 13133 | 768 | 0.68 | 0.75 | 0.78 |
 | residence_city | 2497 | 137 | 0.37 | 0.51 | 0.68 |
-| marital_status | 1836 | 92 | 0.50 | 0.59 | 0.63 |
-| residence_country | 1678 | 110 | 0.44 | 0.50 | 0.51 |
-| occupation | 1455 | 94 | 0.49 | 0.49 | 0.46 |
-| residence_state | 1325 | 72 | 0.42 | 0.57 | 0.60 |
+| marital_status | 1836 | 92 | 0.50 | 0.58 | 0.63 |
+| residence_country | 1678 | 110 | 0.44 | 0.50 | 0.52 |
+| occupation | 1455 | 94 | 0.49 | 0.58 | 0.60 |
+| residence_state | 1325 | 72 | 0.42 | 0.55 | 0.60 |
 | parental_status | 1284 | 59 | 0.40 | 0.40 | 0.51 |
-| height | 1198 | 58 | 0.86 | 0.88 | 0.86 |
-| race_ethnicity | 1167 | 82 | 0.60 | 0.75 | 0.71 |
-| nationality | 1117 | 66 | 0.52 | 0.55 | 0.63 |
-| sexual_orientation | 1071 | 71 | 0.46 | 0.56 | 0.70 |
-| relationship_status | 612 | 30 | 0.38 | 0.47 | 0.36 |
-| employment_status | 594 | 28 | 0.00 | 0.11 | 0.38 |
-| weight | 533 | 41 | 0.78 | 0.84 | 0.76 |
-| origin_country | 456 | 39 | 0.33 | 0.36 | 0.51 |
-| mental_health | 390 | 22 | 0.50 | 0.54 | 0.57 |
-| religion | 349 | 32 | 0.40 | 0.50 | 0.62 |
-| education_subject | 281 | 13 | 0.48 | 0.48 | 0.43 |
-| income | 274 | 15 | 0.19 | 0.19 | 0.29 |
+| height | 1198 | 58 | 0.86 | 0.86 | 0.85 |
+| race_ethnicity | 1167 | 82 | 0.60 | 0.75 | 0.72 |
+| nationality | 1117 | 66 | 0.52 | 0.53 | 0.63 |
+| sexual_orientation | 1071 | 71 | 0.46 | 0.59 | 0.69 |
+| relationship_status | 612 | 30 | 0.38 | 0.44 | 0.36 |
+| employment_status | 594 | 28 | 0.00 | 0.15 | 0.41 |
+| weight | 533 | 41 | 0.78 | 0.85 | 0.77 |
+| origin_country | 456 | 39 | 0.33 | 0.35 | 0.52 |
+| mental_health | 390 | 22 | 0.50 | 0.51 | 0.56 |
+| religion | 349 | 32 | 0.40 | 0.50 | 0.61 |
+| education_subject | 281 | 13 | 0.48 | 0.55 | 0.56 |
+| income | 274 | 15 | 0.19 | 0.19 | 0.28 |
 | birth_year | 240 | 11 | 0.70 | 0.70 | 0.62 |
-| generation | 197 | 8 | 0.17 | 0.35 | 0.71 |
-| education | 150 | 6 | 0.22 | 0.22 | 0.37 |
+| generation | 197 | 8 | 0.17 | 0.35 | 0.70 |
+| education | 150 | 6 | 0.22 | 0.27 | 0.57 |
 | origin_city | 141 | 10 | 0.14 | 0.14 | 0.34 |
-| language | 128 | 4 | 0.50 | 0.44 | 0.41 |
-| origin_state | 115 | 7 | 0.67 | 0.67 | 0.35 |
-| political_ideology | 63 | 2 | 0.00 | 0.00 | 0.56 |
+| language | 128 | 4 | 0.50 | 0.44 | 0.39 |
+| origin_state | 115 | 7 | 0.67 | 0.67 | 0.36 |
+| political_ideology | 63 | 2 | 0.00 | 0.00 | 0.57 |
 
 political_compass has no resolved labels. Across panel1m the voters mostly answer it with values outside its value set ("left", "center-left", "not stated"); the in-set forms ("centrist", "center", "lib-right") already map in `normalize.py`, occur 14 times over all three voters, and never twice on the same text.
 

@@ -66,6 +66,9 @@ GENDER_WORDS = {"male", "female", "man", "woman", "guy", "girl", "dude", "lady",
                 "non-binary", "nonbinary", "enby", "trans woman", "trans man", "femboy", "milf"}
 PARENT_WORDS = {f"{owner} {child}" for owner in ("my", "our") for child in ("son", "daughter", "kids", "kid", "children", "child", "baby", "toddler", "boys", "girls",
                                                                   "newborn", "stepson", "stepdaughter", "sons", "daughters", "twins", "grandkids")} | {"pregnant"}
+SUBJECT_WORDS = {"computer science", "engineering", "psychology", "biology", "chemistry", "physics", "mathematics", "math", "nursing", "medicine", "business",
+                 "accounting", "finance", "marketing", "economics", "sociology", "political science", "history", "law", "education", "english", "philosophy",
+                 "art", "music", "film", "journalism", "architecture", "statistics", "neuroscience", "biochemistry", "linguistics", "anthropology"}
 BARE_TAG = re.compile(r"^\W*(?:[mf]\s*\d{2}|\d{2}\s*[mf])\W*$")
 TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr]\w*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
@@ -406,10 +409,11 @@ def vocabulary():
     words = {"residence_country": {*COUNTRIES, *COUNTRY_ALIASES}, "origin_country": {*COUNTRIES, *COUNTRY_ALIASES},
              "nationality": {*DEMONYMS, *COUNTRIES, *COUNTRY_ALIASES}, "language": {*LANGUAGES, *LANGUAGE_ALIASES},
              "residence_state": {*STATE_NAMES, *(code for code in STATES if len(code) > 2)}, "residence_city": CITIES, "gender": GENDER_WORDS,
-             "parental_status": PARENT_WORDS, **{field: set(LOOKUP[field]) for field in VOCAB_FIELDS}}
+             "parental_status": PARENT_WORDS, "occupation": set(JOBS),
+             "education": set(LOOKUP["education"]), "education_subject": SUBJECT_WORDS, **{field: set(LOOKUP[field]) for field in VOCAB_FIELDS}}
     table = defaultdict(list)
     for field, entries in words.items():
-        for word in entries:
+        for word in sorted(entries):
             if len(word) > 2 and (result := resolve(field, word) or (field in PLACE_FIELDS and country(word)) or (field == "residence_state" and state(word))):
                 table[tuple(TOKEN.findall(word))].append((field, result))
     return table, max(map(len, table))

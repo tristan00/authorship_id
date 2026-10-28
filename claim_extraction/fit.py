@@ -12,17 +12,18 @@ from .config import ANNOTATIONS, FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_TH
 from .rules import features
 
 
-def records(month, dataset):
-    root = ANNOTATIONS / month / dataset
-    labels = {}
-    for line in open(root / "labels.jsonl", encoding="utf-8"):
-        row = json.loads(line)
-        if row["split"] == "train":
-            labels[row["id"]] = row["values"]
-    for line in open(root / "records.jsonl", encoding="utf-8"):
-        row = json.loads(line)
-        if row["id"] in labels:
-            yield row["text"], labels[row["id"]]
+def records(month, datasets):
+    for dataset in datasets:
+        root = ANNOTATIONS / month / dataset
+        labels = {}
+        for line in open(root / "labels.jsonl", encoding="utf-8"):
+            row = json.loads(line)
+            if row["split"] == "train":
+                labels[row["id"]] = row["values"]
+        for line in open(root / "records.jsonl", encoding="utf-8"):
+            row = json.loads(line)
+            if row["id"] in labels:
+                yield row["text"], labels[row["id"]]
 
 
 def examples(item):
@@ -31,10 +32,10 @@ def examples(item):
 
 
 @timed
-def collect(month, dataset):
+def collect(month, datasets):
     items, labels = [], Counter()
     with Pool(WORKERS) as pool:
-        for index, (fields, found) in enumerate(pool.imap(examples, records(month, dataset), chunksize=1000)):
+        for index, (fields, found) in enumerate(pool.imap(examples, records(month, datasets), chunksize=1000)):
             labels.update(fields)
             items.extend(((index, field), names, target) for field, names, target in found)
     LOG.info("collect texts=%d labels=%d candidates=%d", index + 1, sum(labels.values()), len(items))
@@ -83,8 +84,8 @@ def validate(items, labels):
 
 
 @timed
-def fit(month, dataset):
-    items, labels = collect(month, dataset)
+def fit(month, datasets):
+    items, labels = collect(month, datasets)
     c, cutoffs = validate(items, labels)
     vectorizer, model = train(items, c)
     weights = {name: round(float(weight), 4) for name, weight in zip(vectorizer.get_feature_names_out(), model.coef_[0]) if abs(weight) >= 1e-3}
@@ -92,4 +93,4 @@ def fit(month, dataset):
               "weights": weights}
     WEIGHTS.parent.mkdir(parents=True, exist_ok=True)
     WEIGHTS.write_text(json.dumps(result, ensure_ascii=False, separators=(",", ":"), sort_keys=True), encoding="utf-8")
-    LOG.info("fit c=%s weights=%d path=%s", c, len(weights), WEIGHTS)
+    LOG.info("fit datasets=%s c=%s weights=%d path=%s", datasets, c, len(weights), WEIGHTS)

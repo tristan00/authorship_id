@@ -17,13 +17,15 @@ def main():
         sample(args.month, args.datasets)
     elif args.command == "labels":
         from .labels import labels
-        labels(args.month, args.datasets[0])
+        for dataset in args.datasets:
+            labels(args.month, dataset)
     elif args.command == "fit":
         from .fit import fit
-        fit(args.month, args.datasets[0])
+        fit(args.month, args.datasets)
     else:
         from .evaluate import evaluate
-        evaluate(args.month, args.datasets[0], args.split)
+        for dataset in args.datasets:
+            evaluate(args.month, dataset, args.split)
 
 
 if __name__ == "__main__":
