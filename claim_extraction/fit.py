@@ -1,14 +1,18 @@
 import json
 import math
+from array import array
 from collections import Counter, defaultdict
 from itertools import product
 
-from sklearn.feature_extraction import DictVectorizer
+import numpy as np
+from scipy.sparse import csr_matrix
 from sklearn.linear_model import LogisticRegression
 
 from . import LOG, timed
 from .config import ANNOTATIONS, FIELDS, FIT_C, FIT_FOLDS, FIT_MIN_COUNT, FIT_THRESHOLDS, WEIGHTS
 from .rules import features
+
+FIELD_INDEX = {field: index for index, field in enumerate(FIELDS)}
 
 
 def records(month, datasets):
@@ -25,35 +29,38 @@ def records(month, datasets):
                 yield row["text"], labels[row["id"]]
 
 
-def examples(item):
-    text, truth = item
-    return list(truth), [(field, sorted(found), int(truth.get(field) == result)) for field, result, found in features(text)]
-
-
 @timed
 def collect(month, datasets):
-    items, labels = [], Counter()
-    for index, (fields, found) in enumerate(map(examples, records(month, datasets))):
-        labels.update(fields)
-        items.extend(((index, field), names, target) for field, names, target in found)
-    LOG.info("collect texts=%d labels=%d candidates=%d", index + 1, sum(labels.values()), len(items))
-    return items, labels
+    ids, indices, indptr = {}, array("i"), array("q", [0])
+    texts, fields, targets, values, labels = array("i"), array("b"), array("b"), [], Counter()
+    for index, (text, truth) in enumerate(records(month, datasets)):
+        labels.update(truth.keys())
+        for field, result, found in features(text):
+            indices.extend(ids.setdefault(name, len(ids)) for name in sorted(found))
+            indptr.append(len(indices))
+            texts.append(index)
+            fields.append(FIELD_INDEX[field])
+            targets.append(truth.get(field) == result)
+            values.append(result)
+    matrix = csr_matrix((np.ones(len(indices), dtype=np.float32), np.frombuffer(indices, dtype=np.int32), np.frombuffer(indptr, dtype=np.int64)),
+                        shape=(len(texts), len(ids)))
+    keep = np.flatnonzero(np.bincount(matrix.indices, minlength=len(ids)) >= FIT_MIN_COUNT)
+    names = np.array(sorted(ids, key=ids.get), dtype=object)[keep]
+    matrix = matrix[:, keep].tocsr()
+    LOG.info("collect texts=%d labels=%d candidates=%d features=%d nonzeros=%d", index + 1, sum(labels.values()), matrix.shape[0], len(names), matrix.nnz)
+    return matrix, names, np.frombuffer(texts, dtype=np.int32), np.frombuffer(fields, dtype=np.int8), np.frombuffer(targets, dtype=np.int8), values, labels
 
 
-def train(items, c):
-    counts = Counter(name for _, names, _ in items for name in names)
-    vectorizer = DictVectorizer()
-    matrix = vectorizer.fit_transform([{name: 1 for name in names if counts[name] >= FIT_MIN_COUNT} for _, names, _ in items])
-    return vectorizer, LogisticRegression(C=c, max_iter=5000).fit(matrix, [target for *_, target in items])
+def train(matrix, targets, c):
+    return LogisticRegression(C=c, max_iter=5000).fit(matrix, targets)
 
 
-def best(items, fitted):
-    vectorizer, model = fitted
+def best(probabilities, texts, fields, targets):
     chosen = {}
-    for (key, _, target), probability in zip(items, model.predict_proba(vectorizer.transform([{name: 1 for name in names} for _, names, _ in items]))[:, 1]):
+    for key, probability, target in zip(zip(texts.tolist(), fields.tolist()), probabilities.tolist(), targets.tolist()):
         if probability > chosen.get(key, (-1.0,))[0]:
             chosen[key] = (probability, target)
-    return [(key[1], probability, target) for key, (probability, target) in chosen.items()]
+    return [(FIELDS[key[1]], probability, target) for key, (probability, target) in chosen.items()]
 
 
 def f1(count, total):
@@ -61,11 +68,12 @@ def f1(count, total):
 
 
 @timed
-def validate(items, labels):
+def validate(matrix, texts, fields, targets, labels):
     counts = defaultdict(Counter)
     for c, fold in product(FIT_C, range(FIT_FOLDS)):
-        fitted = train([item for item in items if item[0][0] % FIT_FOLDS != fold], c)
-        for field, probability, target in best([item for item in items if item[0][0] % FIT_FOLDS == fold], fitted):
+        held = texts % FIT_FOLDS == fold
+        model = train(matrix[~held], targets[~held], c)
+        for field, probability, target in best(model.predict_proba(matrix[held])[:, 1], texts[held], fields[held], targets[held]):
             for threshold in FIT_THRESHOLDS:
                 if probability >= threshold:
                     counts[c, threshold, field]["tp" if target else "fp"] += 1
@@ -83,10 +91,10 @@ def validate(items, labels):
 
 @timed
 def fit(month, datasets):
-    items, labels = collect(month, datasets)
-    c, cutoffs = validate(items, labels)
-    vectorizer, model = train(items, c)
-    weights = {name: round(float(weight), 4) for name, weight in zip(vectorizer.get_feature_names_out(), model.coef_[0]) if abs(weight) >= 1e-3}
+    matrix, names, texts, fields, targets, _, labels = collect(month, datasets)
+    c, cutoffs = validate(matrix, texts, fields, targets, labels)
+    model = train(matrix, targets, c)
+    weights = {name: round(float(weight), 4) for name, weight in zip(names, model.coef_[0]) if abs(weight) >= 1e-3}
     result = {"c": c, "bias": round(float(model.intercept_[0]), 4), "cutoffs": {field: round(math.log(t / (1 - t)), 4) for field, t in cutoffs.items()},
               "weights": weights}
     WEIGHTS.parent.mkdir(parents=True, exist_ok=True)
