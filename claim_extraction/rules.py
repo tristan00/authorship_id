@@ -242,7 +242,7 @@ FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "c
 CITY_FIRST = {"delhi", "auckland", "berlin", "mexico city", "hamburg", "metro manila", "rio de janeiro", "sao paulo", "new york"}
 PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "residence_city"),
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
-SKIP = re.compile(r"^\s*>.*$|\"[^\"\n]{0,300}\"|“[^”\n]{0,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
+SKIP = re.compile(r"^\s*>.*$|\"[^\"\n]{6,300}\"|“[^”\n]{6,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
 WORD_CODES = {"on", "in", "me", "hi", "ma", "or", "ok", "oh", "de", "la", "co", "id", "al", "ne", "mo", "ms", "ar", "ab", "ns", "nb", "sk", "mb"}
 HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
 DIAGNOSES = {"add": "adhd", "asd": "autism", "an eating disorder": "eating disorder", "an alcoholic": "addiction", "an addict": "addiction", "cptsd": "ptsd",
