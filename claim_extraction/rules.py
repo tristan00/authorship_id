@@ -356,7 +356,8 @@ def tags(text, found):
         age, sex = (match.group(1), match.group(2)) if match.group(1) else (match.group(4), match.group(3))
         if (age := value("age", age)) is not None:
             found.setdefault("age", age)
-            found.setdefault("gender", value("gender", sex))
+            if not (match.group(3) and match.re is TAG_ANY and match.start() > 3):
+                found.setdefault("gender", value("gender", sex))
             break
     if match := AGE_GENDER.search(text):
         found.setdefault("age", value("age", match.group(1)))
@@ -366,7 +367,7 @@ def tags(text, found):
         found.setdefault("age", value("age", match.group(2)))
     if match := GENDER_BRACKET.search(text):
         found.setdefault("gender", value("gender", match.group(1)))
-    if match := TAG_FOR.search(text):
+    if (match := TAG_FOR.search(text)) and (match.group(1) or match.group(3) or "age" in found or "\n" in text.strip()):
         found.setdefault("gender", value("gender", match.group(2)))
         if match.group(1) or match.group(3):
             found.setdefault("age", value("age", match.group(1) or match.group(3)))
