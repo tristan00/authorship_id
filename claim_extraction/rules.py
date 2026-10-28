@@ -47,11 +47,12 @@ TAG_SELF = re.compile(r"(?:^|\b(?:i'm|i’m|im|i am|i|me|myself)\b\s*)" + TAG + 
 TAG_ANY = re.compile(r"(?<![\w$.,'’#/])" + TAG + r"(?![a-z0-9'’])")
 AGE_START = re.compile(r"^[^\w$€£~]{0,3}(?:an? )?(\d{2})(?![\d.:/%x'’-]|\s*(?:%|percent|years? ago|yrs? ago|minutes|mins?\b|hours|hrs?\b|days|weeks|months|times|seconds|secs?\b|th\b|st\b|nd\b|rd\b|k\b|mph|kph|km|miles|cm|mm|inch|lbs?\b|kg|people|of\b|out\b|to\b|or\b|-\d|\+)|,(?!\s+\D)|(?![mft]\b|nb|[mf]{1,3}4|yo\b|y/o|yrs?\b|ftm|mtf)[a-z]|\s*[?!€\"”]|\s+years?\?|\s*(?:and|&|//?|–)\s*\d|\s+(?:is|in|plus|bucks|dollars|volts?|million|mil|hp|pro|hours?|more|was|march|euros?|karma|ways|fps|milliarden)\b)")
 AGE_BRACKET = re.compile(r"[\[\(]\s*(\d{2})\s*[\]\)]")
-HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!\ba )(?<!\ban )(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)(?:\.\d)?\s*(?:\"|”|''|’’|in\b|inches)?|[4-7]\s*(?:'|’|ft\.?|foot|feet)(?=\s*(?:tall|height|hung|,|\d|with\b|and\b|[.!)|/]|$)))(?![\w'’]|\s*\?)")
+HEIGHT_ANY = re.compile(r"(?<![\w.$/-])(?<!\ba )(?<!\ban )(?<!over )(?<!under )(?<!than )([4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)(?:\.\d)?\s*(?:\"|”|''|’’|in\b|inches)?|[4-7]\s*[\"”]\s*(?:1[01]|\d)(?!\d|\.\d)|[4-7]\s*(?:ft\.?|foot|feet)\b|[4-7]\s*(?:'|’)(?=\s*(?:tall|height|hung|,|\d|with\b|and\b|[.!)|/]|$)))(?![\w'’]|\s*\?)")
+WEIGHT_AFTER = re.compile(r"(?:[4-7]\s*(?:'|’|ft\.?|foot|feet)\s*(?:1[01]|\d)?\s*(?:\"|”|''|’’|in\b|inches)?|1[4-9]\d\s?cm|1[.,][4-9]\d\s?m?)\s*[,/|;-]?\s*(\d{2,3})(?![\d.]|\s*(?:cm|in\b|inch|%|years?|yo\b|y/o|yrs?))")
 WEIGHT_ANY = re.compile(r"(?<![\w.$/-])(\d{2,3}(?:\.\d)?\s*(?:lbs?|pounds|kgs?|kilos))\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain))")
-HEIGHT_METRIC = re.compile(r"(?<![\w.,$])(1[4-9]\d\s?cm|2[0-2]\d\s?cm|1[.,][4-9]\d\s?m\b|1[.,][4-9]\d(?=\s*(?:,|/|\||e\b|y\b|and\b|tall\b|\d{2,3}\s?kgs?\b|$)))")
+HEIGHT_METRIC = re.compile(r"(?<![\w.,$])(1[4-9]\d\s?cm|2[0-2]\d\s?cm|1[.,][4-9]\d\s?m\b|1[.,][4-9]\d(?![\d.,%]|\s*(?:€|eur|usd|dollars?|bucks|km|miles?|mi\b|hours?|h\b)))")
 PEOPLE = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur)\b")
-PRIMES = str.maketrans({"‘": "'", "´": "'", "′": "'", "″": '"'})
+PRIMES = str.maketrans({"‘": "'", "´": "'", "′": "'", "″": '"', "​": None, "‌": None, "‍": None, "⁠": None, "﻿": None})
 OTHER = re.compile(r"\b(?:he|she|he's|she's|hes|shes|his|her|they|they're|husband|wife|bf|gf|boyfriend|girlfriend|son|daughter|brother|sister|dad|mom|guy is|girl is|you|you're|ur|lost|from|down|goal|want|wants)\b")
 ADJECTIVES = r"(?:straight|gay|bi|white|black|asian|single|married|cis|trans|latino|hispanic|indian|fit|tall|short|chubby|fat|hot|horny|lonely|bored|average|older|young)"
 AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?<!\bher )(?<!\bhis )(?<![\w$#.-])(\d{2})\s*(?:yo|y/o|y\.o\.|yrs?|years?[- ]old|yrs?[- ]old)?\s*,?\s*(?:" + ADJECTIVES + r"\s+){0,2}(male|female|man|woman|guy|girl|dude|lady|boy)\b(?! (?:squads?|groups?|teams?|content|raids?|hours?))")
@@ -261,7 +262,15 @@ PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "r
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
 SKIP = re.compile(r"^\s*>.*$|(?<![\d'’])\"[^\"\n]{6,300}\"|“[^”\n]{6,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
 WORD_CODES = {"on", "in", "me", "hi", "ma", "or", "ok", "oh", "de", "la", "co", "id", "al", "ne", "mo", "ms", "ar", "ab", "ns", "nb", "sk", "mb"}
-SHORT_PLACES = {"uk", "nz", *(code for code in STATES if len(code) == 2 and code not in WORD_CODES)}
+SHORT_WORDS = {"uk", "nz", "bi", *(code for code in STATES if len(code) == 2 and code not in WORD_CODES)}
+FLAGS = {"🇺🇸": "united states", "🇬🇧": "united kingdom", "🇨🇦": "canada", "🇦🇺": "australia", "🇮🇳": "india", "🇵🇭": "philippines", "🇩🇪": "germany",
+         "🇫🇷": "france", "🇧🇷": "brazil", "🇲🇽": "mexico", "🇳🇱": "netherlands", "🇮🇹": "italy", "🇪🇸": "spain", "🇮🇪": "ireland", "🇳🇿": "new zealand",
+         "🇵🇰": "pakistan", "🇳🇬": "nigeria", "🇿🇦": "south africa", "🇷🇺": "russia", "🇺🇦": "ukraine", "🇵🇱": "poland", "🇹🇷": "turkey", "🇯🇵": "japan",
+         "🇰🇷": "south korea", "🇨🇳": "china", "🇸🇪": "sweden", "🇳🇴": "norway", "🇩🇰": "denmark", "🇫🇮": "finland", "🇵🇹": "portugal", "🇬🇷": "greece",
+         "🇷🇴": "romania", "🇮🇱": "israel", "🇦🇪": "united arab emirates", "🇦🇷": "argentina", "🇨🇴": "colombia", "🇧🇪": "belgium", "🇨🇭": "switzerland",
+         "🇦🇹": "austria", "🇱🇻": "latvia", "🇱🇹": "lithuania", "🇪🇪": "estonia", "🇧🇩": "bangladesh", "🇮🇩": "indonesia", "🇲🇾": "malaysia",
+         "🇸🇬": "singapore", "🇻🇳": "vietnam", "🇹🇭": "thailand"}
+US_UPPER = re.compile(r"\bUS\b")
 REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
 HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
 DIAGNOSES = {"add": "adhd", "asd": "autism", "an eating disorder": "eating disorder", "an alcoholic": "addiction", "an addict": "addiction", "cptsd": "ptsd",
@@ -394,6 +403,8 @@ def stats(text):
                                        ("weight", "weight_any", WEIGHT_ANY, OTHER)):
         for match in islice(pattern.finditer(text), MATCHES):
             yield field, value(field, match.group(1)), name, match.span(), "people" if near.search(text[max(0, match.start() - 25):match.start()]) else ""
+    for match in islice(WEIGHT_AFTER.finditer(text), MATCHES):
+        yield "weight", resolve("weight", match.group(1)), "weight_after_height", match.span(), "people" if OTHER.search(text[max(0, match.start() - 25):match.start()]) else ""
     for match in islice(INCOME_ANY.finditer(text), MATCHES):
         yield "income", earnings(match.group(1).strip()), "amount", match.span(), ""
 
@@ -423,8 +434,10 @@ def vocabulary():
     table = defaultdict(list)
     for field, entries in words.items():
         for word in sorted(entries):
-            if (len(word) > 2 or word in SHORT_PLACES) and (result := resolve(field, word) or (field in PLACE_FIELDS and country(word)) or (field == "residence_state" and state(word))):
+            if (len(word) > 2 or word in SHORT_WORDS) and (result := resolve(field, word) or (field in PLACE_FIELDS and country(word)) or (field == "residence_state" and state(word))):
                 table[tuple(TOKEN.findall(word))].append((field, result))
+    for flag, name in FLAGS.items():
+        table[tuple(TOKEN.findall(flag))].extend((field, name) for field in ("residence_country", "nationality", "origin_country"))
     for field, entries in VALUES.items():
         for word in entries:
             if (field, word) not in (found := table[tuple(TOKEN.findall(word))]):
@@ -455,9 +468,10 @@ def bucket(number, edges):
 
 
 def features(raw):
-    text = SKIP.sub(" ", raw.lower()).translate(PRIMES)
+    text = SKIP.sub(" ", US_UPPER.sub("USA", raw).lower()).translate(PRIMES)
     lines = "multi" if "\n" in text.strip() else "one"
-    shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}"}
+    first = sum(token in SELF for token in TOKEN.findall(text))
+    shape = {f"lines={lines}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}", f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(first, (1, 3, 8))}"}
     found = defaultdict(list)
     for field, result, source, (start, end), flag in (*tags(text), *stats(text), *phrases(text), *mentions(text)):
         if result is not None:
