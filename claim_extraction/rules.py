@@ -752,29 +752,36 @@ def vocabulary():
         for word in entries:
             if (field, word) not in (found := table[tuple(TOKEN.findall(word))]):
                 found.append((field, word))
-    starts = {}
-    for key in table:
-        starts[key[0]] = max(starts.get(key[0], 0), len(key))
-    return table, starts
+    trie = {}
+    for key, found in table.items():
+        node = trie
+        for word in key:
+            node = node.setdefault(word, {})
+        node[None] = found
+    return table, trie
 
 
 def mentions(text, words):
-    table, starts = vocabulary()
+    _, trie = vocabulary()
     spans = None
     seen = Counter()
     resume = 0
-    for index in [index for index, word in enumerate(words) if word in starts]:
+    for index in [index for index, word in enumerate(words) if word in trie]:
         if index < resume:
             continue
-        for size in range(min(starts[words[index]], len(words) - index), 0, -1):
-            if found := table.get(tuple(words[index:index + size])):
-                spans = spans or [match.span() for match in TOKEN.finditer(text)]
-                for field, result in found:
-                    if seen[field] < VOCAB_MATCHES:
-                        seen[field] += 1
-                        yield field, result, "vocab", (spans[index][0], spans[index + size - 1][1]), ""
-                resume = index + size
+        node, found = trie, None
+        for last in range(index, len(words)):
+            if (node := node.get(words[last])) is None:
                 break
+            if None in node:
+                found, end = node[None], last
+        if found:
+            spans = spans or [match.span() for match in TOKEN.finditer(text)]
+            for field, result in found:
+                if seen[field] < VOCAB_MATCHES:
+                    seen[field] += 1
+                    yield field, result, "vocab", (spans[index][0], spans[end][1]), ""
+            resume = end + 1
 
 
 RANGES = {"age": (13, 16, 18, 21, 25, 30, 40, 50, 65, 80, 100), "birth_year": (1940, 1960, 1975, 1985, 1995, 2005, 2010),
