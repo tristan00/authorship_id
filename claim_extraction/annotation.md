@@ -74,13 +74,13 @@ Over panel1m, panel1m_b and panel200k this gives 141,609 resolved labels, agains
 
 ## Rules extractor
 
-`rules.extract` lowercases the text, removes quoted lines, quoted strings of six characters or more and links, and maps curly primes to `'` and `"`. It then collects candidates, scores each with one linear model, and keeps per field the best candidate whose score clears that field's cutoff.
+`rules.extract` lowercases the text, removes quoted lines, quoted strings of six characters or more (not starting at an inch mark such as `6'4"`) and links, and maps curly primes to `'` and `"`. It then collects candidates, scores each with one linear model, and keeps per field the best candidate whose score clears that field's cutoff.
 
 Candidates come from three kinds of sources, up to three matches per pattern:
 
-- patterns: age and gender tags (`28F`, `m24`, `[M4F]`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), a two-digit age at the start of the text or in brackets, heights in feet and inches, centimetres or metres, and weights;
+- patterns: age and gender tags (`28F`, `m24`, `[M4F]`, `m4f27`, `[m4r]`, `32 straight man`, `male, 23`, `[F] 19`), a two-digit age at the start of the text or in brackets, a text that is only a number, ages written as words ("nineteen", "sixty-six"), heights in feet and inches, centimetres or metres, and weights;
 - phrases: first-person patterns per field (`PHRASES`), with places matched against countries, first-level regions and `cities.json` and occupations against `jobs.json` and a list of job nouns;
-- broad mentions: any vocabulary word of a field anywhere in the text (gender words, countries, demonyms, regions, cities, languages, race, orientation, religion, marital, relationship, employment, mental health, ideology, generation, `jobs.json` titles, degrees, study subjects, "my son", "pregnant", ...), and any standalone two-digit number for age. Vocabulary is read in sorted order so the per-field cap of four mentions, and with it the fit, does not depend on string hashing.
+- broad mentions: any vocabulary word of a field anywhere in the text (gender words, countries, demonyms, regions, cities, languages, race, orientation, religion, marital, relationship, employment, mental health, ideology, generation, `jobs.json` titles, degrees, study subjects, "my son", "my son's", "no kids", "mom", "my gf", "pregnant", ...), the voters' own values in `values.json`, any money amount for income, and any standalone two-digit number for age, also before a comma or full stop and with a `yo`/`yrs` suffix. Vocabulary is read in sorted order so the per-field cap of four mentions, and with it the fit, does not depend on string hashing. Ages are candidates from 1 to 120, since the voters label ages below 13 (mostly texts that are only a number).
 
 Conditions that used to discard a match are flags instead: hypothetical context before a phrase ("if", "would", "used to be", ...), another person mentioned before a height or weight, and a text that is only a tag (`M35`, whose gender the voters rarely label). The first unflagged pattern or phrase candidate of a field, which is what first-match rules would return, is marked `pick`.
 
@@ -90,44 +90,47 @@ Features per candidate: source, kind, `pick`, rank, position, how many candidate
 
 `jobs.json` is built from panel1m train labels and voter answers. `cities.json` is the GeoNames `cities15000` names plus city labels seen at least twice in panel1m train, without names of three letters or less, names that appear lowercase in panel1m train text at least half as often as capitalized, and names whose train precision is below 0.34 over at least two false positives.
 
-The current weights, and every score below, come from the labels of the earlier parser; they need a refit and re-evaluation on the current labels. The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 105,245 labels). Cross-validation chose C = 0.3 and a threshold of 0.4 (out-of-fold micro F1 0.743); on panel1m train alone it chose the same (0.735).
+`values.json` holds the label values outside the value sets (and, for occupation and study subject, outside the SOC and CIP groups) that occur at least twice among panel1m and panel1m_b train labels, have at least three characters, and match their field's train label in at least 1% of the train texts that mention them; the mention is a candidate with the voters' wording as its value (marital status "single", orientation "m4m", mental health "depressed", ...).
 
-| validation split | texts with values | panel1m model | combined model |
-|---|---|---|---|
-| panel1m | 1,899 | 0.740 | 0.743 |
-| panel1m_b | 1,841 | 0.734 | 0.741 |
+The weights are fitted on panel1m and panel1m_b train (1,799,903 texts, 115,285 labels, 1,557,285 candidates). Cross-validation chose C = 0.3 and a threshold of 0.4. Pooled scores count the three validation splits together (13,211 labels); "before round 1" is the model fitted on the corrected labels before the candidate changes of round 1.
 
-Validation F1 by field: first-match rules (commit 88718f3), the model fitted on panel1m train, and the model fitted on both train splits. Fields are ordered by panel1m train label count.
+| validation micro F1 | panel1m | panel1m_b | panel200k | pooled |
+|---|---|---|---|---|
+| before round 1 | 0.713 | 0.708 | 0.701 | 0.706 |
+| current | 0.723 | 0.709 | 0.706 | 0.711 |
 
-| field | panel1m train labels | panel1m validation labels | rules | panel1m model | combined model | panel1m_b validation labels | panel1m model | combined model |
-|---|---|---|---|---|---|---|---|---|
-| age | 20800 | 1188 | 0.84 | 0.88 | 0.88 | 1165 | 0.89 | 0.89 |
-| gender | 13133 | 768 | 0.68 | 0.75 | 0.75 | 731 | 0.74 | 0.74 |
-| residence_city | 2497 | 137 | 0.37 | 0.54 | 0.54 | 146 | 0.56 | 0.55 |
-| marital_status | 1836 | 92 | 0.50 | 0.62 | 0.58 | 108 | 0.56 | 0.59 |
-| residence_country | 1678 | 110 | 0.44 | 0.49 | 0.53 | 98 | 0.50 | 0.53 |
-| occupation | 1455 | 94 | 0.49 | 0.60 | 0.58 | 75 | 0.47 | 0.51 |
-| residence_state | 1325 | 72 | 0.42 | 0.52 | 0.57 | 66 | 0.55 | 0.57 |
-| parental_status | 1284 | 59 | 0.40 | 0.42 | 0.39 | 56 | 0.46 | 0.46 |
-| height | 1198 | 58 | 0.86 | 0.91 | 0.91 | 64 | 0.81 | 0.83 |
-| race_ethnicity | 1167 | 82 | 0.60 | 0.74 | 0.79 | 65 | 0.73 | 0.73 |
-| nationality | 1117 | 66 | 0.52 | 0.56 | 0.58 | 78 | 0.54 | 0.55 |
-| sexual_orientation | 1071 | 71 | 0.46 | 0.63 | 0.66 | 53 | 0.67 | 0.70 |
-| relationship_status | 612 | 30 | 0.38 | 0.39 | 0.41 | 28 | 0.37 | 0.26 |
-| employment_status | 594 | 28 | 0.00 | 0.26 | 0.36 | 23 | 0.30 | 0.31 |
-| weight | 533 | 41 | 0.78 | 0.85 | 0.85 | 24 | 0.73 | 0.73 |
-| origin_country | 456 | 39 | 0.33 | 0.43 | 0.43 | 30 | 0.63 | 0.63 |
-| mental_health | 390 | 22 | 0.50 | 0.48 | 0.51 | 24 | 0.51 | 0.50 |
-| religion | 349 | 32 | 0.40 | 0.52 | 0.56 | 22 | 0.61 | 0.67 |
-| education_subject | 281 | 13 | 0.48 | 0.58 | 0.41 | 19 | 0.41 | 0.51 |
-| income | 274 | 15 | 0.19 | 0.19 | 0.19 | 14 | 0.35 | 0.35 |
-| birth_year | 240 | 11 | 0.70 | 0.70 | 0.70 | 15 | 0.48 | 0.48 |
-| generation | 197 | 8 | 0.17 | 0.53 | 0.50 | 10 | 0.57 | 0.70 |
-| education | 150 | 6 | 0.22 | 0.29 | 0.25 | 16 | 0.36 | 0.40 |
-| origin_city | 141 | 10 | 0.14 | 0.14 | 0.14 | 5 | 0.44 | 0.40 |
-| language | 128 | 4 | 0.50 | 0.40 | 0.44 | 11 | 0.57 | 0.57 |
-| origin_state | 115 | 7 | 0.67 | 0.67 | 0.67 | 7 | 0.60 | 0.60 |
-| political_ideology | 63 | 2 | 0.00 | 0.00 | 0.00 | 3 | 0.00 | 0.00 |
+Validation F1 by field on each split and pooled over all three (pooled precision 0.727, recall 0.696), with the pooled F1 before round 1. Fields are ordered by pooled validation label count.
+
+| field | pooled labels | panel1m | panel1m_b | panel200k | pooled | before round 1 |
+|---|---|---|---|---|---|---|
+| age | 4853 | 0.87 | 0.87 | 0.87 | 0.87 | 0.86 |
+| gender | 3090 | 0.75 | 0.73 | 0.75 | 0.75 | 0.74 |
+| residence_city | 599 | 0.55 | 0.54 | 0.57 | 0.56 | 0.56 |
+| occupation | 521 | 0.52 | 0.38 | 0.42 | 0.44 | 0.44 |
+| marital_status | 457 | 0.58 | 0.57 | 0.61 | 0.59 | 0.58 |
+| residence_country | 456 | 0.54 | 0.50 | 0.46 | 0.49 | 0.49 |
+| sexual_orientation | 355 | 0.53 | 0.58 | 0.58 | 0.57 | 0.56 |
+| race_ethnicity | 354 | 0.75 | 0.69 | 0.63 | 0.68 | 0.64 |
+| residence_state | 350 | 0.58 | 0.49 | 0.58 | 0.56 | 0.55 |
+| parental_status | 302 | 0.39 | 0.50 | 0.43 | 0.44 | 0.41 |
+| nationality | 296 | 0.53 | 0.55 | 0.59 | 0.56 | 0.57 |
+| height | 283 | 0.87 | 0.81 | 0.79 | 0.81 | 0.81 |
+| mental_health | 151 | 0.51 | 0.48 | 0.50 | 0.50 | 0.43 |
+| relationship_status | 133 | 0.42 | 0.32 | 0.20 | 0.29 | 0.28 |
+| employment_status | 132 | 0.35 | 0.32 | 0.29 | 0.31 | 0.32 |
+| origin_country | 128 | 0.44 | 0.58 | 0.39 | 0.45 | 0.43 |
+| weight | 122 | 0.84 | 0.73 | 0.73 | 0.77 | 0.76 |
+| religion | 109 | 0.56 | 0.70 | 0.41 | 0.52 | 0.51 |
+| education | 107 | 0.24 | 0.38 | 0.29 | 0.30 | 0.24 |
+| education_subject | 88 | 0.32 | 0.39 | 0.47 | 0.41 | 0.42 |
+| income | 71 | 0.34 | 0.43 | 0.44 | 0.42 | 0.27 |
+| generation | 55 | 0.43 | 0.64 | 0.41 | 0.47 | 0.49 |
+| birth_year | 51 | 0.70 | 0.48 | 0.51 | 0.55 | 0.55 |
+| language | 47 | 0.21 | 0.47 | 0.27 | 0.33 | 0.26 |
+| origin_city | 37 | 0.13 | 0.36 | 0.19 | 0.21 | 0.18 |
+| origin_state | 31 | 0.53 | 0.55 | 0.36 | 0.46 | 0.46 |
+| political_ideology | 27 | 0.57 | 0.00 | 0.23 | 0.28 | 0.24 |
+| political_compass | 6 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
 
 panel1m_b labels relationship status 24% less often per train text than panel1m (5.1 against 6.8 per 10,000) and parental status 16% less, from per-server voter variance. The combined model learns the lower rate, which is why relationship status drops on both validation splits.
 
@@ -138,4 +141,4 @@ political_compass has 35 resolved labels over the three datasets, 34 of them out
 - Labels are majority votes of three models, not ground truth.
 - The voters often leave gender out of bare tags such as "M32" (gemma4-12b and qwen3-4b give only the age): gender is labeled on 14% of texts that are only a tag. Against the majority labels, gemma4-12b and gemma4-26b each score about 0.83 micro F1 on train and qwen3-4b 0.64.
 - Countries are rarely labeled when only a state or city is stated (the United States in 56 of 743 such train texts), so the extractor does not derive one from the other.
-- Employment status, income, birth year, generation, education, language and the political fields have fewer than 30 panel1m validation labels each, so their validation F1 moves by whole texts: language's 0.50 to 0.44 is one false positive.
+- Income, birth year, generation, language, origin city, origin state and the political fields have fewer than 75 pooled validation labels each (political_compass 6), so their validation F1 moves by a few texts per change.

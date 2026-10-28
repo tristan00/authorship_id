@@ -9,6 +9,7 @@ from .config import NUMERIC, WEIGHTS
 from .normalize import COUNTRIES, COUNTRY_ALIASES, DEMONYMS, LANGUAGE_ALIASES, LANGUAGES, LOOKUP, REGIONS, STATE_NAMES, STATES, country, number, state, value
 
 CITIES = json.loads(Path(__file__).with_name("cities.json").read_text(encoding="utf-8"))
+VALUES = json.loads(Path(__file__).with_name("values.json").read_text(encoding="utf-8"))
 
 I = r"(?:i'm|i’m|im|i am)"
 A = r"(?:an? )?"
@@ -28,7 +29,8 @@ AMOUNT = (r"(?:\$\s?\d[\d,]*(?:\.\d+)?\s?(?:k|m|mil|million)?|\d[\d,]*(?:\.\d+)?
 PERIOD = (r"(?:\s*(?:a|an|per|/|every)\s*(?:year|yr|annum|month|mo|hour|hr|week|wk)\b|\s*(?:annually|yearly|monthly|hourly|weekly|/h)\b"
           r"|\s+(?:tc|base|salary|gross|pre[- ]tax|before tax|after tax|take home|ote)\b)?")
 ROUGHLY = r"(?:about |around |roughly |like |over |under |almost |nearly |~|just |only |a little over |close to |approximately |a bit over |upwards of )?"
-NOT_SAVINGS = r"(?! (?:together|combined|between us|in (?:savings|debt|loans?)))"
+INCOME_ANY = re.compile(rf"(?<![\w.,])({AMOUNT}{PERIOD})")
+NOT_SAVINGS =r"(?! (?:together|combined|between us|in (?:savings|debt|loans?)))"
 DEGREES = r"(?:bachelor'?s|bachelors|bachelor|master'?s|masters|master|phd|ph\.d\.?|doctorate|associate'?s|associates|bsc|msc|mba|ba|bs|ma|ms|jd|md|bcom|beng|meng|mph|msw|edd|pharmd|dvm)"
 SUBJECT_END = r"(?=$|[.,!?;:)\]/]| at | from | and | but | so | with | because | which | where | in \d| in the | i | while | before | after | for | to )"
 NOT_DEMONYM = r"(?!(?:french|german|spanish|japanese|chinese|korean|italian|international|exchange|foreign|indian|asian)\b)"
@@ -56,22 +58,29 @@ AGE_GENDER = re.compile(r"(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bthe )(?
 GENDER_AGE = re.compile(r"(?<!\ba )(?<!\bthe )(?<!\bthis )(?<!\bhey )(?<!\bmy )\b(male|female|guy|girl|man|woman|dude|lady),?\s*(\d{2})\b(?!\s*(?:%|years? ago)|[a-z])")
 GENDER_BRACKET = re.compile(r"(?:^|(?<=[\s\d]))[\(\[]\s*([mf])\s*[\)\],]")
 TOKEN = re.compile(r"[a-z0-9][a-z0-9'’-]*|[^\sa-z0-9]")
-NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?![\w.,:/%-]|\s*%)")
+NUMBER = re.compile(r"(?<![\w.,$/:#-])(\d{2})(?:\s?(?:yo|y/o|y\.o|yrs?|years?))?(?![\w:/%-]|[.,]\d|\s*%)")
+BARE_NUMBER = re.compile(r"^\W*(\d{1,3})\W*$")
+TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
+UNITS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
+TEENS = {"thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19}
+WORD_NUMBER = re.compile(rf"\b(?:({'|'.join(TENS)})(?:[- ]({'|'.join(UNITS)}))?|({'|'.join(TEENS)}))\b")
 MATCHES = 3
-BROAD = ("vocab", "number", "from_city", "from_state", "from_nationality")
+BROAD = ("vocab", "number", "from_city", "from_state", "from_nationality", "amount")
 SELF = {"i", "i'm", "i’m", "im", "me", "my", "myself"}
 VOCAB_MATCHES = 4
 VOCAB_FIELDS = ("race_ethnicity", "sexual_orientation", "religion", "marital_status", "relationship_status", "mental_health", "political_ideology",
                 "generation", "employment_status")
 GENDER_WORDS = {"male", "female", "man", "woman", "guy", "girl", "dude", "lady", "boy", "gal", "mom", "dad", "wife", "husband", "mother", "father",
-                "non-binary", "nonbinary", "enby", "trans woman", "trans man", "femboy", "milf"}
+                "non-binary", "nonbinary", "enby", "trans woman", "trans man", "femboy", "milf", "bloke", "lad", "girlie", "girly", "wifey", "hubby",
+                "mtf", "ftm", "transgirl", "transguy", "trans girl", "trans guy"}
 PARENT_WORDS = {f"{owner} {child}" for owner in ("my", "our") for child in ("son", "daughter", "kids", "kid", "children", "child", "baby", "toddler", "boys", "girls",
-                                                                  "newborn", "stepson", "stepdaughter", "sons", "daughters", "twins", "grandkids")} | {"pregnant"}
+                                                                  "newborn", "stepson", "stepdaughter", "sons", "daughters", "twins", "grandkids",
+                                                                  "son's", "daughter's", "kid's", "kids'", "baby's", "children's")} | {"pregnant"}
 SUBJECT_WORDS = {"computer science", "engineering", "psychology", "biology", "chemistry", "physics", "mathematics", "math", "nursing", "medicine", "business",
                  "accounting", "finance", "marketing", "economics", "sociology", "political science", "history", "law", "education", "english", "philosophy",
                  "art", "music", "film", "journalism", "architecture", "statistics", "neuroscience", "biochemistry", "linguistics", "anthropology"}
 BARE_TAG = re.compile(r"^\W*(?:[mf]\s*\d{2}|\d{2}\s*[mf])\W*$")
-TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr]\w*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
+TAG_FOR = re.compile(r"(?:^|[\s\[\(])(\d{2})?\s*[\[\(]?\s*([mf])\s*4\s*[mfatr][a-z]*(?:\s*[\]\)]?\s*[-–|:]?\s*(\d{2})\b)?", re.M)
 
 JOBS = json.loads(Path(__file__).with_name("jobs.json").read_text(encoding="utf-8"))
 JOB_TITLES = "(?:" + "|".join(re.escape(title) for title in sorted(JOBS, key=len, reverse=True)) + ")"
@@ -107,7 +116,8 @@ PHRASES = {
             r"\b(?:mam|imam|tengo|ho|har|heb|jestem|sam|tenho|j.ai|bin) (\d{2})\s*(?:lat|godin|años|anos|anni|år|jaar|ans|jahre|tuổi)",
             r"\b(?:age|aged)\s*[:\-]?\s*(\d{2})\b(?!\s*[-–+]|\s*(?:to|and|or|through|plus)\b)(?=\s*(?:$|[,.!)]|\s*[mf]\b|\s+(?:here|and|looking|woke|male|female|guy|girl|man|woman)))",
             r"\b(\d{2})\s?(?:yo|y/o|y\.o\.?)\s+(?:male|female|guy|girl|man|woman|dude|lady|m|f)\b", r"(?:^|[.!,;] )me (\d{2})\b",
-            r"(?:^|[\s(\[])(\d{2})\s*(?:top|bottom|vers|hung|bwc|bbc|sub|dom|twink|daddy)\b"),
+            r"(?:^|[\s(\[])(\d{2})\s*(?:top|bottom|vers|hung|bwc|bbc|sub|dom|twink|daddy)\b", r"\b(\d{2})(?:st|nd|rd|th) birthday\b",
+            r"\bat (\d{2}) now\b|\bnow at (\d{2})\b|\bat the age of (\d{2})\b"),
     "birth_year": (r"(?:\bi(?:'m| am|’m|m)? (?:was )?|\(|^)born (?:in |on )?(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?((?:19|20)\d\d|'?[4-9]\d)\b",
                    rf"\b{I} (?:a |an )?((?:19|20)\d\d)\b(?! (?:model|edition|version|car|truck))", r"(?:^|[.!,;(] *)((?:19|20)\d\d) (?:baby|babies|kid|here)\b",
                    r"(?:\bbeing |, |[.!;] )born (?:in |on )?(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?((?:19|20)\d\d|'?[4-9]\d)\b",
@@ -230,7 +240,9 @@ PHRASES = {
                         rf"\b{I} (?:currently )?(pregnant)\b",
                         r"\b(?:married|single|divorced|horny|lonely|bi|bi-curious|bicurious|straight|white|black|fit|hot|busy|working|hung|naughty|curious|bored|fun|young|older|chubby|dilf|hairy|daddy|discreet|local) (dad|mom|mum|father|mother)\b(?! (?:of (?:a |my )?friend|'s|’s|jokes?|bod|body|vibes?|energy|friend))",
                         r"(?:^|[\s\]\)])(dad|mom|mum) (?:looking|seeking|wanting|needs|needing|here|of \d|of two|of three|with)\b",
-                        r"\b(?:i|we) (?:have|got|had) (?:a |an |one |two |three |four |five |\d+ )?(?:(?:little|young|grown|adult|teenage|beautiful|amazing|wonderful|new|newborn|\d{1,2}[- ]?(?:yo|year[- ]old|month[- ]old|yr[- ]old)) )*(kids?|children|sons?|daughters?|toddlers?|babies|baby|twins|newborn|teenagers?|boys|girls)\b(?! (?:friend|in (?:my|the) class|at school))"),
+                        r"\b(?:i|we) (?:have|got|had) (?:a |an |one |two |three |four |five |\d+ )?(?:(?:little|young|grown|adult|teenage|beautiful|amazing|wonderful|new|newborn|\d{1,2}[- ]?(?:yo|year[- ]old|month[- ]old|yr[- ]old)) )*(kids?|children|sons?|daughters?|toddlers?|babies|baby|twins|newborn|teenagers?|boys|girls)\b(?! (?:friend|in (?:my|the) class|at school))",
+                        r"(?:^|[\s,.(])(?:one|two|three|four|five|\d) (kids|children|sons|daughters)\b",
+                        r"\b(?:my|our|i have an?|we have an?) (?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)[- ](?:year|yr|month|week)s?[- ](old)\b"),
     "mental_health": (rf"\bi (?:also |do |still |actually |definitely |both )?(?:have|suffer from|struggle with|live with|deal with|am dealing with|'m dealing with|’m dealing with) {SEVERITY}({CONDITIONS})\b",
                       rf"\bi(?:'ve|’ve| have| was| got| am|'m|’m)? (?:been )?(?:officially |formally |recently |finally |also )?diagnosed (?:with |as )?(?:having )?{SEVERITY}({CONDITIONS})\b",
                       rf"\b{I} (?:an? )?(?:[a-z]+ ){{1,3}}with (?:my |unmedicated |severe |diagnosed )?({CONDITIONS})\b",
@@ -247,7 +259,7 @@ FILLER = {"online", "north", "south", "east", "west", "ne", "nw", "se", "sw", "c
 CITY_FIRST = {"delhi", "auckland", "berlin", "mexico city", "hamburg", "metro manila", "rio de janeiro", "sao paulo", "new york"}
 PLACE_FIELDS = {"residence_country": ("residence_country", "residence_state", "residence_city"),
                 "origin_country": ("origin_country", "origin_state", "origin_city")}
-SKIP = re.compile(r"^\s*>.*$|\"[^\"\n]{6,300}\"|“[^”\n]{6,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
+SKIP = re.compile(r"^\s*>.*$|(?<![\d'’])\"[^\"\n]{6,300}\"|“[^”\n]{6,300}”|https?://\S+|\(/?r/\S+\)|\b/?[ru]/\S+", re.M)
 WORD_CODES = {"on", "in", "me", "hi", "ma", "or", "ok", "oh", "de", "la", "co", "id", "al", "ne", "mo", "ms", "ar", "ab", "ns", "nb", "sk", "mb"}
 SHORT_PLACES = {"uk", "nz", *(code for code in STATES if len(code) == 2 and code not in WORD_CODES)}
 REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
@@ -255,7 +267,11 @@ HYPOTHETICAL = re.compile(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|
 DIAGNOSES = {"add": "adhd", "asd": "autism", "an eating disorder": "eating disorder", "an alcoholic": "addiction", "an addict": "addiction", "cptsd": "ptsd",
              "c-ptsd": "ptsd", "autistic": "autism", "schizophrenic": "schizophrenia", "bipolar": "bipolar disorder"}
 MARRIED = {"husband": "married", "wife": "married", "hubby": "married", "spouse": "married", "a widow": "widowed", "a widower": "widowed"}
-CHILDREN = {"pregnant": "expecting"}
+CHILDREN = {"pregnant": "expecting", **dict.fromkeys(("no kids", "no children", "childfree", "child free", "child-free", "childless", "not a parent",
+                                                      "don't have kids", "dont have kids", "do not have kids", "don't have children",
+                                                      "do not have children"), "no children")}
+PARTNERS = {"my gf": "in a relationship", "my bf": "in a relationship", "my girlfriend": "in a relationship", "my boyfriend": "in a relationship",
+            "my partner": "in a relationship", "my fiance": "engaged", "my fiancé": "engaged", "my fiancee": "engaged", "my fiancée": "engaged"}
 EMPLOYMENT = {"a full-time student": "student", "a full time student": "student", "a college student": "student",
               "a university student": "student", "a student": "student", "a freelancer": "self-employed", "freelance": "self-employed",
               "self employed": "self-employed", "jobless": "unemployed", "between jobs": "unemployed", "laid off": "unemployed",
@@ -275,7 +291,9 @@ BELIEFS = {"christ": "christian", "christin": "christian", "muslimin": "muslim",
 GENDERED = {"mom": "female", "mother": "female", "mum": "female", "wife": "female", "dad": "male", "father": "male", "husband": "male", "milf": "female",
             "femboy": "male", "chica": "female", "chico": "male", "homem": "male", "mulher": "female", "homme": "male", "femme": "female", "mann": "male",
             "transmasc": "male", "transfem": "female", "trans masc": "male", "trans fem": "female", "a transman": "male", "a transwoman": "female",
-            "ragazzo": "male", "ragazza": "female", "garota": "female", "garoto": "male", "menina": "female", "menino": "male"}
+            "ragazzo": "male", "ragazza": "female", "garota": "female", "garoto": "male", "menina": "female", "menino": "male",
+            "bloke": "male", "lad": "male", "girlie": "female", "girly": "female", "wifey": "female", "hubby": "male", "transgirl": "female",
+            "transguy": "male", "trans girl": "female", "trans guy": "male"}
 
 
 def resolve(field, raw):
@@ -287,6 +305,8 @@ def resolve(field, raw):
         return MARRIED.get(raw) or value(field, raw)
     if field == "parental_status":
         return CHILDREN.get(raw, "parent")
+    if field == "relationship_status":
+        return PARTNERS.get(raw) or value(field, raw)
     if field == "employment_status":
         return EMPLOYMENT.get(raw.replace("self-employed", "self employed"), None) or value(field, raw)
     if field == "weight":
@@ -361,9 +381,12 @@ def tags(text):
         yield "gender", value("gender", match.group(2)), "tag_for_age" if age else "tag_for", match.span(), ""
         if age:
             yield "age", value("age", age), "tag_for_age", match.span(), ""
-    for name, pattern in (("age_start", AGE_START), ("age_bracket", AGE_BRACKET), ("number", NUMBER)):
+    for name, pattern in (("age_start", AGE_START), ("age_bracket", AGE_BRACKET), ("number", NUMBER), ("age_bare", BARE_NUMBER)):
         for match in islice(pattern.finditer(text), MATCHES):
             yield "age", value("age", match.group(1)), name, match.span(), ""
+    for match in islice(WORD_NUMBER.finditer(text), MATCHES):
+        tens, unit, teen = match.groups()
+        yield "age", value("age", str(TEENS[teen] if teen else TENS[tens] + UNITS.get(unit, 0))), "age_word", match.span(), ""
 
 
 def stats(text):
@@ -371,6 +394,8 @@ def stats(text):
                                        ("weight", "weight_any", WEIGHT_ANY, OTHER)):
         for match in islice(pattern.finditer(text), MATCHES):
             yield field, value(field, match.group(1)), name, match.span(), "people" if near.search(text[max(0, match.start() - 25):match.start()]) else ""
+    for match in islice(INCOME_ANY.finditer(text), MATCHES):
+        yield "income", earnings(match.group(1).strip()), "amount", match.span(), ""
 
 
 def phrases(text):
@@ -392,13 +417,18 @@ def vocabulary():
     words = {"residence_country": {*COUNTRIES, *COUNTRY_ALIASES}, "origin_country": {*COUNTRIES, *COUNTRY_ALIASES},
              "nationality": {*DEMONYMS, *COUNTRIES, *COUNTRY_ALIASES}, "language": {*LANGUAGES, *LANGUAGE_ALIASES},
              "residence_state": {*STATE_NAMES, *STATES}, "residence_city": CITIES, "gender": GENDER_WORDS,
-             "parental_status": PARENT_WORDS, "occupation": set(JOBS),
+             "parental_status": PARENT_WORDS | set(CHILDREN) | {"mom", "mum", "dad", "mother", "father", "mommy", "parent"}, "occupation": set(JOBS),
              "education": set(LOOKUP["education"]), "education_subject": SUBJECT_WORDS, **{field: set(LOOKUP[field]) for field in VOCAB_FIELDS}}
+    words["relationship_status"] |= set(PARTNERS)
     table = defaultdict(list)
     for field, entries in words.items():
         for word in sorted(entries):
             if (len(word) > 2 or word in SHORT_PLACES) and (result := resolve(field, word) or (field in PLACE_FIELDS and country(word)) or (field == "residence_state" and state(word))):
                 table[tuple(TOKEN.findall(word))].append((field, result))
+    for field, entries in VALUES.items():
+        for word in entries:
+            if (field, word) not in (found := table[tuple(TOKEN.findall(word))]):
+                found.append((field, word))
     return table, max(map(len, table))
 
 
