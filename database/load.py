@@ -17,7 +17,7 @@ from .config import PARSERS
 KINDS = {"comment": ("comments", "RC"), "post": ("submissions", "RS")}
 COLUMNS = ["created_utc", "is_submitter", "over_18", "is_self", "record_id", "subreddit", "record_type", "author", "author_fullname", "link_id", "parent_id",
            "author_flair_text", "link_flair_text", "post_hint", "crosspost_parent", "text_status", "text_sha256"]
-BODY = ["text_sha256", "text", "words"]
+BODY = ["text_sha256", "text", "words", "month"]
 UNAVAILABLE = {"[deleted]", "[removed]", "[ Removed by Reddit ]", "[ Removed by moderator ]", "[ Removed by Reddit on account of violating the [content policy](/help/contentpolicy). ]"}
 
 
@@ -62,7 +62,7 @@ def read_dump(kind, path, chunks):
     LOG.info("%s read %.1f GB in %.0fs", path.name, sent / 1e9, time.perf_counter() - started)
 
 
-def parse_chunks(chunks):
+def parse_chunks(chunks, month, total):
     setup_logging(LOGS / "database.log")
     rows = 0
     with psycopg.connect(DSN) as meta, psycopg.connect(DSN) as body, meta.cursor().copy(f"COPY records ({', '.join(COLUMNS)}) FROM STDIN") as records, \
@@ -74,9 +74,12 @@ def parse_chunks(chunks):
                     raw = orjson.loads(line)
                     record = to_record(raw, kind) | reddit_fields(raw, kind)
                     record["subreddit"] = raw["subreddit"].lower()
+                    record["month"] = month
                     records.write_row([record[c] for c in COLUMNS])
                     stage.write_row([record[c] for c in BODY])
                     rows += 1
+    with total.get_lock():
+        total.value += rows
     LOG.info("parser copied %s rows", rows)
 
 
@@ -92,22 +95,28 @@ def dumps(month):
 
 @timed
 def add(months):
-    from .server import bodies, finish, indexes, schema
+    from .server import STAGE, bodies, drop_indexes, finish, indexes, schema
     with psycopg.connect(DSN) as conn:
         schema(conn)
-    for month in months:
-        load_month(month)
+        conn.execute(STAGE)
+        conn.execute("DELETE FROM months WHERE month = ANY(%s)", [months])
+        drop_indexes(conn)
+    loaded = {month: load_month(month) for month in months}
     bodies()
     indexes()
     finish()
+    with psycopg.connect(DSN) as conn:
+        for month, rows in loaded.items():
+            conn.execute("INSERT INTO months (month, records) VALUES (%s, %s)", [month, rows])
 
 
 @timed
 def load_month(month):
     files = dumps(month)
     chunks = multiprocessing.Queue(maxsize=4 * PARSERS)
+    total = multiprocessing.Value("q", 0)
     readers = [multiprocessing.Process(target=read_dump, args=(kind, path, chunks), name=f"read-{kind}", daemon=True) for kind, path in files.items()]
-    parsers = [multiprocessing.Process(target=parse_chunks, args=(chunks,), name=f"parse-{index}", daemon=True) for index in range(PARSERS)]
+    parsers = [multiprocessing.Process(target=parse_chunks, args=(chunks, month, total), name=f"parse-{index}", daemon=True) for index in range(PARSERS)]
     processes = readers + parsers
     try:
         with psycopg.connect(DSN) as conn:
@@ -118,8 +127,6 @@ def load_month(month):
         for _ in parsers:
             chunks.put(None)
         watch(parsers, processes)
-        with psycopg.connect(DSN) as conn:
-            conn.execute("INSERT INTO months (month) VALUES (%s) ON CONFLICT (month) DO UPDATE SET loaded_at = now()", [month])
     finally:
         for process in processes:
             if process.is_alive():
@@ -129,6 +136,8 @@ def load_month(month):
                 process.close()
         chunks.close()
         chunks.join_thread()
+    LOG.info("%s loaded %s records", month, total.value)
+    return total.value
 
 
 def watch(waiting, processes):
@@ -139,6 +148,16 @@ def watch(waiting, processes):
         if not any(process.is_alive() for process in waiting):
             return
         time.sleep(1)
+
+
+@timed
+def verify(month):
+    with psycopg.connect(DSN) as conn:
+        expected = conn.execute("SELECT records FROM months WHERE month = %s", [month]).fetchone()[0]
+        found = conn.execute("SELECT count(*) FROM records WHERE created_utc >= %s AND created_utc < %s", bounds(month)).fetchone()[0]
+    if found != expected:
+        raise ValueError(f"{month} has {found} records, its load copied {expected}")
+    LOG.info("%s verified %s records", month, found)
 
 
 @timed

@@ -86,7 +86,10 @@ def consolidate():
     run_id = str(uuid.uuid4())
     with psycopg.connect(DSN) as conn:
         started = conn.execute("SELECT now()").fetchone()[0]
-        months = [month for month, in conn.execute("SELECT month FROM months ORDER BY 1")]
+        loaded = conn.execute("SELECT month, extracted_at FROM months ORDER BY month").fetchall()
+        if unextracted := [month for month, extracted in loaded if extracted is None]:
+            raise ValueError(f"months {unextracted} have no claim extraction yet")
+        months = [month for month, _ in loaded]
         conn.execute(SCHEMA)
         conn.commit()
         evidence(conn)

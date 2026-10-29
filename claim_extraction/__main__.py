@@ -16,7 +16,6 @@ def main():
     parser.add_argument("--splits", nargs="+", choices=("train", "validation", "test"))
     parser.add_argument("--start", type=Path)
     parser.add_argument("--workers", type=int, default=EXTRACT_WORKERS)
-    parser.add_argument("--pages", type=int, nargs=2)
     parser.add_argument("--reset", action="store_true")
     args = parser.parse_args()
     if args.command == "fit" and args.start is None:
@@ -40,7 +39,7 @@ def main():
             evaluate(args.month, dataset, args.split)
     else:
         from .run import run
-        run(args.workers, args.pages, args.reset)
+        run(args.workers, args.reset)
 
 
 if __name__ == "__main__":

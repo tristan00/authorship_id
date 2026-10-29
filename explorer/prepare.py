@@ -84,7 +84,7 @@ def totals(conn):
         CREATE TABLE explorer_totals AS
         SELECT (SELECT count(*) FROM explorer_authors) AS authors, (SELECT count(*) FROM explorer_texts) AS texts,
                (SELECT count(*) FROM explorer_texts WHERE record_type = 'post') AS posts, count(*) AS subreddits, sum(texts) AS records,
-               min(first_utc) AS first_utc, max(last_utc) AS last_utc
+               min(first_utc) AS first_utc, max(last_utc) AS last_utc, (SELECT run_id FROM consolidation) AS run_id
         FROM explorer_subreddits""")
 
 

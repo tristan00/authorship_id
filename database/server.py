@@ -29,32 +29,37 @@ CREATE TABLE IF NOT EXISTS records (
     text_status text NOT NULL,
     text_sha256 bytea NOT NULL
 ) WITH (autovacuum_enabled = false);
+CREATE INDEX IF NOT EXISTS records_created ON records USING brin (created_utc);
 CREATE TABLE IF NOT EXISTS bodies (
     text_sha256 bytea PRIMARY KEY,
     text text NOT NULL,
-    words integer NOT NULL
+    words integer NOT NULL,
+    month text NOT NULL
 ) WITH (autovacuum_enabled = false);
-CREATE UNLOGGED TABLE IF NOT EXISTS bodies_stage (
-    text_sha256 bytea NOT NULL,
-    text text NOT NULL,
-    words integer NOT NULL
-);
 CREATE TABLE IF NOT EXISTS months (
     month text PRIMARY KEY,
-    loaded_at timestamptz NOT NULL DEFAULT now()
+    records bigint NOT NULL,
+    loaded_at timestamptz NOT NULL DEFAULT now(),
+    extracted_at timestamptz
 );
 """
-INDEXES = ("ALTER TABLE records ADD PRIMARY KEY (record_id)", "CREATE INDEX records_subreddit ON records (subreddit, created_utc)",
-           "CREATE INDEX records_author ON records (author, created_utc) INCLUDE (record_type, record_id)", "CREATE INDEX records_link ON records (link_id)")
+STAGE = """
+DROP TABLE IF EXISTS bodies_stage;
+CREATE UNLOGGED TABLE bodies_stage (text_sha256 bytea NOT NULL, text text NOT NULL, words integer NOT NULL, month text NOT NULL);
+"""
+INDEXES = {"records_pkey": "ALTER TABLE records ADD PRIMARY KEY (record_id)", "records_subreddit": "CREATE INDEX records_subreddit ON records (subreddit, created_utc)",
+           "records_author": "CREATE INDEX records_author ON records (author, created_utc) INCLUDE (record_type, record_id)",
+           "records_link": "CREATE INDEX records_link ON records (link_id)"}
 MERGE = """
 CREATE TABLE bodies_next WITH (autovacuum_enabled = false) AS
-SELECT DISTINCT ON (text_sha256) text_sha256, text, words FROM (SELECT * FROM bodies UNION ALL SELECT * FROM bodies_stage) merged ORDER BY text_sha256
+SELECT DISTINCT ON (text_sha256) text_sha256, text, words, month
+FROM (SELECT *, false AS staged FROM bodies UNION ALL SELECT *, true FROM bodies_stage) merged ORDER BY text_sha256, staged, month
 """
 SWAP = """
 DROP TABLE bodies;
 ALTER TABLE bodies_next RENAME TO bodies;
 ALTER INDEX bodies_next_pkey RENAME TO bodies_pkey;
-TRUNCATE bodies_stage;
+DROP TABLE bodies_stage;
 """
 
 
@@ -87,14 +92,24 @@ def bodies():
     LOG.info("bodies rows=%s", rows)
 
 
+def existing(conn):
+    return {name for name, in conn.execute("SELECT relname FROM pg_class WHERE oid IN (SELECT indexrelid FROM pg_index WHERE indrelid = 'records'::regclass)")}
+
+
+@timed
+def drop_indexes(conn):
+    conn.execute("SET lock_timeout = '10s'")
+    conn.execute("ALTER TABLE records DROP CONSTRAINT IF EXISTS records_pkey")
+    for name in INDEXES.keys() & existing(conn):
+        conn.execute(f"DROP INDEX {name}")
+
+
 @timed
 def indexes():
     with psycopg.connect(DSN) as conn:
-        existing = conn.execute("SELECT count(*) FROM pg_index WHERE indrelid = 'records'::regclass").fetchone()[0]
-    if existing:
-        return
+        built = existing(conn)
     with ThreadPoolExecutor(INDEX_BUILDS) as pool:
-        list(pool.map(build_index, INDEXES))
+        list(pool.map(build_index, [statement for name, statement in INDEXES.items() if name not in built]))
 
 
 @timed
