@@ -1,6 +1,6 @@
 import psycopg
 
-from database import DSN, NOT_PEOPLE
+from database import DSN, INDEX_MEMORY, NO_AUTHOR, vacuum
 
 from . import timed
 from .config import TEXT_SORTS
@@ -10,12 +10,11 @@ from .config import TEXT_SORTS
 def activity(conn):
     conn.execute("DROP TABLE IF EXISTS explorer_activity")
     conn.execute("""
-        CREATE UNLOGGED TABLE explorer_activity AS
+        CREATE TABLE explorer_activity AS
         SELECT author, subreddit, count(*) AS texts, count(*) FILTER (WHERE record_type = 'post') AS posts,
-               min(created_utc) AS first_utc, max(created_utc) AS last_utc
-        FROM texts GROUP BY author, subreddit""")
-    conn.execute("ALTER TABLE explorer_activity ADD COLUMN person boolean")
-    conn.execute("UPDATE explorer_activity SET person = author !~* %s", [NOT_PEOPLE])
+               min(created_utc) AS first_utc, max(created_utc) AS last_utc, author <> ALL(%s) AS named
+        FROM records GROUP BY author, subreddit""", [NO_AUTHOR])
+    conn.execute("CREATE INDEX explorer_activity_subreddit ON explorer_activity (subreddit, texts DESC, author) WHERE named")
 
 
 @timed
@@ -25,8 +24,11 @@ def authors(conn):
         CREATE TABLE explorer_authors AS
         SELECT author, sum(texts)::int AS texts, sum(posts)::int AS posts, min(first_utc) AS first_utc, max(last_utc) AS last_utc,
                array_agg(subreddit ORDER BY texts DESC, subreddit) AS subs
-        FROM explorer_activity WHERE person GROUP BY author""")
+        FROM explorer_activity WHERE named GROUP BY author""")
     conn.execute("ALTER TABLE explorer_authors ADD PRIMARY KEY (author)")
+    conn.execute("CREATE INDEX explorer_authors_texts ON explorer_authors (texts DESC, author)")
+    conn.execute("CREATE INDEX explorer_authors_name ON explorer_authors USING gin (author gin_trgm_ops)")
+    conn.execute("CREATE INDEX explorer_authors_subs ON explorer_authors USING gin (subs)")
 
 
 @timed
@@ -34,7 +36,7 @@ def subreddits(conn):
     conn.execute("DROP TABLE IF EXISTS explorer_subreddits")
     conn.execute("""
         CREATE TABLE explorer_subreddits AS
-        SELECT subreddit, sum(texts)::int AS texts, sum(posts)::int AS posts, count(*) FILTER (WHERE person)::int AS authors,
+        SELECT subreddit, sum(texts)::int AS texts, sum(posts)::int AS posts, count(*) FILTER (WHERE named)::int AS authors,
                min(first_utc) AS first_utc, max(last_utc) AS last_utc
         FROM explorer_activity GROUP BY subreddit""")
     conn.execute("ALTER TABLE explorer_subreddits ADD PRIMARY KEY (subreddit)")
@@ -58,9 +60,8 @@ def texts(conn):
             SELECT record_id, count(*)::int AS claims, count(*) FILTER (WHERE incohesive)::int AS incohesive,
                    count(*) FILTER (WHERE outvoted)::int AS outvoted
             FROM flagged GROUP BY record_id)
-        SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, regexp_count(t.text, '\\S+') AS words,
-               c.claims, c.incohesive, c.outvoted
-        FROM counts c JOIN texts t USING (record_id)""")
+        SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, b.words, c.claims, c.incohesive, c.outvoted
+        FROM counts c JOIN records t USING (record_id) JOIN bodies b USING (text_sha256)""")
     conn.execute("ALTER TABLE explorer_texts ADD PRIMARY KEY (record_id)")
     for column in TEXT_SORTS:
         conn.execute(f"CREATE INDEX ON explorer_texts ({column}, record_id)")
@@ -76,9 +77,11 @@ def suspects(conn):
 @timed
 def prepare():
     with psycopg.connect(DSN) as conn:
+        conn.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
+        conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
         activity(conn)
         authors(conn)
         subreddits(conn)
         texts(conn)
         suspects(conn)
-        conn.execute("DROP TABLE explorer_activity")
+    vacuum("explorer_activity", "explorer_authors", "explorer_subreddits", "explorer_texts")

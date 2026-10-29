@@ -10,7 +10,7 @@ from .config import EXTRACT_WORKERS
 def main():
     parser = argparse.ArgumentParser(prog="claim_extraction")
     parser.add_argument("command", choices=("sample", "labels", "fit", "evaluate", "extract"))
-    parser.add_argument("--month", required=True)
+    parser.add_argument("--month")
     parser.add_argument("--datasets", nargs="+")
     parser.add_argument("--split", default="validation")
     parser.add_argument("--splits", nargs="+", choices=("train", "validation", "test"))
@@ -21,8 +21,8 @@ def main():
     args = parser.parse_args()
     if args.command == "fit" and args.start is None:
         parser.error("fit needs --start, the weights file whose cutoffs start the tuning")
-    if args.command != "extract" and not args.datasets:
-        parser.error(f"{args.command} needs --datasets")
+    if args.command != "extract" and not (args.month and args.datasets):
+        parser.error(f"{args.command} needs --month and --datasets")
     setup_logging(LOGS / "claim_extraction.log")
     if args.command == "sample":
         from .sample import sample
@@ -40,7 +40,7 @@ def main():
             evaluate(args.month, dataset, args.split)
     else:
         from .run import run
-        run(args.month, args.workers, args.pages, args.reset)
+        run(args.workers, args.pages, args.reset)
 
 
 if __name__ == "__main__":

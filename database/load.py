@@ -11,12 +11,13 @@ from reddit_dumps import setup_logging
 from reddit_dumps.config import CHUNK_SIZE, SLOTS
 from reddit_dumps.extract import produce
 
-from . import DSN, DUMPS, LOG, LOGS, MONTH, timed
-from .config import PARSERS, SCAN_WORKERS
+from . import DSN, DUMPS, LOG, LOGS, bounds, timed
+from .config import PARSERS
 
 KINDS = {"comment": ("comments", "RC"), "post": ("submissions", "RS")}
-COLUMNS = ["record_id", "subreddit", "record_type", "author", "author_fullname", "created_utc", "link_id", "parent_id", "is_submitter", "author_flair_text",
-           "link_flair_text", "over_18", "is_self", "post_hint", "crosspost_parent", "text_status", "text_sha256", "text"]
+COLUMNS = ["created_utc", "is_submitter", "over_18", "is_self", "record_id", "subreddit", "record_type", "author", "author_fullname", "link_id", "parent_id",
+           "author_flair_text", "link_flair_text", "post_hint", "crosspost_parent", "text_status", "text_sha256"]
+BODY = ["text_sha256", "text", "words"]
 UNAVAILABLE = {"[deleted]", "[removed]", "[ Removed by Reddit ]", "[ Removed by moderator ]", "[ Removed by Reddit on account of violating the [content policy](/help/contentpolicy). ]"}
 
 
@@ -31,7 +32,7 @@ def to_record(raw, kind):
     return {
         "record_id": ("t1_" if kind == "comment" else "t3_") + raw["id"], "record_type": kind, "author": raw.get("author", "[deleted]"),
         "created_utc": raw["created_utc"], "text_status": status,
-        "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(), "text": text,
+        "text_sha256": hashlib.sha256(text.encode("utf-8")).digest(), "text": text, "words": len(text.split()),
     }
 
 
@@ -64,7 +65,8 @@ def read_dump(kind, path, chunks):
 def parse_chunks(chunks):
     setup_logging(LOGS / "database.log")
     rows = 0
-    with psycopg.connect(DSN) as conn, conn.cursor().copy(f"COPY texts ({', '.join(COLUMNS)}) FROM STDIN") as copy:
+    with psycopg.connect(DSN) as meta, psycopg.connect(DSN) as body, meta.cursor().copy(f"COPY records ({', '.join(COLUMNS)}) FROM STDIN") as records, \
+            body.cursor().copy(f"COPY bodies_stage ({', '.join(BODY)}) FROM STDIN") as stage:
         while (item := chunks.get()) is not None:
             kind, data = item
             for line in data.split(b"\n"):
@@ -72,7 +74,8 @@ def parse_chunks(chunks):
                     raw = orjson.loads(line)
                     record = to_record(raw, kind) | reddit_fields(raw, kind)
                     record["subreddit"] = raw["subreddit"].lower()
-                    copy.write_row([record[c] for c in COLUMNS])
+                    records.write_row([record[c] for c in COLUMNS])
+                    stage.write_row([record[c] for c in BODY])
                     rows += 1
     LOG.info("parser copied %s rows", rows)
 
@@ -89,15 +92,14 @@ def dumps(month):
 
 @timed
 def add(months):
-    from .server import indexes, schema
+    from .server import bodies, finish, indexes, schema
     with psycopg.connect(DSN) as conn:
         schema(conn)
     for month in months:
         load_month(month)
+    bodies()
     indexes()
-    with psycopg.connect(DSN) as conn:
-        conn.execute(f"ALTER TABLE texts SET (parallel_workers = {SCAN_WORKERS})")
-        conn.execute("ANALYZE texts")
+    finish()
 
 
 @timed
@@ -141,4 +143,4 @@ def watch(waiting, processes):
 
 @timed
 def clear(conn, month):
-    LOG.info("%s cleared %s texts", month, conn.execute(f"DELETE FROM texts WHERE {MONTH} = %s", [month]).rowcount)
+    LOG.info("%s cleared %s records", month, conn.execute("DELETE FROM records WHERE created_utc >= %s AND created_utc < %s", bounds(month)).rowcount)

@@ -8,7 +8,7 @@ from operator import itemgetter
 import psycopg
 from psycopg.types.json import Jsonb
 
-from database import DSN, LOGS, NOT_PEOPLE, SCAN_WORKERS
+from database import DSN, LOGS, NO_AUTHOR, SCAN_WORKERS, vacuum
 from reddit_dumps import setup_logging
 
 from . import LOG, timed
@@ -33,16 +33,17 @@ CREATE TABLE author_claims (
 );
 """
 EVIDENCE = """
-SELECT t.author, 'text' AS source, c.record_id AS source_key, t.subreddit, c.field, c.value
-FROM text_claims c JOIN texts t USING (record_id) {join} WHERE t.author !~* %(people)s {where}
+SELECT t.author, 'text' AS source, t.record_id AS source_key, t.subreddit, c.field, c.value
+FROM text_claims c JOIN records t USING (text_sha256) {join} WHERE t.author <> ALL(%(no_author)s) {where}
 UNION ALL
 SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, t.subreddit, f.field, f.value
-FROM texts t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text {join} WHERE t.author !~* %(people)s {where}
+FROM records t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text {join} WHERE t.author <> ALL(%(no_author)s) {where}
 """
 CLAIMS = """
 SELECT author, source, subreddit, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author
 """
 PARTS_PER_WORKER = 2
+PARALLEL = (f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}", "SET parallel_setup_cost = 0", "SET parallel_tuple_cost = 0")
 
 
 def work(part, parts):
@@ -69,13 +70,14 @@ def work(part, parts):
 
 @timed
 def evidence(conn):
-    conn.execute(f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}")
-    rows = conn.execute(f"CREATE TABLE claim_evidence AS {EVIDENCE.format(join='', where='')}", {"people": NOT_PEOPLE}).rowcount
+    for setting in PARALLEL:
+        conn.execute(setting)
+    rows = conn.execute(f"CREATE TABLE claim_evidence AS {EVIDENCE.format(join='', where='')}", {"no_author": NO_AUTHOR}).rowcount
     conn.execute("CREATE INDEX claim_evidence_source ON claim_evidence (source_key)")
     conn.execute("CREATE INDEX claim_evidence_author ON claim_evidence (author, field)")
     conn.execute(f"ALTER TABLE claim_evidence SET (parallel_workers = {SCAN_WORKERS})")
-    conn.execute("ANALYZE claim_evidence")
     conn.commit()
+    vacuum("claim_evidence")
     LOG.info("evidence rows=%s", rows)
 
 
@@ -93,5 +95,5 @@ def consolidate():
             attributes = sum(pool.starmap(work, [(part, parts) for part in range(parts)]))
         conn.execute("INSERT INTO consolidation (run_id, months, started_at) VALUES (%s, %s, %s)", [run_id, months, started])
         conn.execute("ALTER TABLE author_claims ADD PRIMARY KEY (author, attribute)")
-        conn.execute("ANALYZE author_claims")
+    vacuum("author_claims")
     LOG.info("consolidated run=%s months=%s attributes=%s", run_id, months, attributes)

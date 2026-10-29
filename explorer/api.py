@@ -1,14 +1,14 @@
 from datetime import datetime, timezone
 
-import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 
-from database import DSN, NOT_PEOPLE
+from database import DSN
 
 from . import timed
-from .config import EXCERPT, PAGE
+from .config import CONNECTIONS, EXCERPT, PAGE
 
-USER_FILTER = "author ILIKE %s AND (%s = '' OR %s = ANY(subs))"
+POOL = ConnectionPool(DSN, kwargs={"row_factory": dict_row}, min_size=CONNECTIONS, max_size=CONNECTIONS, open=False)
 
 
 class NotFound(Exception):
@@ -16,11 +16,17 @@ class NotFound(Exception):
 
 
 def connect():
-    return psycopg.connect(DSN, row_factory=dict_row)
+    return POOL.connection()
 
 
 def like(text):
     return "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def user_filter(query, sub):
+    if sub:
+        return "author ILIKE %s AND subs @> ARRAY[%s]::text[]", [like(query.strip()), sub]
+    return "author ILIKE %s", [like(query.strip())]
 
 
 def excerpt(row):
@@ -46,16 +52,18 @@ def subreddits():
 
 @timed
 def users_page(query, sub, offset):
+    condition, params = user_filter(query, sub)
     with connect() as conn:
         return conn.execute(f"""SELECT author, texts, posts, cardinality(subs) AS subs, first_utc, last_utc FROM explorer_authors
-                                WHERE {USER_FILTER} ORDER BY texts DESC, author LIMIT %s OFFSET %s""", [like(query.strip()), sub, sub, PAGE, offset]).fetchall()
+                                WHERE {condition} ORDER BY texts DESC, author LIMIT %s OFFSET %s""", [*params, PAGE, offset]).fetchall()
 
 
 @timed
 def users(query, sub):
+    condition, params = user_filter(query, sub)
     with connect() as conn:
-        total = conn.execute(f"SELECT count(*) AS n FROM explorer_authors WHERE {USER_FILTER}", [like(query.strip()), sub, sub]).fetchone()["n"]
-    return {"total": total, "users": users_page(query, sub, 0), "subreddits": subreddits()}
+        total = conn.execute(f"SELECT count(*) AS n FROM explorer_authors WHERE {condition}", params).fetchone()["n"]
+    return {"total": total, "users": users_page(query, sub, 0)}
 
 
 def tree(rows, root):
@@ -86,14 +94,14 @@ def title(row):
 @timed
 def text(record_id):
     with connect() as conn:
-        record = conn.execute("SELECT * FROM texts WHERE record_id = %s", [record_id]).fetchone()
+        record = conn.execute("SELECT r.*, b.text FROM records r JOIN bodies b USING (text_sha256) WHERE r.record_id = %s", [record_id]).fetchone()
         if record is None:
             raise NotFound(record_id)
-        thread = conn.execute("SELECT record_id, author, created_utc, parent_id, record_type, text_status, text FROM texts WHERE link_id = %s ORDER BY created_utc",
-                              [record["link_id"]]).fetchall()
+        thread = conn.execute("""SELECT r.record_id, r.author, r.created_utc, r.parent_id, r.record_type, r.text_status, b.text
+                                 FROM records r JOIN bodies b USING (text_sha256) WHERE r.link_id = %s ORDER BY r.created_utc""", [record["link_id"]]).fetchall()
         claims = conn.execute("""SELECT c.field, c.value, c.start_char, c.end_char, s.record_id IS NOT NULL AS suspect
-                                 FROM text_claims c LEFT JOIN suspect_claim_texts s ON s.record_id = c.record_id AND s.attribute = c.field AND s.value = c.value
-                                 WHERE c.record_id = %s ORDER BY c.start_char, c.field""", [record_id]).fetchall()
+                                 FROM text_claims c LEFT JOIN suspect_claim_texts s ON s.record_id = %s AND s.attribute = c.field AND s.value = c.value
+                                 WHERE c.text_sha256 = %s ORDER BY c.start_char, c.field""", [record_id, record["text_sha256"]]).fetchall()
     rows = {r["record_id"]: r for r in thread}
     parent = rows.get(record["parent_id"])
     return {
@@ -140,7 +148,7 @@ def user_vector(author):
 def user_trends(author):
     with connect() as conn:
         rows = conn.execute("""SELECT (created_utc / 3600) * 3600 AS hour, count(*) FILTER (WHERE record_type = 'post') AS posts, count(*) AS texts
-            FROM texts WHERE author = %s GROUP BY 1 ORDER BY 1""", [author]).fetchall()
+            FROM records WHERE author = %s GROUP BY 1 ORDER BY 1""", [author]).fetchall()
     if not rows:
         raise NotFound(author)
     first, last = (rows[i]['hour'] // 86400 * 86400 for i in (0, -1))
@@ -165,7 +173,7 @@ def user_claims(author):
                                           CASE WHEN a.value = c.value THEN 'accepted' ELSE 'outvoted' END AS state, s.record_id IS NOT NULL AS suspect
                                    FROM claim_evidence c
                                    LEFT JOIN author_claims a ON a.author = c.author AND a.attribute = c.field
-                                   LEFT JOIN texts t ON c.source = 'text' AND t.record_id = c.source_key
+                                   LEFT JOIN records t ON c.source = 'text' AND t.record_id = c.source_key
                                    LEFT JOIN suspect_claim_texts s ON c.source = 'text' AND s.record_id = c.source_key AND s.attribute = c.field AND s.value = c.value
                                    WHERE c.author = %s ORDER BY c.field, t.created_utc""", [author]).fetchall()
 
@@ -201,9 +209,9 @@ def user_predictions(author):
 
 FLAGGED_TEXT = "EXISTS (SELECT 1 FROM suspect_claim_texts s WHERE s.record_id = x.record_id)"
 FLAGGED = {"": "TRUE", "yes": FLAGGED_TEXT, "no": f"NOT {FLAGGED_TEXT}"}
-USER_TEXTS = r"""(SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, regexp_count(t.text, '\S+') AS words,
-                         coalesce(e.claims, 0) AS claims, coalesce(e.incohesive, 0) AS incohesive, coalesce(e.outvoted, 0) AS outvoted
-                  FROM texts t LEFT JOIN explorer_texts e USING (record_id) WHERE t.author = %(user)s)"""
+USER_TEXTS = """(SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, b.words,
+                        coalesce(e.claims, 0) AS claims, coalesce(e.incohesive, 0) AS incohesive, coalesce(e.outvoted, 0) AS outvoted
+                 FROM records t JOIN bodies b USING (text_sha256) LEFT JOIN explorer_texts e USING (record_id) WHERE t.author = %(user)s)"""
 
 
 def source(filters):
@@ -262,17 +270,17 @@ def user(author):
 def subreddit_posts(sub, offset):
     with connect() as conn:
         return conn.execute("""
-            SELECT t.record_id, t.author, t.created_utc, t.text_status, left(t.text, 400) AS text,
-                   (SELECT count(*) FROM texts c WHERE c.link_id = t.record_id AND c.record_type = 'comment') AS comments
-            FROM texts t WHERE t.subreddit = %s AND t.record_type = 'post'
+            SELECT t.record_id, t.author, t.created_utc, t.text_status, left(b.text, 400) AS text,
+                   (SELECT count(*) FROM records c WHERE c.link_id = t.record_id AND c.record_type = 'comment') AS comments
+            FROM records t JOIN bodies b USING (text_sha256) WHERE t.subreddit = %s AND t.record_type = 'post'
             ORDER BY t.created_utc DESC, t.record_id LIMIT %s OFFSET %s""", [sub, PAGE, offset]).fetchall()
 
 
 @timed
 def subreddit_authors(sub, offset):
     with connect() as conn:
-        return conn.execute("""SELECT author AS name, count(*) AS texts FROM texts WHERE subreddit = %s AND author !~* %s
-                               GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT %s OFFSET %s""", [sub, NOT_PEOPLE, PAGE, offset]).fetchall()
+        return conn.execute("""SELECT author AS name, texts FROM explorer_activity WHERE subreddit = %s AND named
+                               ORDER BY texts DESC, author LIMIT %s OFFSET %s""", [sub, PAGE, offset]).fetchall()
 
 
 @timed

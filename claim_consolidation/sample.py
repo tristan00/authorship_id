@@ -7,11 +7,11 @@ import psycopg
 
 from claim_extraction.config import ANNOTATIONS
 from claim_extraction.labels import split
-from database import DSN, NOT_PEOPLE, SCAN_WORKERS, bounds
+from database import DSN, NO_AUTHOR, bounds
 
 from . import LOG, timed
 from .config import CLAIM_LINES, SAMPLE_SEED
-from .consolidate import EVIDENCE
+from .consolidate import EVIDENCE, PARALLEL
 
 MONTH = "AND t.created_utc >= %(low)s AND t.created_utc < %(high)s"
 ELIGIBLE = f"SELECT author FROM ({EVIDENCE.format(join='', where=MONTH)}) evidence GROUP BY author HAVING count(*) >= %(least)s"
@@ -27,8 +27,9 @@ def lines(author, claims):
 @timed
 def eligible(conn, month, least):
     low, high = bounds(month)
-    conn.execute(f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}")
-    authors = [author for author, in conn.execute(ELIGIBLE, {"people": NOT_PEOPLE, "low": low, "high": high, "least": least})]
+    for setting in PARALLEL:
+        conn.execute(setting)
+    authors = [author for author, in conn.execute(ELIGIBLE, {"no_author": NO_AUTHOR, "low": low, "high": high, "least": least})]
     LOG.info("eligible authors=%s min_claims=%s", len(authors), least)
     return authors
 
@@ -40,7 +41,7 @@ def claims(conn, authors, month):
         for author in authors:
             copy.write_row((author,))
     found, (low, high) = defaultdict(list), bounds(month)
-    for author, *claim in conn.execute(CLAIMS, {"people": NOT_PEOPLE, "low": low, "high": high}):
+    for author, *claim in conn.execute(CLAIMS, {"no_author": NO_AUTHOR, "low": low, "high": high}):
         found[author].append(claim)
     LOG.info("claims authors=%s claims=%s", len(authors), sum(map(len, found.values())))
     return {author: sorted(found[author]) for author in authors}

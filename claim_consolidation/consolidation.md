@@ -4,7 +4,7 @@ Consolidation turns an author's claim evidence into at most one value per attrib
 
 ## Evidence
 
-An author's evidence is one `(source, subreddit, field, value)` per text claim (`text_claims` joined to `texts`) and one per distinct flair claim, matched on subreddit and flair text (`flair_claims`). `consolidate.EVIDENCE` is the one query for both production and sampling. The sampler writes two files per dataset:
+An author's evidence is one `(source, subreddit, field, value)` per text claim (`text_claims` joined to `records` on the text hash) and one per distinct flair claim, matched on subreddit and flair text (`flair_claims`). Records whose author is exactly one of `database.NO_AUTHOR` ('', '[deleted]', '[removed]') give no evidence. `consolidate.EVIDENCE` is the one query for both production and sampling. The sampler writes two files per dataset:
 
 - `records.jsonl`, the annotator input: per author, lines `r/subreddit source field: value`, shuffled per author and capped at `CLAIM_LINES`;
 - `claims.jsonl`, the same evidence uncapped and sorted: `{"id", "claims": [[source, subreddit, field, value], ...]}`.

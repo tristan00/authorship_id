@@ -179,5 +179,5 @@ class Handler(BaseHTTPRequestHandler):
 @timed
 def serve():
     LOG.info("serving on http://localhost:%d", PORT)
-    with ThreadingHTTPServer(("localhost", PORT), Handler) as server:
+    with api.POOL, ThreadingHTTPServer(("localhost", PORT), Handler) as server:
         server.serve_forever()

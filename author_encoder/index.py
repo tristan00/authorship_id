@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import psycopg
 import torch
 
-from database import DSN, NOT_PEOPLE
+from database import DSN, NO_AUTHOR
 from reddit_dumps import setup_logging
 from . import LOG, clean, timed
 from .config import BATCH_USERS, LUAR, MAX_LENGTH, PREPARE_WORKERS, SOURCE_WORKERS, VECTOR_STORE
@@ -16,13 +16,19 @@ from .lock import index_lock
 from .model import load_model, load_tokenizer
 
 
+UNUSABLE = r"""
+    CREATE UNLOGGED TABLE encoder_unusable AS
+    SELECT text_sha256 FROM bodies
+    WHERE text <> ''
+      AND regexp_replace(normalize(text, NFKC), '^[\s\u001c-\u001f\u0085\u1680\u2028\u2029]*>.*$', '', 'gn') !~ '[^\s\u001c-\u001f\u0085\u1680\u2028\u2029]'
+"""
 SOURCE = r"""
     SELECT author, count(*) AS usable_texts,
            (array_agg(record_id ORDER BY md5('luar-user-vector-64-v1:' || record_id), record_id))[1:64] AS sample_ids
-    FROM texts
-    WHERE author !~* %(not_people)s
+    FROM records r
+    WHERE author <> ALL(%(no_author)s)
       AND text_status IN ('available', 'title_only')
-      AND regexp_replace(normalize(text, NFKC), '^[\s\u001c-\u001f\u0085\u1680\u2028\u2029]*>.*$', '', 'gn') ~ '[^\s\u001c-\u001f\u0085\u1680\u2028\u2029]'
+      AND NOT EXISTS (SELECT 1 FROM encoder_unusable u WHERE u.text_sha256 = r.text_sha256)
     GROUP BY author HAVING count(*) >= 64
     ORDER BY author
 """
@@ -40,17 +46,29 @@ def save_state(conn, state):
 
 
 @timed
+def unusable():
+    with psycopg.connect(DSN, autocommit=True) as database:
+        database.execute(f"SET max_parallel_workers_per_gather={SOURCE_WORKERS}")
+        database.execute("DROP TABLE IF EXISTS encoder_unusable")
+        database.execute(UNUSABLE)
+        database.execute("ALTER TABLE encoder_unusable ADD PRIMARY KEY (text_sha256)")
+        database.execute("ANALYZE encoder_unusable")
+        LOG.info("unusable bodies=%d", database.execute("SELECT count(*) FROM encoder_unusable").fetchone()[0])
+
+
+@timed
 def source(conn, state):
     conn.execute("DELETE FROM users")
     state.update(status="sampling", users=0, encoded=0, updated_at=timestamp())
     save_state(conn, state)
     started = time.perf_counter()
+    unusable()
     with psycopg.connect(DSN) as database:
         database.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         database.execute("SET LOCAL work_mem='256MB'")
         database.execute(f"SET LOCAL max_parallel_workers_per_gather={SOURCE_WORKERS}")
         state["source_snapshot_at"] = str(database.execute("SELECT transaction_timestamp()").fetchone()[0])
-        with database.cursor().copy(f"COPY ({SOURCE}) TO STDOUT", {"not_people": NOT_PEOPLE}) as copy:
+        with database.cursor().copy(f"COPY ({SOURCE}) TO STDOUT", {"no_author": NO_AUTHOR}) as copy:
             copy.set_types(["text", "int8", "text[]"])
             for author, count, ids in copy.rows():
                 if len(ids) != 64 or len(set(ids)) != 64:
@@ -61,6 +79,8 @@ def source(conn, state):
                     state["updated_at"] = timestamp()
                     save_state(conn, state)
                     LOG.info("vector sampling users=%d seconds=%.1f", state["users"], time.perf_counter() - started)
+    with psycopg.connect(DSN, autocommit=True) as database:
+        database.execute("DROP TABLE encoder_unusable")
     state.update(status="encoding", sampling_seconds=time.perf_counter() - started, updated_at=timestamp())
     save_state(conn, state)
 
@@ -76,7 +96,7 @@ def prepare(batch):
     samples = [json.loads(row[1]) for row in batch]
     ids = [record for sample in samples for record in sample]
     with psycopg.connect(DSN) as database:
-        rows = database.execute("SELECT record_id, author, text FROM texts WHERE record_id=ANY(%s)", [ids]).fetchall()
+        rows = database.execute("SELECT r.record_id, r.author, b.text FROM records r JOIN bodies b USING (text_sha256) WHERE r.record_id=ANY(%s)", [ids]).fetchall()
     records = {record: (author, text) for record, author, text in rows}
     texts = []
     for (author, _), sample in zip(batch, samples):
@@ -95,7 +115,7 @@ def prepare(batch):
 @timed
 def build(path=VECTOR_STORE, device="cuda"):
     path.parent.mkdir(parents=True, exist_ok=True)
-    protocol = {"model": LUAR, "source": "current database", "minimum_usable_texts": 64, "sampled_texts": 64, "dimensions": 512, "max_tokens_per_text": 192, "sampling": "64 distinct records per user with the smallest deterministic seeded MD5 priorities; uniform pseudorandom sampling", "preprocessing": "author_encoder.clean", "source_sql_sha256": hashlib.sha256(SOURCE.encode()).hexdigest()}
+    protocol = {"model": LUAR, "source": "current database", "minimum_usable_texts": 64, "sampled_texts": 64, "dimensions": 512, "max_tokens_per_text": 192, "sampling": "64 distinct records per user with the smallest deterministic seeded MD5 priorities; uniform pseudorandom sampling", "preprocessing": "author_encoder.clean", "source_sql_sha256": hashlib.sha256((UNUSABLE + SOURCE).encode()).hexdigest()}
     protocol = json.loads(json.dumps(protocol))
     with index_lock(path), sqlite3.connect(path, timeout=30) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")

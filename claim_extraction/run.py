@@ -4,27 +4,25 @@ from multiprocessing import Pool
 
 import psycopg
 
-from database import DSN, LOGS, bounds
+from database import DSN, LOGS, vacuum
 from reddit_dumps import setup_logging
 
 from . import LOG, timed
-from .config import EXTRACT_PAGES, READABLE, SAMPLE_MAX_BYTES
+from .config import EXTRACT_PAGES, SAMPLE_MAX_BYTES
 from .rules import claims, vocabulary, weights
 
 SCHEMA = """
-CREATE UNLOGGED TABLE text_claims_stage (record_id text NOT NULL, field text NOT NULL, value text NOT NULL, start_char integer NOT NULL, end_char integer NOT NULL);
+CREATE UNLOGGED TABLE text_claims_stage (text_sha256 bytea NOT NULL, field text NOT NULL, value text NOT NULL, start_char integer NOT NULL, end_char integer NOT NULL);
 CREATE TABLE text_claims_parts (part integer PRIMARY KEY, first_page bigint NOT NULL, last_page bigint NOT NULL, texts bigint, long_texts bigint, claims bigint,
     read_seconds double precision, extract_seconds double precision, long_seconds double precision, write_seconds double precision,
     cpu_seconds double precision, finished_at timestamptz);
 """
-TEXTS = ("COPY (SELECT record_id, text FROM texts WHERE ctid >= '({},0)'::tid AND ctid < '({},0)'::tid "
-         "AND text_status = ANY(%s) AND text IS NOT NULL AND created_utc >= %s AND created_utc < %s) TO STDOUT")
+TEXTS = "COPY (SELECT text_sha256, text FROM bodies WHERE ctid >= '({},0)'::tid AND ctid < '({},0)'::tid AND text <> '') TO STDOUT"
 FINISH = """
 ALTER TABLE text_claims_stage SET LOGGED;
-CREATE INDEX text_claims_record ON text_claims_stage (record_id);
 DROP TABLE IF EXISTS text_claims;
 ALTER TABLE text_claims_stage RENAME TO text_claims;
-ANALYZE text_claims;
+CREATE INDEX text_claims_hash ON text_claims (text_sha256);
 DROP TABLE text_claims_parts;
 """
 
@@ -42,17 +40,18 @@ def connection():
 
 
 def work(job):
-    part, first, last, low, high = job
+    part, first, last = job
     started, cpu = time.perf_counter(), time.process_time()
     rows, texts, long_texts, read, spent, long_spent = [], 0, 0, 0.0, 0.0, 0.0
     conn = connection()
     with conn.transaction():
-        with conn.cursor().copy(TEXTS.format(first, last), [list(READABLE), low, high]) as copy:
+        with conn.cursor().copy(TEXTS.format(first, last)) as copy:
+            copy.set_types(["bytea", "text"])
             mark = time.perf_counter()
-            for record_id, text in copy.rows():
+            for text_sha256, text in copy.rows():
                 now = time.perf_counter()
                 read += now - mark
-                rows += [(record_id, *claim) for claim in claims(text)]
+                rows += [(text_sha256, *claim) for claim in claims(text)]
                 mark = time.perf_counter()
                 spent += mark - now
                 texts += 1
@@ -60,7 +59,7 @@ def work(job):
                     long_texts += 1
                     long_spent += mark - now
         mark = time.perf_counter()
-        with conn.cursor().copy("COPY text_claims_stage (record_id, field, value, start_char, end_char) FROM STDIN") as copy:
+        with conn.cursor().copy("COPY text_claims_stage (text_sha256, field, value, start_char, end_char) FROM STDIN") as copy:
             for row in rows:
                 copy.write_row(row)
         written = time.perf_counter() - mark
@@ -74,12 +73,11 @@ def work(job):
 
 
 @timed
-def pending(month, pages, reset):
-    low, high = bounds(month)
+def pending(pages, reset):
     with psycopg.connect(DSN) as conn:
         if reset:
             conn.execute("DROP TABLE IF EXISTS text_claims_stage, text_claims_parts")
-        first, last = pages or conn.execute("SELECT 0, pg_relation_size('texts') / current_setting('block_size')::int").fetchone()
+        first, last = pages or conn.execute("SELECT 0, pg_relation_size('bodies') / current_setting('block_size')::int").fetchone()
         if conn.execute("SELECT to_regclass('text_claims_parts')").fetchone()[0] is None:
             conn.execute(SCHEMA)
             with conn.cursor().copy("COPY text_claims_parts (part, first_page, last_page) FROM STDIN") as copy:
@@ -90,14 +88,14 @@ def pending(month, pages, reset):
             raise ValueError(f"text_claims_parts covers pages {lowest}-{highest}, not {first}-{last}; rerun with --reset")
         if claimed and conn.execute("SELECT NOT EXISTS (SELECT 1 FROM text_claims_stage)").fetchone()[0]:
             raise ValueError(f"text_claims_stage lost the rows of {finished} finished parts after a server restart; rerun with --reset")
-        jobs = [(part, start, end, low, high) for part, start, end in conn.execute("SELECT part, first_page, last_page FROM text_claims_parts WHERE finished_at IS NULL ORDER BY part")]
-    LOG.info("pending month=%s pages=%s-%s parts=%s finished=%s", month, first, last, len(jobs), finished)
+        jobs = conn.execute("SELECT part, first_page, last_page FROM text_claims_parts WHERE finished_at IS NULL ORDER BY part").fetchall()
+    LOG.info("pending pages=%s-%s parts=%s finished=%s", first, last, len(jobs), finished)
     return jobs
 
 
 @timed
-def run(month, workers, pages, reset):
-    jobs = pending(month, pages, reset)
+def run(workers, pages, reset):
+    jobs = pending(pages, reset)
     started, texts, found = time.perf_counter(), 0, 0
     with Pool(workers, initializer=start) as pool:
         for done, (count, claimed) in enumerate(pool.imap_unordered(work, jobs), 1):
@@ -115,3 +113,4 @@ def finish():
     with psycopg.connect(DSN) as conn:
         conn.execute(FINISH)
         LOG.info("text_claims rows=%s", conn.execute("SELECT count(*) FROM text_claims").fetchone()[0])
+    vacuum("text_claims")

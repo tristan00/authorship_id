@@ -27,6 +27,9 @@ async function get(path, init) {
   return body;
 }
 
+let subredditList;
+const allSubreddits = () => (subredditList ??= get('subreddits'));
+
 function tabs(list, active, base) {
   return `<div class="tabs" role="tablist">${list.map(([key, label, count]) => `<a class="tab" role="tab" aria-selected="${key === active}" href="${base}/${key}">${esc(label)}${count ? `<span class="count">${esc(count)}</span>` : ''}</a>`).join('')}</div>`;
 }
@@ -59,7 +62,9 @@ async function usersPage(params, request) {
     if (request !== state.request) return;
     state.page = { key, data, more: (which, offset) => `users/page?${params}&offset=${offset}` };
   }
-  const { total, users, subreddits } = state.page.data;
+  const subreddits = await allSubreddits();
+  if (request !== state.request) return;
+  const { total, users } = state.page.data;
   const sub = params.get('sub') ?? '';
   main.innerHTML = `${pageTitle('Users', `${mono(fmt(total))} users · ${range(subreddits)}`)}
     <form class="filters" data-page="users">
@@ -131,7 +136,7 @@ async function textsPage(params, request) {
 }
 
 async function subredditsPage(request) {
-  const rows = await get('subreddits');
+  const rows = await allSubreddits();
   if (request !== state.request) return;
   main.innerHTML = `${pageTitle('Subreddits', `${mono(fmt(rows.length))} subreddits · ${mono(fmt(rows.reduce((n, r) => n + r.texts, 0)))} texts · ${range(rows)}`)}
     <section class="panel" aria-label="Subreddits">${table([

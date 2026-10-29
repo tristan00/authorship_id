@@ -2,13 +2,14 @@ import json
 
 import psycopg
 
-from database import DSN, MONTH
+from database import DSN, bounds
 
 from . import LOG, timed
 from .config import ANNOTATIONS, READABLE, SAMPLE_MAX_BYTES, SAMPLE_PERCENT, SAMPLE_TEXTS, SPLITS
 from .labels import split
 
-TEXTS = f"SELECT record_id, text FROM texts TABLESAMPLE SYSTEM (%s) WHERE text_status = ANY(%s) AND octet_length(text) <= %s AND {MONTH} = %s ORDER BY random()"
+TEXTS = """SELECT r.record_id, b.text FROM (SELECT record_id, text_sha256 FROM records TABLESAMPLE SYSTEM (%s) WHERE text_status = ANY(%s)
+           AND created_utc >= %s AND created_utc < %s ORDER BY random()) r CROSS JOIN LATERAL (SELECT text FROM bodies b WHERE b.text_sha256 = r.text_sha256 AND octet_length(b.text) <= %s) b"""
 WIDTHS = {name: upper - lower for (name, upper), lower in zip(SPLITS, (0, *(upper for _, upper in SPLITS)))}
 
 
@@ -21,7 +22,7 @@ def sample(month, names, splits):
     LOG.info("sample taken=%d groups=%s need=%d percent=%s", len(taken), list(groups), need, SAMPLE_PERCENT * len(names) / share)
     with psycopg.connect(DSN) as conn, conn.cursor("sample") as cursor:
         cursor.itersize = 10_000
-        cursor.execute(TEXTS, [SAMPLE_PERCENT * len(names) / share, list(READABLE), SAMPLE_MAX_BYTES, month])
+        cursor.execute(TEXTS, [SAMPLE_PERCENT * len(names) / share, list(READABLE), *bounds(month), SAMPLE_MAX_BYTES])
         for record_id, text in cursor:
             group = groups.get(split(record_id) if splits else None)
             if group is not None and len(group) < need and record_id not in taken:

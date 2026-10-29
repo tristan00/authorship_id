@@ -6,9 +6,11 @@ DUMPS = Path(r"D:\reddit_data\dumps")
 LOGS = Path(r"D:\reddit_data\logs")
 PORT = 5499
 DSN = f"host=localhost port={PORT} dbname=reddit user=postgres"
-NOT_PEOPLE = (r"^(|\[deleted\]|\[removed\]|automoderator|flairassistant|judgement_bot_aita|nostupidquestionsbot|moderatelyusefulbot|deltabot"
-              r"|ukbot-nicolabot|flairchange_bot|basedcount_bot|repostsleuthbot|remindmebot|bot-sleuth-bot|amputatorbot|haikusbot|sneakpeekbot"
-              r"|hi_im_dadbot|.*-modteam|.*[_-]bot)$")
+NO_AUTHOR = ["", "[deleted]", "[removed]"]
 
 PARSERS = 16
 SCAN_WORKERS = 16
+SORT_WORKERS = 8
+SORT_MEMORY = "256MB"
+INDEX_BUILDS = 2
+INDEX_MEMORY = "2GB"

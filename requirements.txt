@@ -2,6 +2,7 @@ libtorrent==2.1.1
 zstandard==0.25.0
 orjson==3.13.0
 psycopg[binary]==3.2.10
+psycopg-pool==3.2.8
 spacy==3.8.16
 en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 --extra-index-url https://download.pytorch.org/whl/cu128
