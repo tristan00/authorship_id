@@ -10,10 +10,11 @@ def main():
     parser.add_argument("--month")
     parser.add_argument("--dataset")
     parser.add_argument("--authors", type=int)
+    parser.add_argument("--min-claims", type=int)
     parser.add_argument("--split", default="validation")
     args = parser.parse_args()
-    if args.command == "sample" and not (args.month and args.dataset and args.authors):
-        parser.error("sample needs --month, --dataset and --authors")
+    if args.command == "sample" and not (args.month and args.dataset and args.authors and args.min_claims):
+        parser.error("sample needs --month, --dataset, --authors and --min-claims")
     if args.command in ("labels", "evaluate") and not (args.month and args.dataset):
         parser.error(f"{args.command} needs --month and --dataset")
     setup_logging(LOGS / "claim_consolidation.log")
@@ -22,7 +23,7 @@ def main():
         consolidate()
     elif args.command == "sample":
         from .sample import sample
-        sample(args.month, args.dataset, args.authors)
+        sample(args.month, args.dataset, args.min_claims, args.authors)
     elif args.command == "labels":
         from .labels import labels
         labels(args.month, args.dataset)

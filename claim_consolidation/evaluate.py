@@ -6,7 +6,8 @@ from claim_extraction.config import ANNOTATIONS
 from claim_extraction.labels import split
 
 from . import LOG, timed
-from .rules import claims, consolidate
+from .config import CLAIM_LINES
+from .rules import consolidate
 
 PARTS = ("train", "validation")
 
@@ -31,18 +32,19 @@ def evaluate(month, dataset, part):
     if part not in PARTS:
         raise ValueError(f"evaluate runs on {PARTS}, not {part}")
     root = ANNOTATIONS / month / dataset
-    labels = {row["id"]: row for row in rows(root / "labels.jsonl")}
-    records = [(row["id"], list(claims(row["text"].splitlines()))) for row in rows(root / "records.jsonl") if split(row["id"]) == part]
-    failed = sum(labels[author]["error"] is not None for author, _ in records)
-    records = [(author, evidence) for author, evidence in records if labels[author]["error"] is None]
+    labels = {row["id"]: row for row in rows(root / "labels.jsonl") if split(row["id"]) == part}
+    claimed = [(row["id"], [tuple(claim) for claim in row["claims"]]) for row in rows(root / "claims.jsonl") if row["id"] in labels]
+    capped = sum(len(evidence) > CLAIM_LINES for _, evidence in claimed)
+    failed = sum(labels[author]["error"] is not None for author, _ in claimed)
+    records = [(author, evidence) for author, evidence in claimed if len(evidence) <= CLAIM_LINES and labels[author]["error"] is None]
     started = time.perf_counter()
     predicted = [consolidate(evidence) for _, evidence in records]
     seconds = time.perf_counter() - started
     counts = {kind: Counter() for kind in ("hit", "silent", "extra", "different", "wanted", "given", "present")}
     groups = defaultdict(Counter)
     for (author, evidence), mine in zip(records, predicted):
-        truth, seen, tallies = labels[author]["values"], {(field, value) for _, field, value in evidence}, {}
-        for _, field, value in evidence:
+        truth, seen, tallies = labels[author]["values"], {(field, value) for _, _, field, value in evidence}, {}
+        for _, _, field, value in evidence:
             tallies.setdefault(field, Counter())[value] += 1
         for field in mine.keys() | truth.keys():
             ours, theirs = mine.get(field), truth.get(field)
@@ -60,7 +62,7 @@ def evaluate(month, dataset, part):
         unreachable[field] += sum(count for (answer, present), count in answers.items() if present and answer != majority)
     total = {kind: sum(counter.values()) for kind, counter in counts.items()}
     precision, recall, score = f1(total["hit"], total["given"], total["wanted"])
-    report = {"authors": len(records), "failed_labels": failed, "precision": round(precision, 4), "recall": round(recall, 4), "f1": round(score, 4),
+    report = {"authors": len(records), "skipped_over_cap": capped, "failed_labels": failed, "precision": round(precision, 4), "recall": round(recall, 4), "f1": round(score, 4),
               "ceiling": round(total["present"] / total["wanted"], 4),
               "reachable": round((total["present"] - sum(unreachable.values())) / total["wanted"], 4) if part == "train" else None,
               "authors_per_second": round(len(records) / seconds),

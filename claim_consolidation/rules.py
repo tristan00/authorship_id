@@ -38,13 +38,6 @@ PREFER = {
 }
 
 
-def claims(lines):
-    for line in lines:
-        source, _, claim = line.partition(" ")
-        field, _, value = claim.partition(": ")
-        yield source, field, value
-
-
 def leaders(counts):
     top = max(counts.values())
     return sorted(value for value, count in counts.items() if count == top)
@@ -98,7 +91,7 @@ def place(country, state, tied, result):
 
 def consolidate(evidence):
     counts = defaultdict(Counter)
-    for _, field, value in evidence:
+    for _, _, field, value in evidence:
         counts[field][value] += 1
     tied = {field: leaders(found) for field, found in counts.items()}
     result = {field: values[0] for field, values in tied.items() if len(values) == 1}

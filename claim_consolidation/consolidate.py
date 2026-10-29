@@ -21,6 +21,7 @@ CREATE TABLE claim_evidence (
     author text NOT NULL,
     source text NOT NULL,
     source_key text NOT NULL,
+    subreddit text NOT NULL,
     field text NOT NULL,
     value text NOT NULL
 );
@@ -39,16 +40,15 @@ CREATE TABLE author_claims (
     candidates jsonb NOT NULL
 );
 """
-TEXT_EVIDENCE = """
-INSERT INTO claim_evidence SELECT t.author, 'text', c.record_id, c.field, c.value
-FROM text_claims c JOIN texts t USING (record_id) WHERE t.author !~* %s
-"""
-FLAIR_EVIDENCE = """
-INSERT INTO claim_evidence SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, f.field, f.value
-FROM texts t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text WHERE t.author !~* %s
+EVIDENCE = """
+SELECT t.author, 'text' AS source, c.record_id AS source_key, t.subreddit, c.field, c.value
+FROM text_claims c JOIN texts t USING (record_id) {join} WHERE t.author !~* %(people)s {where}
+UNION ALL
+SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, t.subreddit, f.field, f.value
+FROM texts t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text {join} WHERE t.author !~* %(people)s {where}
 """
 CLAIMS = """
-SELECT author, source, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author
+SELECT author, source, subreddit, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author
 """
 PARTS_PER_WORKER = 2
 
@@ -63,7 +63,7 @@ def work(part, parts):
             for author, group in groupby(rows, key=itemgetter(0)):
                 evidence = [row[1:] for row in group]
                 support = defaultdict(Counter)
-                for _, field, value in evidence:
+                for _, _, field, value in evidence:
                     support[field][value] += 1
                 result = rules(evidence)
                 for attribute, value in result.items():
@@ -77,14 +77,13 @@ def work(part, parts):
 
 @timed
 def evidence(conn):
-    texts = conn.execute(TEXT_EVIDENCE, [NOT_PEOPLE]).rowcount
-    flairs = conn.execute(FLAIR_EVIDENCE, [NOT_PEOPLE]).rowcount
+    rows = conn.execute(f"INSERT INTO claim_evidence {EVIDENCE.format(join='', where='')}", {"people": NOT_PEOPLE}).rowcount
     conn.execute("CREATE INDEX claim_evidence_source ON claim_evidence (source_key)")
     conn.execute("CREATE INDEX claim_evidence_author ON claim_evidence (author, field)")
     conn.execute(f"ALTER TABLE claim_evidence SET (parallel_workers = {SCAN_WORKERS})")
     conn.execute("ANALYZE claim_evidence")
     conn.commit()
-    LOG.info("evidence text=%s flair=%s", texts, flairs)
+    LOG.info("evidence rows=%s", rows)
 
 
 @timed

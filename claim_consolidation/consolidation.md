@@ -4,18 +4,23 @@ Consolidation turns an author's claim evidence into at most one value per attrib
 
 ## Evidence
 
-An author's evidence is one `(source, field, value)` per text claim (`text_claims` joined to `texts`) and one per distinct flair claim, matched on subreddit and flair text (`flair_claims`). The sampler writes the same evidence as lines `source field: value`, shuffled per author and capped at `CLAIM_LINES`. Production uses all of an author's evidence; evaluation uses the lines the labeler saw.
+An author's evidence is one `(source, subreddit, field, value)` per text claim (`text_claims` joined to `texts`) and one per distinct flair claim, matched on subreddit and flair text (`flair_claims`). `consolidate.EVIDENCE` is the one query for both production and sampling. The sampler writes two files per dataset:
+
+- `records.jsonl`, the annotator input: per author, lines `r/subreddit source field: value`, shuffled per author and capped at `CLAIM_LINES`;
+- `claims.jsonl`, the same evidence uncapped and sorted: `{"id", "claims": [[source, subreddit, field, value], ...]}`.
+
+Rule work reads `claims.jsonl` and the labels only, never `records.jsonl`, so nothing depends on the order the annotator saw.
 
 ## Commands
 
 ```
-python -m claim_consolidation sample --month 2026-03 --dataset author_200k --authors 200000
-python -m claim_consolidation labels --month 2026-03 --dataset author_200k
-python -m claim_consolidation evaluate --month 2026-03 --dataset author_200k --split validation
+python -m claim_consolidation sample --month 2026-03 --dataset author_8plus --min-claims 8 --authors 500000
+python -m claim_consolidation labels --month 2026-03 --dataset author_8plus
+python -m claim_consolidation evaluate --month 2026-03 --dataset author_8plus --split validation
 python -m claim_consolidation consolidate
 ```
 
-`sample` draws authors with at least `MIN_CLAIMS` claims, excluding authors already in other datasets of the month, and writes `records.jsonl`. The records are annotated with `LABEL_MODEL` and the prompt `LABEL_PROMPT` from `prompts.py`, served through `local_annotator.serve.running`, into `runs/<model>/<prompt>.jsonl` next to the records. `labels` parses those answers into `labels.jsonl`, keeping each raw answer. It first strips one echoed leading `text ` or `flair ` from each answer line, then applies `claim_extraction.normalize.parse`. `evaluate` scores the rules against the labels on `train` or `validation`; it refuses `test`. `consolidate` rebuilds `claim_evidence` and `author_claims` for every loaded month.
+`sample` draws at most `--authors` authors with at least `--min-claims` claims, excluding authors already in other datasets of the month. The records are annotated with `LABEL_MODEL` and the prompt `LABEL_PROMPT` from `prompts.py`, served through `local_annotator.serve.running`, into `runs/<model>/<prompt>.jsonl` next to the records. `labels` parses those answers into `labels.jsonl`, keeping each raw answer. It first strips an echoed leading `r/subreddit ` and `text ` or `flair ` from each answer line, then applies `claim_extraction.normalize.parse`. `evaluate` scores the rules against the labels on `train` or `validation`, and refuses `test`. It skips authors with more than `CLAIM_LINES` claims, whose evidence the annotator saw only in part. `consolidate` rebuilds `claim_evidence` and `author_claims` for every loaded month.
 
 ## Evaluation
 
@@ -25,7 +30,7 @@ Scores are micro precision, recall and F1 over `(author, field, value)`. Misses 
 - extra: the rules give a value where the label has none;
 - different: both have a value and the values differ.
 
-`ceiling` is the share of label values that occur in the author's input. `reachable`, on train only, is the ceiling minus label values in tied fields that gemma's majority answer for authors with the same value counts still gets wrong. It is optimistic and does not depend on the rules.
+`ceiling` is the share of label values that occur in the author's claims. `reachable`, on train only, is the ceiling minus label values in tied fields that gemma's majority answer for authors with the same value counts still gets wrong. It is optimistic and does not depend on the rules.
 
 ## Rules
 
