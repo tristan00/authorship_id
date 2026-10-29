@@ -15,6 +15,8 @@ RACES = ("american indian or alaska native", "asian", "black or african american
          "native hawaiian or pacific islander", "white")
 FAITHS = ("christian", "muslim", "jewish", "hindu", "buddhist", "sikh", "other religion")
 PLACES = (("residence_country", "residence_state"), ("origin_country", "origin_state"))
+MATCHES = (("nationality", "origin_country"), ("origin_country", "nationality"))
+IMPLIED = {("sexual_orientation", "lesbian"): ("gender", "female")}
 
 
 def above(winners, losers):
@@ -106,6 +108,12 @@ def consolidate(evidence):
             result[field] = value
     for country, state in PLACES:
         place(country, state, tied, result)
+    for field, other in MATCHES:
+        if field in tied and field not in result and (value := only([item for item in tied[field] if item == result.get(other)])):
+            result[field] = value
+    for (field, value), (target, implied) in IMPLIED.items():
+        if result.get(field) == value and implied in tied.get(target, ()) and target not in result:
+            result[target] = implied
     for field, values in tied.items():
         if field in HIGHEST:
             result[field] = max(values, key=float)
