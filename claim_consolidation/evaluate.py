@@ -9,7 +9,8 @@ from . import LOG, timed
 from .config import CLAIM_LINES
 from .rules import consolidate
 
-PARTS = ("train", "validation")
+def part(author):
+    return "train" if split(author) == "train" else "validation"
 
 
 def rows(path):
@@ -28,11 +29,9 @@ def tied(tally):
 
 
 @timed
-def evaluate(month, dataset, part):
-    if part not in PARTS:
-        raise ValueError(f"evaluate runs on {PARTS}, not {part}")
+def evaluate(month, dataset, chosen):
     root = ANNOTATIONS / month / dataset
-    labels = {row["id"]: row for row in rows(root / "labels.jsonl") if split(row["id"]) == part}
+    labels = {row["id"]: row for row in rows(root / "labels.jsonl") if part(row["id"]) == chosen}
     claimed = [(row["id"], [tuple(claim) for claim in row["claims"]]) for row in rows(root / "claims.jsonl") if row["id"] in labels]
     capped = sum(len(evidence) > CLAIM_LINES for _, evidence in claimed)
     failed = sum(labels[author]["error"] is not None for author, _ in claimed)
@@ -64,7 +63,7 @@ def evaluate(month, dataset, part):
     precision, recall, score = f1(total["hit"], total["given"], total["wanted"])
     report = {"authors": len(records), "skipped_over_cap": capped, "failed_labels": failed, "precision": round(precision, 4), "recall": round(recall, 4), "f1": round(score, 4),
               "ceiling": round(total["present"] / total["wanted"], 4),
-              "reachable": round((total["present"] - sum(unreachable.values())) / total["wanted"], 4) if part == "train" else None,
+              "reachable": round((total["present"] - sum(unreachable.values())) / total["wanted"], 4) if chosen == "train" else None,
               "authors_per_second": round(len(records) / seconds),
               **{kind: total[kind] for kind in ("hit", "silent", "extra", "different", "wanted", "given")},
               "fields": {field: {"f1": round(f1(counts["hit"][field], counts["given"][field], counts["wanted"][field])[2], 4),
@@ -72,9 +71,9 @@ def evaluate(month, dataset, part):
                                  "different": counts["different"][field],
                                  "ceiling": round(counts["present"][field] / counts["wanted"][field], 4) if counts["wanted"][field] else None,
                                  "reachable": round((counts["present"][field] - unreachable[field]) / counts["wanted"][field], 4)
-                                 if counts["wanted"][field] and part == "train" else None}
+                                 if counts["wanted"][field] and chosen == "train" else None}
                          for field in sorted(counts["wanted"], key=counts["wanted"].get, reverse=True)}}
-    LOG.info("evaluate %s %s %s", dataset, part, json.dumps({key: value for key, value in report.items() if key != "fields"}))
+    LOG.info("evaluate %s %s %s", dataset, chosen, json.dumps({key: value for key, value in report.items() if key != "fields"}))
     for field, values in report["fields"].items():
         LOG.info("field %s %s", field, json.dumps(values))
     return report

@@ -1,6 +1,10 @@
+import json
 from collections import Counter, defaultdict
+from functools import cache
 
-from claim_extraction.normalize import CLOSED, REGIONS
+from claim_extraction.normalize import REGIONS
+
+from .config import STRENGTHS
 
 YEAR = 2026
 ADULT = 18
@@ -8,34 +12,16 @@ OLDER = 25
 GAP = 10
 GENERATIONS = {"gen alpha": (2013, 2025), "gen z": (1997, 2012), "millennial": (1981, 1996), "gen x": (1965, 1980),
                "baby boomer": (1946, 1964), "silent generation": (1928, 1945)}
+NUMERIC = ("age", "birth_year", "height", "weight", "income")
 HIGHEST = ("height", "weight", "income")
-DEGREES = ("doctorate", "professional degree", "master's degree", "bachelor's degree", "associate degree", "some college", "high school",
-           "less than high school")
-RACES = ("american indian or alaska native", "asian", "black or african american", "hispanic or latino", "middle eastern or north african",
-         "native hawaiian or pacific islander", "white")
-FAITHS = ("christian", "muslim", "jewish", "hindu", "buddhist", "sikh", "other religion")
 PLACES = (("residence_country", "residence_state"), ("origin_country", "origin_state"))
 MATCHES = (("nationality", "origin_country"), ("origin_country", "nationality"))
 IMPLIED = {("sexual_orientation", "lesbian"): ("gender", "female")}
 
 
-def above(winners, losers):
-    return {(winner, loser) for winner in winners for loser in losers if winner != loser}
-
-
-PREFER = {
-    "education": {(DEGREES[high], DEGREES[low]) for high in range(len(DEGREES)) for low in range(high + 1, len(DEGREES))},
-    "gender": above(("non-binary",), ("male", "female")),
-    "sexual_orientation": above(("bisexual",), ("gay", "lesbian", "straight")) | above(("queer",), ("gay", "lesbian")),
-    "religion": above(("atheist", "agnostic"), (*FAITHS, "no religion")),
-    "race_ethnicity": above(("multiracial",), RACES),
-    "employment_status": above(("self-employed",), ("employed",)) | above(("employed",), ("unemployed", "retired")),
-    "relationship_status": above(("married",), ("single",)) | above(("in a relationship",), ("single",))
-                           | above(("married", "engaged"), ("in a relationship",)),
-    "marital_status": above(("married",), ("divorced",)),
-    "parental_status": above(("parent",), ("no children",)),
-    "occupation": above(CLOSED["occupation"], ("management",)),
-}
+@cache
+def strengths():
+    return json.loads(STRENGTHS.read_text(encoding="utf-8"))
 
 
 def leaders(counts):
@@ -47,9 +33,11 @@ def only(values):
     return values[0] if len(values) == 1 else None
 
 
-def preferred(field, values):
-    pairs = PREFER.get(field, ())
-    return only([value for value in values if all((value, other) in pairs for other in values if other != value)])
+def strongest(field, values, sources):
+    table, local = strengths()["values"].get(field, {}), strengths()["subreddits"].get(field, {})
+    scored = sorted(((sum(local.get(subreddit, {}).get(value, table.get(value, 0.5)) for subreddit in sources[field, value]) / len(sources[field, value]), value)
+                     for value in values), reverse=True)
+    return scored[0][1] if scored[0][0] > scored[1][0] else None
 
 
 def born(age, year):
@@ -90,9 +78,10 @@ def place(country, state, tied, result):
 
 
 def consolidate(evidence):
-    counts = defaultdict(Counter)
-    for _, _, field, value in evidence:
+    counts, sources = defaultdict(Counter), defaultdict(set)
+    for _, subreddit, field, value in evidence:
         counts[field][value] += 1
+        sources[field, value].add(subreddit)
     tied = {field: leaders(found) for field, found in counts.items()}
     result = {field: values[0] for field, values in tied.items() if len(values) == 1}
     tied = {field: values for field, values in tied.items() if len(values) > 1}
@@ -108,8 +97,8 @@ def consolidate(evidence):
         if result.get(field) == value and implied in tied.get(target, ()) and target not in result:
             result[target] = implied
     for field, values in tied.items():
-        if field in HIGHEST:
+        if field not in result and field in HIGHEST and len(values) == 2:
             result[field] = max(values, key=float)
-        elif field not in result and (value := preferred(field, values)) is not None:
+        elif field not in result and field not in NUMERIC and (value := strongest(field, values, sources)) is not None:
             result[field] = value
     return result

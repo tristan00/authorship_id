@@ -16,11 +16,12 @@ Rule work reads `claims.jsonl` and the labels only, never `records.jsonl`, so no
 ```
 python -m claim_consolidation sample --month 2026-03 --dataset author_8plus --min-claims 8 --authors 500000
 python -m claim_consolidation labels --month 2026-03 --dataset author_8plus
+python -m claim_consolidation fit --month 2026-03 --dataset author_8plus
 python -m claim_consolidation evaluate --month 2026-03 --dataset author_8plus --split validation
 python -m claim_consolidation consolidate
 ```
 
-`sample` draws at most `--authors` authors with at least `--min-claims` claims, excluding authors already in other datasets of the month. The records are annotated with `LABEL_MODEL` and the prompt `LABEL_PROMPT` from `prompts.py`, served through `local_annotator.serve.running`, into `runs/<model>/<prompt>.jsonl` next to the records. `labels` parses those answers into `labels.jsonl`, keeping each raw answer. It first strips an echoed leading `r/subreddit ` and `text ` or `flair ` from each answer line, then applies `claim_extraction.normalize.parse`. `evaluate` scores the rules against the labels on `train` or `validation`, and refuses `test`. It skips authors with more than `CLAIM_LINES` claims, whose evidence the annotator saw only in part. `consolidate` rebuilds `claim_evidence` and `author_claims` for every loaded month.
+`sample` draws at most `--authors` authors with at least `--min-claims` claims, excluding authors already in other datasets of the month. The records are annotated with `LABEL_MODEL` and the prompt `LABEL_PROMPT` from `prompts.py`, served through `local_annotator.serve.running`, into `runs/<model>/<prompt>.jsonl` next to the records. `labels` parses those answers into `labels.jsonl`, keeping each raw answer. It first strips an echoed leading `r/subreddit ` and `text ` or `flair ` from each answer line, then applies `claim_extraction.normalize.parse`. `evaluate` scores the rules against the labels on `train` or `validation`. Validation holds the authors that `claim_extraction.labels.split` puts in validation or test; consolidation has no test part. It skips authors with more than `CLAIM_LINES` claims, whose evidence the annotator saw only in part. `consolidate` rebuilds `claim_evidence` and `author_claims` for every loaded month.
 
 ## Evaluation
 
@@ -45,24 +46,13 @@ The value with the most claims wins. Ties are broken only as follows; otherwise 
 - country and state: a tied country containing the resolved state, or a tied state inside the resolved country (`normalize.REGIONS`), for residence and for origin.
 - nationality and origin country: the tied value equal to the other field's resolved value.
 - gender: female when the resolved orientation is lesbian.
-- height, weight, income: the higher value.
-- `PREFER` pairs: a tied value wins only if it beats every other tied value.
+- height, weight, income: the higher of two tied values. Three or more leave the field empty.
+- any other field: fitted tie strengths, below.
 
-## Tie policy
+## Tie strengths
 
-Each `PREFER` pair needs gemma to agree with it in at least 60% of at least 30 two-way train ties. Pairs in sensitive fields (race_ethnicity, religion, sexual_orientation, gender, nationality, origin fields) also need a reason about the author. Pairs without one leave the tie unbroken. Base rates are not a reason, and neither is the position of a line in the shuffled input.
+`fit` reads the train labels and claims and writes `STRENGTHS`, which `rules` and production load. For each non-numeric field, a value's strength is how often gemma chose it when it was tied: wins plus `STRENGTH_PRIOR` over ties plus twice `STRENGTH_PRIOR`. A subreddit-specific strength exists for each subreddit and value seen in at least `SUBREDDIT_SUPPORT` train ties. It is that subreddit's win rate, smoothed toward the value's strength with weight `SUBREDDIT_WEIGHT`. A tied value scores the mean strength over the distinct subreddits of its claims. A value never seen tied scores 0.5. The highest score wins only if it is strictly higher than the next.
 
-| field | pair | reason |
-|---|---|---|
-| education | higher degree over lower | accumulation |
-| gender | non-binary over male, female | markedness |
-| sexual_orientation | bisexual over gay, lesbian, straight | specificity |
-| sexual_orientation | queer over gay, lesbian | markedness |
-| religion | atheist, agnostic over a religion | change over time |
-| religion | atheist, agnostic over no religion | specificity |
-| race_ethnicity | multiracial over a single race | specificity |
-| occupation | any listed category over management | specificity |
-| employment_status | self-employed over employed; employed over unemployed, retired | gemma preference |
-| relationship_status | married over single; in a relationship over single; married, engaged over in a relationship | gemma preference |
-| marital_status | married over divorced | gemma preference |
-| parental_status | parent over no children | gemma preference |
+## Choosing rules
+
+Rules and their constants are fit on train and kept only if they raise validation micro F1. Rules use preferences over values, cross-field consistency and subreddit evidence. They use no tables keyed by author or by an author's exact value counts, and never the order of lines in the annotator input.
