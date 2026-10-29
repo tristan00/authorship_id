@@ -60,7 +60,7 @@ def work(part, parts):
                     support[field][value] += 1
                 result = rules(evidence)
                 for attribute, value in result.items():
-                    ranked = support[attribute].most_common()
+                    ranked = sorted(support[attribute].items(), key=lambda item: (-item[1], item[0]))
                     copy.write_row((author, attribute, value, Jsonb([{"value": item, "support": count} for item, count in ranked])))
                 decided += len(result)
                 undecided += len(support.keys() - result.keys())
