@@ -1,5 +1,6 @@
 import hashlib
 import json
+import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
@@ -13,16 +14,14 @@ from database import DSN, NO_AUTHOR
 from . import LOG, timed
 from .config import DIMENSIONS, FETCH_ROWS, FETCH_THREADS, HEAD_USERS, LUAR, MAX_LENGTH, SOURCE_WORKERS, TEXT_STORE, TEXTS_PER_USER, USER_SEARCH, VECTOR_STORE
 from .lock import index_lock
-from .texts import scales
+from .texts import DIGEST, raw, scales
 
-DIGEST = 32
 SOURCE = r"""
     SELECT author,
            array_agg(record_id ORDER BY md5('luar-user-vector-64-v1:' || record_id), record_id),
            array_agg(text_sha256 ORDER BY md5('luar-user-vector-64-v1:' || record_id), record_id)
     FROM records
     WHERE author <> ALL(%(no_author)s)
-      AND author > %(after)s
       AND text_status IN ('available', 'title_only')
     GROUP BY author HAVING count(*) >= 64
     ORDER BY author
@@ -37,14 +36,13 @@ SCHEMA = pa.schema([pa.field("author", pa.string()), pa.field("usable_texts", pa
                     pa.field("vector", pa.list_(pa.float32(), DIMENSIONS))], metadata={"protocol": PROTOCOL})
 
 
-def prefixes(digests):
-    if len(digests) % DIGEST:
-        raise ValueError("Text hashes must be 32 bytes")
-    return np.frombuffer(digests, dtype="<u8").reshape(-1, DIGEST // 8)[:, 0]
+def keys(digests):
+    words = np.frombuffer(digests, dtype=">u4").reshape(-1, DIGEST // 4)
+    return (words[:, 0].astype(np.uint64) << np.uint64(32)) | words[:, 1].astype(np.uint64), words[:, 2].astype(np.uint32)
 
 
-def raw(column):
-    return np.frombuffer(column.buffers()[1], dtype=np.uint8)[column.offset * DIGEST:(column.offset + len(column)) * DIGEST]
+def ordered(high, low):
+    return bool(np.all((high[1:] > high[:-1]) | ((high[1:] == high[:-1]) & (low[1:] >= low[:-1]))))
 
 
 class TextVectors:
@@ -55,25 +53,33 @@ class TextVectors:
         count = self.dataset.count_rows()
         if count >= 2**31:
             raise ValueError("Text vector store exceeds int32 row positions")
-        keys, filled = np.empty(count, dtype=np.uint64), 0
-        for batch in self.dataset.to_batches(columns=["text_sha256"], batch_size=1 << 20):
-            column = batch.column(0)
-            keys[filled:filled + len(column)] = prefixes(raw(column))
-            filled += len(column)
+        self.high, self.low, self.runs, filled = np.empty(count, dtype=np.uint64), np.empty(count, dtype=np.uint32), [], 0
+        for fragment in self.dataset.get_fragments():
+            high, low = keys(raw(fragment.to_table(columns=["text_sha256"]).column(0).combine_chunks()))
+            if not ordered(high, low):
+                raise ValueError(f"Text vector fragment {fragment.fragment_id} is not sorted by text_sha256")
+            if self.runs and ordered(np.array([self.high[filled - 1], high[0]]), np.array([self.low[filled - 1], low[0]])):
+                self.runs[-1][1] = filled + len(high)
+            else:
+                self.runs.append([filled, filled + len(high)])
+            self.high[filled:filled + len(high)], self.low[filled:filled + len(high)] = high, low
+            filled += len(high)
         if filled != count:
             raise ValueError("Text vector store changed while it was read")
-        order = np.argsort(keys)
-        self.keys, self.positions = keys[order], order.astype(np.int32)
-        del keys, order
-        if (self.keys[1:] == self.keys[:-1]).any():
-            raise ValueError("Text vector store has colliding 8-byte hash prefixes")
         self.pool = ThreadPoolExecutor(FETCH_THREADS)
-        LOG.info("text vectors opened rows=%d version=%d", count, self.dataset.version)
+        LOG.info("text vectors opened rows=%d runs=%d version=%d", count, len(self.runs), self.dataset.version)
 
     def locate(self, digests):
-        keys = prefixes(digests)
-        index = np.minimum(np.searchsorted(self.keys, keys), len(self.keys) - 1)
-        return np.where(self.keys[index] == keys, self.positions[index], -1)
+        high, low = keys(digests)
+        positions = np.full(len(high), -1, dtype=np.int64)
+        for start, end in self.runs:
+            left, right = np.searchsorted(self.high[start:end], high, "left"), np.searchsorted(self.high[start:end], high, "right")
+            for offset in range(int((right - left).max(initial=0))):
+                hit = (left + offset < right) & (positions < 0)
+                rows = start + left[hit] + offset
+                matched = self.low[rows] == low[hit]
+                positions[np.flatnonzero(hit)[matched]] = rows[matched]
+        return positions
 
     @timed
     def fetch(self, positions, digests):
@@ -101,13 +107,13 @@ def append(staging, pending, texts, model):
 
 
 @timed
-def stream(staging, after, texts, model):
+def stream(staging, texts, model):
     started, authors, users, pending = time.perf_counter(), 0, 0, []
     with psycopg.connect(DSN) as database:
         database.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         database.execute("SET LOCAL work_mem='256MB'")
         database.execute(f"SET LOCAL max_parallel_workers_per_gather={SOURCE_WORKERS}")
-        with database.cursor().copy(f"COPY ({SOURCE}) TO STDOUT (FORMAT BINARY)", {"no_author": NO_AUTHOR, "after": after}) as copy:
+        with database.cursor().copy(f"COPY ({SOURCE}) TO STDOUT (FORMAT BINARY)", {"no_author": NO_AUTHOR}) as copy:
             copy.set_types(["text", "text[]", "bytea[]"])
             for author, records, digests in copy.rows():
                 authors += 1
@@ -131,28 +137,37 @@ def stream(staging, after, texts, model):
 
 
 @timed
-def build(path=VECTOR_STORE, texts_path=TEXT_STORE):
+def build(signature, path=VECTOR_STORE, texts_path=TEXT_STORE):
     path.parent.mkdir(parents=True, exist_ok=True)
+    stamp = json.dumps({"source": signature, "text_version": lance.dataset(texts_path).version})
+    staging, previous = path.with_name(path.stem + ".building.lance"), path.with_name(path.stem + ".previous.lance")
     with index_lock(path):
-        if path.exists():
-            return {"path": str(path), "total_users": lance.dataset(path).count_rows()}
-        staging, after = path.with_name(path.stem + ".building.lance"), ""
-        if staging.exists():
+        try:
+            if previous.exists() and not path.exists():
+                previous.rename(path)
+            shutil.rmtree(previous, ignore_errors=True)
+            shutil.rmtree(staging, ignore_errors=True)
+            if path.exists() and lance.dataset(path).schema.metadata.get(b"source") == stamp.encode():
+                LOG.info("user vectors current path=%s source=%s", path, stamp)
+                return {"skipped": True}
+            from .model import load_model
+            result = stream(staging, TextVectors(texts_path), load_model("cpu"))
             dataset = lance.dataset(staging)
-            if dataset.schema.metadata[b"protocol"].decode() != PROTOCOL:
-                raise ValueError("Partial user vector store uses a different protocol")
-            after = dataset.take([dataset.count_rows() - 1], columns=["author"]).column(0)[0].as_py()
-            LOG.info("user vectors resuming after=%s users=%d", after, dataset.count_rows())
-        from .model import load_model
-        result = stream(staging, after, TextVectors(texts_path), load_model("cpu"))
-        dataset = lance.dataset(staging)
-        dataset.optimize.compact_files()
-        dataset = lance.dataset(staging)
-        rows = dataset.count_rows()
-        dataset.create_index("vector", index_type="IVF_RQ", metric="cosine", num_partitions=int(np.sqrt(rows)))
-        dataset.create_scalar_index("author", index_type="BTREE")
-        staging.rename(path)
-        return result | {"path": str(path), "total_users": rows}
+            dataset.optimize.compact_files()
+            dataset = lance.dataset(staging)
+            rows = dataset.count_rows()
+            dataset.create_index("vector", index_type="IVF_RQ", metric="cosine", num_partitions=int(np.sqrt(rows)))
+            dataset.create_scalar_index("author", index_type="BTREE")
+            dataset.update_schema_metadata({"source": stamp})
+            if path.exists():
+                path.rename(previous)
+            staging.rename(path)
+            return result | {"path": str(path), "total_users": rows}
+        finally:
+            if previous.exists() and not path.exists():
+                previous.rename(path)
+            shutil.rmtree(previous, ignore_errors=True)
+            shutil.rmtree(staging, ignore_errors=True)
 
 
 @lru_cache(maxsize=1)

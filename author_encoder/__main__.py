@@ -5,25 +5,19 @@ from pathlib import Path
 from reddit_dumps import setup_logging
 
 from . import write_json
-from .config import TEXT_STORE, VECTOR_STORE
+from .config import VECTOR_STORE
 
 
 def main():
     parser = argparse.ArgumentParser(prog="author_encoder", description="Pretrained LUAR user vectors and cosine similarity.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("download", help="Download the pinned pretrained model and tokenizer.")
-    index = commands.add_parser("index", help="Sample 64 usable records per eligible user, apply the LUAR head to their stored text vectors and write a resumable Lance user vector store.")
-    index.add_argument("--store", type=Path, default=VECTOR_STORE)
-    index.add_argument("--texts", type=Path, default=TEXT_STORE, help="Text vector store written by the texts command.")
+    update = commands.add_parser("update", help="Encode the bodies missing from the text vector store, then rebuild the user vectors over all loaded months.")
+    update.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
     encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description='Each input line: {"author": "name", "texts": ["text", ...]}. Each author needs at least 64 usable texts; 64 are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
     encode.add_argument("--input", type=Path, required=True)
     encode.add_argument("--output", type=Path, required=True, help="A new JSONL output file.")
     encode.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
-    texts = commands.add_parser("texts", help="Write 768-dimensional mean-pooled text features keyed by text_sha256 to a resumable Lance store.")
-    texts.add_argument("--source", default="bodies", help="Table with text_sha256 and text columns, optionally schema-qualified.")
-    texts.add_argument("--store", type=Path, default=TEXT_STORE)
-    texts.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
-    texts.add_argument("--limit", type=int, help="Encode at most this many remaining table parts.")
     for name, description in (("similar", "Find the closest indexed users by cosine similarity."), ("vector", "Read a user's saved vector and sampled record IDs.")):
         command = commands.add_parser(name, help=description)
         command.add_argument("author")
@@ -38,19 +32,16 @@ def main():
     if args.command == "download":
         from .model import download
         result = {"model_directory": download()}
-    elif args.command == "index":
-        from .index import build
-        result = build(args.store, args.texts)
-    elif args.command == "texts":
-        from .texts import write
-        result = write(args.source, args.store, args.device, args.limit)
+    elif args.command == "update":
+        from .update import update
+        result = update(args.device)
     elif args.command == "encode":
         from .predict import encode_file
         result = encode_file(args.input, args.output, args.device)
     else:
         from .index import similar, users, vector
         if users(args.store) is None:
-            parser.error("The user vector store is not built; run index first.")
+            parser.error("The user vector store is not built; run update first.")
         result = similar(args.author, args.limit, args.store) if args.command == "similar" else vector(args.author, args.store)
         if result is None:
             parser.error(f"No vector for {args.author}; users need at least 64 usable texts.")
