@@ -13,6 +13,7 @@ from database import DSN, NO_AUTHOR
 from . import LOG, timed
 from .config import DIMENSIONS, FETCH_ROWS, FETCH_THREADS, HEAD_USERS, LUAR, MAX_LENGTH, SOURCE_WORKERS, TEXT_STORE, TEXTS_PER_USER, USER_SEARCH, VECTOR_STORE
 from .lock import index_lock
+from .texts import scales
 
 DIGEST = 32
 SOURCE = r"""
@@ -28,7 +29,7 @@ SOURCE = r"""
 """
 PROTOCOL = json.dumps({"model": LUAR, "source": "records joined to stored text vectors by text_sha256", "minimum_usable_texts": TEXTS_PER_USER,
                        "sampled_texts": TEXTS_PER_USER, "dimensions": DIMENSIONS, "max_tokens_per_text": MAX_LENGTH, "preprocessing": "author_encoder.clean",
-                       "text_features": "768-dimensional mean-pooled LUAR transformer output stored by author_encoder texts",
+                       "text_features": "768-dimensional mean-pooled LUAR transformer output stored by author_encoder texts as int8, dequantized with the store's per-dimension int8_scales",
                        "usable": "text_sha256 present in the text vector store, which holds every body that author_encoder.clean leaves nonempty",
                        "sampling": "64 distinct usable records per user with the smallest deterministic seeded MD5 priorities; uniform pseudorandom sampling",
                        "source_sql_sha256": hashlib.sha256(SOURCE.encode()).hexdigest()}, sort_keys=True)
@@ -50,6 +51,7 @@ class TextVectors:
     @timed
     def __init__(self, path=TEXT_STORE):
         self.dataset = lance.dataset(path)
+        self.scales = scales(self.dataset)
         count = self.dataset.count_rows()
         if count >= 2**31:
             raise ValueError("Text vector store exceeds int32 row positions")
@@ -82,7 +84,7 @@ class TextVectors:
         for table in tables:
             stored.append(raw(table.column("text_sha256").combine_chunks()))
             values = table.column("vector").combine_chunks()
-            vectors.append(values.flatten().to_numpy(zero_copy_only=False).reshape(-1, values.type.list_size))
+            vectors.append(values.flatten().to_numpy().reshape(-1, values.type.list_size).astype(np.float32) * self.scales)
         if not np.array_equal(np.concatenate(stored), np.frombuffer(digests, dtype=np.uint8).reshape(-1, DIGEST)[first].reshape(-1)):
             raise ValueError("Fetched text vectors do not match the requested hashes")
         return np.concatenate(vectors)[inverse]

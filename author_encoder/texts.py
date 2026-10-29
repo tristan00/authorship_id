@@ -1,3 +1,4 @@
+import json
 import queue
 import threading
 import time
@@ -15,9 +16,10 @@ from database import DSN
 from reddit_dumps import setup_logging
 
 from . import LOG, clean, timed
-from .config import PART_PAGES, PREPARE_WORKERS
+from .config import PART_PAGES, PREPARE_WORKERS, TEXT_STORE
 from .tokens import load_tokenizer, token_batches
 
+SCALES = b"int8_scales"
 TOKENIZER = None
 
 
@@ -120,9 +122,18 @@ def encode(model, jobs, emit, log):
             "write_seconds": writer.seconds}
 
 
-def arrow(first, digests, features):
+def scales(dataset):
+    return np.array(json.loads(dataset.schema.metadata[SCALES]), dtype=np.float32)
+
+
+def quantize(features, scale):
+    steps = np.rint(features.astype(np.float32) / scale)
+    return np.clip(steps, -127, 127).astype(np.int8), int(np.count_nonzero(np.abs(steps) > 127))
+
+
+def arrow(first, digests, codes, scale):
     return pa.table({"text_sha256": pa.array(digests, pa.binary(32)), "part": pa.array(np.full(len(digests), first, dtype=np.int32)),
-                     "vector": pa.FixedSizeListArray.from_arrays(pa.array(features.reshape(-1)), features.shape[1])})
+                     "vector": pa.FixedSizeListArray.from_arrays(pa.array(codes.reshape(-1)), codes.shape[1])}).replace_schema_metadata({SCALES: json.dumps(scale.tolist())})
 
 
 @timed
@@ -139,11 +150,16 @@ def write(source, path, device="cuda", limit=None):
     firsts = [first for first in range(0, table_pages(source), PART_PAGES) if first not in done]
     jobs = [(source, first) for first in firsts[:limit]]
     LOG.info("text vectors source=%s store=%s parts_total=%d parts_done=%d parts_now=%d", source, path, len(firsts) + len(done), len(done), len(jobs))
+    scale, clipped = scales(lance.dataset(TEXT_STORE)), [0]
     from .model import load_model
     model = load_model(device)
 
     def emit(first, digests, features):
-        lance.write_dataset(arrow(first, digests, features), path, mode="append" if path.exists() else "create")
+        codes, count = quantize(features, scale)
+        if count:
+            LOG.info("text vectors part=%d clipped_values=%d of %d", first, count, codes.size)
+        clipped[0] += count
+        lance.write_dataset(arrow(first, digests, codes, scale), path, mode="append" if path.exists() else "create")
 
-    return encode(model, jobs, emit, path.parent / "texts.log")
+    return encode(model, jobs, emit, path.parent / "texts.log") | {"clipped_values": clipped[0]}
 

@@ -6,8 +6,8 @@ The encoder is the pinned LUAR model `config.LUAR`. Its transformer turns a text
 
 Both stores are Lance datasets on C:, which holds no Postgres data.
 
-- `TEXT_STORE` (`C:\reddit_data\text_vectors\bodies.lance`): one row per body whose `clean` text is nonempty. Columns: `text_sha256` (32 bytes, the `bodies` key), `part` (first heap page of the part it came from) and `vector` (768 × float16). It has no indexes: text vectors are read only by `text_sha256`, through the user build's hash map. A row takes about 1.6 KB.
-- `VECTOR_STORE` (`C:\reddit_data\user_vectors.lance`): one row per eligible author. Columns: `author`, `usable_texts`, `sample_ids` (the 64 record ids) and `vector` (512 × float32). The schema metadata key `protocol` records the model, sampling and source query. Indexes: IVF_RQ with cosine distance on `vector`, a B-tree on `author`.
+- `TEXT_STORE` (`C:\reddit_data\text_vectors\bodies.lance`): one row per body whose `clean` text is nonempty. Columns: `text_sha256` (32 bytes, the `bodies` key), `part` (first heap page of the part it came from) and `vector` (768 × int8). The schema metadata key `int8_scales` holds the 768 dequantization scales. It has no indexes: text vectors are read only by `text_sha256`, through the user build's hash map. A row takes about 0.8 KB; 2026-03 is 307,272,845 rows in 230 GiB.
+- `VECTOR_STORE` (`C:\reddit_data\user_vectors.lance`): one row per eligible author. Columns: `author`, `usable_texts`, `sample_ids` (the 64 record ids) and `vector` (512 × float32). The schema metadata key `protocol` records the model, sampling and source query. Indexes: IVF_RQ with cosine distance on `vector`, a B-tree on `author`. 2026-03 is 1,182,315 users in 6.4 GiB.
 
 A body is usable exactly when its hash is in the text store. Records reach their feature through `records.text_sha256`.
 
@@ -40,13 +40,30 @@ A month holds about 300 million distinct bodies, far more than RAM. HNSW stores 
 
 ## Text vectors
 
-`texts` reads the source table in parts of `PART_PAGES` heap pages by ctid range. `PREPARE_WORKERS` processes copy `text_sha256, text`, apply `clean`, drop empty texts and tokenize. Tokenizing uses `tokens.load_tokenizer`, the `tokenizers` library on the pinned `tokenizer.json` with the same ids as the transformers tokenizer, in chunks into flat int32 arrays. `tokens.token_batches` groups texts of exactly equal token length into batches of at most `TOKEN_BUDGET` tokens. The main process runs the transformer in bfloat16 on the GPU without an attention mask, which gives the same features as padded batches up to float16 rounding. A writer thread appends each part as one Lance fragment. Appends are atomic, and a rerun skips every part already in the `part` column. The GPU is the limit: about 38k texts per second on an idle RTX 5090. `torch.compile` is unavailable because Windows has no Triton.
+`texts` reads the source table in parts of `PART_PAGES` heap pages by ctid range. `PREPARE_WORKERS` processes copy `text_sha256, text`, apply `clean`, drop empty texts and tokenize. Tokenizing uses `tokens.load_tokenizer`, the `tokenizers` library on the pinned `tokenizer.json` with the same ids as the transformers tokenizer, in chunks into flat int32 arrays. `tokens.token_batches` groups texts of exactly equal token length into batches of at most `TOKEN_BUDGET` tokens. The main process runs the transformer in bfloat16 on the GPU without an attention mask, which gives the same features as padded batches up to float16 rounding. A writer thread quantizes each part to int8 and appends it as one Lance fragment. Appends are atomic, and a rerun skips every part already in the `part` column. The GPU is the limit: about 38k texts per second on an idle RTX 5090. `torch.compile` is unavailable because Windows has no Triton. For 2026-03, 198,963 of 307,471,808 bodies (0.065%) clean to empty and are not stored.
+
+## Int8 text vectors
+
+Features are stored as int8 with one symmetric scale per dimension: `q = clip(round(x / s), -127, 127)` and `x ≈ q × s`. Each `s` is the largest absolute value of its dimension over the 307,272,845 features of 2026-03, divided by 127; those largest values run from 1.13 to 7.49, median 2.13. `texts.quantize` quantizes, `texts.write` reads the scales from `TEXT_STORE` so every month uses one quantizer, and `index.TextVectors` dequantizes. A value beyond its scale saturates at ±127. `texts.write` logs clipped values per part and returns their total, so a shift in the features shows before the scales need refitting; 2026-03 has none by construction.
+
+int8 was measured against the float16 features before the store was converted:
+
+| measure | result |
+|---|---|
+| text feature cosine, the 3.2M sampled features of 50,000 users | min 0.999764, mean 0.999909 |
+| user vector cosine, all 1,182,315 users | min 0.999841, mean 0.999993 |
+| top-10 neighbours, int8 query against the float16-based store, 2,000 users | overlap 0.9925, identical for 92.5% |
+| top-10 neighbours, int8 on both sides among 50,000 users, 2,000 users | overlap 0.9921, identical for 92.0% |
+| bytes per row | 804 instead of 1,572 |
+| 2026-03 text store | 230 GiB instead of 449 GiB |
+
+The conversion kept every hash and part. On a million random rows the dequantized features had cosine at least 0.999794 to the float16 ones, and no value was off by more than half a step.
 
 ## User vectors
 
-`index` samples like the earlier encoder. It considers records whose author is not in `database.NO_AUTHOR` and whose `text_status` is `available` or `title_only`, ordered by `md5('luar-user-vector-64-v1:' || record_id), record_id`. An author with at least 64 usable records gets the first 64. One query (`index.SOURCE`) returns each author's ordered record ids and hashes. Rows are located through a map of 8-byte hash prefixes to row positions, read from the text store's hash column. Each fetched row's full hash is checked against the request, so a prefix collision fails instead of returning a wrong vector. `FETCH_THREADS` threads take `FETCH_ROWS` rows each. The head runs on CPU, `HEAD_USERS` users at a time, and each batch is appended to `user_vectors.building.lance`. A rerun checks the protocol and continues after the last appended author. When the query ends the store is compacted and indexed, then renamed to `VECTOR_STORE`; a store exists under that name only when complete.
+`index` samples like the earlier encoder. It considers records whose author is not in `database.NO_AUTHOR` and whose `text_status` is `available` or `title_only`, ordered by `md5('luar-user-vector-64-v1:' || record_id), record_id`. An author with at least 64 usable records gets the first 64. One query (`index.SOURCE`) returns each author's ordered record ids and hashes. Rows are located through a map of 8-byte hash prefixes to row positions, read from the text store's hash column. Each fetched row's full hash is checked against the request, so a prefix collision fails instead of returning a wrong vector, and its codes are dequantized with the store's scales. `FETCH_THREADS` threads take `FETCH_ROWS` rows each. The head runs on CPU, `HEAD_USERS` users at a time, and each batch is appended to `user_vectors.building.lance`. A rerun checks the protocol and continues after the last appended author. When the query ends the store is compacted and indexed, then renamed to `VECTOR_STORE`; a store exists under that name only when complete. For 2026-03, 1,182,649 authors have 64 records and 1,182,315 have 64 usable ones. The build took 19 minutes, 17 of them streaming at about 1,150 users per second, limited by reading the text store.
 
-`index.similar` is an approximate nearest-neighbour search with `USER_SEARCH`, excluding the author. `index.vector` returns an author's row. The explorer and `demographic_model.data.export` read the store through these functions and the dataset.
+`index.similar` is an approximate nearest-neighbour search with `USER_SEARCH`, excluding the author. On 500 random users against exact search, `USER_SEARCH` (200 probes, refine factor 40) returned the exact top 10 for all of them at 9.5 ms median; 100 probes with refine factor 20 gave recall 0.997 at 5.9 ms. `index.vector` returns an author's row. The explorer and `demographic_model.data.export` read the store through these functions and the dataset.
 
 ## Commands
 
@@ -63,10 +80,10 @@ python -m author_encoder encode --input users.jsonl --output vectors.jsonl
 
 ## Memory
 
-The writer's process tree must stay under 20 GB of private memory. On 9.86 million bodies it peaked at 12.6 GB private and 4.5 GB resident. These causes were found and removed:
+The writer's process tree must stay under 20 GB of private memory. On 9.86 million bodies it peaked at 12.6 GB private and 4.5 GB resident, and on the 2026-03 write at 12.9 GB private and 4.8 GB resident. These causes were found and removed:
 
 - On Windows, GPU allocations count as committed host memory, though not as resident RAM. Exact-length batches have about 190 shapes per part, and the CUDA caching allocator kept a block of each, so it reserved 5 to 9 GB while allocating at most 1.4 GB. `load_model` caps it at `CUDA_MEMORY`, which costs no speed.
 - `transformers.AutoTokenizer` imports torch, about 2.5 GB per worker. Workers use `tokens.py` and import no torch; `texts.write` imports the model only in the main process.
 - A whole part's tokenizer output as Python objects costs several GB per worker for large parts, because every token becomes a Python integer and a Rust encoding. Parts stay at 8000 pages, and tokenizing in chunks into int32 arrays keeps a part's tokens near its int32 size.
 
-The user build holds the hash map, 12 bytes per text row (about 3.7 GB for 307 million rows, about twice that while sorting), plus one batch of features. pylance 14.0.2 also panics when writing fixed-size lists of strings, so `sample_ids` is a variable list whose length the build checks.
+The user build holds the hash map, 12 bytes per text row (about 3.7 GB for 307 million rows, about twice that while sorting), plus one batch of dequantized float32 features; it peaked at 11.3 GB private on 2026-03. pylance 14.0.2 also panics when writing fixed-size lists of strings, so `sample_ids` is a variable list whose length the build checks.
