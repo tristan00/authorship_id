@@ -30,13 +30,17 @@ def relation(source):
     return sql.Identifier(*source.split("."))
 
 
+def span(index):
+    return index * 65536 // HASH_PARTS, (index + 1) * 65536 // HASH_PARTS
+
+
 def bounds(index):
-    low, high = index * 65536 // HASH_PARTS, (index + 1) * 65536 // HASH_PARTS
+    low, high = span(index)
     return low.to_bytes(2, "big"), high.to_bytes(2, "big") if high < 65536 else None
 
 
-def raw(column):
-    return np.frombuffer(column.buffers()[1], dtype=np.uint8)[column.offset * DIGEST:(column.offset + len(column)) * DIGEST]
+def raw(column, width=DIGEST):
+    return np.frombuffer(column.buffers()[1], dtype=np.uint8)[column.offset * width:(column.offset + len(column)) * width]
 
 
 @timed
