@@ -40,6 +40,8 @@ def subreddits(conn):
                min(first_utc) AS first_utc, max(last_utc) AS last_utc
         FROM explorer_activity GROUP BY subreddit""")
     conn.execute("ALTER TABLE explorer_subreddits ADD PRIMARY KEY (subreddit)")
+    conn.execute("CREATE INDEX explorer_subreddits_texts ON explorer_subreddits (texts DESC, subreddit)")
+    conn.execute("CREATE INDEX explorer_subreddits_name ON explorer_subreddits USING gin (subreddit gin_trgm_ops)")
 
 
 @timed
@@ -71,12 +73,19 @@ def texts(conn):
     conn.execute("ALTER TABLE explorer_texts ADD PRIMARY KEY (record_id)")
     for column in TEXT_SORTS:
         conn.execute(f"CREATE INDEX ON explorer_texts ({column}, record_id)")
+    conn.execute("CREATE INDEX explorer_texts_author_trgm ON explorer_texts USING gin (author gin_trgm_ops)")
+    conn.execute("CREATE INDEX explorer_texts_subreddit_trgm ON explorer_texts USING gin (subreddit gin_trgm_ops)")
 
 
 @timed
 def totals(conn):
     conn.execute("DROP TABLE IF EXISTS explorer_totals")
-    conn.execute("CREATE TABLE explorer_totals AS SELECT (SELECT count(*) FROM explorer_authors) AS authors, (SELECT count(*) FROM explorer_texts) AS texts")
+    conn.execute("""
+        CREATE TABLE explorer_totals AS
+        SELECT (SELECT count(*) FROM explorer_authors) AS authors, (SELECT count(*) FROM explorer_texts) AS texts,
+               (SELECT count(*) FROM explorer_texts WHERE record_type = 'post') AS posts, count(*) AS subreddits, sum(texts) AS records,
+               min(first_utc) AS first_utc, max(last_utc) AS last_utc
+        FROM explorer_subreddits""")
 
 
 @timed

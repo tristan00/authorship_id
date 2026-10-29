@@ -6,9 +6,9 @@ from psycopg_pool import ConnectionPool
 from database import DSN
 
 from . import timed
-from .config import CONNECTIONS, EXCERPT, PAGE
+from .config import CONNECTIONS, EXCERPT, PAGE, QUERY_SETTINGS
 
-POOL = ConnectionPool(DSN, kwargs={"row_factory": dict_row}, min_size=CONNECTIONS, max_size=CONNECTIONS, open=False)
+POOL = ConnectionPool(DSN, kwargs={"row_factory": dict_row, "options": QUERY_SETTINGS}, min_size=CONNECTIONS, max_size=CONNECTIONS, open=False)
 
 
 class NotFound(Exception):
@@ -25,7 +25,7 @@ def like(text):
 
 def user_filter(query, sub):
     if sub:
-        return "author ILIKE %s AND subs @> ARRAY[%s]::text[]", [like(query.strip()), sub]
+        return "author ILIKE %s AND subs @> ARRAY[%s]::text[]", [like(query.strip()), sub.strip().lower()]
     return "author ILIKE %s", [like(query.strip())]
 
 
@@ -34,9 +34,15 @@ def user_total(conn, query, sub):
         condition, params = user_filter(query, sub)
         return conn.execute(f"SELECT count(*) AS n FROM explorer_authors WHERE {condition}", params).fetchone()["n"]
     if sub:
-        row = conn.execute("SELECT authors AS n FROM explorer_subreddits WHERE subreddit = %s", [sub]).fetchone()
+        row = conn.execute("SELECT authors AS n FROM explorer_subreddits WHERE subreddit = %s", [sub.strip().lower()]).fetchone()
         return row["n"] if row else 0
     return conn.execute("SELECT authors AS n FROM explorer_totals").fetchone()["n"]
+
+
+def subreddit_total(conn, query):
+    if query.strip():
+        return conn.execute("SELECT count(*) AS n FROM explorer_subreddits WHERE subreddit ILIKE %s", [like(query.strip())]).fetchone()["n"]
+    return conn.execute("SELECT subreddits AS n FROM explorer_totals").fetchone()["n"]
 
 
 def excerpt(row):
@@ -50,14 +56,28 @@ def search(query):
         users = conn.execute("SELECT author, texts, posts, first_utc, last_utc, subs FROM explorer_authors WHERE author ILIKE %s ORDER BY texts DESC, author LIMIT %s",
                              [pattern, PAGE]).fetchall()
         total = user_total(conn, query, "")
-        subs = conn.execute("SELECT subreddit, texts, authors FROM explorer_subreddits WHERE subreddit ILIKE %s ORDER BY texts DESC", [pattern]).fetchall()
-    return {"query": query, "users": users, "userTotal": total, "subs": subs}
+        subs = subreddit_total(conn, query)
+    return {"query": query, "users": users, "userTotal": total, "subs": search_subs(query, 0), "subTotal": subs}
 
 
 @timed
-def subreddits():
+def search_subs(query, offset):
     with connect() as conn:
-        return conn.execute("SELECT subreddit, texts, posts, authors, first_utc, last_utc FROM explorer_subreddits ORDER BY texts DESC, subreddit").fetchall()
+        return conn.execute("SELECT subreddit, texts, authors FROM explorer_subreddits WHERE subreddit ILIKE %s ORDER BY texts DESC, subreddit LIMIT %s OFFSET %s",
+                            [like(query.strip()), PAGE, offset]).fetchall()
+
+
+@timed
+def totals():
+    with connect() as conn:
+        return conn.execute("SELECT * FROM explorer_totals").fetchone()
+
+
+@timed
+def subreddits(offset):
+    with connect() as conn:
+        return conn.execute("SELECT subreddit, texts, posts, authors, first_utc, last_utc FROM explorer_subreddits ORDER BY texts DESC, subreddit LIMIT %s OFFSET %s",
+                            [PAGE, offset]).fetchall()
 
 
 @timed
@@ -216,9 +236,9 @@ def user_predictions(author):
 
 FLAGGED_TEXT = "EXISTS (SELECT 1 FROM suspect_claim_texts s WHERE s.record_id = x.record_id)"
 FLAGGED = {"": "TRUE", "yes": FLAGGED_TEXT, "no": f"NOT {FLAGGED_TEXT}"}
-USER_TEXTS = """(SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, b.words,
+USER_TEXTS = """(SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, (SELECT b.words FROM bodies b WHERE b.text_sha256 = t.text_sha256) AS words,
                         coalesce(e.claims, 0) AS claims, coalesce(e.incohesive, 0) AS incohesive, coalesce(e.outvoted, 0) AS outvoted
-                 FROM records t JOIN bodies b USING (text_sha256) LEFT JOIN explorer_texts e USING (record_id) WHERE t.author = %(user)s)"""
+                 FROM records t LEFT JOIN explorer_texts e USING (record_id) WHERE t.author = %(user)s)"""
 
 
 def source(filters):
@@ -226,15 +246,14 @@ def source(filters):
 
 
 def text_filter(filters):
-    conditions = ["author ILIKE %(author)s", "subreddit ILIKE %(sub)s", FLAGGED[filters["flagged"]],
-                  *(f"{column} BETWEEN %({column}_low)s AND %({column}_high)s" for column in filters["ranges"])]
+    conditions = [FLAGGED[filters["flagged"]], *(f"{column} BETWEEN %({column}_low)s AND %({column}_high)s" for column in filters["ranges"])]
+    if filters["author"]:
+        conditions.append("author ILIKE %(author)s")
+    if filters["sub"]:
+        conditions.append("subreddit ILIKE %(sub)s")
     if filters["type"]:
         conditions.append("record_type = %(type)s")
     return " AND ".join(conditions)
-
-
-def unfiltered(filters):
-    return filters["user"] is None and not any(filters[name] for name in ("author", "sub", "flagged", "type", "ranges"))
 
 
 def patterns(filters):
@@ -254,8 +273,9 @@ def texts_page(filters, offset):
 @timed
 def texts(filters):
     with connect() as conn:
-        if unfiltered(filters):
-            total = conn.execute("SELECT texts AS n FROM explorer_totals").fetchone()["n"]
+        if filters["user"] is None and not any(filters[name] for name in ("author", "sub", "flagged", "ranges")):
+            stored = conn.execute("SELECT texts, posts FROM explorer_totals").fetchone()
+            total = {"": stored["texts"], "post": stored["posts"], "comment": stored["texts"] - stored["posts"]}[filters["type"]]
         else:
             total = conn.execute(f"SELECT count(*) AS n FROM {source(filters)} x WHERE {text_filter(filters)}", patterns(filters)).fetchone()["n"]
     return {"total": total, "texts": texts_page(filters, 0)}

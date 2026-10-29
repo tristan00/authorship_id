@@ -27,8 +27,8 @@ async function get(path, init) {
   return body;
 }
 
-let subredditList;
-const allSubreddits = () => (subredditList ??= get('subreddits'));
+let totalsCache;
+const allTotals = () => (totalsCache ??= get('totals'));
 
 function tabs(list, active, base) {
   return `<div class="tabs" role="tablist">${list.map(([key, label, count]) => `<a class="tab" role="tab" aria-selected="${key === active}" href="${base}/${key}">${esc(label)}${count ? `<span class="count">${esc(count)}</span>` : ''}</a>`).join('')}</div>`;
@@ -62,14 +62,13 @@ async function usersPage(params, request) {
     if (request !== state.request) return;
     state.page = { key, data, more: (which, offset) => `users/page?${params}&offset=${offset}` };
   }
-  const subreddits = await allSubreddits();
+  const totals = await allTotals();
   if (request !== state.request) return;
   const { total, users } = state.page.data;
-  const sub = params.get('sub') ?? '';
-  main.innerHTML = `${pageTitle('Users', `${mono(fmt(total))} users · ${range(subreddits)}`)}
+  main.innerHTML = `${pageTitle('Users', `${mono(fmt(total))} users · ${range([totals])}`)}
     <form class="filters" data-page="users">
       <label class="field grow">Name contains<input name="q" type="search" value="${esc(params.get('q'))}" placeholder="Any part of a username" autocomplete="off"></label>
-      <label class="field">Subreddit<select name="sub"><option value="">All subreddits</option>${subreddits.map((s) => `<option${s.subreddit === sub ? ' selected' : ''}>${esc(s.subreddit)}</option>`).join('')}</select></label>
+      <label class="field">Subreddit<input name="sub" type="search" value="${esc(params.get('sub'))}" placeholder="Exact subreddit name" autocomplete="off"></label>
     </form>
     <section class="panel" aria-label="Users">${table([
       { label: 'user', w: 'minmax(200px, 1fr)', cls: 'clip', cell: (u) => userLink(u.author) },
@@ -136,22 +135,32 @@ async function textsPage(params, request) {
 }
 
 async function subredditsPage(request) {
-  const rows = await allSubreddits();
-  if (request !== state.request) return;
-  main.innerHTML = `${pageTitle('Subreddits', `${mono(fmt(rows.length))} subreddits · ${mono(fmt(rows.reduce((n, r) => n + r.texts, 0)))} texts · ${range(rows)}`)}
+  if (state.page?.key !== 'subreddits') {
+    main.innerHTML = '<p class="note">Loading…</p>';
+    const [totals, subreddits] = await Promise.all([allTotals(), get('subreddits?offset=0')]);
+    if (request !== state.request) return;
+    state.page = { key: 'subreddits', data: { totals, subreddits }, more: (which, offset) => `subreddits?offset=${offset}` };
+  }
+  const { totals, subreddits } = state.page.data;
+  main.innerHTML = `${pageTitle('Subreddits', `${mono(fmt(totals.subreddits))} subreddits · ${mono(fmt(totals.records))} texts · ${range([totals])}`)}
     <section class="panel" aria-label="Subreddits">${table([
       { label: 'subreddit', w: 'minmax(220px, 1fr)', cls: 'clip', cell: (s) => subLink(s.subreddit) },
       { label: 'texts ↓', w: '130px', num: true, cell: (s) => fmt(s.texts) },
       { label: 'posts', w: '110px', num: true, cell: (s) => fmt(s.posts) },
       { label: 'comments', w: '130px', num: true, cell: (s) => fmt(s.texts - s.posts) },
       { label: 'authors', w: '120px', num: true, cell: (s) => fmt(s.authors) },
-    ], rows, 680)}</section>`;
+    ], subreddits, 680)}${more('subreddits', subreddits.length, totals.subreddits, 'subreddits')}</section>`;
 }
 
 async function searchPage(scope, query, request) {
-  const data = await get(`search?q=${enc(query)}`);
-  if (request !== state.request) return;
-  const counts = { users: data.userTotal, subreddits: data.subs.length };
+  const key = `search?q=${enc(query)}`;
+  if (state.page?.key !== key) {
+    const data = await get(key);
+    if (request !== state.request) return;
+    state.page = { key, data, more: (which, offset) => `search/${which}?q=${enc(query)}&offset=${offset}` };
+  }
+  const data = state.page.data;
+  const counts = { users: data.userTotal, subreddits: data.subTotal };
   head.innerHTML = `<div class="wrap head" style="padding-top: 20px"><h1 style="font-size: 26px">Search</h1>
     <form class="search" role="search" id="search"><label for="q" class="sr">Find a user or subreddit by name</label>
     <input id="q" name="q" type="search" value="${esc(query)}" placeholder="User or subreddit name" autocomplete="off"><button type="submit">Search</button></form>${tabs([['users', 'Users', fmt(counts.users)], ['subreddits', 'Subreddits', fmt(counts.subreddits)]], scope, `#/search/${enc(query)}`)}</div>`;
@@ -162,7 +171,7 @@ async function searchPage(scope, query, request) {
       <div class="chips">${u.subs.map((s) => `<a class="chip" href="#/r/${enc(s)}">r/${esc(s)}</a>`).join('')}</div></article>`).join('');
   } else {
     body += data.subs.map((s) => `<article class="card"><a class="name" href="#/r/${enc(s.subreddit)}">r/${esc(s.subreddit)}</a>
-      <div class="facts">${mono(fmt(s.texts))} texts · ${mono(fmt(s.authors))} authors</div></article>`).join('');
+      <div class="facts">${mono(fmt(s.texts))} texts · ${mono(fmt(s.authors))} authors</div></article>`).join('') + more('subs', data.subs.length, data.subTotal, 'subreddits');
   }
   main.innerHTML = body;
 }

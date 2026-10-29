@@ -12,9 +12,11 @@ from .config import TEXT_COUNTS, TEXT_SORTS
 
 ROUTES = {
     ("search",): lambda q: api.search(q.get("q", [""])[0]),
+    ("search", "subs"): lambda q: api.search_subs(q.get("q", [""])[0], offset(q)),
+    ("totals",): lambda q: api.totals(),
     ("users",): lambda q: api.users(q.get("q", [""])[0], q.get("sub", [""])[0]),
     ("users", "page"): lambda q: api.users_page(q.get("q", [""])[0], q.get("sub", [""])[0], offset(q)),
-    ("subreddits",): lambda q: api.subreddits(),
+    ("subreddits",): lambda q: api.subreddits(offset(q)),
     ("texts",): lambda q: api.texts(text_filters(q)),
     ("texts", "page"): lambda q: api.texts_page(text_filters(q), offset(q)),
     ("text", None): lambda q, record_id: api.text(record_id),

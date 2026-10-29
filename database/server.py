@@ -6,7 +6,7 @@ from pathlib import Path
 
 import psycopg
 
-from . import DATA, LOG, LOGS, PG, PORT, timed
+from . import DATA, DSN, LOG, LOGS, PG, PORT, timed
 from .config import INDEX_BUILDS, INDEX_MEMORY, SCAN_WORKERS, SORT_MEMORY, SORT_WORKERS
 
 SCHEMA = """
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS months (
 );
 """
 INDEXES = ("ALTER TABLE records ADD PRIMARY KEY (record_id)", "CREATE INDEX records_subreddit ON records (subreddit, created_utc)",
-           "CREATE INDEX records_author ON records (author) INCLUDE (created_utc, record_type)", "CREATE INDEX records_link ON records (link_id)")
+           "CREATE INDEX records_author ON records (author, created_utc) INCLUDE (record_type, record_id)", "CREATE INDEX records_link ON records (link_id)")
 MERGE = """
 CREATE TABLE bodies_next WITH (autovacuum_enabled = false) AS
 SELECT DISTINCT ON (text_sha256) text_sha256, text, words FROM (SELECT * FROM bodies UNION ALL SELECT * FROM bodies_stage) merged ORDER BY text_sha256
@@ -64,7 +64,6 @@ def init():
     start()
     with psycopg.connect(f"host=localhost port={PORT} dbname=postgres user=postgres", autocommit=True) as conn:
         conn.execute("CREATE DATABASE reddit")
-    from . import DSN
     with psycopg.connect(DSN) as conn:
         schema(conn)
     LOG.info("initialized %s", DATA)
@@ -77,7 +76,6 @@ def schema(conn):
 
 @timed
 def bodies():
-    from . import DSN
     with psycopg.connect(DSN) as conn:
         conn.execute(f"SET work_mem = '{SORT_MEMORY}'")
         conn.execute(f"SET max_parallel_workers_per_gather = {SORT_WORKERS}")
@@ -91,7 +89,6 @@ def bodies():
 
 @timed
 def indexes():
-    from . import DSN
     with psycopg.connect(DSN) as conn:
         existing = conn.execute("SELECT count(*) FROM pg_index WHERE indrelid = 'records'::regclass").fetchone()[0]
     if existing:
@@ -102,7 +99,6 @@ def indexes():
 
 @timed
 def build_index(statement):
-    from . import DSN
     started = time.perf_counter()
     with psycopg.connect(DSN, autocommit=True) as conn:
         conn.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
@@ -112,7 +108,6 @@ def build_index(statement):
 
 @timed
 def finish():
-    from . import DSN
     with psycopg.connect(DSN, autocommit=True) as conn:
         for table in ("records", "bodies"):
             conn.execute(f"ALTER TABLE {table} SET (parallel_workers = {SCAN_WORKERS})")
