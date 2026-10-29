@@ -8,10 +8,11 @@ from .config import STRENGTHS
 
 YEAR = 2026
 ADULT = 18
-OLDER = 25
+OLDER = 22
 GAP = 10
 NUMERIC = ("age", "birth_year", "height", "weight", "income")
 HIGHEST = ("height", "weight", "income")
+MEDIAN = ("height", "weight")
 PLACES = (("residence_country", "residence_state"), ("origin_country", "origin_state"))
 MATCHES = (("nationality", "origin_country"), ("origin_country", "nationality"))
 IMPLIED = {("sexual_orientation", "lesbian"): ("gender", "female")}
@@ -47,6 +48,10 @@ def age(values, result):
     if len(values) == 2:
         low, high = values
         return low if float(low) >= OLDER and float(high) - float(low) >= GAP else high
+    return middle(values)
+
+
+def middle(values):
     return values[len(values) // 2] if len(values) % 2 else None
 
 
@@ -83,6 +88,8 @@ def consolidate(evidence):
     for field, values in tied.items():
         if field not in result and field in HIGHEST and len(values) == 2:
             result[field] = max(values, key=float)
+        elif field not in result and field in MEDIAN and (value := middle(sorted(values, key=float))) is not None:
+            result[field] = value
         elif field not in result and field not in NUMERIC and (value := strongest(field, values, sources)) is not None:
             result[field] = value
     return result

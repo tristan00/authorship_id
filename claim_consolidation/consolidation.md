@@ -42,7 +42,7 @@ The value with the most claims wins. Ties are broken only as follows; otherwise 
 - country and state: a tied country containing the resolved state, or a tied state inside the resolved country (`normalize.REGIONS`), for residence and for origin.
 - nationality and origin country: the tied value equal to the other field's resolved value.
 - gender: female when the resolved orientation is lesbian.
-- height, weight, income: the higher of two tied values. Three or more leave the field empty.
+- height, weight, income: the higher of two tied values. Of an odd number of three or more, the median for height and weight; income is left empty, as are even numbers of four or more.
 - any other field: fitted tie strengths, below.
 
 ## Tie strengths
