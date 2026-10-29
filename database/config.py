@@ -1,9 +1,9 @@
 from pathlib import Path
 
 PG = Path(r"C:\Users\trist\pg\pgsql\bin")
-DATA = Path(r"D:\reddit_data\postgres")
-DUMPS = Path(r"D:\reddit_data\dumps")
-LOGS = Path(r"D:\reddit_data\logs")
+DATA = Path(r"C:\reddit_data\postgres")
+DUMPS = Path(r"C:\reddit_data\dumps")
+LOGS = Path(r"C:\reddit_data\logs")
 PORT = 5499
 DSN = f"host=localhost port={PORT} dbname=reddit user=postgres"
 NO_AUTHOR = ["", "[deleted]", "[removed]"]

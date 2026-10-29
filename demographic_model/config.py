@@ -1,6 +1,6 @@
 from pathlib import Path
 
-ROOT = Path(r"D:\reddit_data\demographic_model\three_fold")
+ROOT = Path(r"C:\reddit_data\demographic_model\three_fold")
 FOLDS = 3
 PARTIAL = ("residence", "origin", "occupation", "education_subject", "political_compass", "political_ideology")
 COMPLETE_HEADS = 50

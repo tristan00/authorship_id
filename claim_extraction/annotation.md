@@ -8,8 +8,8 @@ Labels for measuring text self-claim extraction come from three local LLM voters
 2. Sample texts into a dataset: `python -m claim_extraction sample --month 2026-03 --datasets panel1m`
 3. Label it with `label1m.py` (see below), which writes one answer file per voter and shard.
 4. Vote the answers into labels: `python -m claim_extraction labels --month 2026-03 --datasets panel1m`
-5. Fit the candidate scorer on the train splits of one or more datasets, written to `D:\reddit_data\models\claim_extraction.json`, starting the cutoff search from the cutoffs of the weights file given as `--start` (normally the installed model):
-   `python -m claim_extraction fit --month 2026-03 --datasets panel1m panel1m_b --start D:\reddit_data\models\claim_extraction.json`
+5. Fit the candidate scorer on the train splits of one or more datasets, written to `C:\reddit_data\models\claim_extraction.json`, starting the cutoff search from the cutoffs of the weights file given as `--start` (normally the installed model):
+   `python -m claim_extraction fit --month 2026-03 --datasets panel1m panel1m_b --start C:\reddit_data\models\claim_extraction.json`
 6. Score the extractor on one split of each dataset, written to `<month>/evaluations/<dataset>_<split>.json`:
    `python -m claim_extraction evaluate --month 2026-03 --datasets panel1m panel1m_b --split validation`
 7. Extract claims from the readable texts of every loaded month not yet extracted into `text_claims` (`text_sha256`, `field`, `value`, `start_char`, `end_char`), which consolidation and the explorer read through `records.text_sha256`:
@@ -56,7 +56,7 @@ Of all patterns, only `TAG_SELF`, `TAG_ANY` and `TAG_FOR` grow faster than linea
 
 ## Datasets
 
-Each dataset lives in `D:\reddit_data\annotations\<month>\<dataset>\`:
+Each dataset lives in `C:\reddit_data\annotations\<month>\<dataset>\`:
 
 | file | content |
 |---|---|
