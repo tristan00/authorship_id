@@ -74,6 +74,12 @@ def texts(conn):
 
 
 @timed
+def totals(conn):
+    conn.execute("DROP TABLE IF EXISTS explorer_totals")
+    conn.execute("CREATE TABLE explorer_totals AS SELECT (SELECT count(*) FROM explorer_authors) AS authors, (SELECT count(*) FROM explorer_texts) AS texts")
+
+
+@timed
 def suspects(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS suspect_claim_texts (
         record_id text NOT NULL, attribute text NOT NULL, value text NOT NULL, flagged_at timestamptz NOT NULL DEFAULT now(),
@@ -89,5 +95,6 @@ def prepare():
         authors(conn)
         subreddits(conn)
         texts(conn)
+        totals(conn)
         suspects(conn)
     vacuum("explorer_activity", "explorer_authors", "explorer_subreddits", "explorer_texts")

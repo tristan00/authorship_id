@@ -29,6 +29,16 @@ def user_filter(query, sub):
     return "author ILIKE %s", [like(query.strip())]
 
 
+def user_total(conn, query, sub):
+    if query.strip():
+        condition, params = user_filter(query, sub)
+        return conn.execute(f"SELECT count(*) AS n FROM explorer_authors WHERE {condition}", params).fetchone()["n"]
+    if sub:
+        row = conn.execute("SELECT authors AS n FROM explorer_subreddits WHERE subreddit = %s", [sub]).fetchone()
+        return row["n"] if row else 0
+    return conn.execute("SELECT authors AS n FROM explorer_totals").fetchone()["n"]
+
+
 def excerpt(row):
     return {"removed": "[removed]", "empty": ""}.get(row["text_status"], " ".join(row["text"].split())[:EXCERPT])
 
@@ -39,7 +49,7 @@ def search(query):
     with connect() as conn:
         users = conn.execute("SELECT author, texts, posts, first_utc, last_utc, subs FROM explorer_authors WHERE author ILIKE %s ORDER BY texts DESC, author LIMIT %s",
                              [pattern, PAGE]).fetchall()
-        total = conn.execute("SELECT count(*) AS n FROM explorer_authors WHERE author ILIKE %s", [pattern]).fetchone()["n"]
+        total = user_total(conn, query, "")
         subs = conn.execute("SELECT subreddit, texts, authors FROM explorer_subreddits WHERE subreddit ILIKE %s ORDER BY texts DESC", [pattern]).fetchall()
     return {"query": query, "users": users, "userTotal": total, "subs": subs}
 
@@ -60,9 +70,8 @@ def users_page(query, sub, offset):
 
 @timed
 def users(query, sub):
-    condition, params = user_filter(query, sub)
     with connect() as conn:
-        total = conn.execute(f"SELECT count(*) AS n FROM explorer_authors WHERE {condition}", params).fetchone()["n"]
+        total = user_total(conn, query, sub)
     return {"total": total, "users": users_page(query, sub, 0)}
 
 
@@ -224,6 +233,10 @@ def text_filter(filters):
     return " AND ".join(conditions)
 
 
+def unfiltered(filters):
+    return filters["user"] is None and not any(filters[name] for name in ("author", "sub", "flagged", "type", "ranges"))
+
+
 def patterns(filters):
     bounds = {f"{column}_{side}": value for column, pair in filters["ranges"].items() for side, value in zip(("low", "high"), pair)}
     return {**filters, **bounds, "author": like(filters["author"]), "sub": like(filters["sub"])}
@@ -241,7 +254,10 @@ def texts_page(filters, offset):
 @timed
 def texts(filters):
     with connect() as conn:
-        total = conn.execute(f"SELECT count(*) AS n FROM {source(filters)} x WHERE {text_filter(filters)}", patterns(filters)).fetchone()["n"]
+        if unfiltered(filters):
+            total = conn.execute("SELECT texts AS n FROM explorer_totals").fetchone()["n"]
+        else:
+            total = conn.execute(f"SELECT count(*) AS n FROM {source(filters)} x WHERE {text_filter(filters)}", patterns(filters)).fetchone()["n"]
     return {"total": total, "texts": texts_page(filters, 0)}
 
 

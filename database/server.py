@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS months (
 );
 """
 INDEXES = ("ALTER TABLE records ADD PRIMARY KEY (record_id)", "CREATE INDEX records_subreddit ON records (subreddit, created_utc)",
-           "CREATE INDEX records_author ON records (author)", "CREATE INDEX records_link ON records (link_id)")
+           "CREATE INDEX records_author ON records (author) INCLUDE (created_utc, record_type)", "CREATE INDEX records_link ON records (link_id)")
 MERGE = """
 CREATE TABLE bodies_next WITH (autovacuum_enabled = false) AS
 SELECT DISTINCT ON (text_sha256) text_sha256, text, words FROM (SELECT * FROM bodies UNION ALL SELECT * FROM bodies_stage) merged ORDER BY text_sha256
