@@ -62,6 +62,7 @@ def texts(conn):
             FROM flagged GROUP BY record_id)
         SELECT * FROM counts""")
     conn.execute("ANALYZE explorer_counts")
+    conn.execute(f"SET LOCAL max_parallel_workers_per_gather = {SCAN_WORKERS}")
     conn.execute("""
         CREATE TABLE explorer_texts AS
         SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, b.words, c.claims, c.incohesive, c.outvoted
@@ -83,7 +84,6 @@ def suspects(conn):
 def prepare():
     with psycopg.connect(DSN) as conn:
         conn.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
-        conn.execute(f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}")
         conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
         activity(conn)
         authors(conn)
