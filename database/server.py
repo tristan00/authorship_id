@@ -93,7 +93,7 @@ def bodies():
 def indexes():
     from . import DSN
     with psycopg.connect(DSN) as conn:
-        existing = conn.execute("SELECT count(*) FROM pg_indexes WHERE tablename = 'records'").fetchone()[0]
+        existing = conn.execute("SELECT count(*) FROM pg_index WHERE indrelid = 'records'::regclass").fetchone()[0]
     if existing:
         return
     with ThreadPoolExecutor(INDEX_BUILDS) as pool:
