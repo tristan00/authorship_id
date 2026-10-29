@@ -1,26 +1,39 @@
 from collections import Counter, defaultdict
 
-from claim_extraction.normalize import REGIONS
+from claim_extraction.normalize import CLOSED, REGIONS
 
 YEAR = 2026
 ADULT = 18
+OLDER = 25
+GAP = 10
 GENERATIONS = {"gen alpha": (2013, 2025), "gen z": (1997, 2012), "millennial": (1981, 1996), "gen x": (1965, 1980),
                "baby boomer": (1946, 1964), "silent generation": (1928, 1945)}
 HIGHEST = ("height", "weight", "income")
-TIERS = {
-    "education": (("doctorate",), ("professional degree",), ("master's degree",), ("bachelor's degree",), ("associate degree",),
-                  ("some college",), ("high school",), ("less than high school",)),
-    "employment_status": (("self-employed",), ("student",), ("employed",), ("retired",), ("homemaker",), ("unemployed",)),
-    "relationship_status": (("married", "engaged"), ("in a relationship",), ("single",)),
-    "marital_status": (("single",), ("married",), ("divorced",), ("widowed",)),
-    "parental_status": (("expecting", "parent"), ("no children",)),
-    "gender": (("non-binary",), ("male", "female")),
-    "generation": (("millennial",), ("gen z",), ("gen x",), ("baby boomer",)),
-    "religion": (("jewish",), ("agnostic", "atheist"), ("christian",), ("muslim",), ("hindu",), ("other religion",), ("no religion",)),
-    "sexual_orientation": (("bisexual",), ("queer",), ("lesbian",), ("gay", "asexual"), ("straight",)),
-    "race_ethnicity": (("multiracial",),),
-}
+DEGREES = ("doctorate", "professional degree", "master's degree", "bachelor's degree", "associate degree", "some college", "high school",
+           "less than high school")
+RACES = ("american indian or alaska native", "asian", "black or african american", "hispanic or latino", "middle eastern or north african",
+         "native hawaiian or pacific islander", "white")
+FAITHS = ("christian", "muslim", "jewish", "hindu", "buddhist", "sikh", "other religion")
 PLACES = (("residence_country", "residence_state"), ("origin_country", "origin_state"))
+
+
+def above(winners, losers):
+    return {(winner, loser) for winner in winners for loser in losers if winner != loser}
+
+
+PREFER = {
+    "education": {(DEGREES[high], DEGREES[low]) for high in range(len(DEGREES)) for low in range(high + 1, len(DEGREES))},
+    "gender": above(("non-binary",), ("male", "female")),
+    "sexual_orientation": above(("bisexual",), ("gay", "lesbian", "straight")) | above(("queer",), ("gay", "lesbian")),
+    "religion": above(("atheist", "agnostic"), (*FAITHS, "no religion")),
+    "race_ethnicity": above(("multiracial",), RACES),
+    "employment_status": above(("self-employed",), ("employed",)) | above(("employed",), ("unemployed", "retired")),
+    "relationship_status": above(("married",), ("single",)) | above(("in a relationship",), ("single",))
+                           | above(("married", "engaged"), ("in a relationship",)),
+    "marital_status": above(("married",), ("divorced",)),
+    "parental_status": above(("parent",), ("no children",)),
+    "occupation": above(CLOSED["occupation"], ("management",)),
+}
 
 
 def claims(lines):
@@ -39,38 +52,39 @@ def only(values):
     return values[0] if len(values) == 1 else None
 
 
-def tiered(field, values):
-    for tier in TIERS.get(field, ()):
-        if found := [value for value in values if value in tier]:
-            return only(found)
-    return None
+def preferred(field, values):
+    pairs = PREFER.get(field, ())
+    return only([value for value in values if all((value, other) in pairs for other in values if other != value)])
 
 
-def born(age, years):
-    return any(abs(YEAR - year - age) <= 1 for year in years)
+def born(age, year):
+    return abs(YEAR - year - age) <= 1
 
 
 def age(values, result):
-    ages = [float(value) for value in values]
-    if (year := result.get("birth_year")) and (match := [value for value, number in zip(values, ages) if born(number, [int(year)])]):
-        if len(match) == 1:
-            return match[0]
+    if year := result.get("birth_year"):
+        if match := only([value for value in values if born(float(value), int(year))]):
+            return match
     if (span := GENERATIONS.get(result.get("generation"))) and (match := [value for value in values if span[0] - 1 <= YEAR - float(value) <= span[1] + 1]):
         if len(match) == 1:
             return match[0]
         values = match
-    values = [value for value in values if float(value) >= ADULT] or values
-    return max(values, key=float) if len(values) <= 2 else None
+    values = sorted([value for value in values if float(value) >= ADULT] or values, key=float)
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        low, high = values
+        return low if float(low) >= OLDER and float(high) - float(low) >= GAP else high
+    return None
 
 
 def birth_year(values, result):
-    return only([value for value in values if "age" in result and born(float(result["age"]), [int(value)])])
+    return only([value for value in values if "age" in result and born(float(result["age"]), int(value))]) if "age" in result else None
 
 
 def generation(values, result):
     years = [int(result["birth_year"])] if "birth_year" in result else [YEAR - int(float(result["age"]))] if "age" in result else []
-    match = [value for value in values if value in GENERATIONS and any(GENERATIONS[value][0] - 1 <= year <= GENERATIONS[value][1] + 1 for year in years)]
-    return only(match) if match else tiered("generation", values)
+    return only([value for value in values if value in GENERATIONS and any(GENERATIONS[value][0] - 1 <= year <= GENERATIONS[value][1] + 1 for year in years)])
 
 
 def place(country, state, tied, result):
@@ -95,6 +109,6 @@ def consolidate(evidence):
     for field, values in tied.items():
         if field in HIGHEST:
             result[field] = max(values, key=float)
-        elif field not in result:
-            result[field] = tiered(field, values)
-    return {field: value for field, value in result.items() if value is not None}
+        elif field not in result and (value := preferred(field, values)) is not None:
+            result[field] = value
+    return result
