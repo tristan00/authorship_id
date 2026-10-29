@@ -37,12 +37,8 @@ Scores are micro precision, recall and F1 over `(author, field, value)`. Misses 
 
 The value with the most claims wins. Ties are broken only as follows; otherwise the field is left empty.
 
-- age:
-  1. the tied age consistent with the resolved birth year, within one year;
-  2. the tied ages consistent with the resolved generation;
-  3. adults (18 or more) over minors;
-  4. of two remaining ages, the lower one when it is at least `OLDER` and the gap is at least `GAP`, otherwise the higher one. Three or more remaining ages leave age empty.
-- birth year: the tied year consistent with the resolved age. generation: the tied generation consistent with the resolved birth year or age.
+- age: adults (18 or more) over minors. Of two remaining ages, the lower one when it is at least `OLDER` and the gap is at least `GAP`, otherwise the higher one. Of an odd number of three or more, the median. An even number of four or more leaves age empty.
+- birth year: the tied year consistent with the resolved age, within one year.
 - country and state: a tied country containing the resolved state, or a tied state inside the resolved country (`normalize.REGIONS`), for residence and for origin.
 - nationality and origin country: the tied value equal to the other field's resolved value.
 - gender: female when the resolved orientation is lesbian.

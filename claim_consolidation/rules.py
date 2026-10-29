@@ -10,8 +10,6 @@ YEAR = 2026
 ADULT = 18
 OLDER = 25
 GAP = 10
-GENERATIONS = {"gen alpha": (2013, 2025), "gen z": (1997, 2012), "millennial": (1981, 1996), "gen x": (1965, 1980),
-               "baby boomer": (1946, 1964), "silent generation": (1928, 1945)}
 NUMERIC = ("age", "birth_year", "height", "weight", "income")
 HIGHEST = ("height", "weight", "income")
 PLACES = (("residence_country", "residence_state"), ("origin_country", "origin_state"))
@@ -45,29 +43,15 @@ def born(age, year):
 
 
 def age(values, result):
-    if year := result.get("birth_year"):
-        if match := only([value for value in values if born(float(value), int(year))]):
-            return match
-    if (span := GENERATIONS.get(result.get("generation"))) and (match := [value for value in values if span[0] - 1 <= YEAR - float(value) <= span[1] + 1]):
-        if len(match) == 1:
-            return match[0]
-        values = match
     values = sorted([value for value in values if float(value) >= ADULT] or values, key=float)
-    if len(values) == 1:
-        return values[0]
     if len(values) == 2:
         low, high = values
         return low if float(low) >= OLDER and float(high) - float(low) >= GAP else high
-    return None
+    return values[len(values) // 2] if len(values) % 2 else None
 
 
 def birth_year(values, result):
     return only([value for value in values if "age" in result and born(float(result["age"]), int(value))]) if "age" in result else None
-
-
-def generation(values, result):
-    years = [int(result["birth_year"])] if "birth_year" in result else [YEAR - int(float(result["age"]))] if "age" in result else []
-    return only([value for value in values if value in GENERATIONS and any(GENERATIONS[value][0] - 1 <= year <= GENERATIONS[value][1] + 1 for year in years)])
 
 
 def place(country, state, tied, result):
@@ -85,7 +69,7 @@ def consolidate(evidence):
     tied = {field: leaders(found) for field, found in counts.items()}
     result = {field: values[0] for field, values in tied.items() if len(values) == 1}
     tied = {field: values for field, values in tied.items() if len(values) > 1}
-    for field, pick in (("age", age), ("birth_year", birth_year), ("generation", generation)):
+    for field, pick in (("age", age), ("birth_year", birth_year)):
         if field in tied and (value := pick(tied[field], result)) is not None:
             result[field] = value
     for country, state in PLACES:
