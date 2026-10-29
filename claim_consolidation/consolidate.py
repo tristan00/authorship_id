@@ -1,8 +1,9 @@
 import multiprocessing
 import time
 import uuid
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import groupby
+from operator import itemgetter
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -12,6 +13,7 @@ from reddit_dumps import setup_logging
 
 from . import LOG, timed
 from .config import WORKERS
+from .rules import consolidate as rules
 
 SCHEMA = """
 DROP TABLE IF EXISTS claim_evidence;
@@ -42,37 +44,34 @@ INSERT INTO claim_evidence SELECT t.author, 'text', c.record_id, c.field, c.valu
 FROM text_claims c JOIN texts t USING (record_id) WHERE t.author !~* %s
 """
 FLAIR_EVIDENCE = """
-INSERT INTO claim_evidence SELECT DISTINCT t.author, 'flair', t.author_flair_text, f.field, f.value
-FROM texts t JOIN flair_claims f ON f.flair = t.author_flair_text WHERE t.author !~* %s
+INSERT INTO claim_evidence SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, f.field, f.value
+FROM texts t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text WHERE t.author !~* %s
 """
 CLAIMS = """
-SELECT author, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author, field
+SELECT author, source, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author
 """
 PARTS_PER_WORKER = 2
-
-
-def decide(values):
-    ranked = Counter(values).most_common()
-    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
-        return None
-    return ranked[0][0], Jsonb([{"value": value, "support": count} for value, count in ranked])
 
 
 def work(part, parts):
     setup_logging(LOGS / "claim_consolidation.log")
     started = time.perf_counter()
-    decided = tied = 0
+    decided = undecided = 0
     with psycopg.connect(DSN) as conn:
         rows = conn.execute(CLAIMS, {"parts": parts, "part": part})
         with conn.cursor().copy("COPY author_claims FROM STDIN") as copy:
-            for (author, attribute), group in groupby(rows, key=lambda row: row[:2]):
-                result = decide([row[2] for row in group])
-                if result is None:
-                    tied += 1
-                    continue
-                copy.write_row((author, attribute, *result))
-                decided += 1
-    LOG.info("consolidated part %s/%s attributes=%s tied=%s seconds=%.1f", part + 1, parts, decided, tied, time.perf_counter() - started)
+            for author, group in groupby(rows, key=itemgetter(0)):
+                evidence = [row[1:] for row in group]
+                support = defaultdict(Counter)
+                for _, field, value in evidence:
+                    support[field][value] += 1
+                result = rules(evidence)
+                for attribute, value in result.items():
+                    ranked = support[attribute].most_common()
+                    copy.write_row((author, attribute, value, Jsonb([{"value": item, "support": count} for item, count in ranked])))
+                decided += len(result)
+                undecided += len(support.keys() - result.keys())
+    LOG.info("consolidated part %s/%s attributes=%s undecided=%s seconds=%.1f", part + 1, parts, decided, undecided, time.perf_counter() - started)
     return decided
 
 
