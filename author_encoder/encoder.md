@@ -6,14 +6,14 @@ The encoder is the pinned LUAR model `config.LUAR`. Its transformer turns a text
 
 Both stores are Lance datasets on C:, which holds no Postgres data.
 
-- `TEXT_STORE` (`C:\reddit_data\text_vectors\bodies.lance`): one row per body whose `clean` text is nonempty. Columns: `text_sha256` (32 bytes, the `bodies` key), `part` (first heap page of the part it came from) and `vector` (768 × float16). Indexes: IVF_RQ with cosine distance on `vector`, a B-tree on `text_sha256`. A row takes about 1.6 KB before indexes.
+- `TEXT_STORE` (`C:\reddit_data\text_vectors\bodies.lance`): one row per body whose `clean` text is nonempty. Columns: `text_sha256` (32 bytes, the `bodies` key), `part` (first heap page of the part it came from) and `vector` (768 × float16). It has no indexes: text vectors are read only by `text_sha256`, through the user build's hash map. A row takes about 1.6 KB.
 - `VECTOR_STORE` (`C:\reddit_data\user_vectors.lance`): one row per eligible author. Columns: `author`, `usable_texts`, `sample_ids` (the 64 record ids) and `vector` (512 × float32). The schema metadata key `protocol` records the model, sampling and source query. Indexes: IVF_RQ with cosine distance on `vector`, a B-tree on `author`.
 
 A body is usable exactly when its hash is in the text store. Records reach their feature through `records.text_sha256`.
 
 ## Store choice
 
-Lance with an IVF_RQ index was chosen by measurement. Every candidate stored the same real 768-dimensional features. Recall is against exact cosine top-50 from a GPU brute-force scan, for 1000 held-out queries; latency is the single-query median. Each candidate has three query settings, from fast to accurate, shown as recall@10 at milliseconds. Peak memory is the process working set, or the whole WSL VM for the WSL servers.
+Lance with an IVF_RQ index was chosen by measuring stores on the text features, when the plan still included searching them. Text search has since been dropped; Lance holds both stores, and IVF_RQ indexes the user vectors. Every candidate stored the same real 768-dimensional features. Recall is against exact cosine top-50 from a GPU brute-force scan, for 1000 held-out queries; latency is the single-query median. Each candidate has three query settings, from fast to accurate, shown as recall@10 at milliseconds. Peak memory is the process working set, or the whole WSL VM for the WSL servers.
 
 | candidate | rows | ingest rows/s | build | peak memory | disk GiB | recall@10 at ms |
 |---|---|---|---|---|---|---|
@@ -36,13 +36,11 @@ Lance with an IVF_RQ index was chosen by measurement. Every candidate stored the
 | pgvectorscale DiskANN (WSL) | 1M | 17k | about 25 min | 22.7 GB | – | 0.863 at 7.7, 0.926 at 13, 0.938 at 22.5 |
 | Milvus DiskANN (WSL) | 1M | about 42k | stopped at the RAM floor after 13 min | 22.9 GB | – | – |
 
-A month holds about 300 million distinct bodies, far more than RAM. HNSW stores need their graph or quantized vectors in memory and mostly stay below 0.95 recall. pgvectorscale and Milvus build too slowly or use too much memory. FAISS keeps no keys or raw vectors, and the Windows build cannot keep inverted lists on disk. Lance IVF_RQ has the best recall for its latency of the stores that keep everything on disk. It ingests nearly nine times faster than the encoder produces features, builds on CPU with no server, and keeps keys, vectors and the index in one store. Its recall barely drops from 1M to 10M rows. IVF_SQ reaches the same recall but is slower and has a larger index. Filtered search through an `id IN` prefilter has poor recall, so restricted searches should scan the member rows exactly.
+A month holds about 300 million distinct bodies, far more than RAM. HNSW stores need their graph or quantized vectors in memory and mostly stay below 0.95 recall. pgvectorscale and Milvus build too slowly or use too much memory. FAISS keeps no keys or raw vectors, and the Windows build cannot keep inverted lists on disk. Lance IVF_RQ has the best recall for its latency of the stores that keep everything on disk. It ingests nearly nine times faster than the encoder produces features, needs no server, and keeps keys, vectors and indexes in one store. Its recall barely drops from 1M to 10M rows. IVF_SQ reaches the same recall but is slower and has a larger index.
 
 ## Text vectors
 
 `texts` reads the source table in parts of `PART_PAGES` heap pages by ctid range. `PREPARE_WORKERS` processes copy `text_sha256, text`, apply `clean`, drop empty texts and tokenize. Tokenizing uses `tokens.load_tokenizer`, the `tokenizers` library on the pinned `tokenizer.json` with the same ids as the transformers tokenizer, in chunks into flat int32 arrays. `tokens.token_batches` groups texts of exactly equal token length into batches of at most `TOKEN_BUDGET` tokens. The main process runs the transformer in bfloat16 on the GPU without an attention mask, which gives the same features as padded batches up to float16 rounding. A writer thread appends each part as one Lance fragment. Appends are atomic, and a rerun skips every part already in the `part` column. The GPU is the limit: about 38k texts per second on an idle RTX 5090. `torch.compile` is unavailable because Windows has no Triton.
-
-`text-index` builds the indexes once the store is complete. IVF uses the square root of the row count as its number of partitions. k-means trains on `IVF_SAMPLE_RATE` vectors per partition; 64 instead of Lance's default 256 left recall unchanged at 1M rows.
 
 ## User vectors
 
@@ -55,7 +53,6 @@ A month holds about 300 million distinct bodies, far more than RAM. HNSW stores 
 ```
 python -m author_encoder download
 python -m author_encoder texts --source bodies
-python -m author_encoder text-index
 python -m author_encoder index
 python -m author_encoder similar AUTHOR --limit 50
 python -m author_encoder vector AUTHOR
@@ -72,4 +69,4 @@ The writer's process tree must stay under 20 GB of private memory. On 9.86 milli
 - `transformers.AutoTokenizer` imports torch, about 2.5 GB per worker. Workers use `tokens.py` and import no torch; `texts.write` imports the model only in the main process.
 - A whole part's tokenizer output as Python objects costs several GB per worker for large parts, because every token becomes a Python integer and a Rust encoding. Parts stay at 8000 pages, and tokenizing in chunks into int32 arrays keeps a part's tokens near its int32 size.
 
-The text index's k-means sample is `num_partitions × IVF_SAMPLE_RATE` vectors. At a month's √N partitions, Lance's default of 256 would hold about 4.5 million vectors, around 14 GB as float32; 64 keeps it near 1.1 million. Lance's streaming trainer, meant to bound this, fails on float16 vectors in pylance 14.0.2. The user build holds the hash map, 12 bytes per text row (about 3.7 GB for 307 million rows, about twice that while sorting), plus one batch of features. pylance 14.0.2 also panics when writing fixed-size lists of strings, so `sample_ids` is a variable list whose length the build checks.
+The user build holds the hash map, 12 bytes per text row (about 3.7 GB for 307 million rows, about twice that while sorting), plus one batch of features. pylance 14.0.2 also panics when writing fixed-size lists of strings, so `sample_ids` is a variable list whose length the build checks.
