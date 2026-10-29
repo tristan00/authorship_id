@@ -15,7 +15,7 @@ from database import DSN
 from reddit_dumps import setup_logging
 
 from . import LOG, clean, timed
-from .config import PART_PAGES, PREPARE_WORKERS
+from .config import IVF_SAMPLE_RATE, PART_PAGES, PREPARE_WORKERS
 from .tokens import load_tokenizer, token_batches
 
 TOKENIZER = None
@@ -152,7 +152,7 @@ def write(source, path, device="cuda", limit=None):
 def index(path):
     dataset = lance.dataset(path)
     rows, started = dataset.count_rows(), time.perf_counter()
-    dataset.create_index("vector", index_type="IVF_RQ", metric="cosine", num_partitions=int(np.sqrt(rows)), replace=True)
+    dataset.create_index("vector", index_type="IVF_RQ", metric="cosine", num_partitions=int(np.sqrt(rows)), sample_rate=IVF_SAMPLE_RATE, replace=True)
     vector_seconds = time.perf_counter() - started
     dataset.create_scalar_index("text_sha256", index_type="BTREE", replace=True)
     LOG.info("text vector index rows=%d vector_seconds=%.1f total_seconds=%.1f", rows, vector_seconds, time.perf_counter() - started)

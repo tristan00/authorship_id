@@ -2,38 +2,30 @@ import hashlib
 import json
 import sqlite3
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
+import lance
+import numpy as np
 import psycopg
 
 from database import DSN, NO_AUTHOR
-from reddit_dumps import setup_logging
-from . import LOG, clean, timed
-from .config import BATCH_USERS, LUAR, PREPARE_WORKERS, SOURCE_WORKERS, TEXTS_PER_USER, VECTOR_STORE
+from . import LOG, timed
+from .config import FETCH_ROWS, FETCH_THREADS, HEAD_USERS, LUAR, SOURCE_WORKERS, TEXT_STORE, TEXTS_PER_USER, VECTOR_STORE
 from .lock import index_lock
 from .model import load_model
-from .tokens import load_tokenizer, token_batches
 
-
-UNUSABLE = r"""
-    CREATE UNLOGGED TABLE encoder_unusable AS
-    SELECT text_sha256 FROM bodies
-    WHERE text <> ''
-      AND regexp_replace(normalize(text, NFKC), '^[\s\u001c-\u001f\u0085\u1680\u2028\u2029]*>.*$', '', 'gn') !~ '[^\s\u001c-\u001f\u0085\u1680\u2028\u2029]'
-"""
+DIGEST = 32
 SOURCE = r"""
-    SELECT author, count(*) AS usable_texts,
-           (array_agg(record_id ORDER BY md5('luar-user-vector-64-v1:' || record_id), record_id))[1:64] AS sample_ids
-    FROM records r
+    SELECT author,
+           array_agg(record_id ORDER BY md5('luar-user-vector-64-v1:' || record_id), record_id),
+           array_agg(text_sha256 ORDER BY md5('luar-user-vector-64-v1:' || record_id), record_id)
+    FROM records
     WHERE author <> ALL(%(no_author)s)
       AND text_status IN ('available', 'title_only')
-      AND NOT EXISTS (SELECT 1 FROM encoder_unusable u WHERE u.text_sha256 = r.text_sha256)
     GROUP BY author HAVING count(*) >= 64
     ORDER BY author
 """
-
-TOKENIZER = None
 
 
 def timestamp():
@@ -45,80 +37,121 @@ def save_state(conn, state):
     conn.commit()
 
 
-@timed
-def unusable():
-    with psycopg.connect(DSN, autocommit=True) as database:
-        database.execute(f"SET max_parallel_workers_per_gather={SOURCE_WORKERS}")
-        database.execute("DROP TABLE IF EXISTS encoder_unusable")
-        database.execute(UNUSABLE)
-        database.execute("ALTER TABLE encoder_unusable ADD PRIMARY KEY (text_sha256)")
-        database.execute("ANALYZE encoder_unusable")
-        LOG.info("unusable bodies=%d", database.execute("SELECT count(*) FROM encoder_unusable").fetchone()[0])
+def prefixes(digests):
+    if len(digests) % DIGEST:
+        raise ValueError("Text hashes must be 32 bytes")
+    return np.frombuffer(digests, dtype="<u8").reshape(-1, DIGEST // 8)[:, 0]
+
+
+def raw(column):
+    return np.frombuffer(column.buffers()[1], dtype=np.uint8)[column.offset * DIGEST:(column.offset + len(column)) * DIGEST]
+
+
+class TextVectors:
+    @timed
+    def __init__(self, path=TEXT_STORE):
+        self.dataset = lance.dataset(path)
+        count = self.dataset.count_rows()
+        if count >= 2**31:
+            raise ValueError("Text vector store exceeds int32 row positions")
+        keys, filled = np.empty(count, dtype=np.uint64), 0
+        for batch in self.dataset.to_batches(columns=["text_sha256"], batch_size=1 << 20):
+            column = batch.column(0)
+            keys[filled:filled + len(column)] = prefixes(raw(column))
+            filled += len(column)
+        if filled != count:
+            raise ValueError("Text vector store changed while it was read")
+        order = np.argsort(keys)
+        self.keys, self.positions = keys[order], order.astype(np.int32)
+        del keys, order
+        if (self.keys[1:] == self.keys[:-1]).any():
+            raise ValueError("Text vector store has colliding 8-byte hash prefixes")
+        self.pool = ThreadPoolExecutor(FETCH_THREADS)
+        LOG.info("text vectors opened rows=%d version=%d", count, self.dataset.version)
+
+    def locate(self, digests):
+        keys = prefixes(digests)
+        index = np.minimum(np.searchsorted(self.keys, keys), len(self.keys) - 1)
+        return np.where(self.keys[index] == keys, self.positions[index], -1)
+
+    @timed
+    def fetch(self, positions, digests):
+        unique, first, inverse = np.unique(positions, return_index=True, return_inverse=True)
+        tables = self.pool.map(lambda rows: self.dataset.take(rows.tolist(), columns=["text_sha256", "vector"]),
+                               [unique[start:start + FETCH_ROWS] for start in range(0, len(unique), FETCH_ROWS)])
+        stored, vectors = [], []
+        for table in tables:
+            stored.append(raw(table.column("text_sha256").combine_chunks()))
+            values = table.column("vector").combine_chunks()
+            vectors.append(values.flatten().to_numpy(zero_copy_only=False).reshape(-1, values.type.list_size))
+        if not np.array_equal(np.concatenate(stored), np.frombuffer(digests, dtype=np.uint8).reshape(-1, DIGEST)[first].reshape(-1)):
+            raise ValueError("Fetched text vectors do not match the requested hashes")
+        return np.concatenate(vectors)[inverse]
 
 
 @timed
-def source(conn, state):
+def source(conn, state, texts):
     conn.execute("DELETE FROM users")
     state.update(status="sampling", users=0, encoded=0, updated_at=timestamp())
     save_state(conn, state)
     started = time.perf_counter()
-    unusable()
+    authors = 0
     with psycopg.connect(DSN) as database:
         database.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         database.execute("SET LOCAL work_mem='256MB'")
         database.execute(f"SET LOCAL max_parallel_workers_per_gather={SOURCE_WORKERS}")
         state["source_snapshot_at"] = str(database.execute("SELECT transaction_timestamp()").fetchone()[0])
-        with database.cursor().copy(f"COPY ({SOURCE}) TO STDOUT", {"no_author": NO_AUTHOR}) as copy:
-            copy.set_types(["text", "int8", "text[]"])
-            for author, count, ids in copy.rows():
-                if len(ids) != 64 or len(set(ids)) != 64:
-                    raise ValueError("Each user needs 64 distinct sampled records")
-                conn.execute("INSERT INTO users(author, usable_texts, sample_ids) VALUES (?, ?, ?)", [author, count, json.dumps(ids)])
-                state["users"] += 1
-                if state["users"] % 4096 == 0:
+        with database.cursor().copy(f"COPY ({SOURCE}) TO STDOUT (FORMAT BINARY)", {"no_author": NO_AUTHOR}) as copy:
+            copy.set_types(["text", "text[]", "bytea[]"])
+            for author, records, digests in copy.rows():
+                authors += 1
+                usable = np.flatnonzero(texts.locate(b"".join(digests)) >= 0)
+                if len(usable) >= TEXTS_PER_USER:
+                    chosen = usable[:TEXTS_PER_USER]
+                    ids = [records[index] for index in chosen]
+                    if len(set(ids)) != TEXTS_PER_USER:
+                        raise ValueError("Each user needs 64 distinct sampled records")
+                    conn.execute("INSERT INTO users(author, usable_texts, sample_ids, sample_sha256) VALUES (?, ?, ?, ?)",
+                                 [author, len(usable), json.dumps(ids), b"".join(digests[index] for index in chosen)])
+                    state["users"] += 1
+                if authors % 65536 == 0:
                     state["updated_at"] = timestamp()
                     save_state(conn, state)
-                    LOG.info("vector sampling users=%d seconds=%.1f", state["users"], time.perf_counter() - started)
-    with psycopg.connect(DSN, autocommit=True) as database:
-        database.execute("DROP TABLE encoder_unusable")
-    state.update(status="encoding", sampling_seconds=time.perf_counter() - started, updated_at=timestamp())
+                    LOG.info("vector sampling authors=%d users=%d seconds=%.1f", authors, state["users"], time.perf_counter() - started)
+    state.update(status="encoding", authors_with_64_records=authors, sampling_seconds=time.perf_counter() - started, updated_at=timestamp())
     save_state(conn, state)
 
 
-def start_worker(log):
-    global TOKENIZER
-    setup_logging(log)
-    TOKENIZER = load_tokenizer()
+@timed
+def encode(conn, state, texts, model):
+    started, previous_seconds, last = time.perf_counter(), state.get("encoding_seconds", 0.), ""
+    state["encoded"] = conn.execute("SELECT count(*) FROM users WHERE vector IS NOT NULL").fetchone()[0]
+    while batch := conn.execute("SELECT author, sample_sha256 FROM users WHERE vector IS NULL AND author > ? ORDER BY author LIMIT ?", [last, HEAD_USERS]).fetchall():
+        digests = b"".join(blob for _, blob in batch)
+        positions = texts.locate(digests)
+        if (positions < 0).any():
+            raise ValueError("Sampled text hashes are missing from the text vector store")
+        vectors = model.users(texts.fetch(positions, digests).reshape(len(batch), TEXTS_PER_USER, -1))
+        conn.executemany("UPDATE users SET vector=? WHERE author=?", [(vector.astype("<f4").tobytes(), author) for (author, _), vector in zip(batch, vectors)])
+        last = batch[-1][0]
+        state.update(encoded=state["encoded"] + len(batch), encoding_seconds=previous_seconds + time.perf_counter() - started, updated_at=timestamp())
+        save_state(conn, state)
+        LOG.info("vector encoding users=%d/%d seconds=%.1f", state["encoded"], state["users"], state["encoding_seconds"])
 
 
 @timed
-def prepare(batch):
-    samples = [json.loads(row[1]) for row in batch]
-    ids = [record for sample in samples for record in sample]
-    with psycopg.connect(DSN) as database:
-        rows = database.execute("SELECT r.record_id, r.author, b.text FROM records r JOIN bodies b USING (text_sha256) WHERE r.record_id=ANY(%s)", [ids]).fetchall()
-    records = {record: (author, text) for record, author, text in rows}
-    texts = []
-    for (author, _), sample in zip(batch, samples):
-        for record in sample:
-            owner, text = records[record]
-            if owner != author:
-                raise ValueError("Sampled record belongs to a different author")
-            text = clean(text)
-            if not text:
-                raise ValueError(f"Sampled record has no usable text: {record}")
-            texts.append(text)
-    return batch, token_batches(TOKENIZER, texts)
-
-
-@timed
-def build(path=VECTOR_STORE, device="cuda"):
+def build(path=VECTOR_STORE, texts_path=TEXT_STORE):
     path.parent.mkdir(parents=True, exist_ok=True)
-    protocol = {"model": LUAR, "source": "current database", "minimum_usable_texts": 64, "sampled_texts": 64, "dimensions": 512, "max_tokens_per_text": 192, "sampling": "64 distinct records per user with the smallest deterministic seeded MD5 priorities; uniform pseudorandom sampling", "preprocessing": "author_encoder.clean", "source_sql_sha256": hashlib.sha256((UNUSABLE + SOURCE).encode()).hexdigest()}
+    protocol = {"model": LUAR, "source": "records joined to stored text vectors by text_sha256", "minimum_usable_texts": 64, "sampled_texts": 64,
+                "dimensions": 512, "max_tokens_per_text": 192, "text_features": "768-dimensional mean-pooled LUAR transformer output stored by author_encoder texts",
+                "usable": "text_sha256 present in the text vector store, which holds every body that author_encoder.clean leaves nonempty",
+                "sampling": "64 distinct usable records per user with the smallest deterministic seeded MD5 priorities; uniform pseudorandom sampling",
+                "source_sql_sha256": hashlib.sha256(SOURCE.encode()).hexdigest()}
     protocol = json.loads(json.dumps(protocol))
     with index_lock(path), sqlite3.connect(path, timeout=30) as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        conn.execute("CREATE TABLE IF NOT EXISTS users (author TEXT PRIMARY KEY, usable_texts INTEGER NOT NULL CHECK(usable_texts>=64), sample_ids TEXT NOT NULL, vector BLOB CHECK(vector IS NULL OR length(vector)=2048))")
+        conn.execute("CREATE TABLE IF NOT EXISTS users (author TEXT PRIMARY KEY, usable_texts INTEGER NOT NULL CHECK(usable_texts>=64), sample_ids TEXT NOT NULL, "
+                     "sample_sha256 BLOB NOT NULL CHECK(length(sample_sha256)=2048), vector BLOB CHECK(vector IS NULL OR length(vector)=2048))")
         previous = conn.execute("SELECT value FROM metadata WHERE key='protocol'").fetchone()
         if previous is not None and json.loads(previous[0]) != protocol:
             raise ValueError("Existing vector store uses a different protocol")
@@ -131,25 +164,10 @@ def build(path=VECTOR_STORE, device="cuda"):
         if state["status"] == "ready":
             LOG.info("vector store already complete users=%d", state["users"])
             return
+        texts = TextVectors(texts_path)
         if state["status"] == "sampling":
-            source(conn, state)
-        model = load_model(device)
-        pending = conn.execute("SELECT author, sample_ids FROM users WHERE vector IS NULL ORDER BY author").fetchall()
-        state["encoded"] = state["users"] - len(pending)
-        started = time.perf_counter()
-        previous_seconds = state.get("encoding_seconds", 0.)
-        with ProcessPoolExecutor(max_workers=PREPARE_WORKERS, initializer=start_worker, initargs=(path.parent / "index.log",)) as pool:
-            futures = [pool.submit(prepare, pending[start:start + BATCH_USERS]) for start in range(0, min(PREPARE_WORKERS * BATCH_USERS, len(pending)), BATCH_USERS)]
-            for start in range(0, len(pending), BATCH_USERS):
-                batch, batches = futures.pop(0).result()
-                next_batch = pending[start + PREPARE_WORKERS * BATCH_USERS:start + (PREPARE_WORKERS + 1) * BATCH_USERS]
-                if next_batch:
-                    futures.append(pool.submit(prepare, next_batch))
-                vectors = model.users(model.features(batches, len(batch) * TEXTS_PER_USER).reshape(len(batch), TEXTS_PER_USER, -1))
-                conn.executemany("UPDATE users SET vector=? WHERE author=?", [(vector.astype("<f4").tobytes(), author) for (author, _), vector in zip(batch, vectors)])
-                state.update(encoded=state["encoded"] + len(batch), encoding_seconds=previous_seconds + time.perf_counter() - started, updated_at=timestamp())
-                save_state(conn, state)
-                LOG.info("vector encoding users=%d/%d seconds=%.1f", state["encoded"], state["users"], state["encoding_seconds"])
+            source(conn, state, texts)
+        encode(conn, state, texts, load_model("cpu"))
         if conn.execute("SELECT count(*) FROM users WHERE vector IS NULL").fetchone()[0]:
             raise ValueError("Vector store is incomplete")
         state.update(status="ready", completed_at=timestamp(), updated_at=timestamp())

@@ -12,9 +12,9 @@ def main():
     parser = argparse.ArgumentParser(prog="author_encoder", description="Pretrained LUAR user vectors and cosine similarity.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("download", help="Download the pinned pretrained model and tokenizer.")
-    index = commands.add_parser("index", help="Read the database, sample 64 usable texts per eligible user and write a resumable SQLite vector store.")
+    index = commands.add_parser("index", help="Sample 64 usable records per eligible user, apply the LUAR head to their stored text vectors and write a resumable SQLite vector store.")
     index.add_argument("--store", type=Path, default=VECTOR_STORE)
-    index.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    index.add_argument("--texts", type=Path, default=TEXT_STORE, help="Text vector store written by the texts command.")
     encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description='Each input line: {"author": "name", "texts": ["text", ...]}. Each author needs at least 64 usable texts; 64 are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
     encode.add_argument("--input", type=Path, required=True)
     encode.add_argument("--output", type=Path, required=True, help="A new JSONL output file.")
@@ -43,7 +43,7 @@ def main():
     elif args.command == "index":
         from .index import build
         from .store import status
-        build(args.store, args.device)
+        build(args.store, args.texts)
         result = status(args.store)
     elif args.command == "texts":
         from .texts import write
