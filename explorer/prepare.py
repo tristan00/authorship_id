@@ -1,6 +1,6 @@
 import psycopg
 
-from database import DSN, INDEX_MEMORY, NO_AUTHOR, vacuum
+from database import DSN, INDEX_MEMORY, NO_AUTHOR, SCAN_WORKERS, vacuum
 
 from . import timed
 from .config import TEXT_SORTS
@@ -44,9 +44,9 @@ def subreddits(conn):
 
 @timed
 def texts(conn):
-    conn.execute("DROP TABLE IF EXISTS explorer_texts")
+    conn.execute("DROP TABLE IF EXISTS explorer_texts, explorer_counts")
     conn.execute("""
-        CREATE TABLE explorer_texts AS
+        CREATE UNLOGGED TABLE explorer_counts AS
         WITH evidence AS (
             SELECT c.source_key AS record_id, c.author, c.field, a.value IS DISTINCT FROM c.value AS outvoted
             FROM claim_evidence c LEFT JOIN author_claims a ON a.author = c.author AND a.attribute = c.field
@@ -60,8 +60,13 @@ def texts(conn):
             SELECT record_id, count(*)::int AS claims, count(*) FILTER (WHERE incohesive)::int AS incohesive,
                    count(*) FILTER (WHERE outvoted)::int AS outvoted
             FROM flagged GROUP BY record_id)
+        SELECT * FROM counts""")
+    conn.execute("ANALYZE explorer_counts")
+    conn.execute("""
+        CREATE TABLE explorer_texts AS
         SELECT t.record_id, t.author, t.subreddit, t.record_type, t.created_utc, b.words, c.claims, c.incohesive, c.outvoted
-        FROM counts c JOIN records t USING (record_id) JOIN bodies b USING (text_sha256)""")
+        FROM explorer_counts c JOIN records t USING (record_id) JOIN bodies b USING (text_sha256)""")
+    conn.execute("DROP TABLE explorer_counts")
     conn.execute("ALTER TABLE explorer_texts ADD PRIMARY KEY (record_id)")
     for column in TEXT_SORTS:
         conn.execute(f"CREATE INDEX ON explorer_texts ({column}, record_id)")
@@ -78,6 +83,7 @@ def suspects(conn):
 def prepare():
     with psycopg.connect(DSN) as conn:
         conn.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
+        conn.execute(f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}")
         conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
         activity(conn)
         authors(conn)
