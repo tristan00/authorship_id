@@ -17,14 +17,6 @@ from .rules import consolidate as rules
 
 SCHEMA = """
 DROP TABLE IF EXISTS claim_evidence;
-CREATE TABLE claim_evidence (
-    author text NOT NULL,
-    source text NOT NULL,
-    source_key text NOT NULL,
-    subreddit text NOT NULL,
-    field text NOT NULL,
-    value text NOT NULL
-);
 DROP TABLE IF EXISTS consolidation;
 CREATE TABLE consolidation (
     run_id uuid PRIMARY KEY,
@@ -77,7 +69,8 @@ def work(part, parts):
 
 @timed
 def evidence(conn):
-    rows = conn.execute(f"INSERT INTO claim_evidence {EVIDENCE.format(join='', where='')}", {"people": NOT_PEOPLE}).rowcount
+    conn.execute(f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}")
+    rows = conn.execute(f"CREATE TABLE claim_evidence AS {EVIDENCE.format(join='', where='')}", {"people": NOT_PEOPLE}).rowcount
     conn.execute("CREATE INDEX claim_evidence_source ON claim_evidence (source_key)")
     conn.execute("CREATE INDEX claim_evidence_author ON claim_evidence (author, field)")
     conn.execute(f"ALTER TABLE claim_evidence SET (parallel_workers = {SCAN_WORKERS})")
