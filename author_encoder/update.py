@@ -13,7 +13,7 @@ from . import LOG, timed
 from .config import TEXT_STORE, VECTOR_STORE, VECTOR_WORK
 from .index import build
 from .lock import index_lock
-from .texts import write
+from .texts import MONTHS, write
 
 
 @contextmanager
@@ -48,8 +48,20 @@ def months():
 def update(device="cuda"):
     with index_lock(TEXT_STORE), scratch():
         loaded = months()
-        LOG.info("vector update months=%s", loaded)
+        LOG.info("text vector update months=%s", loaded)
         texts = write(loaded, TEXT_STORE, device)
-        users = build(json.dumps(loaded, sort_keys=True), VECTOR_STORE, TEXT_STORE)
-        cleaned = cleanup(TEXT_STORE, VECTOR_STORE)
-    return {"months": loaded, "texts": texts, "users": users, "cleanup": cleaned}
+        cleaned = cleanup(TEXT_STORE)
+    return {"months": loaded, "texts": texts, "cleanup": cleaned}
+
+
+@timed
+def users():
+    with index_lock(TEXT_STORE), scratch():
+        loaded = months()
+        encoded = json.loads(lance.dataset(TEXT_STORE).schema.metadata[MONTHS])
+        if encoded != loaded:
+            raise ValueError(f"Text vectors cover {encoded}, not the loaded months {loaded}; run update first")
+        LOG.info("user vector build months=%s", loaded)
+        built = build(json.dumps(loaded, sort_keys=True), VECTOR_STORE, TEXT_STORE)
+        cleaned = cleanup(VECTOR_STORE)
+    return {"months": loaded, "users": built, "cleanup": cleaned}

@@ -70,12 +70,13 @@ The conversion kept every hash. On a million random rows the dequantized feature
 ```
 python -m author_encoder download
 python -m author_encoder update
+python -m author_encoder users
 python -m author_encoder similar AUTHOR --limit 50
 python -m author_encoder vector AUTHOR
 python -m author_encoder encode --input users.jsonl --output vectors.jsonl
 ```
 
-`update` runs `update.update`, the pipeline's vector step: it encodes the missing bodies, rebuilds the user vectors when anything changed, then deletes old Lance versions and unreferenced files in both stores. It holds a lock on the text store and points `TMP` and `TEMP` at `VECTOR_WORK`, which it empties before and after, so no spill outlives it even after a crash. `encode` reads JSONL authors with their texts, samples 64 usable texts per author and runs the full model; it does not use the stores.
+`update` runs `update.update`, the pipeline's vector step: it encodes the missing bodies, then deletes old Lance versions and unreferenced files in the text store. `users` runs `update.users`, which is not part of the pipeline: it refuses to start unless the text store's `months` match the loaded months, rebuilds the user vectors when anything changed, then deletes old versions in the user store. Both hold a lock on the text store and point `TMP` and `TEMP` at `VECTOR_WORK`, which they empty before and after, so no spill outlives them even after a crash. `encode` reads JSONL authors with their texts, samples 64 usable texts per author and runs the full model; it does not use the stores.
 
 ## Memory
 
@@ -85,4 +86,4 @@ The writer's process tree must stay under 20 GB of private memory. On 9.86 milli
 - `transformers.AutoTokenizer` imports torch, about 2.5 GB per worker. Workers use `tokens.py` and import no torch; `texts.write` imports the model only in the main process.
 - A whole part's tokenizer output as Python objects costs several GB per worker for large parts, because every token becomes a Python integer and a Rust encoding. Parts stay near 300,000 bodies, and tokenizing in chunks into int32 arrays keeps a part's tokens near its int32 size.
 
-The update must stay under 16 GB. The user build's memory does not depend on the text store's size: it holds the unusable hashes, about 6 MB per month, about 32 bytes per sampled hash (about 2.4 GB for 1.18 million users), a few fragments' hashes and one batch of dequantized float32 features. It peaked at 9.1 GB private and 7.0 GB resident on 2026-03, against 11.7 GB and 9.2 GB for the earlier build, whose map grew by 12 bytes per text row. pylance 14.0.2 also panics when writing fixed-size lists of strings, so `sample_ids` is a variable list whose length the build checks.
+The update and the user build must each stay under 16 GB. The user build's memory does not depend on the text store's size: it holds the unusable hashes, about 6 MB per month, about 32 bytes per sampled hash (about 2.4 GB for 1.18 million users), a few fragments' hashes and one batch of dequantized float32 features. It peaked at 9.1 GB private and 7.0 GB resident on 2026-03, against 11.7 GB and 9.2 GB for the earlier build, whose map grew by 12 bytes per text row. pylance 14.0.2 also panics when writing fixed-size lists of strings, so `sample_ids` is a variable list whose length the build checks.
