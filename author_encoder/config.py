@@ -1,7 +1,7 @@
 from pathlib import Path
 
 LUAR = ("rrivera1849/LUAR-MUD", "f1db50251805ed69b43cf4f72ea2f0e231f36a1c")
-VECTOR_STORE = Path(r"D:\reddit_data\user_vectors\pretrained_luar_64.sqlite3")
+VECTOR_STORE = Path(r"C:\reddit_data\user_vectors.lance")
 TEXT_STORE = Path(r"C:\reddit_data\text_vectors\bodies.lance")
 DIMENSIONS = 512
 TEXTS_PER_USER = 64
@@ -14,6 +14,7 @@ IVF_SAMPLE_RATE = 64
 FETCH_THREADS = 8
 FETCH_ROWS = 32768
 HEAD_USERS = 4096
+USER_SEARCH = {"nprobes": 100, "refine_factor": 20}
 CPU_THREADS = 8
 SOURCE_WORKERS = 16
 PREPARE_WORKERS = 4

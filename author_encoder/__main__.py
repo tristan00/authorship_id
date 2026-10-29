@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(prog="author_encoder", description="Pretrained LUAR user vectors and cosine similarity.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("download", help="Download the pinned pretrained model and tokenizer.")
-    index = commands.add_parser("index", help="Sample 64 usable records per eligible user, apply the LUAR head to their stored text vectors and write a resumable SQLite vector store.")
+    index = commands.add_parser("index", help="Sample 64 usable records per eligible user, apply the LUAR head to their stored text vectors and write a resumable Lance user vector store.")
     index.add_argument("--store", type=Path, default=VECTOR_STORE)
     index.add_argument("--texts", type=Path, default=TEXT_STORE, help="Text vector store written by the texts command.")
     encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description='Each input line: {"author": "name", "texts": ["text", ...]}. Each author needs at least 64 usable texts; 64 are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
@@ -42,9 +42,7 @@ def main():
         result = {"model_directory": download()}
     elif args.command == "index":
         from .index import build
-        from .store import status
-        build(args.store, args.texts)
-        result = status(args.store)
+        result = build(args.store, args.texts)
     elif args.command == "texts":
         from .texts import write
         result = write(args.source, args.store, args.device, args.limit)
@@ -55,11 +53,10 @@ def main():
         from .predict import encode_file
         result = encode_file(args.input, args.output, args.device)
     else:
-        from .store import status, store
-        if status(args.store)["status"] != "ready":
-            parser.error("The vector store is not ready; run index first.")
-        index = store(args.store)
-        result = index.search(args.author, args.limit) if args.command == "similar" else index.vector(args.author)
+        from .index import similar, users, vector
+        if users(args.store) is None:
+            parser.error("The user vector store is not built; run index first.")
+        result = similar(args.author, args.limit, args.store) if args.command == "similar" else vector(args.author, args.store)
         if result is None:
             parser.error(f"No vector for {args.author}; users need at least 64 usable texts.")
         if args.output is not None:

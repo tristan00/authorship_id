@@ -1,10 +1,10 @@
 import gzip
 import hashlib
-import sqlite3
 import uuid
 from collections import defaultdict
 from functools import lru_cache
 
+import lance
 import numpy as np
 import orjson
 import psycopg
@@ -28,28 +28,35 @@ def bucket(author, purpose, count):
 @timed
 def export(root):
     root.mkdir(parents=True, exist_ok=False)
-    with sqlite3.connect(VECTOR_STORE.resolve().as_uri() + "?mode=ro", uri=True) as vectors, psycopg.connect(DSN) as conn:
-        metadata = {key: orjson.loads(value) for key, value in vectors.execute("SELECT key,value FROM metadata")}
+    vectors = lance.dataset(VECTOR_STORE)
+    with psycopg.connect(DSN) as conn:
+        metadata = {"protocol": orjson.loads(vectors.schema.metadata[b"protocol"]), "users": vectors.count_rows(), "version": vectors.version}
         expected = {"model": list(LUAR), "dimensions": DIMENSIONS, "sampled_texts": TEXTS_PER_USER, "max_tokens_per_text": MAX_LENGTH, "preprocessing": "author_encoder.clean"}
-        if metadata["state"]["status"] != "ready" or any(metadata["protocol"][key] != value for key, value in expected.items()):
+        if any(metadata["protocol"][key] != value for key, value in expected.items()):
             raise ValueError("Saved user encodings do not match the configured encoder")
         conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
         run = conn.execute("SELECT run_id::text FROM consolidation").fetchone()
         if run is None:
             raise ValueError("Consolidated targets are not available")
-        authors = [author.lower() for author, in vectors.execute("SELECT author FROM users WHERE vector IS NOT NULL ORDER BY author")]
+        authors = [author.lower() for author in vectors.to_table(columns=["author"]).column("author").to_pylist()]
         if not authors or len(authors) != len(set(authors)):
             raise ValueError("Encoded authors must be nonempty and unique ignoring case")
         write_json(root / "authors.json", authors)
         folds = np.array([bucket(author, "outer", FOLDS) for author in authors], dtype=np.uint8)
         np.save(root / "folds.npy", folds)
         embeddings = np.lib.format.open_memmap(root / "embeddings.npy", mode="w+", dtype=np.float32, shape=(len(authors), DIMENSIONS))
-        for index, (author, sample_ids, blob) in enumerate(vectors.execute("SELECT author,sample_ids,vector FROM users WHERE vector IS NOT NULL ORDER BY author")):
-            values = np.frombuffer(blob, dtype="<f4")
-            samples = orjson.loads(sample_ids)
-            if values.shape != (DIMENSIONS,) or not np.isfinite(values).all() or len(set(samples)) != TEXTS_PER_USER or author.lower() != authors[index]:
-                raise ValueError(f"Invalid saved encoding for {author}")
-            embeddings[index] = values
+        index = 0
+        for batch in vectors.to_batches(columns=["author", "sample_ids", "vector"]):
+            values = batch.column("vector").flatten().to_numpy().reshape(-1, DIMENSIONS)
+            for author, samples in zip(batch.column("author").to_pylist(), batch.column("sample_ids").to_pylist()):
+                if len(set(samples)) != TEXTS_PER_USER or author.lower() != authors[index]:
+                    raise ValueError(f"Invalid saved encoding for {author}")
+                index += 1
+            if not np.isfinite(values).all():
+                raise ValueError("Saved user encodings must be finite")
+            embeddings[index - len(values):index] = values
+        if index != len(authors):
+            raise ValueError("Saved user encodings changed while they were exported")
         embeddings.flush()
         conn.execute("CREATE TEMP TABLE demographic_authors(author text PRIMARY KEY)")
         with conn.cursor().copy("COPY demographic_authors(author) FROM STDIN") as copy:

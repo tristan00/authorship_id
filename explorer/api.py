@@ -116,11 +116,10 @@ def text(record_id):
 
 @timed
 def similar_users(author, limit=50):
-    from author_encoder.store import status, store
-    index = status()
-    if index["status"] != "ready":
-        return {"status": index["status"], "indexed_users": index["encoded"], "users": []}
-    matches = store().search(author, limit)
+    from author_encoder.index import similar, users
+    if (index := users()) is None:
+        return {"status": "not_built", "indexed_users": 0, "users": []}
+    matches = similar(author, limit)
     if matches is None:
         return {"status": "ineligible", "minimum_texts": 64, "users": []}
     with connect() as conn:
@@ -129,19 +128,18 @@ def similar_users(author, limit=50):
     missing = [item["author"] for item in matches if item["author"] not in details]
     if missing:
         raise NotFound("User metadata is missing for the vector index")
-    return {"status": "ready", "indexed_users": index["users"], "sampled_texts": 64, "users": [details[item["author"]] | {"similarity": item["similarity"]} for item in matches]}
+    return {"status": "ready", "indexed_users": index.count_rows(), "sampled_texts": 64, "users": [details[item["author"]] | {"similarity": item["similarity"]} for item in matches]}
 
 
 @timed
 def user_vector(author):
-    from author_encoder.store import status, store
-    index = status()
-    if index["status"] != "ready":
-        return {"status": index["status"], "indexed_users": index["encoded"]}
-    vector = store().vector(author)
-    if vector is None:
+    from author_encoder.index import users, vector
+    if users() is None:
+        return {"status": "not_built", "indexed_users": 0}
+    found = vector(author)
+    if found is None:
         return {"status": "ineligible", "minimum_texts": 64}
-    return {"status": "ready", **vector}
+    return {"status": "ready", **found}
 
 
 @timed
