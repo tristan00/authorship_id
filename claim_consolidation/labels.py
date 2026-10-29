@@ -20,7 +20,7 @@ def labels(month, dataset):
     with open(root / "records.jsonl", encoding="utf-8") as stream:
         for author in (json.loads(line)["id"] for line in stream):
             answer = answers[author]
-            text = SOURCE.sub("", answer["answer"] or "") if answer["error"] is None else ""
+            text = SOURCE.sub("", answer["answer"]) if answer["error"] is None else ""
             for line in filter(str.strip, text.splitlines()):
                 lines += 1
                 parsed += bool(parse(line))
