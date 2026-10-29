@@ -21,6 +21,13 @@ def f1(hit, given, wanted):
     return precision, recall, 2 * precision * recall / (precision + recall) if precision + recall else 0.0
 
 
+def tied(tally, value):
+    if not tally or value not in tally:
+        return False
+    top = max(tally.values())
+    return tally[value] == top and sum(count == top for count in tally.values()) > 1
+
+
 @timed
 def evaluate(month, dataset, part):
     if part not in PARTS:
@@ -33,25 +40,31 @@ def evaluate(month, dataset, part):
     started = time.perf_counter()
     predicted = [consolidate(evidence) for _, evidence in records]
     seconds = time.perf_counter() - started
-    counts = {kind: Counter() for kind in ("hit", "silent", "extra", "different", "wanted", "given", "present")}
+    counts = {kind: Counter() for kind in ("hit", "silent", "extra", "different", "wanted", "given", "present", "position")}
     for (author, evidence), mine in zip(records, predicted):
-        truth, seen = labels[author]["values"], {(field, value) for _, field, value in evidence}
+        truth, seen, tallies = labels[author]["values"], {(field, value) for _, field, value in evidence}, {}
+        for _, field, value in evidence:
+            tallies.setdefault(field, Counter())[value] += 1
         for field in mine.keys() | truth.keys():
             ours, theirs = mine.get(field), truth.get(field)
             counts["given"][field] += ours is not None
             counts["wanted"][field] += theirs is not None
             counts["present"][field] += theirs is not None and (field, theirs) in seen
+            counts["position"][field] += ours is None and theirs is not None and tied(tallies.get(field), theirs)
             kind = "hit" if ours == theirs else "silent" if ours is None else "extra" if theirs is None else "different"
             counts[kind][field] += 1
     total = {kind: sum(counter.values()) for kind, counter in counts.items()}
     precision, recall, score = f1(total["hit"], total["given"], total["wanted"])
     report = {"authors": len(records), "failed_labels": failed, "precision": round(precision, 4), "recall": round(recall, 4), "f1": round(score, 4),
-              "ceiling": round(total["present"] / total["wanted"], 4), "authors_per_second": round(len(records) / seconds),
+              "ceiling": round(total["present"] / total["wanted"], 4),
+              "reachable": round((total["present"] - total["position"]) / total["wanted"], 4), "authors_per_second": round(len(records) / seconds),
               **{kind: total[kind] for kind in ("hit", "silent", "extra", "different", "wanted", "given")},
               "fields": {field: {"f1": round(f1(counts["hit"][field], counts["given"][field], counts["wanted"][field])[2], 4),
                                  "wanted": counts["wanted"][field], "silent": counts["silent"][field], "extra": counts["extra"][field],
                                  "different": counts["different"][field],
-                                 "ceiling": round(counts["present"][field] / counts["wanted"][field], 4) if counts["wanted"][field] else None}
+                                 "ceiling": round(counts["present"][field] / counts["wanted"][field], 4) if counts["wanted"][field] else None,
+                                 "reachable": round((counts["present"][field] - counts["position"][field]) / counts["wanted"][field], 4)
+                                 if counts["wanted"][field] else None}
                          for field in sorted(counts["wanted"], key=counts["wanted"].get, reverse=True)}}
     LOG.info("evaluate %s %s %s", dataset, part, json.dumps({key: value for key, value in report.items() if key != "fields"}))
     for field, values in report["fields"].items():
