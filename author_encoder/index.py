@@ -6,14 +6,14 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 
 import psycopg
-import torch
 
 from database import DSN, NO_AUTHOR
 from reddit_dumps import setup_logging
 from . import LOG, clean, timed
-from .config import BATCH_USERS, LUAR, MAX_LENGTH, PREPARE_WORKERS, SOURCE_WORKERS, VECTOR_STORE
+from .config import BATCH_USERS, LUAR, PREPARE_WORKERS, SOURCE_WORKERS, TEXTS_PER_USER, VECTOR_STORE
 from .lock import index_lock
-from .model import load_model, load_tokenizer
+from .model import load_model
+from .tokens import load_tokenizer, token_batches
 
 
 UNUSABLE = r"""
@@ -108,8 +108,7 @@ def prepare(batch):
             if not text:
                 raise ValueError(f"Sampled record has no usable text: {record}")
             texts.append(text)
-    tokens = TOKENIZER(texts, padding="max_length", truncation=True, max_length=MAX_LENGTH, return_tensors="np")
-    return batch, tokens
+    return batch, token_batches(TOKENIZER, texts)
 
 
 @timed
@@ -142,11 +141,11 @@ def build(path=VECTOR_STORE, device="cuda"):
         with ProcessPoolExecutor(max_workers=PREPARE_WORKERS, initializer=start_worker, initargs=(path.parent / "index.log",)) as pool:
             futures = [pool.submit(prepare, pending[start:start + BATCH_USERS]) for start in range(0, min(PREPARE_WORKERS * BATCH_USERS, len(pending)), BATCH_USERS)]
             for start in range(0, len(pending), BATCH_USERS):
-                batch, tokens = futures.pop(0).result()
+                batch, batches = futures.pop(0).result()
                 next_batch = pending[start + PREPARE_WORKERS * BATCH_USERS:start + (PREPARE_WORKERS + 1) * BATCH_USERS]
                 if next_batch:
                     futures.append(pool.submit(prepare, next_batch))
-                vectors = model({key: torch.from_numpy(value) for key, value in tokens.items()})
+                vectors = model.users(model.features(batches, len(batch) * TEXTS_PER_USER).reshape(len(batch), TEXTS_PER_USER, -1))
                 conn.executemany("UPDATE users SET vector=? WHERE author=?", [(vector.astype("<f4").tobytes(), author) for (author, _), vector in zip(batch, vectors)])
                 state.update(encoded=state["encoded"] + len(batch), encoding_seconds=previous_seconds + time.perf_counter() - started, updated_at=timestamp())
                 save_state(conn, state)

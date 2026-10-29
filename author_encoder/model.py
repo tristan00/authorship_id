@@ -8,10 +8,10 @@ from huggingface_hub import hf_hub_download, snapshot_download
 from safetensors.torch import load_file
 from torch import nn
 from torch.nn import functional as F
-from transformers import AutoConfig, AutoModel, AutoTokenizer
+from transformers import AutoConfig, AutoModel
 
 from . import timed
-from .config import CPU_THREADS, DIMENSIONS, ENCODE_BATCH, LUAR, MODEL_FILES, TEXTS_PER_USER
+from .config import CPU_THREADS, CUDA_MEMORY, DIMENSIONS, LUAR, MODEL_FILES
 
 
 @timed
@@ -20,15 +20,13 @@ def download():
 
 
 @timed
-def load_tokenizer():
-    return AutoTokenizer.from_pretrained(LUAR[0], revision=LUAR[1], local_files_only=True)
-
-
-@timed
 def load_model(device="cuda"):
     torch.set_num_threads(CPU_THREADS)
-    torch.set_float32_matmul_precision("highest")
-    return AuthorEncoder().to(device).eval().requires_grad_(False)
+    model = AuthorEncoder().to(device).eval().requires_grad_(False)
+    if device == "cuda":
+        torch.cuda.set_per_process_memory_fraction(CUDA_MEMORY / torch.cuda.get_device_properties(device).total_memory)
+        model.transformer.to(torch.bfloat16)
+    return model
 
 
 class AuthorEncoder(nn.Module):
@@ -43,34 +41,30 @@ class AuthorEncoder(nn.Module):
         state = load_file(hf_hub_download(LUAR[0], "model.safetensors", revision=LUAR[1], local_files_only=True))
         self.load_state_dict(state, strict=True)
 
-    def encode_texts(self, ids, mask):
-        hidden = self.transformer(input_ids=ids, attention_mask=mask, output_hidden_states=False).last_hidden_state.float()
-        return (hidden * mask.unsqueeze(-1)).sum(1) / mask.sum(1).clamp_min(1).unsqueeze(1)
-
-    def aggregate(self, texts, valid):
-        scores = texts @ texts.transpose(1, 2) / math.sqrt(texts.shape[-1])
-        weights = scores.masked_fill(~valid[:, None, :], float("-inf")).softmax(-1)
-        values = (weights @ texts).masked_fill(~valid[:, :, None], float("-inf")).amax(1)
-        return F.normalize(self.linear(values).float(), dim=-1)
+    def pooled(self, tokens):
+        return self.transformer(input_ids=tokens).last_hidden_state.float().mean(1)
 
     @timed
-    def forward(self, tokens):
-        lengths = tokens["attention_mask"].sum(1)
-        if not len(lengths) or len(lengths) % TEXTS_PER_USER:
-            raise ValueError(f"Each user must have exactly {TEXTS_PER_USER} tokenized texts")
-        users = len(lengths) // TEXTS_PER_USER
+    def features(self, batches, count):
         device = self.linear.weight.device
-        order = torch.argsort(lengths)
-        features = torch.empty((len(order), self.transformer.config.hidden_size), device=device, dtype=torch.float32)
-        with torch.inference_mode(), torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            for start in range(0, len(order), ENCODE_BATCH):
-                selected = order[start:start + ENCODE_BATCH]
-                width = ((int(lengths[selected[-1]]) + 7) // 8) * 8
-                ids = tokens["input_ids"][selected, :width].to(device)
-                mask = tokens["attention_mask"][selected, :width].to(device)
-                features[selected.to(device)] = self.encode_texts(ids, mask)
-            features = features.reshape(users, TEXTS_PER_USER, -1)
-            vectors = self.aggregate(features, torch.ones((users, TEXTS_PER_USER), device=device, dtype=torch.bool)).cpu().numpy()
-        if vectors.shape != (users, DIMENSIONS) or not np.isfinite(vectors).all() or not np.allclose(np.linalg.norm(vectors, axis=1), 1., atol=0.002):
+        features = torch.empty((count, self.transformer.config.hidden_size), dtype=torch.float16, device=device)
+        with torch.inference_mode():
+            for rows, tokens in batches:
+                features[torch.from_numpy(rows).to(device, dtype=torch.long)] = self.pooled(torch.from_numpy(tokens).to(device, dtype=torch.long)).half()
+        return features
+
+    def aggregate(self, texts):
+        scores = texts @ texts.transpose(1, 2) / math.sqrt(texts.shape[-1])
+        return F.normalize(self.linear((scores.softmax(-1) @ texts).amax(1)), dim=-1)
+
+    @timed
+    def users(self, features):
+        with torch.inference_mode():
+            vectors = self.aggregate(torch.as_tensor(features, device=self.linear.weight.device).float()).cpu().numpy()
+        if vectors.shape != (len(features), DIMENSIONS) or not np.isfinite(vectors).all() or not np.allclose(np.linalg.norm(vectors, axis=1), 1., atol=0.002):
             raise ValueError("Invalid author embeddings")
         return vectors
+
+    def project(self, features):
+        with torch.inference_mode():
+            return F.normalize(self.linear(features.float()), dim=-1)

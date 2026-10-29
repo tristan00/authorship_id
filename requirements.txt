@@ -18,3 +18,5 @@ pypdf==6.21.0
 reportlab==5.0.1
 optuna==5.0.0
 pyahocorasick==2.3.1
+pylance==14.0.2
+pyarrow==26.0.0

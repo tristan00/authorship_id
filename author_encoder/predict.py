@@ -5,8 +5,9 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from . import LOG, clean, timed
-from .config import BATCH_USERS, DIMENSIONS, MAX_LENGTH, TEXTS_PER_USER
-from .model import load_model, load_tokenizer
+from .config import BATCH_USERS, DIMENSIONS, TEXTS_PER_USER
+from .model import load_model
+from .tokens import load_tokenizer, token_batches
 
 
 def records(stream):
@@ -45,8 +46,9 @@ def encode_file(source, output, device="cuda"):
             temporary = Path(target.name)
             incoming = records(stream)
             while batch := list(islice(incoming, BATCH_USERS)):
-                tokens = tokenizer([text for _, texts in batch for text in texts], padding="max_length", truncation=True, max_length=MAX_LENGTH, return_tensors="pt")
-                vectors = model(tokens)
+                texts = [text for _, texts in batch for text in texts]
+                features = model.features(token_batches(tokenizer, texts), len(texts))
+                vectors = model.users(features.reshape(len(batch), TEXTS_PER_USER, -1))
                 for (metadata, _), vector in zip(batch, vectors, strict=True):
                     target.write(json.dumps(metadata | {"vector": vector.tolist()}) + "\n")
                 count += len(batch)

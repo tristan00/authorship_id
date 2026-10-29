@@ -5,7 +5,7 @@ from pathlib import Path
 from reddit_dumps import setup_logging
 
 from . import write_json
-from .config import VECTOR_STORE
+from .config import TEXT_STORE, VECTOR_STORE
 
 
 def main():
@@ -19,6 +19,13 @@ def main():
     encode.add_argument("--input", type=Path, required=True)
     encode.add_argument("--output", type=Path, required=True, help="A new JSONL output file.")
     encode.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    texts = commands.add_parser("texts", help="Write 768-dimensional mean-pooled text features keyed by text_sha256 to a resumable Lance store.")
+    texts.add_argument("--source", default="bodies", help="Table with text_sha256 and text columns, optionally schema-qualified.")
+    texts.add_argument("--store", type=Path, default=TEXT_STORE)
+    texts.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    texts.add_argument("--limit", type=int, help="Encode at most this many remaining table parts.")
+    text_index = commands.add_parser("text-index", help="Build the IVF_RQ vector index and text_sha256 index on a written text vector store.")
+    text_index.add_argument("--store", type=Path, default=TEXT_STORE)
     for name, description in (("similar", "Find the closest indexed users by cosine similarity."), ("vector", "Read a user's saved vector and sampled record IDs.")):
         command = commands.add_parser(name, help=description)
         command.add_argument("author")
@@ -38,6 +45,12 @@ def main():
         from .store import status
         build(args.store, args.device)
         result = status(args.store)
+    elif args.command == "texts":
+        from .texts import write
+        result = write(args.source, args.store, args.device, args.limit)
+    elif args.command == "text-index":
+        from .texts import index
+        result = index(args.store)
     elif args.command == "encode":
         from .predict import encode_file
         result = encode_file(args.input, args.output, args.device)
