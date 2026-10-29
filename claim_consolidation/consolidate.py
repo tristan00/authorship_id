@@ -34,10 +34,10 @@ CREATE TABLE author_claims (
 """
 EVIDENCE = """
 SELECT t.author, 'text' AS source, t.record_id AS source_key, t.subreddit, c.field, c.value
-FROM text_claims c JOIN records t USING (text_sha256) {join} WHERE t.author <> ALL(%(no_author)s) {where}
+FROM text_claims c JOIN records t USING (text_sha256) WHERE t.author <> ALL(%(no_author)s)
 UNION ALL
 SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, t.subreddit, f.field, f.value
-FROM records t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text {join} WHERE t.author <> ALL(%(no_author)s) {where}
+FROM records t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text WHERE t.author <> ALL(%(no_author)s)
 """
 CLAIMS = """
 SELECT author, source, subreddit, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author
@@ -72,7 +72,7 @@ def work(part, parts):
 def evidence(conn):
     for setting in PARALLEL:
         conn.execute(setting)
-    rows = conn.execute(f"CREATE TABLE claim_evidence AS {EVIDENCE.format(join='', where='')}", {"no_author": NO_AUTHOR}).rowcount
+    rows = conn.execute(f"CREATE TABLE claim_evidence AS {EVIDENCE}", {"no_author": NO_AUTHOR}).rowcount
     conn.execute("CREATE INDEX claim_evidence_source ON claim_evidence (source_key)")
     conn.execute("CREATE INDEX claim_evidence_author ON claim_evidence (author, field)")
     conn.execute(f"ALTER TABLE claim_evidence SET (parallel_workers = {SCAN_WORKERS})")

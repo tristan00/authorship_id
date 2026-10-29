@@ -7,15 +7,14 @@ import psycopg
 
 from claim_extraction.config import ANNOTATIONS
 from claim_extraction.labels import split
-from database import DSN, NO_AUTHOR, bounds
+from database import DSN
 
 from . import LOG, timed
 from .config import CLAIM_LINES, SAMPLE_SEED
-from .consolidate import EVIDENCE, PARALLEL
+from .consolidate import PARALLEL
 
-MONTH = "AND t.created_utc >= %(low)s AND t.created_utc < %(high)s"
-ELIGIBLE = f"SELECT author FROM ({EVIDENCE.format(join='', where=MONTH)}) evidence GROUP BY author HAVING count(*) >= %(least)s"
-CLAIMS = f"SELECT author, source, subreddit, field, value FROM ({EVIDENCE.format(join='JOIN sampled s ON s.author = t.author', where=MONTH)}) evidence"
+ELIGIBLE = "SELECT author FROM claim_evidence GROUP BY author HAVING count(*) >= %(least)s"
+CLAIMS = "SELECT e.author, e.source, e.subreddit, e.field, e.value FROM claim_evidence e JOIN sampled s USING (author)"
 
 
 def lines(author, claims):
@@ -25,23 +24,22 @@ def lines(author, claims):
 
 
 @timed
-def eligible(conn, month, least):
-    low, high = bounds(month)
+def eligible(conn, least):
     for setting in PARALLEL:
         conn.execute(setting)
-    authors = [author for author, in conn.execute(ELIGIBLE, {"no_author": NO_AUTHOR, "low": low, "high": high, "least": least})]
+    authors = [author for author, in conn.execute(ELIGIBLE, {"least": least})]
     LOG.info("eligible authors=%s min_claims=%s", len(authors), least)
     return authors
 
 
 @timed
-def claims(conn, authors, month):
+def claims(conn, authors):
     conn.execute("CREATE TEMP TABLE sampled (author text PRIMARY KEY) ON COMMIT DROP")
     with conn.cursor().copy("COPY sampled (author) FROM STDIN") as copy:
         for author in authors:
             copy.write_row((author,))
-    found, (low, high) = defaultdict(list), bounds(month)
-    for author, *claim in conn.execute(CLAIMS, {"no_author": NO_AUTHOR, "low": low, "high": high}):
+    found = defaultdict(list)
+    for author, *claim in conn.execute(CLAIMS):
         found[author].append(claim)
     LOG.info("claims authors=%s claims=%s", len(authors), sum(map(len, found.values())))
     return {author: sorted(found[author]) for author in authors}
@@ -51,9 +49,12 @@ def claims(conn, authors, month):
 def sample(month, dataset, least, limit):
     taken = {json.loads(line)["id"] for path in (ANNOTATIONS / month).glob("*/records.jsonl") for line in open(path, encoding="utf-8")}
     with psycopg.connect(DSN) as conn:
-        pool = sorted(set(eligible(conn, month, least)) - taken)
+        run = conn.execute("SELECT months FROM consolidation").fetchone()
+        if run is None or run[0] != [month]:
+            raise ValueError(f"claim_evidence covers months {run and run[0]}, not only {month}; consolidate {month} alone before sampling it")
+        pool = sorted(set(eligible(conn, least)) - taken)
         authors = random.Random(SAMPLE_SEED).sample(pool, min(limit, len(pool)))
-        evidence = claims(conn, authors, month)
+        evidence = claims(conn, authors)
     root = ANNOTATIONS / month / dataset
     root.mkdir(parents=True)
     with open(root / "records.jsonl", "w", encoding="utf-8") as records, open(root / "claims.jsonl", "w", encoding="utf-8") as claimed:
