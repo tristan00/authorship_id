@@ -3,9 +3,10 @@ import math
 import re
 from collections import Counter, defaultdict
 from functools import cache, partial, reduce
-from itertools import chain, islice
+from itertools import chain, islice, repeat
 from operator import or_
 from pathlib import Path
+from re import _compiler as sre_compiler
 from re import _constants as sre
 from re import _parser as sre_parse
 
@@ -475,8 +476,24 @@ def opening(op, av):
     return None, False
 
 
+def lifted(op, av, zero, state):
+    if op in (sre.LITERAL, sre.IN):
+        return [(op, av), (sre.ASSERT, (-1, sre_parse.SubPattern(state, [*zero, (op, av)])))]
+    if op is sre.SUBPATTERN and av[3].data and (inner := lifted(*av[3].data[0], zero, state)):
+        return [(op, (*av[:3], sre_parse.SubPattern(state, [*inner, *av[3].data[1:]])))]
+    return None
+
+
 def quick(pattern, flags=0):
-    atoms, nullable = leading(sre_parse.parse(pattern, flags))
+    tree = sre_parse.parse(pattern, flags)
+    zero = next((index for index, (op, av) in enumerate(tree.data) if op not in (sre.ASSERT, sre.ASSERT_NOT) and (op, av) != (sre.AT, sre.AT_BOUNDARY)),
+                len(tree.data))
+    if zero < len(tree.data) and (inner := lifted(*tree.data[zero], tree.data[:zero], tree.state)):
+        if not zero:
+            return re.compile(pattern, flags)
+        tree.data[:zero + 1] = inner
+        return sre_compiler.compile(tree, flags)
+    atoms, nullable = leading(tree)
     if atoms is None or nullable or not atoms:
         return re.compile(pattern, flags)
     return re.compile(f"(?=[{''.join(sorted(atoms))}]){pattern}", flags)
@@ -513,6 +530,8 @@ FLAGS = {"🇺🇸": "united states", "🇬🇧": "united kingdom", "🇨🇦": 
          "🇸🇬": "singapore", "🇻🇳": "vietnam", "🇹🇭": "thailand"}
 US_UPPER = re.compile(r"\bUS\b")
 WHITESPACE = re.compile(r"\s{2,}|[^\S ]")
+NOT_LETTER = bytes(code for code in range(128) if not chr(code).isalpha())
+NOT_UPPER = bytes(code for code in range(128) if not chr(code).isupper())
 MARKS = {pattern: needed(sre_parse.parse(pattern.pattern, pattern.flags)) for pattern in (SKIP, US_UPPER)}
 REGION_COUNTRY = {region: name for name, regions in REGIONS.items() for region in regions}
 HYPOTHETICAL = quick(r"\b(?:if|when|unless|whether|imagine|pretend|suppose|wish|would|hope|want to be|wanna be|used to be|was|think|thinks|assume|assumes|assumed)\W+(?:\w+\W+){0,3}$")
@@ -524,6 +543,7 @@ CUES = {"other": quick(r"\b(?:he|she|he's|she's|hes|shes|his|her|him|they|they'r
         "if": HYPOTHETICAL,
         "generic": quick(r"\b(?:people|everyone|everybody|anyone|anybody|guys|men|women|folks|someone|somebody|nobody|most|many|all|americans|those|these)" + TAIL),
         "compare": quick(r"\b(?:than|over|under|above|below|between|from|in their|in our|in your|at least|at most)\W*$")}
+STOP = re.compile(r"[.!?\n]")
 QUESTION = re.compile(r"\W*(?:are|is|am|any|anyone|anybody|who|what|where|how|do|does|did|can|could|would|should|will)\b")
 SUBJECT_AFTER = re.compile(r"\W{0,3}(?:she|he|they|she's|he's|they're|his|her|their)\b")
 RANGE = re.compile(r"\s*(?:-|to)\s*\d")
@@ -806,12 +826,15 @@ SYNONYM_FIELDS = {"language", "generation", "education_subject"}
 
 
 def bucket(number, edges):
-    return next((f"<{edge}" for edge in edges if number < edge), f">={edges[-1]}")
+    for edge in edges:
+        if number < edge:
+            return f"<{edge}"
+    return f">={edges[-1]}"
 
 
 def cues(text, start, end, numeric):
-    opening = max(text.rfind(mark, 0, start) for mark in ".!?\n") + 1
-    closing = min((index for index in (text.find(mark, end) for mark in ".!?\n") if index >= 0), default=len(text))
+    opening = max(map(text.rfind, ".!?\n", repeat(0, 4), repeat(start, 4))) + 1
+    closing = stop.start() if (stop := STOP.search(text, end)) else len(text)
     before = text[max(opening, start - 40):start]
     found = {name for name, pattern in CUES.items() if pattern.search(before)}
     if text[closing:closing + 1] == "?" or QUESTION.match(text[opening:start]):
@@ -845,6 +868,8 @@ def blank(value, spans):
 
 
 def straighten(value):
+    if value.isascii():
+        return value
     for old, new in PRIMES.items():
         value = value.replace(old, new)
     return value
@@ -878,6 +903,17 @@ def boundaries(raw, base, lowered, spans):
     return [bound for bound, char in zip(blanked, blank(lowered, spans)) if PRIMES.get(char) != ""] + [blanked[-1]]
 
 
+def spot(text, cased, lengths, start, end, numeric):
+    before = TOKEN.findall(text[max(0, start - 60):start])[-4:]
+    span = cased[start:end]
+    upper = any(map(str.isupper, span))
+    tail = [f"self={bool(SELF.intersection(before))}",
+            f"line={bucket(sum(lengths[text.count(chr(10), 0, start):text.count(chr(10), 0, end) + 1]), (3, 6, 12, 30))}", f"upper={upper}"]
+    form = ("U" if upper else "l" if any(map(str.isalpha, span)) else "n") + ("s" if start < 3 else "e") + \
+           ("p" if text[max(0, start - 1):start + 1].strip()[:1] in ("(", "[") else "")
+    return before, TOKEN.findall(text[end:end + 60])[:4], [f"cue={cue}" for cue in cues(text, start, end, numeric)], tail, form
+
+
 def features(raw):
     for field, result, _, general, own in groups(*prepare(raw)):
         yield field, result, general | {f"{field}|{feature}" for feature in (*general, *own)}
@@ -893,6 +929,8 @@ def groups(base, lowered, spans, text):
                                                       *mentions(text, words)):
         if result is not None:
             found[field].append((result, source, start, end, flag))
+    if not found:
+        return
     for kind in ("residence", "origin"):
         for result, _, start, end, flag in [*found[f"{kind}_city"]]:
             for field, derived in zip(("country", "state"), CITIES.get(result, ("", ""))):
@@ -904,16 +942,18 @@ def groups(base, lowered, spans, text):
     for result, _, start, end, flag in [*found["nationality"]]:
         found["residence_country"].append((result, "from_nationality", start, end, flag))
     found = {field: candidates for field, candidates in found.items() if candidates}
-    if not found:
-        return
     cased = straighten(blank(base, spans)) if len(lowered) == len(base) else text
-    letters = sum(map(str.isalpha, cased))
-    capitals = sum(map(str.isupper, cased))
+    if cased.isascii():
+        data = cased.encode()
+        letters, capitals = len(data.translate(None, NOT_LETTER)), len(data.translate(None, NOT_UPPER))
+    else:
+        letters, capitals = sum(map(str.isalpha, cased)), sum(map(str.isupper, cased))
     shape = {f"lines={'multi' if chr(10) in text.strip() else 'one'}", f"length={bucket(len(text.strip()), (8, 20, 60, 200, 1000))}",
              f"bare={bool(BARE_TAG.match(text))}", f"first={bucket(sum(map(SELF.__contains__, words)), (1, 3, 8))}",
              f"caps={'none' if not capitals else 'most' if capitals * 2 > letters else 'some'}"}
     lengths = [len(words)] if "\n" not in text else [len(TOKEN.findall(part)) for part in text.split("\n")]
     context = {f"has_{field}" for field in found}
+    spots = {}
     for field, candidates in found.items():
         counts = Counter(result for result, *_ in candidates)
         pick = next((index for index, (_, source, _, _, flag) in enumerate(candidates) if not flag and source not in BROAD), None)
@@ -922,20 +962,16 @@ def groups(base, lowered, spans, text):
             if (result, source) in seen:
                 continue
             seen.add((result, source))
-            before = TOKEN.findall(text[max(0, start - 60):start])[-4:]
-            after = TOKEN.findall(text[end:end + 60])[:4]
+            if (key := (start, end, field in NUMERIC)) not in spots:
+                spots[key] = spot(text, cased, lengths, *key)
+            before, after, cued, tail, form = spots[key]
             left = before[-2:] or ["^"]
             right = after[:1] or ["$"]
             kind = "phrase" if "#" in source else source if source in BROAD else "pattern"
             base = {f"pick={rank == pick}", f"position={bucket(start, (3, 40, 200))}", f"same={min(counts[result], 3)}", f"values={min(len(counts), 3)}",
-                    f"rank={min(rank, 3)}", *shape, *flag.split(), *(f"cue={cue}" for cue in cues(text, start, end, field in NUMERIC))}
-            span = cased[start:end]
-            shared = [*base, f"self={bool(SELF.intersection(before))}",
-                      f"line={bucket(sum(lengths[text.count(chr(10), 0, start):text.count(chr(10), 0, end) + 1]), (3, 6, 12, 30))}",
-                      f"upper={any(map(str.isupper, span))}"]
+                    f"rank={min(rank, 3)}", *shape, *flag.split(), *cued}
+            shared = [*base, *tail]
             specific = [f"left={left[-1]}", f"right={right[0]}", f"value={result}" if field not in NUMERIC else f"range={bucket(int(result), RANGES[field])}"]
-            form = ("U" if any(map(str.isupper, span)) else "l" if any(map(str.isalpha, span)) else "n") + ("s" if start < 3 else "e") + \
-                   ("p" if text[max(0, start - 1):start + 1].strip()[:1] in ("(", "[") else "")
             if field.startswith("residence_"):
                 specific.append(f"placed={placed(text, end)}")
             if kind == "vocab" and field not in SYNONYM_FIELDS and text[start:end] != result:
@@ -944,9 +980,9 @@ def groups(base, lowered, spans, text):
                 specific.append(f"lead={lead(text, start)}")
             elif kind in ("pattern", "number", "amount"):
                 specific.append(f"shape={DIGIT.sub('0', text[start:end]) if end - start <= 16 else 'long'}")
-            general = {f"kind={kind}", *shared, *(f"kind={kind}|{feature}" for feature in base)}
-            own = {f"source={source}", f"source={source}|form={form}", f"left2={' '.join(left)}", *context, *(f"near={word}" for word in (*before, *after)),
-                   *specific, *(f"source={source}|{feature}" for feature in (*shared, *specific))}
+            general = {f"kind={kind}", *shared, *[f"kind={kind}|{feature}" for feature in base]}
+            own = {f"source={source}", f"source={source}|form={form}", f"left2={' '.join(left)}", *context, *[f"near={word}" for word in (*before, *after)],
+                   *specific, *[f"source={source}|{feature}" for feature in (*shared, *specific)]}
             yield field, result, (start, end), general, own
 
 
@@ -961,12 +997,14 @@ def weights():
             named[field].append(feature)
         else:
             bare.append(name)
-    tables, firsts, seconds = {}, [0.0], [0.0]
+    ids = {feature: index for index, feature in enumerate(dict.fromkeys(chain(bare, *named.values())), 1)}
+    firsts, seconds = {}, {}
     for field in cutoffs:
-        tables[field] = {feature: len(firsts) + offset for offset, feature in enumerate(dict.fromkeys((*bare, *named[field])))}
-        firsts += [first.get(feature, 0.0) + first.get(f"{field}|{feature}", 0.0) for feature in tables[field]]
-        seconds += [second.get(feature, 0.0) + second.get(f"{field}|{feature}", 0.0) for feature in tables[field]]
-    return model["first"]["bias"], model["bias"], cutoffs, tables, firsts, seconds
+        firsts[field], seconds[field] = [0.0] * (len(ids) + 1), [0.0] * (len(ids) + 1)
+        for feature in dict.fromkeys((*bare, *named[field])):
+            firsts[field][ids[feature]] = first.get(feature, 0.0) + first.get(f"{field}|{feature}", 0.0)
+            seconds[field][ids[feature]] = second.get(feature, 0.0) + second.get(f"{field}|{feature}", 0.0)
+    return model["first"]["bias"], model["bias"], cutoffs, ids, firsts, seconds
 
 
 def cross(field, tops):
@@ -974,13 +1012,16 @@ def cross(field, tops):
 
 
 def scored(prepared):
-    (first_bias, bias, cutoffs, tables, first, second), best, tops = weights(), {}, {}
-    found = [(field, result, span, [*filter(None, map(tables[field].get, chain(general, own)))]) for field, result, span, general, own in groups(*prepared)]
-    for field, result, _, ids in found:
-        score = first_bias + sum(map(first.__getitem__, ids))
-        tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
-    for field, result, span, ids in found:
-        score = bias + sum(map(second.__getitem__, chain(ids, filter(None, map(tables[field].get, cross(field, tops))))))
+    (first_bias, bias, cutoffs, ids, first, second), best, tops, extra = weights(), {}, {}, {}
+    found = [(field, result, span, [*filter(None, map(ids.get, chain(general, own)))]) for field, result, span, general, own in groups(*prepared)]
+    if len({field for field, *_ in found}) > 1:
+        for field, result, _, present in found:
+            score = first_bias + sum(map(first[field].__getitem__, present))
+            tops[field] = max(tops.get(field, 0.0), 1 / (1 + math.exp(-score)))
+    for field, result, span, present in found:
+        if field not in extra:
+            extra[field] = [*filter(None, map(ids.get, cross(field, tops)))]
+        score = bias + sum(map(second[field].__getitem__, chain(present, extra[field])))
         if score > cutoffs[field] and score > best.get(field, (float("-inf"),))[0]:
             best[field] = (score, result, span)
     return best
