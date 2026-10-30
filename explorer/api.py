@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from author_encoder.config import TEXTS_PER_USER
 from database import DSN
 
 from . import timed
@@ -150,14 +151,14 @@ def similar_users(author, limit=50):
         return {"status": "not_built", "indexed_users": 0, "users": []}
     matches = similar(author, limit)
     if matches is None:
-        return {"status": "ineligible", "minimum_texts": 64, "users": []}
+        return {"status": "ineligible", "minimum_texts": 1, "users": []}
     with connect() as conn:
         records = conn.execute("SELECT author, texts, subs[1:5] AS top_subreddits FROM explorer_authors WHERE author=ANY(%s)", [[item["author"] for item in matches]]).fetchall()
     details = {item["author"]: item for item in records}
     missing = [item["author"] for item in matches if item["author"] not in details]
     if missing:
         raise NotFound("User metadata is missing for the vector index")
-    return {"status": "ready", "indexed_users": index.count_rows(), "sampled_texts": 64, "users": [details[item["author"]] | {"similarity": item["similarity"]} for item in matches]}
+    return {"status": "ready", "indexed_users": index.count_rows(), "sampled_texts": TEXTS_PER_USER, "users": [details[item["author"]] | {"similarity": item["similarity"]} for item in matches]}
 
 
 @timed
@@ -167,7 +168,7 @@ def user_vector(author):
         return {"status": "not_built", "indexed_users": 0}
     found = vector(author)
     if found is None:
-        return {"status": "ineligible", "minimum_texts": 64}
+        return {"status": "ineligible", "minimum_texts": 1}
     return {"status": "ready", **found}
 
 
@@ -229,7 +230,7 @@ def user_predictions(author):
             raise NotFound("No published demographic model for the current consolidation")
         row = conn.execute("SELECT attributes, fold FROM demographic_predictions WHERE run_id = %s AND author = %s", [run["run_id"], author.lower()]).fetchone()
     if row is None:
-        return {"status": "ineligible", "minimum_texts": run["manifest"]["sampled_texts"]}
+        return {"status": "ineligible"}
     return {"status": "ready", "attributes": row["attributes"], "fold": row["fold"] + 1, "folds": run["folds"], "run_id": str(run["run_id"]),
             "sampled_texts": run["manifest"]["sampled_texts"]}
 

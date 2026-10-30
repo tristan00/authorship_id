@@ -31,7 +31,8 @@ def export(root):
     vectors = lance.dataset(VECTOR_STORE)
     with psycopg.connect(DSN) as conn:
         metadata = {"protocol": orjson.loads(vectors.schema.metadata[b"protocol"]), "users": vectors.count_rows(), "version": vectors.version}
-        expected = {"model": list(LUAR), "dimensions": DIMENSIONS, "sampled_texts": TEXTS_PER_USER, "max_tokens_per_text": MAX_LENGTH, "preprocessing": "author_encoder.clean"}
+        expected = {"model": list(LUAR), "dimensions": DIMENSIONS, "minimum_usable_texts": 1, "maximum_sampled_texts": TEXTS_PER_USER, "max_tokens_per_text": MAX_LENGTH,
+                    "preprocessing": "author_encoder.clean"}
         if any(metadata["protocol"][key] != value for key, value in expected.items()):
             raise ValueError("Saved user encodings do not match the configured encoder")
         conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
@@ -49,7 +50,7 @@ def export(root):
         for batch in vectors.to_batches(columns=["author", "sample_ids", "vector"]):
             values = batch.column("vector").flatten().to_numpy().reshape(-1, DIMENSIONS)
             for author, samples in zip(batch.column("author").to_pylist(), batch.column("sample_ids").to_pylist()):
-                if len(set(samples)) != TEXTS_PER_USER or author.lower() != authors[index]:
+                if not 1 <= len(set(samples)) == len(samples) <= TEXTS_PER_USER or author.lower() != authors[index]:
                     raise ValueError(f"Invalid saved encoding for {author}")
                 index += 1
             if not np.isfinite(values).all():

@@ -297,8 +297,8 @@ function claimsPanel(data) {
   const claimed = new Map(targets.map((item) => [item.attribute, item.target]));
   const tied = new Set(evidence.map((item) => item.attribute));
   const base = `#/u/${enc(data.summary.author)}/claims`;
-  const predictionNote = ready ? `Out-of-fold model predictions, fold ${fmt(predictions.fold)} of ${fmt(predictions.folds)}, from ${fmt(predictions.sampled_texts)} sampled texts. Scores are uncalibrated.`
-    : `No model prediction: the model covers users with at least ${fmt(predictions.minimum_texts)} texts.`;
+  const predictionNote = ready ? `Out-of-fold model predictions, fold ${fmt(predictions.fold)} of ${fmt(predictions.folds)}, from up to ${fmt(predictions.sampled_texts)} sampled texts. Scores are uncalibrated.`
+    : 'No model prediction: the model covers the users that had a user vector when it was trained.';
   return `<section class="panel" aria-label="Demographics"><p class="note">${plural(targets.length, 'self-claimed attribute')} from ${plural(evidence.length, 'evidence row')}, ${published(data.claims)}.</p>
     <p class="note" role="status">${esc(predictionNote)}</p>
     <table class="demographics-table"><caption class="sr">Consolidated self claims and model predictions</caption>
@@ -336,12 +336,12 @@ function claimEvidence(data, attribute) {
 function similarPanel(data) {
   const similar = data.similar;
   if (similar.status === 'ineligible') {
-    return '<section class="panel" aria-label="Most similar users"><h2>Most similar users</h2><p class="note">This user needs at least 64 available, nonempty texts to have a user vector.</p></section>';
+    return '<section class="panel" aria-label="Most similar users"><h2>Most similar users</h2><p class="note">This user has no available, nonempty text, so there is no user vector.</p></section>';
   }
   if (similar.status !== 'ready') {
     return `<section class="panel" aria-label="Most similar users"><h2>Most similar users</h2><p class="note">The user index is being prepared. ${fmt(similar.indexed_users)} user vectors are ready. Reload this tab after the build finishes.</p></section>`;
   }
-  return `<section class="panel" aria-label="Most similar users"><h2>Most similar users</h2><p class="note">The ${fmt(similar.users.length)} closest users among ${fmt(similar.indexed_users)} indexed users, based on 64 randomly sampled texts each. Higher cosine similarity means closer writing vectors.</p>${table([
+  return `<section class="panel" aria-label="Most similar users"><h2>Most similar users</h2><p class="note">The ${fmt(similar.users.length)} closest users among ${fmt(similar.indexed_users)} indexed users, based on up to ${fmt(similar.sampled_texts)} randomly sampled texts each. Higher cosine similarity means closer writing vectors.</p>${table([
     { label: '#', w: '55px', num: true, cell: (u, i) => fmt(i + 1) },
     { label: 'user', w: 'minmax(190px, 1fr)', cls: 'clip', cell: (u) => userLink(u.author) },
     { label: 'texts', w: '100px', num: true, cell: (u) => fmt(u.texts) },

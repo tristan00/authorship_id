@@ -61,7 +61,7 @@ def users():
         encoded = json.loads(lance.dataset(TEXT_STORE).schema.metadata[MONTHS])
         if encoded != loaded:
             raise ValueError(f"Text vectors cover {encoded}, not the loaded months {loaded}; run update first")
-        LOG.info("user vector build months=%s", loaded)
-        built = build(json.dumps(loaded, sort_keys=True), VECTOR_STORE, TEXT_STORE)
+        LOG.info("user vector update months=%s", loaded)
+        built = build(loaded, VECTOR_STORE, TEXT_STORE)
         cleaned = cleanup(VECTOR_STORE)
     return {"months": loaded, "users": built, "cleanup": cleaned}

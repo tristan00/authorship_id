@@ -79,14 +79,18 @@ class AuthorEncoder(nn.Module):
             return copy.numpy()
         return wait
 
-    def aggregate(self, texts):
-        scores = texts @ texts.transpose(1, 2) / math.sqrt(texts.shape[-1])
-        return F.normalize(self.linear((scores.softmax(-1) @ texts).amax(1)), dim=-1)
+    def aggregate(self, texts, lengths):
+        present = torch.arange(texts.shape[1], device=texts.device) < lengths[:, None]
+        scores = (texts @ texts.transpose(1, 2) / math.sqrt(texts.shape[-1])).masked_fill(~present[:, None, :], -math.inf)
+        attended = (scores.softmax(-1) @ texts).masked_fill(~present[:, :, None], -math.inf)
+        return F.normalize(self.linear(attended.amax(1)), dim=-1)
 
-    @timed
-    def users(self, features):
+    def users(self, features, lengths):
+        if len(features) and not (1 <= lengths.min() and lengths.max() <= features.shape[1]):
+            raise ValueError("Each user needs between 1 and the padded width of texts")
+        device = self.linear.weight.device
         with torch.inference_mode():
-            vectors = self.aggregate(torch.as_tensor(features, device=self.linear.weight.device).float()).cpu().numpy()
+            vectors = self.aggregate(torch.as_tensor(features, device=device).float(), torch.as_tensor(lengths, device=device)).cpu().numpy()
         if vectors.shape != (len(features), DIMENSIONS) or not np.isfinite(vectors).all() or not np.allclose(np.linalg.norm(vectors, axis=1), 1., atol=0.002):
             raise ValueError("Invalid author embeddings")
         return vectors

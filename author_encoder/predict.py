@@ -4,6 +4,9 @@ from itertools import islice
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+import numpy as np
+import torch
+
 from . import LOG, clean, timed
 from .config import BATCH_USERS, DIMENSIONS, TEXTS_PER_USER
 from .model import load_model
@@ -26,10 +29,10 @@ def records(stream):
         if not isinstance(texts, list) or any(not isinstance(text, str) for text in texts):
             raise ValueError(f"Line {line_number}: texts must be a list of strings")
         usable = [(index, cleaned) for index, text in enumerate(texts) if (cleaned := clean(text))]
-        if len(usable) < TEXTS_PER_USER:
-            raise ValueError(f"Line {line_number}: {author} needs at least {TEXTS_PER_USER} usable texts")
-        selected = sorted(usable, key=lambda item: hashlib.sha256(f"luar-user-vector-64-v1:{author}:{item[0]}:{item[1]}".encode()).digest())[:TEXTS_PER_USER]
-        yield {"author": author, "usable_texts": len(usable), "sampled_texts": TEXTS_PER_USER, "sample_indices": [index for index, _ in selected], "dimensions": DIMENSIONS}, [text for _, text in selected]
+        if not usable:
+            raise ValueError(f"Line {line_number}: {author} needs at least one usable text")
+        selected = sorted(usable, key=lambda item: hashlib.sha256(f"luar-user-vector-256-v1:{author}:{item[0]}:{item[1]}".encode()).digest())[:TEXTS_PER_USER]
+        yield {"author": author, "usable_texts": len(usable), "sampled_texts": len(selected), "sample_indices": [index for index, _ in selected], "dimensions": DIMENSIONS}, [text for _, text in selected]
 
 
 @timed
@@ -47,8 +50,12 @@ def encode_file(source, output, device="cuda"):
             incoming = records(stream)
             while batch := list(islice(incoming, BATCH_USERS)):
                 texts = [text for _, texts in batch for text in texts]
-                features = model.features(token_batches(tokenizer, texts), len(texts))
-                vectors = model.users(features.reshape(len(batch), TEXTS_PER_USER, -1))
+                features = model.features(token_batches(tokenizer, texts), len(texts)).float()
+                lengths = np.array([len(texts) for _, texts in batch])
+                present = np.arange(lengths.max()) < lengths[:, None]
+                starts = np.concatenate([[0], np.cumsum(lengths)[:-1]])
+                rows = torch.as_tensor(np.where(present, starts[:, None] + np.arange(lengths.max()), 0), device=features.device)
+                vectors = model.users(features[rows] * torch.as_tensor(present[:, :, None], device=features.device), lengths)
                 for (metadata, _), vector in zip(batch, vectors, strict=True):
                     target.write(json.dumps(metadata | {"vector": vector.tolist()}) + "\n")
                 count += len(batch)

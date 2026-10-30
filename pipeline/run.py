@@ -93,8 +93,9 @@ def consolidation():
 @timed
 def vectors():
     setup_logging(LOGS / "pipeline.log")
-    from author_encoder.update import update
+    from author_encoder.update import update, users
     LOG.info("vectors %s", update())
+    LOG.info("users %s", users())
 
 
 @timed

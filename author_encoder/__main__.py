@@ -14,8 +14,8 @@ def main():
     commands.add_parser("download", help="Download the pinned pretrained model and tokenizer.")
     update = commands.add_parser("update", help="Encode the bodies missing from the text vector store.")
     update.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
-    commands.add_parser("users", help="Rebuild the user vectors over all loaded months from the text vector store.")
-    encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description='Each input line: {"author": "name", "texts": ["text", ...]}. Each author needs at least 64 usable texts; 64 are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
+    commands.add_parser("users", help="Add the loaded months missing from the user vectors, recomputing only the users they change.")
+    encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description='Each input line: {"author": "name", "texts": ["text", ...]}. Each author needs at least one usable text; up to 256 are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
     encode.add_argument("--input", type=Path, required=True)
     encode.add_argument("--output", type=Path, required=True, help="A new JSONL output file.")
     encode.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
@@ -48,7 +48,7 @@ def main():
             parser.error("The user vector store is not built; run users first.")
         result = similar(args.author, args.limit, args.store) if args.command == "similar" else vector(args.author, args.store)
         if result is None:
-            parser.error(f"No vector for {args.author}; users need at least 64 usable texts.")
+            parser.error(f"No vector for {args.author}; users need at least one usable text.")
         if args.output is not None:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             write_json(args.output, result)
