@@ -22,7 +22,10 @@ def main():
     user = commands.add_parser("user")
     user.add_argument("author")
     user.add_argument("--model", type=Path, default=MODEL)
-    for command in (prepare, train, predict, user):
+    table = commands.add_parser("table")
+    table.add_argument("--model", type=Path, default=MODEL)
+    update = commands.add_parser("update")
+    for command in (prepare, train, predict, user, table, update):
         command.add_argument("--targets", type=Path, default=TARGETS)
     args = parser.parse_args()
     targets = read_targets(args.targets)
@@ -36,9 +39,15 @@ def main():
     elif args.command == "predict":
         from .predict import predict_file
         result = predict_file(args.model, targets, args.input, args.output)
-    else:
+    elif args.command == "user":
         from .predict import predict_user
         result = predict_user(args.model, targets, args.author)
+    elif args.command == "table":
+        from .predict import predict_table
+        result = predict_table(args.model, targets)
+    else:
+        from .update import update
+        result = update(targets)
     print(json.dumps(result))
 
 

@@ -1,6 +1,7 @@
 import json
 import math
 import time
+import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -198,8 +199,6 @@ def fit(model, specs, data, parameters):
 def train(directory, output, targets, parameters=PARAMETERS):
     targets = validate(targets)
     output = Path(output)
-    if output.exists():
-        raise FileExistsError(output)
     torch.manual_seed(SEED)
     manifest, specs, data = load_data(directory, targets)
     architecture = {key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}
@@ -209,7 +208,8 @@ def train(directory, output, targets, parameters=PARAMETERS):
     evaluation = report(model, *data["test"], specs, calibration)
     for name, fields in evaluation.items():
         LOG.info("attribute model test %s %s", name, json.dumps(fields))
-    artifact = {"targets": targets, "specifications": specs, "architecture": architecture, "parameters": parameters, "model": {name: value.cpu() for name, value in model.state_dict().items()},
+    model_id = str(uuid.uuid4())
+    artifact = {"model_id": model_id, "targets": targets, "specifications": specs, "architecture": architecture, "parameters": parameters, "model": {name: value.cpu() for name, value in model.state_dict().items()},
                 "calibration": calibration, "evaluation": evaluation, "history": history, "validation_score": best, "source": manifest["source"],
                 "authors": {name: len(labels) for name, (_, labels) in data.items()}, "splits": SPLITS}
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -222,4 +222,4 @@ def train(directory, output, targets, parameters=PARAMETERS):
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    return {"model": str(output), "validation_score": best, "evaluation": evaluation}
+    return {"model": str(output), "model_id": model_id, "validation_score": best, "evaluation": evaluation}

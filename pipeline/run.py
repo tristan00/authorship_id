@@ -99,6 +99,13 @@ def vectors():
 
 
 @timed
+def attributes():
+    from attribute_model.config import read_targets
+    from attribute_model.update import update
+    LOG.info("attributes %s", update(read_targets()))
+
+
+@timed
 def explorer():
     if current("explorer_totals", EXPLORED):
         LOG.info("explorer matches the consolidation")
@@ -120,5 +127,6 @@ def run(month):
             explorer()
         finally:
             wait(encoder)
+        attributes()
     finally:
         wait(upcoming)

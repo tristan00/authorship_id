@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import shutil
 from pathlib import Path
 
 import lance
@@ -69,8 +70,9 @@ def encode(values, name, kind):
 def prepare(directory, targets):
     targets = validate(targets)
     directory = Path(directory)
-    if directory.exists():
-        raise FileExistsError(f"Choose a new prepared-data directory: {directory}")
+    staging = directory.with_name(directory.name + ".staging")
+    if staging.exists():
+        shutil.rmtree(staging)
     with index_lock(VECTOR_STORE), psycopg.connect(DSN, row_factory=dict_row) as conn:
         conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         expected = source(conn)
@@ -114,17 +116,20 @@ def prepare(directory, targets):
             catalogs[name] = catalog
     kept = np.flatnonzero(np.isfinite(labels).any(1))
     authors, labels = [authors[index] for index in kept], labels[kept]
-    directory.mkdir(parents=True)
-    np.save(directory / "users.npy", np.concatenate(users)[kept])
+    staging.mkdir(parents=True)
+    np.save(staging / "users.npy", np.concatenate(users)[kept])
     del users
-    np.save(directory / "labels.npy", labels)
-    np.save(directory / "splits.npy", np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors)))
-    write_json(directory / "authors.json", authors)
+    np.save(staging / "labels.npy", labels)
+    np.save(staging / "splits.npy", np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors)))
+    write_json(staging / "authors.json", authors)
     counts = np.isfinite(labels).sum(0)
     manifest = {"targets": targets, "catalogs": catalogs, "authors": len(authors), "scanned_users": scanned, "source": expected,
                 "target_counts": {name: int(count) for name, count in zip(targets, counts)}, "excluded_out_of_range": excluded,
                 "numeric_ranges": {name: NUMERIC[name] for name, kind in targets.items() if kind == "numeric" and name in NUMERIC}}
-    write_json(directory / "manifest.json", manifest)
+    write_json(staging / "manifest.json", manifest)
+    if directory.exists():
+        shutil.rmtree(directory)
+    staging.rename(directory)
     return {"authors": len(authors), "directory": str(directory), "target_counts": manifest["target_counts"], "excluded_out_of_range": excluded}
 
 
