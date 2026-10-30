@@ -1,0 +1,20 @@
+{
+  "age": "numeric",
+  "birth_year": "numeric",
+  "generation": "categorical",
+  "nationality": "categorical",
+  "language": "categorical",
+  "residence_country": "categorical",
+  "residence_state": "categorical",
+  "residence_city": "embedding",
+  "origin_country": "categorical",
+  "origin_state": "categorical",
+  "origin_city": "embedding",
+  "height": "numeric",
+  "weight": "numeric",
+  "education": "categorical",
+  "education_subject": "categorical",
+  "occupation": "categorical",
+  "marital_status": "categorical",
+  "relationship_status": "categorical"
+}
