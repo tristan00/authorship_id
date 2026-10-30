@@ -119,9 +119,6 @@ mark, .claim-mark { background: #FEF3C7; color: inherit; border-radius: 3px; pad
 .demographics-table th:first-child { width: 22%; }
 .prediction-value { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 15px; }
 .prediction-score { font: 12px var(--mono); white-space: nowrap; padding: 2px 6px; border-radius: 4px; color: var(--accent-deep); background: var(--tint); }
-.prediction-options { list-style: none; padding: 0; margin: 8px 0 0; }
-.prediction-options li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
-.prediction-options .mono { white-space: nowrap; }
 .demographics-table th { padding: 12px 16px; background: #F7F8FA; text-align: left; font-size: 15px; }
 .demographics-table td { vertical-align: top; padding: 16px; border-top: 1px solid var(--rule); overflow-wrap: anywhere; }
 .demographics-table th + th, .demographics-table td + td { border-left: 1px solid var(--line); }

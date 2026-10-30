@@ -7,8 +7,8 @@ import lance
 import numpy as np
 import psycopg
 import pyarrow as pa
-import pyarrow.compute as pc
 import torch
+from psycopg import sql
 from psycopg.copy import QueuedLibpqWriter
 from psycopg.types.json import Jsonb
 from pyarrow import csv
@@ -19,21 +19,26 @@ from author_encoder.lock import index_lock
 from database import DSN
 
 from . import LOG, timed
-from .config import THREADS, check_targets, validate
+from .config import THREADS, check_targets, columns, validate
 from .model import AttributeModel, numeric
 
-COLUMNS = ("author", "attribute", "value", "probability", "lower", "upper")
-TABLE = "CREATE TABLE author_predictions_next (author text NOT NULL, attribute text NOT NULL, value text NOT NULL, probability real, lower real, upper real)"
 COPY = "COPY author_predictions_next FROM STDIN (FORMAT CSV, FREEZE)"
 PUBLISH = """
-ALTER TABLE author_predictions_next ADD PRIMARY KEY (author, attribute);
+ALTER TABLE author_predictions_next ADD PRIMARY KEY (author);
 DROP TABLE IF EXISTS author_predictions;
 ALTER TABLE author_predictions_next RENAME TO author_predictions;
 ALTER INDEX author_predictions_next_pkey RENAME TO author_predictions_pkey;
 ANALYZE author_predictions;
 DROP TABLE IF EXISTS prediction;
-CREATE TABLE prediction (model_id uuid PRIMARY KEY, source jsonb NOT NULL, users bigint NOT NULL, finished_at timestamptz NOT NULL DEFAULT clock_timestamp());
+CREATE TABLE prediction (model_id uuid PRIMARY KEY, source jsonb NOT NULL, targets jsonb NOT NULL, interval_mass real NOT NULL, users bigint NOT NULL, finished_at timestamptz NOT NULL DEFAULT clock_timestamp());
 """
+
+
+def schema(targets):
+    result = [("author", "text")]
+    for name, kind in targets.items():
+        result += zip(columns(name, kind), ("real",) * 3 if kind == "numeric" else ("text", "real"))
+    return result
 
 
 def build(artifact):
@@ -86,31 +91,31 @@ def predict(loaded, vectors, candidates=5):
     return result
 
 
-def table_rows(model, artifact, catalogs, authors, vectors):
-    tables = []
-    empty = pa.nulls(len(authors), pa.float32())
+def table_rows(model, artifact, catalogs, names, authors, vectors):
+    arrays = [authors]
     for spec, _, scored in calibrated(artifact, model.outputs(model(vectors))):
         if spec["type"] == "numeric":
-            value, lower, upper = (column.cpu().numpy() for column in scored)
-            columns = [pc.cast(pa.array(value.round(1)), pa.string()), empty, pa.array(lower), pa.array(upper)]
+            arrays += [pa.array(column.cpu().numpy()) for column in scored]
         else:
             probability, index = scored.max(1)
-            columns = [catalogs[spec["name"]].take(index.cpu().numpy()), pa.array(probability.cpu().numpy()), empty, empty]
-        tables.append(pa.table([authors, pa.repeat(spec["name"], len(authors)), *columns], names=COLUMNS))
+            arrays += [catalogs[spec["name"]].take(index.cpu().numpy()), pa.array(probability.cpu().numpy())]
     sink = pa.BufferOutputStream()
-    csv.write_csv(pa.concat_tables(tables), sink, csv.WriteOptions(include_header=False))
+    csv.write_csv(pa.table(arrays, names=names), sink, csv.WriteOptions(include_header=False))
     return sink.getvalue().to_pybytes()
 
 
 @timed
-def predict_table(model_path, targets, device="cuda", batch=16384):
+def predict_table(model_path, targets, device="cuda", batch=32768):
     artifact = torch.load(model_path, map_location="cpu", weights_only=True)
     check_targets(validate(targets), artifact["targets"])
     model = build(artifact).to(device)
     catalogs = {spec["name"]: pa.array(spec["values"]) for spec in artifact["specifications"] if spec["type"] != "numeric"}
+    fields = schema(artifact["targets"])
+    names = [name for name, _ in fields]
     users = 0
     with psycopg.connect(DSN) as conn:
-        conn.execute(TABLE)
+        conn.execute(sql.SQL("CREATE TABLE author_predictions_next ({})").format(
+            sql.SQL(", ").join(sql.SQL("{} {} NOT NULL").format(sql.Identifier(name), sql.SQL(kind)) for name, kind in fields)))
         with index_lock(VECTOR_STORE):
             dataset = lance.dataset(VECTOR_STORE)
             metadata = dataset.schema.metadata
@@ -119,16 +124,16 @@ def predict_table(model_path, targets, device="cuda", batch=16384):
             with conn.cursor() as cursor, cursor.copy(COPY, writer=QueuedLibpqWriter(cursor)) as copy, torch.inference_mode():
                 for number, chunk in enumerate(dataset.to_batches(columns=["author", "vector"], batch_size=batch), 1):
                     vectors = torch.from_numpy(chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()).to(device)
-                    copy.write(table_rows(model, artifact, catalogs, chunk["author"], vectors))
+                    copy.write(table_rows(model, artifact, catalogs, names, chunk["author"], vectors))
                     users += chunk.num_rows
                     if number % 128 == 0:
                         LOG.info("attribute predictions users=%d", users)
             del dataset
-        rows = users * len(artifact["specifications"])
-        LOG.info("attribute predictions copied users=%d rows=%d", users, rows)
+        LOG.info("attribute predictions copied users=%d columns=%d", users, len(names))
         conn.execute(PUBLISH)
-        conn.execute("INSERT INTO prediction (model_id, source, users) VALUES (%s, %s, %s)", [artifact["model_id"], Jsonb(artifact["source"]), users])
-    return {"model_id": artifact["model_id"], "users": users, "rows": rows}
+        conn.execute("INSERT INTO prediction (model_id, source, targets, interval_mass, users) VALUES (%s, %s, %s, %s, %s)",
+                     [artifact["model_id"], Jsonb(artifact["source"]), Jsonb(artifact["targets"]), artifact["parameters"]["interval_mass"], users])
+    return {"model_id": artifact["model_id"], "users": users, "columns": len(names)}
 
 
 @timed

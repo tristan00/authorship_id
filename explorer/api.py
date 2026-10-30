@@ -221,24 +221,30 @@ def user_claims(author):
     return {"finished": run["finished_at"], "fields": list(FIELDS), "targets": targets, "evidence": evidence}
 
 
+def prediction(row, name, kind, mass):
+    from attribute_model.config import columns
+    if kind == "numeric":
+        value, lower, upper = (row[column] for column in columns(name, kind))
+        return {"type": kind, "value": value, "lower": lower, "upper": upper, "interval_mass": mass}
+    value, probability = (row[column] for column in columns(name, kind))
+    return {"type": kind, "value": value, "probability": probability}
+
+
 @timed
 def user_predictions(author):
-    from attribute_model.config import MODEL, SPLITS, read_targets
-    from attribute_model.data import partition
-    from attribute_model.predict import load_model, predict
-    from author_encoder.index import users, vector
-    if not MODEL.exists() or users() is None:
-        return {"status": "not_built"}
-    found = vector(author)
-    if found is None:
-        return {"status": "ineligible"}
-    loaded = load_model(MODEL, read_targets())
-    bucket = partition(author)
+    from attribute_model.config import SPLITS, partition
     with connect() as conn:
-        claimed = conn.execute("SELECT EXISTS (SELECT FROM author_claims WHERE author = %s AND attribute = ANY(%s))", [author, list(loaded[1]["targets"])]).fetchone()["exists"]
-    return {"status": "ready", "attributes": predict(loaded, [found["vector"]])[0], "sampled_texts": found["sampled_texts"],
+        if conn.execute("SELECT to_regclass('author_predictions') AS name").fetchone()["name"] is None:
+            return {"status": "not_built"}
+        row = conn.execute("SELECT * FROM author_predictions WHERE author = %s", [author]).fetchone()
+        if row is None:
+            return {"status": "ineligible"}
+        run = conn.execute("SELECT source, targets, interval_mass FROM prediction").fetchone()
+        claimed = conn.execute("SELECT EXISTS (SELECT FROM author_claims WHERE author = %s AND attribute = ANY(%s))", [author, list(run["targets"])]).fetchone()["exists"]
+    bucket = partition(author)
+    return {"status": "ready", "attributes": {name: prediction(row, name, kind, run["interval_mass"]) for name, kind in run["targets"].items()},
             "split": next(name for name, buckets in SPLITS.items() if bucket in buckets), "claimed": claimed,
-            "consolidation": loaded[1]["source"]["consolidation"], "months": list(loaded[1]["source"]["months"])}
+            "consolidation": run["source"]["consolidation"], "months": list(run["source"]["months"])}
 
 
 FLAGGED_TEXT = "EXISTS (SELECT 1 FROM suspect_claim_texts s WHERE s.record_id = x.record_id)"

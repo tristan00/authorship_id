@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -35,6 +36,14 @@ def validate(targets):
 
 def read_targets(path=TARGETS):
     return validate(json.loads(Path(path).read_text(encoding="utf-8"), object_pairs_hook=unique))
+
+
+def partition(author):
+    return int(hashlib.sha256(f"attribute-model:{author.casefold()}".encode()).hexdigest()[:8], 16) % 10
+
+
+def columns(name, kind):
+    return (name, f"{name}_lower", f"{name}_upper") if kind == "numeric" else (name, f"{name}_probability")
 
 
 def check_targets(expected, actual):

@@ -1,4 +1,3 @@
-import hashlib
 import io
 import json
 import shutil
@@ -19,18 +18,10 @@ from claim_extraction.config import NUMERIC
 from database import DSN
 
 from . import LOG, timed, write_json
-from .config import check_targets, validate
+from .config import check_targets, partition, validate
 
 CLAIMS = "COPY (SELECT author, attribute, value FROM author_claims WHERE attribute = ANY(%s)) TO STDOUT (FORMAT CSV)"
 ARRAYS = ("users", "labels", "splits")
-
-
-def author_key(author):
-    return hashlib.sha256(f"attribute-model:{author.casefold()}".encode()).hexdigest()
-
-
-def partition(author):
-    return int(author_key(author)[:8], 16) % 10
 
 
 def source(conn):
@@ -67,6 +58,30 @@ def encode(values, name, kind):
 
 
 @timed
+def labeled_users(dataset, labeled):
+    stored = dataset.to_table(columns=["author"], scan_in_order=True)["author"]
+    found = pc.index_in(stored, value_set=labeled)
+    mask = pc.is_valid(found).to_numpy(zero_copy_only=False)
+    positions = np.flatnonzero(mask)
+    rows = np.full(len(labeled), -1, dtype=np.int64)
+    rows[found.take(positions).to_numpy().astype(np.int64)] = np.arange(len(positions))
+    users, scanned = [], 0
+    for batch in dataset.to_batches(columns=["vector"], batch_size=65536, scan_in_order=True):
+        kept = np.flatnonzero(mask[scanned:scanned + batch.num_rows])
+        if len(kept):
+            vectors = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS)[kept]
+            if not np.isfinite(vectors).all():
+                raise ValueError("Saved user vectors must be finite")
+            users.append(vectors.astype(np.float16))
+        scanned += batch.num_rows
+        if scanned % (64 * 65536) < batch.num_rows:
+            LOG.info("attribute users scanned=%d of %d", scanned, len(stored))
+    if scanned != len(stored):
+        raise ValueError("User store rows changed between the author and vector scans")
+    return rows, users, stored.take(positions).to_pylist(), scanned
+
+
+@timed
 def prepare(directory, targets):
     targets = validate(targets)
     directory = Path(directory)
@@ -82,20 +97,7 @@ def prepare(directory, targets):
             raise ValueError("User vectors do not match the completed source months")
         claims = read_claims(conn, targets)
         labeled = pc.unique(claims["author"])
-        rows, users, authors, scanned = np.full(len(labeled), -1, dtype=np.int64), [], [], 0
-        for batch in dataset.to_batches(columns=["author", "vector"], batch_size=65536):
-            found = pc.index_in(batch["author"], value_set=labeled)
-            kept = np.flatnonzero(pc.is_valid(found).to_numpy(zero_copy_only=False))
-            if len(kept):
-                vectors = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS)[kept]
-                if not np.isfinite(vectors).all():
-                    raise ValueError("Saved user vectors must be finite")
-                users.append(vectors.astype(np.float16))
-                rows[found.to_numpy(zero_copy_only=False)[kept].astype(np.int64)] = np.arange(len(authors), len(authors) + len(kept))
-                authors.extend(batch["author"].take(kept).to_pylist())
-            scanned += batch.num_rows
-            if scanned % (64 * 65536) < batch.num_rows:
-                LOG.info("attribute users scanned=%d labeled=%d", scanned, len(authors))
+        rows, users, authors, scanned = labeled_users(dataset, labeled)
         del dataset
     with psycopg.connect(DSN, row_factory=dict_row) as conn:
         if source(conn) != expected:

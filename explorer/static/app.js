@@ -278,17 +278,15 @@ function predictionCell(attribute, prediction) {
     return `<div class="prediction-value"><span>${value(prediction.value)}</span><span class="sub">median</span></div>
     <div class="sub">${Math.round(100 * prediction.interval_mass)}% interval: ${value(prediction.lower)}–${value(prediction.upper)}</div>`;
   }
-  const [top, ...others] = prediction.candidates;
-  return `<div class="prediction-value"><span>${esc(top.value)}</span><span class="prediction-score" title="Calibrated model probability">${percent(top.probability)}</span></div>
-    ${others.length ? `<details><summary>Other candidates</summary><ul class="prediction-options">${others.map((candidate) => `<li><span>${esc(candidate.value)}</span><span class="mono">${percent(candidate.probability)}</span></li>`).join('')}</ul></details>` : ''}`;
+  return `<div class="prediction-value"><span>${esc(prediction.value)}</span><span class="prediction-score" title="Calibrated model probability">${percent(prediction.probability)}</span></div>`;
 }
 
 function predictionNote(predictions) {
-  if (predictions.status === 'not_built') return 'No model prediction: the attribute model or the user vectors are not built.';
+  if (predictions.status === 'not_built') return 'No model prediction: the predictions table is not built.';
   if (predictions.status !== 'ready') return 'No model prediction: the user has no user vector.';
   const held = !predictions.claimed ? 'The user has no modeled claim, so the model never saw it.'
     : predictions.split === 'train' ? 'The user is in the training split, so its claims were training labels.' : `The user is in the ${predictions.split} split, held out from training.`;
-  return `Predictions from the user vector (${fmt(predictions.sampled_texts)} sampled texts) by the attribute model trained on the ${predictions.months.join(', ')} claims. ${held}`;
+  return `Predictions from the user vector by the attribute model trained on the ${predictions.months.join(', ')} claims. ${held}`;
 }
 
 function claimsPanel(data) {
