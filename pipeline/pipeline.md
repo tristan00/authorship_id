@@ -7,13 +7,14 @@
 3. Clean: while the month's dumps are on disk, it checks that `records` holds exactly the copied rows within the month's bounds, then deletes the two dumps. Once the torrent holds no dumps, it also deletes the torrent directory with its `.torrent` and `.resume` files.
 4. Claim extraction (`claim_extraction.run.run`): every month with `months.extracted_at` empty; see `claim_extraction/annotation.md`.
 5. Consolidation (`claim_consolidation.consolidate.consolidate`), unless `consolidation` covers exactly the loaded months and started after the last extraction. When the previous run covered a subset of the loaded months and none of them was loaded or extracted after it started, it appends the evidence of the added months to `claim_evidence` and reconsolidates only the authors with new evidence. Otherwise it rebuilds `claim_evidence` and `author_claims` over all months.
-6. Vectors (`author_encoder.update.update`): text vectors for new bodies, then the user vector store; see `author_encoder/encoder.md`. It runs in its own process from the end of the clean step, alongside steps 4, 5 and 7, and the run waits for it at the end. It needs the GPU, and nothing may hold the user vector store open.
+6. Vectors (`author_encoder.update.update`, then `author_encoder.update.users`): text vectors for new bodies, then the months the user vector store lacks, recomputing only the users whose sample the new records change; see `author_encoder/encoder.md`. It runs in its own process from the end of the clean step, alongside steps 4, 5 and 7, and the run waits for it at the end. It needs the GPU, and nothing may hold the user vector store open.
 7. Explorer (`explorer.prepare.prepare`): rebuilt unless `explorer_totals.run_id` is the current consolidation run. When the consolidation extended the run the explorer was built from, it merges the added months' activity into `explorer_activity` and recomputes `explorer_texts` only for the authors active in those months. It runs in one transaction.
 
 ## State
 
 - `bodies.month`: the month whose load first added a text. A text belongs to one month for good. Extraction and text vectors find new texts by month and `text_sha256` range, which reads only that month's partition.
 - `months`: `records` (rows copied), `loaded_at` and `extracted_at`.
+- `empty_bodies`: the bodies whose clean text is empty, by month, written by the text vector step when it finishes a month. User vectors skip their records.
 - `consolidation`: the months covered, when the run started and finished, and for an appending run the run it extended (`base`) and the months it added (`added`).
 - `explorer_totals.run_id`: the consolidation the explorer was built from.
 
