@@ -9,6 +9,8 @@ DSN = f"host=localhost port={PORT} dbname=reddit user=postgres"
 NO_AUTHOR = ["", "[deleted]", "[removed]"]
 
 PARSERS = 16
+TRANSFER_SLOTS = 64
+SLOT_SIZE = 2**22
 SCAN_WORKERS = 16
 SORT_WORKERS = 8
 SORT_MEMORY = "256MB"

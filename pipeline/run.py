@@ -1,11 +1,15 @@
+import multiprocessing
+
 import psycopg
 
 from claim_consolidation.consolidate import consolidate
 from claim_extraction.config import EXTRACT_WORKERS
 from claim_extraction.run import run as extract
-from database import DSN
+from database import DSN, LOGS
 from database.load import add, verify
 from explorer.prepare import prepare
+from reddit_dumps import setup_logging
+from reddit_dumps.catalog import load_catalog, month_index
 from reddit_dumps.download import delete, download, files
 
 from . import LOG, timed
@@ -17,7 +21,8 @@ EXPLORED = "SELECT EXISTS (SELECT FROM explorer_totals WHERE run_id = (SELECT ru
 
 def loaded(month):
     with psycopg.connect(DSN) as conn:
-        return conn.execute("SELECT EXISTS (SELECT FROM months WHERE month = %s)", [month]).fetchone()[0]
+        return conn.execute("SELECT to_regclass('months') IS NOT NULL").fetchone()[0] and \
+            conn.execute("SELECT EXISTS (SELECT FROM months WHERE month = %s)", [month]).fetchone()[0]
 
 
 def current(table, query):
@@ -25,10 +30,37 @@ def current(table, query):
         return conn.execute("SELECT to_regclass(%s)", [table]).fetchone()[0] is not None and conn.execute(query).fetchone()[0]
 
 
+def following(month):
+    index = month_index(month) + 1
+    return f"{index // 12:04d}-{index % 12 + 1:02d}"
+
+
+def background(target, *args):
+    process = multiprocessing.Process(target=target, args=args, name=target.__name__)
+    process.start()
+    return process
+
+
+@timed
+def wait(process):
+    process.join()
+    if process.exitcode:
+        raise RuntimeError(f"{process.name} failed with exit code {process.exitcode}")
+
+
 @timed
 def fetch(month):
     if loaded(month):
         LOG.info("%s is loaded, no download", month)
+        return
+    download([month])
+
+
+@timed
+def prefetch(month):
+    setup_logging(LOGS / "download.log")
+    if loaded(month) or not any(start <= month <= end for start, end, _ in load_catalog()):
+        LOG.info("%s is loaded or not published, no download", month)
         return
     download([month])
 
@@ -60,6 +92,7 @@ def consolidation():
 
 @timed
 def vectors():
+    setup_logging(LOGS / "pipeline.log")
     from author_encoder.update import update
     LOG.info("vectors %s", update())
 
@@ -75,9 +108,16 @@ def explorer():
 @timed
 def run(month):
     fetch(month)
-    load(month)
-    clean(month)
-    extract(EXTRACT_WORKERS)
-    consolidation()
-    vectors()
-    explorer()
+    upcoming = background(prefetch, following(month))
+    try:
+        load(month)
+        clean(month)
+        encoder = background(vectors)
+        try:
+            extract(EXTRACT_WORKERS)
+            consolidation()
+            explorer()
+        finally:
+            wait(encoder)
+    finally:
+        wait(upcoming)

@@ -3,6 +3,7 @@ import multiprocessing
 import queue
 import threading
 import time
+from multiprocessing import shared_memory
 
 import orjson
 import psycopg
@@ -12,7 +13,7 @@ from reddit_dumps.config import CHUNK_SIZE, SLOTS
 from reddit_dumps.extract import produce
 
 from . import DSN, DUMPS, LOG, LOGS, bounds, timed
-from .config import PARSERS
+from .config import PARSERS, SLOT_SIZE, TRANSFER_SLOTS
 
 KINDS = {"comment": ("comments", "RC"), "post": ("submissions", "RS")}
 COLUMNS = ["created_utc", "is_submitter", "over_18", "is_self", "record_id", "subreddit", "record_type", "author", "author_fullname", "link_id", "parent_id",
@@ -45,8 +46,9 @@ def reddit_fields(raw, kind):
             "post_hint": raw.get("post_hint"), "crosspost_parent": raw.get("crosspost_parent")}
 
 
-def read_dump(kind, path, chunks):
+def read_dump(kind, path, chunks, name, slots):
     setup_logging(LOGS / "database.log")
+    memory = shared_memory.SharedMemory(name)
     full, free = queue.SimpleQueue(), queue.SimpleQueue()
     for _ in range(SLOTS):
         free.put(bytearray(CHUNK_SIZE))
@@ -56,19 +58,28 @@ def read_dump(kind, path, chunks):
         if isinstance(item, BaseException):
             raise item
         buf, end = item[:2]
-        chunks.put((kind, bytes(buf[:end])))
+        if end > SLOT_SIZE:
+            raise ValueError(f"{path} has a {end} byte chunk, transfer slots hold {SLOT_SIZE}")
+        slot = slots.get()
+        memory.buf[slot * SLOT_SIZE:slot * SLOT_SIZE + end] = memoryview(buf)[:end]
+        chunks.put((kind, slot, end))
         free.put(buf)
         sent += end
+    memory.close()
     LOG.info("%s read %.1f GB in %.0fs", path.name, sent / 1e9, time.perf_counter() - started)
 
 
-def parse_chunks(chunks, month, total):
+def parse_chunks(chunks, month, total, names, slots):
     setup_logging(LOGS / "database.log")
+    memory = {kind: shared_memory.SharedMemory(name) for kind, name in names.items()}
     rows = 0
-    with psycopg.connect(DSN) as meta, psycopg.connect(DSN) as body, meta.cursor().copy(f"COPY records ({', '.join(COLUMNS)}) FROM STDIN") as records, \
+    table = "records_" + month.replace("-", "_")
+    with psycopg.connect(DSN) as meta, psycopg.connect(DSN) as body, meta.cursor().copy(f"COPY {table} ({', '.join(COLUMNS)}) FROM STDIN") as records, \
             body.cursor().copy(f"COPY bodies_stage ({', '.join(BODY)}) FROM STDIN") as stage:
         while (item := chunks.get()) is not None:
-            kind, data = item
+            kind, slot, end = item
+            data = bytes(memory[kind].buf[slot * SLOT_SIZE:slot * SLOT_SIZE + end])
+            slots[kind].put(slot)
             for line in data.split(b"\n"):
                 if line:
                     raw = orjson.loads(line)
@@ -78,6 +89,8 @@ def parse_chunks(chunks, month, total):
                     records.write_row([record[c] for c in COLUMNS])
                     stage.write_row([record[c] for c in BODY])
                     rows += 1
+    for shared in memory.values():
+        shared.close()
     with total.get_lock():
         total.value += rows
     LOG.info("parser copied %s rows", rows)
@@ -95,32 +108,37 @@ def dumps(month):
 
 @timed
 def add(months):
-    from .server import STAGE, bodies, drop_indexes, finish, indexes, schema
+    from .server import create, finish, reloadable, schema
     with psycopg.connect(DSN) as conn:
         schema(conn)
-        conn.execute(STAGE)
+        for month in months:
+            reloadable(conn, month)
         conn.execute("DELETE FROM months WHERE month = ANY(%s)", [months])
-        drop_indexes(conn)
-    loaded = {month: load_month(month) for month in months}
-    bodies()
-    indexes()
-    finish()
-    with psycopg.connect(DSN) as conn:
-        for month, rows in loaded.items():
+    for month in sorted(months):
+        create(month)
+        rows = load_month(month)
+        finish(month)
+        with psycopg.connect(DSN) as conn:
             conn.execute("INSERT INTO months (month, records) VALUES (%s, %s)", [month, rows])
 
 
 @timed
 def load_month(month):
     files = dumps(month)
-    chunks = multiprocessing.Queue(maxsize=4 * PARSERS)
+    chunks = multiprocessing.Queue()
     total = multiprocessing.Value("q", 0)
-    readers = [multiprocessing.Process(target=read_dump, args=(kind, path, chunks), name=f"read-{kind}", daemon=True) for kind, path in files.items()]
-    parsers = [multiprocessing.Process(target=parse_chunks, args=(chunks, month, total), name=f"parse-{index}", daemon=True) for index in range(PARSERS)]
+    memory = {kind: shared_memory.SharedMemory(create=True, size=TRANSFER_SLOTS * SLOT_SIZE) for kind in files}
+    slots = {kind: multiprocessing.Queue() for kind in files}
+    for queued in slots.values():
+        for slot in range(TRANSFER_SLOTS):
+            queued.put(slot)
+    names = {kind: shared.name for kind, shared in memory.items()}
+    readers = [multiprocessing.Process(target=read_dump, args=(kind, path, chunks, names[kind], slots[kind]), name=f"read-{kind}", daemon=True)
+               for kind, path in files.items()]
+    parsers = [multiprocessing.Process(target=parse_chunks, args=(chunks, month, total, names, slots), name=f"parse-{index}", daemon=True)
+               for index in range(PARSERS)]
     processes = readers + parsers
     try:
-        with psycopg.connect(DSN) as conn:
-            clear(conn, month)
         for process in processes:
             process.start()
         watch(readers, processes)
@@ -134,8 +152,12 @@ def load_month(month):
             if process.pid is not None:
                 process.join()
                 process.close()
-        chunks.close()
-        chunks.join_thread()
+        for queued in (chunks, *slots.values()):
+            queued.close()
+            queued.join_thread()
+        for shared in memory.values():
+            shared.close()
+            shared.unlink()
     LOG.info("%s loaded %s records", month, total.value)
     return total.value
 
@@ -159,7 +181,3 @@ def verify(month):
         raise ValueError(f"{month} has {found} records, its load copied {expected}")
     LOG.info("%s verified %s records", month, found)
 
-
-@timed
-def clear(conn, month):
-    LOG.info("%s cleared %s records", month, conn.execute("DELETE FROM records WHERE created_utc >= %s AND created_utc < %s", bounds(month)).rowcount)

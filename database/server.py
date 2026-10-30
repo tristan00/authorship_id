@@ -6,7 +6,7 @@ from pathlib import Path
 
 import psycopg
 
-from . import DATA, DSN, LOG, LOGS, PG, PORT, timed
+from . import DATA, DSN, LOG, LOGS, PG, PORT, bounds, timed
 from .config import INDEX_BUILDS, INDEX_MEMORY, SCAN_WORKERS, SORT_MEMORY, SORT_WORKERS
 
 SCHEMA = """
@@ -28,14 +28,13 @@ CREATE TABLE IF NOT EXISTS records (
     crosspost_parent text,
     text_status text NOT NULL,
     text_sha256 bytea NOT NULL
-) WITH (autovacuum_enabled = false);
-CREATE INDEX IF NOT EXISTS records_created ON records USING brin (created_utc);
+) PARTITION BY RANGE (created_utc);
 CREATE TABLE IF NOT EXISTS bodies (
-    text_sha256 bytea PRIMARY KEY,
+    text_sha256 bytea NOT NULL,
     text text NOT NULL,
     words integer NOT NULL,
     month text NOT NULL
-) WITH (autovacuum_enabled = false);
+) PARTITION BY LIST (month);
 CREATE TABLE IF NOT EXISTS months (
     month text PRIMARY KEY,
     records bigint NOT NULL,
@@ -43,24 +42,30 @@ CREATE TABLE IF NOT EXISTS months (
     extracted_at timestamptz
 );
 """
-STAGE = """
-DROP TABLE IF EXISTS bodies_stage;
+STORAGE = f"autovacuum_enabled = false, parallel_workers = {SCAN_WORKERS}"
+PARTITION = """
+DROP TABLE IF EXISTS records_{name}, bodies_{name}, bodies_stage;
+CREATE TABLE records_{name} (LIKE records, CHECK (created_utc >= {start} AND created_utc < {end})) WITH ({storage});
 CREATE UNLOGGED TABLE bodies_stage (text_sha256 bytea NOT NULL, text text NOT NULL, words integer NOT NULL, month text NOT NULL);
 """
-INDEXES = {"records_pkey": "ALTER TABLE records ADD PRIMARY KEY (record_id)", "records_subreddit": "CREATE INDEX records_subreddit ON records (subreddit, created_utc)",
-           "records_author": "CREATE INDEX records_author ON records (author, created_utc) INCLUDE (record_type, record_id)",
-           "records_link": "CREATE INDEX records_link ON records (link_id)"}
-MERGE = """
-CREATE TABLE bodies_next WITH (autovacuum_enabled = false) AS
-SELECT DISTINCT ON (text_sha256) text_sha256, text, words, month
-FROM (SELECT *, false AS staged FROM bodies UNION ALL SELECT *, true FROM bodies_stage) merged ORDER BY text_sha256, staged, month
+INDEXES = ("ALTER TABLE records_{name} ADD PRIMARY KEY (record_id)", "CREATE INDEX records_{name}_subreddit ON records_{name} (subreddit, created_utc)",
+           "CREATE INDEX records_{name}_author ON records_{name} (author, created_utc) INCLUDE (record_type, record_id)",
+           "CREATE INDEX records_{name}_link ON records_{name} (link_id)")
+NEW_BODIES = """
+COPY (SELECT DISTINCT ON (text_sha256) text_sha256, text, words, month FROM bodies_stage s
+      WHERE NOT EXISTS (SELECT FROM bodies b WHERE b.text_sha256 = s.text_sha256) ORDER BY text_sha256) TO STDOUT (FORMAT binary)
 """
-SWAP = """
-DROP TABLE bodies;
-ALTER TABLE bodies_next RENAME TO bodies;
-ALTER INDEX bodies_next_pkey RENAME TO bodies_pkey;
+ATTACH = """
+SET lock_timeout = '10s';
+ALTER TABLE records ATTACH PARTITION records_{name} FOR VALUES FROM ({start}) TO ({end});
+ALTER TABLE bodies ATTACH PARTITION bodies_{name} FOR VALUES IN ('{month}');
 DROP TABLE bodies_stage;
 """
+
+
+def partition(month):
+    start, end = bounds(month)
+    return {"name": month.replace("-", "_"), "month": month, "start": start, "end": end, "storage": STORAGE}
 
 
 @timed
@@ -79,37 +84,51 @@ def schema(conn):
     conn.execute(SCHEMA)
 
 
+def reloadable(conn, month):
+    found = conn.execute("SELECT tableoid::regclass::text FROM records WHERE created_utc >= %s AND created_utc < %s LIMIT 1", bounds(month)).fetchone()
+    if found and found[0] != "records_" + partition(month)["name"]:
+        raise ValueError(f"{month} lies in partition {found[0]} with other months and cannot be reloaded alone")
+
+
 @timed
-def bodies():
+def create(month):
     with psycopg.connect(DSN) as conn:
-        conn.execute(f"SET work_mem = '{SORT_MEMORY}'")
-        conn.execute(f"SET max_parallel_workers_per_gather = {SORT_WORKERS}")
-        conn.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
-        conn.execute("DROP TABLE IF EXISTS bodies_next")
-        rows = conn.execute(MERGE).rowcount
-        conn.execute("ALTER TABLE bodies_next ADD CONSTRAINT bodies_next_pkey PRIMARY KEY (text_sha256)")
-        conn.execute(SWAP)
-    LOG.info("bodies rows=%s", rows)
-
-
-def existing(conn):
-    return {name for name, in conn.execute("SELECT relname FROM pg_class WHERE oid IN (SELECT indexrelid FROM pg_index WHERE indrelid = 'records'::regclass)")}
+        conn.execute("SET lock_timeout = '10s'")
+        conn.execute(PARTITION.format(**partition(month)))
 
 
 @timed
-def drop_indexes(conn):
-    conn.execute("SET lock_timeout = '10s'")
-    conn.execute("ALTER TABLE records DROP CONSTRAINT IF EXISTS records_pkey")
-    for name in INDEXES.keys() & existing(conn):
-        conn.execute(f"DROP INDEX {name}")
+def bodies(month):
+    names = partition(month)
+    with psycopg.connect(DSN) as source, psycopg.connect(DSN) as target, target.cursor() as cursor:
+        source.execute(f"SET work_mem = '{SORT_MEMORY}'")
+        source.execute(f"SET max_parallel_workers_per_gather = {SORT_WORKERS}")
+        source.execute("SET enable_hashjoin = off")
+        source.execute("SET enable_mergejoin = off")
+        target.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
+        cursor.execute("CREATE TABLE bodies_{name} (LIKE bodies, CHECK (month = '{month}')) WITH ({storage})".format(**names))
+        with source.cursor().copy(NEW_BODIES) as out, cursor.copy(f"COPY bodies_{names['name']} FROM STDIN (FORMAT binary, FREEZE)") as into:
+            for block in out:
+                into.write(block)
+        rows = cursor.rowcount
+        cursor.execute(f"ALTER TABLE bodies_{names['name']} ADD PRIMARY KEY (text_sha256)")
+    analyze(f"bodies_{names['name']}")
+    LOG.info("%s new bodies rows=%s", month, rows)
 
 
 @timed
-def indexes():
-    with psycopg.connect(DSN) as conn:
-        built = existing(conn)
+def records(month):
+    name = partition(month)["name"]
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        conn.execute(f"VACUUM (FREEZE, ANALYZE) records_{name}")
     with ThreadPoolExecutor(INDEX_BUILDS) as pool:
-        list(pool.map(build_index, [statement for name, statement in INDEXES.items() if name not in built]))
+        list(pool.map(build_index, [statement.format(name=name) for statement in INDEXES]))
+
+
+@timed
+def analyze(table):
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        conn.execute(f"ANALYZE {table}")
 
 
 @timed
@@ -122,11 +141,12 @@ def build_index(statement):
 
 
 @timed
-def finish():
+def finish(month):
+    with ThreadPoolExecutor(2) as pool:
+        list(pool.map(lambda step: step(month), (bodies, records)))
     with psycopg.connect(DSN, autocommit=True) as conn:
-        for table in ("records", "bodies"):
-            conn.execute(f"ALTER TABLE {table} SET (parallel_workers = {SCAN_WORKERS})")
-            conn.execute(f"VACUUM (FREEZE, ANALYZE) {table}")
+        conn.execute(ATTACH.format(**partition(month)))
+        conn.execute("ANALYZE ONLY records, ONLY bodies")
 
 
 @timed
