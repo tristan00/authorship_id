@@ -40,18 +40,44 @@ class AuthorEncoder(nn.Module):
         self.linear = nn.Linear(config.hidden_size, DIMENSIONS)
         state = load_file(hf_hub_download(LUAR[0], "model.safetensors", revision=LUAR[1], local_files_only=True))
         self.load_state_dict(state, strict=True)
+        for layer in self.transformer.encoder.layer:
+            attention = layer.attention.self
+            attention.register_buffer("qkv_weight", torch.cat([attention.query.weight, attention.key.weight, attention.value.weight]).detach(), persistent=False)
+            attention.register_buffer("qkv_bias", torch.cat([attention.query.bias, attention.key.bias, attention.value.bias]).detach(), persistent=False)
 
     def pooled(self, tokens):
-        return self.transformer(input_ids=tokens).last_hidden_state.float().mean(1)
+        size, length = tokens.shape
+        hidden = self.transformer.embeddings(input_ids=tokens).view(size * length, -1)
+        for layer in self.transformer.encoder.layer:
+            attention = layer.attention.self
+            qkv = F.linear(hidden, attention.qkv_weight, attention.qkv_bias).view(size, length, 3, attention.num_attention_heads, -1)
+            context = F.scaled_dot_product_attention(*qkv.permute(2, 0, 3, 1, 4))
+            hidden = layer.attention.output.LayerNorm(layer.attention.output.dense(context.transpose(1, 2).reshape(size * length, -1)) + hidden)
+            hidden = layer.output.LayerNorm(layer.output.dense(layer.intermediate(hidden)) + hidden)
+        return hidden.view(size, length, -1).mean(1, dtype=torch.float32)
 
     @timed
     def features(self, batches, count):
+        rows, tokens, shapes = batches
         device = self.linear.weight.device
+        rows, tokens = (torch.from_numpy(array).pin_memory().to(device, non_blocking=True).long() for array in (rows, tokens))
         features = torch.empty((count, self.transformer.config.hidden_size), dtype=torch.float16, device=device)
+        done = used = 0
         with torch.inference_mode():
-            for rows, tokens in batches:
-                features[torch.from_numpy(rows).to(device, dtype=torch.long)] = self.pooled(torch.from_numpy(tokens).to(device, dtype=torch.long)).half()
+            for size, length in shapes:
+                features[rows[done:done + size]] = self.pooled(tokens[used:used + size * length].view(size, length)).half()
+                done, used = done + size, used + size * length
         return features
+
+    def host(self, features):
+        copy = torch.empty(features.shape, dtype=features.dtype, pin_memory=True).copy_(features, non_blocking=True)
+        done = torch.cuda.Event()
+        done.record()
+
+        def wait():
+            done.synchronize()
+            return copy.numpy()
+        return wait
 
     def aggregate(self, texts):
         scores = texts @ texts.transpose(1, 2) / math.sqrt(texts.shape[-1])

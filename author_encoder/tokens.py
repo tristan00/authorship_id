@@ -23,13 +23,12 @@ def token_batches(tokenizer, texts, chunk=16384):
         lengths.append(np.fromiter(map(len, ids), dtype=np.int64, count=len(ids)))
         flat.append(np.fromiter(chain.from_iterable(ids), dtype=np.int32, count=int(lengths[-1].sum())))
     lengths, flat = np.concatenate(lengths), np.concatenate(flat)
-    offsets = np.cumsum(lengths) - lengths
     order = np.argsort(lengths, kind="stable")
-    batches = []
-    for rows in np.split(order, np.flatnonzero(np.diff(lengths[order])) + 1):
-        length = int(lengths[rows[0]])
-        step = max(1, TOKEN_BUDGET // length)
-        for start in range(0, len(rows), step):
-            selected = rows[start:start + step]
-            batches.append((selected.astype(np.int32), flat[offsets[selected, None] + np.arange(length)]))
-    return batches
+    ordered = lengths[order]
+    starts = np.cumsum(lengths) - lengths
+    tokens = flat[np.arange(int(ordered.sum())) + np.repeat(starts[order] - (np.cumsum(ordered) - ordered), ordered)]
+    shapes = []
+    for length, size in zip(*np.unique(ordered, return_counts=True)):
+        step = max(1, TOKEN_BUDGET // int(length))
+        shapes.extend((min(step, int(size) - start), int(length)) for start in range(0, int(size), step))
+    return order.astype(np.int32), tokens, shapes

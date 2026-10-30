@@ -147,7 +147,7 @@ def encode(model, jobs, emit, initargs):
             prepare_seconds += seconds
             if digests:
                 tick = time.perf_counter()
-                features = model.features(batches, len(digests)).cpu().numpy()
+                features = model.host(model.features(batches, len(digests)))
                 gpu += time.perf_counter() - tick
                 writer.put((part, digests, features))
             texts, read, parts = texts + len(digests), read + rows, parts + 1
@@ -190,7 +190,7 @@ def write(loaded, path=TEXT_STORE, device="cuda", source="bodies", limit=None):
     model = load_model(device)
 
     def emit(part, digests, features):
-        codes, count = quantize(features, scale)
+        codes, count = quantize(features(), scale)
         if count:
             LOG.info("text vectors part=%s clipped_values=%d of %d", part, count, codes.size)
         clipped[0] += count
