@@ -223,16 +223,22 @@ def user_claims(author):
 
 @timed
 def user_predictions(author):
-    with connect() as conn:
-        run = conn.execute("""SELECT r.run_id, r.folds, r.manifest FROM demographic_state s JOIN demographic_runs r USING (run_id)
-                              WHERE r.status = 'ready' AND r.consolidation_run = (SELECT run_id FROM consolidation)""").fetchone()
-        if run is None:
-            raise NotFound("No published demographic model for the current consolidation")
-        row = conn.execute("SELECT attributes, fold FROM demographic_predictions WHERE run_id = %s AND author = %s", [run["run_id"], author.lower()]).fetchone()
-    if row is None:
+    from attribute_model.config import MODEL, SPLITS, read_targets
+    from attribute_model.data import partition
+    from attribute_model.predict import load_model, predict
+    from author_encoder.index import users, vector
+    if not MODEL.exists() or users() is None:
+        return {"status": "not_built"}
+    found = vector(author)
+    if found is None:
         return {"status": "ineligible"}
-    return {"status": "ready", "attributes": row["attributes"], "fold": row["fold"] + 1, "folds": run["folds"], "run_id": str(run["run_id"]),
-            "sampled_texts": run["manifest"]["sampled_texts"]}
+    loaded = load_model(MODEL, read_targets())
+    bucket = partition(author)
+    with connect() as conn:
+        claimed = conn.execute("SELECT EXISTS (SELECT FROM author_claims WHERE author = %s AND attribute = ANY(%s))", [author, list(loaded[1]["targets"])]).fetchone()["exists"]
+    return {"status": "ready", "attributes": predict(loaded, [found["vector"]])[0], "sampled_texts": found["sampled_texts"],
+            "split": next(name for name, buckets in SPLITS.items() if bucket in buckets), "claimed": claimed,
+            "consolidation": loaded[1]["source"]["consolidation"], "months": list(loaded[1]["source"]["months"])}
 
 
 FLAGGED_TEXT = "EXISTS (SELECT 1 FROM suspect_claim_texts s WHERE s.record_id = x.record_id)"

@@ -271,23 +271,24 @@ const candidateList = (attribute, target) => target.candidates.length > 1
 
 const percent = (probability) => `${(100 * probability).toFixed(1)}%`;
 
-function predictionFacet(facet) {
-  const [top, ...others] = facet.candidates.filter((candidate) => candidate.kind !== 'unasserted');
-  return `<div class="prediction-value"><span>${esc(top.label.replaceAll('_', ' '))}</span><span class="prediction-score" title="Uncalibrated model probability">${percent(top.probability)}</span></div>
-    ${others.length ? `<details><summary>Other candidates</summary><ul class="prediction-options">${others.slice(0, 4).map((candidate) => `<li><span>${esc(candidate.label.replaceAll('_', ' '))}</span><span class="mono">${percent(candidate.probability)}</span></li>`).join('')}</ul></details>` : ''}`;
-}
-
-function numericPrediction(attribute, number) {
-  const { lower, median, upper } = number.summary;
-  const value = (n) => attribute === 'birth_year' ? String(Math.floor(n)) : claimValue(attribute, n);
-  return `<div class="prediction-value"><span>${value(median)}</span><span class="sub">median</span></div>
-    <div class="sub">80% model range: ${value(lower)}–${value(upper)}</div>`;
-}
-
 function predictionCell(attribute, prediction) {
-  if (!prediction) throw new Error(`no ${attribute} prediction`);
-  return UNITS[attribute] || attribute === 'birth_year' ? prediction.numeric.map((number) => numericPrediction(attribute, number)).join('')
-    : prediction.facets.filter((facet) => facet.facet === 'value').map(predictionFacet).join('');
+  if (!prediction) return '<p class="note">Not a model target.</p>';
+  if (prediction.type === 'numeric') {
+    const value = (n) => attribute === 'birth_year' ? String(Math.round(n)) : claimValue(attribute, n);
+    return `<div class="prediction-value"><span>${value(prediction.value)}</span><span class="sub">median</span></div>
+    <div class="sub">${Math.round(100 * prediction.interval_mass)}% interval: ${value(prediction.lower)}–${value(prediction.upper)}</div>`;
+  }
+  const [top, ...others] = prediction.candidates;
+  return `<div class="prediction-value"><span>${esc(top.value)}</span><span class="prediction-score" title="Calibrated model probability">${percent(top.probability)}</span></div>
+    ${others.length ? `<details><summary>Other candidates</summary><ul class="prediction-options">${others.map((candidate) => `<li><span>${esc(candidate.value)}</span><span class="mono">${percent(candidate.probability)}</span></li>`).join('')}</ul></details>` : ''}`;
+}
+
+function predictionNote(predictions) {
+  if (predictions.status === 'not_built') return 'No model prediction: the attribute model or the user vectors are not built.';
+  if (predictions.status !== 'ready') return 'No model prediction: the user has no user vector.';
+  const held = !predictions.claimed ? 'The user has no modeled claim, so the model never saw it.'
+    : predictions.split === 'train' ? 'The user is in the training split, so its claims were training labels.' : `The user is in the ${predictions.split} split, held out from training.`;
+  return `Predictions from the user vector (${fmt(predictions.sampled_texts)} sampled texts) by the attribute model trained on the ${predictions.months.join(', ')} claims. ${held}`;
 }
 
 function claimsPanel(data) {
@@ -297,10 +298,8 @@ function claimsPanel(data) {
   const claimed = new Map(targets.map((item) => [item.attribute, item.target]));
   const tied = new Set(evidence.map((item) => item.attribute));
   const base = `#/u/${enc(data.summary.author)}/claims`;
-  const predictionNote = ready ? `Out-of-fold model predictions, fold ${fmt(predictions.fold)} of ${fmt(predictions.folds)}, from up to ${fmt(predictions.sampled_texts)} sampled texts. Scores are uncalibrated.`
-    : 'No model prediction: the model covers the users that had a user vector when it was trained.';
   return `<section class="panel" aria-label="Demographics"><p class="note">${plural(targets.length, 'self-claimed attribute')} from ${plural(evidence.length, 'evidence row')}, ${published(data.claims)}.</p>
-    <p class="note" role="status">${esc(predictionNote)}</p>
+    <p class="note" role="status">${esc(predictionNote(predictions))}</p>
     <table class="demographics-table"><caption class="sr">Consolidated self claims and model predictions</caption>
     <thead><tr><th scope="col">Attribute</th><th scope="col">Consolidated value</th><th scope="col">Model prediction</th></tr></thead><tbody>${fields.map((attribute) => {
       const target = claimed.get(attribute);
