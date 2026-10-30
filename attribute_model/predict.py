@@ -1,4 +1,9 @@
 import json
+import queue
+import shutil
+import time
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -9,9 +14,7 @@ import psycopg
 import pyarrow as pa
 import torch
 from psycopg import sql
-from psycopg.copy import QueuedLibpqWriter
 from psycopg.types.json import Jsonb
-from pyarrow import csv
 
 from author_encoder.config import DIMENSIONS, VECTOR_STORE
 from author_encoder.index import PROTOCOL, vector
@@ -19,10 +22,11 @@ from author_encoder.lock import index_lock
 from database import DSN
 
 from . import LOG, timed
-from .config import THREADS, check_targets, columns, validate
+from .config import ENCODERS, GPU_MEMORY, PREDICTIONS, SEGMENT_BYTES, THREADS, check_targets, columns, validate
 from .model import AttributeModel, numeric
 
-COPY = "COPY author_predictions_next FROM STDIN (FORMAT CSV, FREEZE)"
+SIGNATURE = b"PGCOPY\n\xff\r\n\x00" + bytes(8)
+TRAILER = b"\xff\xff"
 PUBLISH = """
 ALTER TABLE author_predictions_next ADD PRIMARY KEY (author);
 DROP TABLE IF EXISTS author_predictions;
@@ -91,49 +95,139 @@ def predict(loaded, vectors, candidates=5):
     return result
 
 
-def table_rows(model, artifact, catalogs, names, authors, vectors):
-    arrays = [authors]
+@torch.inference_mode()
+def infer(model, artifact, catalogs, chunk, device):
+    vectors = torch.from_numpy(chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()).to(device)
+    numbers, indices = [], []
     for spec, _, scored in calibrated(artifact, model.outputs(model(vectors))):
         if spec["type"] == "numeric":
-            arrays += [pa.array(column.cpu().numpy()) for column in scored]
+            numbers += scored
         else:
             probability, index = scored.max(1)
-            arrays += [catalogs[spec["name"]].take(index.cpu().numpy()), pa.array(probability.cpu().numpy())]
-    sink = pa.BufferOutputStream()
-    csv.write_csv(pa.table(arrays, names=names), sink, csv.WriteOptions(include_header=False))
-    return sink.getvalue().to_pybytes()
+            numbers.append(probability)
+            indices.append(index)
+    numbers, indices = torch.stack(numbers, 1).cpu().numpy(), torch.stack(indices, 1).cpu().numpy()
+    result, number, category = [chunk["author"]], 0, 0
+    for spec in artifact["specifications"]:
+        if spec["type"] == "numeric":
+            result += [numbers[:, number + offset] for offset in range(3)]
+            number += 3
+        else:
+            result += [catalogs[spec["name"]].take(indices[:, category]), numbers[:, number]]
+            number, category = number + 1, category + 1
+    return result
+
+
+def binary(columns):
+    rows = len(columns[0])
+    lengths = np.full((rows, len(columns)), 4, dtype=np.int64)
+    texts = {}
+    for index, column in enumerate(columns):
+        if not isinstance(column, np.ndarray):
+            offsets = np.frombuffer(column.buffers()[1], dtype=np.int64 if pa.types.is_large_string(column.type) else np.int32)[column.offset:column.offset + rows + 1].astype(np.int64)
+            texts[index] = offsets, np.frombuffer(column.buffers()[2], dtype=np.uint8)
+            lengths[:, index] = np.diff(offsets)
+    sizes = lengths + 4
+    ends = np.cumsum(sizes.sum(1) + 2)
+    starts = ends - sizes.sum(1) - 2
+    fields = starts[:, None] + 2 + np.cumsum(sizes, 1) - sizes
+    out = np.empty(int(ends[-1]), dtype=np.uint8)
+    out[starts[:, None] + np.arange(2)] = np.full(rows, len(columns), dtype=">u2").view(np.uint8).reshape(rows, 2)
+    out[fields[..., None] + np.arange(4)] = lengths.astype(">u4").view(np.uint8).reshape(rows, len(columns), 4)
+    numbers = [index for index, column in enumerate(columns) if isinstance(column, np.ndarray)]
+    out[fields[:, numbers, None] + 4 + np.arange(4)] = np.stack([columns[index] for index in numbers], 1).astype(">f4").view(np.uint8).reshape(rows, len(numbers), 4)
+    for index, (offsets, data) in texts.items():
+        out[np.arange(offsets[0], offsets[-1]) + np.repeat(fields[:, index] + 4 - offsets[:-1], lengths[:, index])] = data[offsets[0]:offsets[-1]]
+    return out
+
+
+def encoded(dataset, model, artifact, device, batch):
+    catalogs = {spec["name"]: pa.array(spec["values"]) for spec in artifact["specifications"] if spec["type"] != "numeric"}
+    with ThreadPoolExecutor(ENCODERS) as pool:
+        pending = deque()
+        for chunk in dataset.to_batches(columns=["author", "vector"], batch_size=batch):
+            pending.append((chunk.num_rows, pool.submit(binary, infer(model, artifact, catalogs, chunk, device))))
+            if len(pending) > 2 * ENCODERS:
+                rows, future = pending.popleft()
+                yield rows, future.result()
+        for rows, future in pending:
+            yield rows, future.result()
+
+
+def finish(stream, segments):
+    stream.write(TRAILER)
+    stream.close()
+    segments.put(Path(stream.name))
+
+
+def write_segments(rows, total, segments, loader):
+    users, number, stream, started = 0, 0, None, time.perf_counter()
+    for count, data in rows:
+        if loader.done():
+            loader.result()
+        if stream is None:
+            stream = (PREDICTIONS / f"{number:04d}.bin").open("wb")
+            stream.write(SIGNATURE)
+        stream.write(data)
+        users += count
+        if stream.tell() >= SEGMENT_BYTES:
+            finish(stream, segments)
+            stream, number = None, number + 1
+            elapsed = time.perf_counter() - started
+            LOG.info("attribute predictions written users=%d of %d rate=%.0f/s eta=%.0fs", users, total, users / elapsed, (total - users) * elapsed / users)
+    if stream is not None:
+        finish(stream, segments)
+    return users
+
+
+def load_segments(fields, artifact, segments):
+    with psycopg.connect(DSN) as conn:
+        conn.execute(sql.SQL("CREATE TABLE author_predictions_next ({})").format(
+            sql.SQL(", ").join(sql.SQL("{} {} NOT NULL").format(sql.Identifier(name), sql.SQL(kind)) for name, kind in fields)))
+        while isinstance(item := segments.get(), Path):
+            started = time.perf_counter()
+            conn.execute(sql.SQL("COPY author_predictions_next FROM {} (FORMAT BINARY, FREEZE)").format(sql.Literal(str(item))))
+            item.unlink()
+            LOG.info("attribute predictions loaded %s seconds=%.1f", item.name, time.perf_counter() - started)
+        if item is None:
+            raise RuntimeError("Prediction segments are incomplete; nothing was published")
+        started = time.perf_counter()
+        conn.execute(PUBLISH)
+        conn.execute("INSERT INTO prediction (model_id, source, targets, interval_mass, users) VALUES (%s, %s, %s, %s, %s)",
+                     [artifact["model_id"], Jsonb(artifact["source"]), Jsonb(artifact["targets"]), artifact["parameters"]["interval_mass"], item])
+        LOG.info("attribute predictions keyed and published users=%d seconds=%.1f", item, time.perf_counter() - started)
+    return item
 
 
 @timed
 def predict_table(model_path, targets, device="cuda", batch=32768):
+    torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     artifact = torch.load(model_path, map_location="cpu", weights_only=True)
     check_targets(validate(targets), artifact["targets"])
     model = build(artifact).to(device)
-    catalogs = {spec["name"]: pa.array(spec["values"]) for spec in artifact["specifications"] if spec["type"] != "numeric"}
     fields = schema(artifact["targets"])
-    names = [name for name, _ in fields]
-    users = 0
-    with psycopg.connect(DSN) as conn:
-        conn.execute(sql.SQL("CREATE TABLE author_predictions_next ({})").format(
-            sql.SQL(", ").join(sql.SQL("{} {} NOT NULL").format(sql.Identifier(name), sql.SQL(kind)) for name, kind in fields)))
-        with index_lock(VECTOR_STORE):
-            dataset = lance.dataset(VECTOR_STORE)
-            metadata = dataset.schema.metadata
-            if metadata.get(b"protocol") != PROTOCOL.encode() or json.loads(metadata[b"source"])["months"] != artifact["source"]["months"]:
-                raise ValueError("User vectors do not match the months the model was trained on")
-            with conn.cursor() as cursor, cursor.copy(COPY, writer=QueuedLibpqWriter(cursor)) as copy, torch.inference_mode():
-                for number, chunk in enumerate(dataset.to_batches(columns=["author", "vector"], batch_size=batch), 1):
-                    vectors = torch.from_numpy(chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()).to(device)
-                    copy.write(table_rows(model, artifact, catalogs, names, chunk["author"], vectors))
-                    users += chunk.num_rows
-                    if number % 128 == 0:
-                        LOG.info("attribute predictions users=%d", users)
-            del dataset
-        LOG.info("attribute predictions copied users=%d columns=%d", users, len(names))
-        conn.execute(PUBLISH)
-        conn.execute("INSERT INTO prediction (model_id, source, targets, interval_mass, users) VALUES (%s, %s, %s, %s, %s)",
-                     [artifact["model_id"], Jsonb(artifact["source"]), Jsonb(artifact["targets"]), artifact["parameters"]["interval_mass"], users])
-    return {"model_id": artifact["model_id"], "users": users, "columns": len(names)}
+    if PREDICTIONS.exists():
+        shutil.rmtree(PREDICTIONS)
+    PREDICTIONS.mkdir(parents=True)
+    segments = queue.Queue()
+    try:
+        with ThreadPoolExecutor(1) as pool:
+            loader = pool.submit(load_segments, fields, artifact, segments)
+            users = None
+            try:
+                with index_lock(VECTOR_STORE):
+                    dataset = lance.dataset(VECTOR_STORE)
+                    metadata = dataset.schema.metadata
+                    if metadata.get(b"protocol") != PROTOCOL.encode() or json.loads(metadata[b"source"])["months"] != artifact["source"]["months"]:
+                        raise ValueError("User vectors do not match the months the model was trained on")
+                    users = write_segments(encoded(dataset, model, artifact, device, batch), dataset.count_rows(), segments, loader)
+                    del dataset
+            finally:
+                segments.put(users)
+            loader.result()
+    finally:
+        shutil.rmtree(PREDICTIONS)
+    return {"model_id": artifact["model_id"], "users": users, "columns": len(fields)}
 
 
 @timed

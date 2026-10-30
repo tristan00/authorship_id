@@ -10,22 +10,23 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import PARAMETERS, SEED, SPLITS, validate
+from .config import GPU_MEMORY, PARAMETERS, SEED, SPLITS, validate
 from .data import load
 from .model import AttributeModel, numeric, specifications
 
 DEVICE = "cuda"
 
 
-def collect(model, vectors, labels, batch=32768):
+def collect(model, vectors, labels, column, batch=32768):
     model.eval()
-    parts = []
+    outputs, targets = [], []
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
         for start in range(0, len(vectors), batch):
-            target = labels[start:start + batch]
+            target = labels[start:start + batch, column]
             present = torch.isfinite(target)
-            parts.append([(output[present[:, column]].float(), target[present[:, column], column]) for column, output in enumerate(model.outputs(model(vectors[start:start + batch].float())))])
-    return [(torch.cat([output for output, _ in column]), torch.cat([target for _, target in column])) for column in zip(*parts)]
+            outputs.append(model.outputs(model(vectors[start:start + batch][present].float()))[column].float())
+            targets.append(target[present])
+    return torch.cat(outputs), torch.cat(targets)
 
 
 def score(model, vectors, labels, specs, batch=32768):
@@ -39,16 +40,18 @@ def score(model, vectors, labels, specs, batch=32768):
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
 
 
-def temperature(logits, target):
-    logits = logits.clone()
+def temperature(logits, target, batch=16384):
     log_t = torch.zeros(1, device=logits.device, requires_grad=True)
     optimizer = torch.optim.LBFGS([log_t], lr=.1, max_iter=100)
 
     def closure():
         optimizer.zero_grad()
-        loss = F.cross_entropy(logits / log_t.exp(), target)
-        loss.backward()
-        return loss
+        total = torch.zeros((), device=logits.device)
+        for start in range(0, len(logits), batch):
+            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp(), target[start:start + batch], reduction="sum") / len(logits)
+            loss.backward()
+            total += loss.detach()
+        return total
     optimizer.step(closure)
     return float(log_t.detach().exp())
 
@@ -56,7 +59,8 @@ def temperature(logits, target):
 @timed
 def calibrate(model, vectors, labels, specs, mass):
     result = []
-    for (output, target), spec in zip(collect(model, vectors, labels), specs):
+    for column, spec in enumerate(specs):
+        output, target = collect(model, vectors, labels, column)
         if spec["type"] == "numeric":
             _, lower, upper = numeric(output, spec)
             residuals = torch.sort(torch.maximum(lower - target, target - upper)).values.cpu().numpy()
@@ -76,9 +80,11 @@ def expected_calibration(confidence, correct, bins=15):
 
 
 @timed
+@torch.inference_mode()
 def report(model, vectors, labels, specs, calibration):
     result = {}
-    for (output, target), spec, fitted in zip(collect(model, vectors, labels), specs, calibration):
+    for column, (spec, fitted) in enumerate(zip(specs, calibration)):
+        output, target = collect(model, vectors, labels, column)
         if spec["type"] == "numeric":
             predicted, lower, upper = numeric(output, spec)
             lower, upper = lower - fitted["radius"], upper + fitted["radius"]
@@ -89,16 +95,18 @@ def report(model, vectors, labels, specs, calibration):
                                     "interval_width_median": float((upper - lower).median())}
         else:
             target = target.long()
-            probabilities = (output / fitted["temperature"]).softmax(1)
-            confidence, predicted = probabilities.max(1)
+            logged = output.div_(fitted["temperature"]).log_softmax(1)
+            del output
+            confidence, predicted = logged.max(1)
+            confidence = confidence.exp()
             correct = (predicted == target).cpu().numpy()
             counts = np.bincount(target.cpu().numpy(), minlength=len(spec["values"]))
             wins = np.bincount(target.cpu().numpy(), weights=correct, minlength=len(spec["values"]))
             prior = torch.as_tensor(spec["prior"], device=DEVICE)
+            top5 = float((logged.topk(min(5, logged.shape[1]), 1).indices == target[:, None]).any(1).float().mean())
             result[spec["name"]] = {"n": len(correct), "accuracy": float(correct.mean()), "majority_baseline_accuracy": float((target == int(np.argmax(spec["counts"]))).float().mean()),
-                                    "top5_accuracy": float((probabilities.topk(min(5, probabilities.shape[1]), 1).indices == target[:, None]).any(1).float().mean()),
-                                    "macro_recall": float(np.mean(wins[counts > 0] / counts[counts > 0])),
-                                    "log_loss": float(F.nll_loss(probabilities.clamp_min(1e-12).log(), target)), "prior_log_loss": float(-prior[target].log().mean()),
+                                    "top5_accuracy": top5, "macro_recall": float(np.mean(wins[counts > 0] / counts[counts > 0])),
+                                    "log_loss": float(F.nll_loss(logged.clamp_min_(math.log(1e-12)), target)), "prior_log_loss": float(-prior[target].log().mean()),
                                     "calibration_error": expected_calibration(confidence.cpu().numpy(), correct)}
     return result
 
@@ -199,11 +207,14 @@ def fit(model, specs, data, parameters):
 def train(directory, output, targets, parameters=PARAMETERS):
     targets = validate(targets)
     output = Path(output)
+    torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     torch.manual_seed(SEED)
     manifest, specs, data = load_data(directory, targets)
     architecture = {key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}
     model = AttributeModel(targets, specs, **architecture).to(DEVICE)
     best, history = fit(model, specs, data, parameters)
+    authors = {name: len(labels) for name, (_, labels) in data.items()}
+    del data["train"]
     calibration = calibrate(model, *data["calibration"], specs, parameters["interval_mass"])
     evaluation = report(model, *data["test"], specs, calibration)
     for name, fields in evaluation.items():
@@ -211,7 +222,7 @@ def train(directory, output, targets, parameters=PARAMETERS):
     model_id = str(uuid.uuid4())
     artifact = {"model_id": model_id, "targets": targets, "specifications": specs, "architecture": architecture, "parameters": parameters, "model": {name: value.cpu() for name, value in model.state_dict().items()},
                 "calibration": calibration, "evaluation": evaluation, "history": history, "validation_score": best, "source": manifest["source"],
-                "authors": {name: len(labels) for name, (_, labels) in data.items()}, "splits": SPLITS}
+                "authors": authors, "splits": SPLITS}
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
