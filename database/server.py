@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS months (
     loaded_at timestamptz NOT NULL DEFAULT now(),
     extracted_at timestamptz
 );
+CREATE TABLE IF NOT EXISTS empty_bodies (
+    month text NOT NULL,
+    text_sha256 bytea NOT NULL
+);
 """
 STORAGE = f"autovacuum_enabled = false, parallel_workers = {SCAN_WORKERS}"
 PARTITION = """

@@ -85,9 +85,10 @@ def prepare(job):
         copy.set_types(["bytea", "text"])
         rows = list(copy.rows())
     known = stored(min(digest for digest, _ in rows), max(digest for digest, _ in rows)) if rows and FRAGMENTS else []
-    fresh = sorted((digest, text) for digest, body in rows if not any(digest in digests for digests in known) and (text := clean(body)))
+    cleaned = [(digest, clean(body)) for digest, body in rows if not any(digest in digests for digests in known)]
+    fresh = sorted((digest, text) for digest, text in cleaned if text)
     batches = token_batches(TOKENIZER, [text for _, text in fresh]) if fresh else []
-    return (month, index), [digest for digest, _ in fresh], batches, len(rows), time.perf_counter() - started
+    return (month, index), [digest for digest, _ in fresh], batches, len(rows), [digest for digest, text in cleaned if not text], time.perf_counter() - started
 
 
 class Writer(threading.Thread):
@@ -118,7 +119,7 @@ class Writer(threading.Thread):
 
 
 @timed
-def encode(model, jobs, emit, initargs):
+def encode(model, jobs, emit, initargs, empty):
     started = reported = time.perf_counter()
     texts = parts = read = 0
     gpu = prepare_seconds = 0.
@@ -138,13 +139,14 @@ def encode(model, jobs, emit, initargs):
             future = pending.popleft()
             while True:
                 try:
-                    part, digests, batches, rows, seconds = future.result(timeout=30)
+                    part, digests, batches, rows, blank, seconds = future.result(timeout=30)
                     break
                 except TimeoutError:
                     progress()
             if (following := next(upcoming, None)) is not None:
                 pending.append(pool.submit(prepare, following))
             prepare_seconds += seconds
+            empty.setdefault(part[0], []).extend(blank)
             if digests:
                 tick = time.perf_counter()
                 features = model.host(model.features(batches, len(digests)))
@@ -196,7 +198,20 @@ def write(loaded, path=TEXT_STORE, device="cuda", source="bodies", limit=None):
         clipped[0] += count
         lance.write_dataset(arrow(digests, codes, scale), path, mode="append" if path.exists() else "create")
 
-    result = encode(model, jobs, emit, (path.parent / "texts.log", path, ranges)) | {"months": months, "clipped_values": clipped[0]}
+    empty = {}
+    result = encode(model, jobs, emit, (path.parent / "texts.log", path, ranges), empty) | {"months": months, "clipped_values": clipped[0]}
     if path.exists() and limit is None:
+        result["empty_bodies"] = record_empty(empty, months)
         lance.dataset(path).update_schema_metadata({MONTHS.decode(): json.dumps(loaded, sort_keys=True)})
     return result
+
+
+@timed
+def record_empty(empty, months):
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        for month in months:
+            conn.execute("DELETE FROM empty_bodies WHERE month = %s", [month])
+            with conn.cursor().copy("COPY empty_bodies (month, text_sha256) FROM STDIN") as copy:
+                for digest in empty.get(month, []):
+                    copy.write_row((month, digest))
+    return {month: len(empty.get(month, [])) for month in months}
