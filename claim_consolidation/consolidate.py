@@ -46,6 +46,7 @@ ANALYZE claim_evidence_added;
 DELETE FROM claim_evidence_added n WHERE source = 'flair' AND EXISTS (SELECT FROM claim_evidence e
     WHERE e.author = n.author AND e.field = n.field AND e.source = 'flair' AND e.source_key = n.source_key AND e.value = n.value);
 INSERT INTO claim_evidence SELECT * FROM claim_evidence_added;
+SET LOCAL enable_hashagg = off;
 CREATE UNLOGGED TABLE claim_authors AS SELECT DISTINCT author FROM claim_evidence_added;
 ANALYZE claim_authors;
 DELETE FROM author_claims WHERE author IN (SELECT author FROM claim_authors);
