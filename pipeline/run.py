@@ -2,9 +2,8 @@ import multiprocessing
 
 import psycopg
 
-from claim_consolidation.consolidate import consolidate
-from claim_extraction.config import EXTRACT_WORKERS
-from claim_extraction.run import run as extract
+from claims.consolidate import consolidate
+from claims.extract import run as extract
 from database import DSN, LOGS
 from database.load import add, verify
 from explorer.prepare import prepare
@@ -122,7 +121,7 @@ def run(month):
         clean(month)
         encoder = background(vectors)
         try:
-            extract(EXTRACT_WORKERS)
+            extract()
             consolidation()
             explorer()
         finally:

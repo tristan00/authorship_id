@@ -274,9 +274,8 @@ const percent = (probability) => `${(100 * probability).toFixed(1)}%`;
 function predictionCell(attribute, prediction) {
   if (!prediction) return '<p class="note">Not a model target.</p>';
   if (prediction.type === 'numeric') {
-    const value = (n) => attribute === 'birth_year' ? String(Math.round(n)) : claimValue(attribute, n);
-    return `<div class="prediction-value"><span>${value(prediction.value)}</span><span class="sub">median</span></div>
-    <div class="sub">${Math.round(100 * prediction.interval_mass)}% interval: ${value(prediction.lower)}–${value(prediction.upper)}</div>`;
+    return `<div class="prediction-value"><span>${claimValue(attribute, prediction.value)}</span><span class="sub">median</span></div>
+    <div class="sub">${Math.round(100 * prediction.interval_mass)}% interval: ${claimValue(attribute, prediction.lower)}–${claimValue(attribute, prediction.upper)}</div>`;
   }
   return `<div class="prediction-value"><span>${esc(prediction.value)}</span><span class="prediction-score" title="Calibrated model probability">${percent(prediction.probability)}</span></div>`;
 }
@@ -294,7 +293,7 @@ function claimsPanel(data) {
   const predictions = data.predictions;
   const ready = predictions.status === 'ready';
   const claimed = new Map(targets.map((item) => [item.attribute, item.target]));
-  const tied = new Set(evidence.map((item) => item.attribute));
+  const undecided = new Set(evidence.map((item) => item.attribute));
   const base = `#/u/${enc(data.summary.author)}/claims`;
   return `<section class="panel" aria-label="Demographics"><p class="note">${plural(targets.length, 'self-claimed attribute')} from ${plural(evidence.length, 'evidence row')}, ${published(data.claims)}.</p>
     <p class="note" role="status">${esc(predictionNote(predictions))}</p>
@@ -303,7 +302,7 @@ function claimsPanel(data) {
       const target = claimed.get(attribute);
       return `<tr data-attribute="${esc(attribute)}"><td><h3>${label(attribute)}</h3></td><td>${target ? `<div class="claim-value">${claimSummary(attribute, target)}</div>${candidateList(attribute, target)}
         <div class="claim-cell-meta"><span class="badge ${cohesion(target)}">${cohesion(target)}</span><a href="${base}/${enc(attribute)}">View evidence</a></div>
-        <div class="sub">${plural(target.stats.observations, 'observation')} · ${claimSources(target)} · ${plural(target.stats.effective_units, 'distinct text')}</div>` : tied.has(attribute) ? `<p class="note">Claims tie, so there is no consolidated value. <a href="${base}/${enc(attribute)}">View evidence</a></p>` : '<p class="note">No self claim recorded.</p>'}</td>
+        <div class="sub">${plural(target.stats.observations, 'observation')} · ${claimSources(target)} · ${plural(target.stats.effective_units, 'distinct text')}</div>` : undecided.has(attribute) ? `<p class="note">Evidence is too weak or conflicted for a consolidated value. <a href="${base}/${enc(attribute)}">View evidence</a></p>` : '<p class="note">No self claim recorded.</p>'}</td>
         <td class="prediction">${ready ? predictionCell(attribute, predictions.attributes[attribute]) : ''}</td></tr>`;
     }).join('')}</tbody></table></section>`;
 }
@@ -319,15 +318,16 @@ function claimEvidence(data, attribute) {
       ${target ? `<div class="claim-head"><h2>${esc(attribute.replaceAll('_', ' '))}</h2><span class="badge ${cohesion(target)}">${cohesion(target)}</span><span class="claim-value">${claimSummary(attribute, target)}</span></div>
       ${candidateList(attribute, target)}
       <p class="note">${plural(target.stats.observations, 'observation')} (${claimSources(target)}) · ${plural(target.stats.effective_units, 'distinct text')} · ${published(data.claims)}</p>`
-      : `<div class="claim-head"><h2>${esc(attribute.replaceAll('_', ' '))}</h2><span class="claim-value">Claims tie, so there is no consolidated value.</span></div>`}
+      : `<div class="claim-head"><h2>${esc(attribute.replaceAll('_', ' '))}</h2><span class="claim-value">Evidence is too weak or conflicted for a consolidated value.</span></div>`}
       ${table([
-        { label: 'state', w: '110px', cell: (e) => target ? `<span class="badge ${CLAIM_STATES[e.state]}">${CLAIM_STATES[e.state]}</span>` : `<span class="badge ${CLAIM_STATES[e.state]}">tied</span>` },
+        { label: 'state', w: '110px', cell: (e) => target ? `<span class="badge ${CLAIM_STATES[e.state]}">${CLAIM_STATES[e.state]}</span>` : `<span class="badge ${CLAIM_STATES[e.state]}">undecided</span>` },
         { label: 'claimed', w: 'minmax(140px, 1fr)', cls: 'clip', cell: (e) => esc(e.value) },
+        { label: 'score', w: '70px', cell: (e) => quiet(e.probability.toFixed(2)) },
         { label: 'source', w: 'minmax(180px, 1.2fr)', cls: 'clip', cell: (e) => e.source === 'text' ? textLink(e.source_key) : `flair <span title="${esc(e.source_key)}">“${esc(e.source_key)}”</span>` },
         { label: 'subreddit', w: '170px', cls: 'clip', cell: (e) => e.subreddit ? subLink(e.subreddit) : '' },
         { label: 'posted', w: '130px', cell: (e) => e.source === 'text' ? quiet(date(e.created_utc)) : '' },
         { label: 'flag', w: '110px', cell: (e) => e.source === 'text' ? suspectBox(e.source_key, attribute, e.value, e.suspect) : '' },
-      ], rows, 970)}</section>`;
+      ], rows, 1040)}</section>`;
 }
 
 function similarPanel(data) {
@@ -415,7 +415,38 @@ const PAGES = {
   users: (parts, params, request) => usersPage(params, request),
   subreddits: (parts, params, request) => subredditsPage(request),
   texts: (parts, params, request) => textsPage(params, request),
+  predict: () => predictPage(),
 };
+
+function predictPage() {
+  main.innerHTML = `<section class="panel" aria-label="Predict"><h2>Predict from a text</h2>
+    <p class="note">Predicts the attributes of a text's author. The model learned from one text at a time, against its author's consolidated claims. Percentages are calibrated probabilities; numbers show the median and a 90% interval.</p>
+    <form id="predict" class="predict"><textarea name="text" rows="8" aria-label="Text" placeholder="Paste a text" required></textarea><button type="submit">Predict</button></form>
+    <div id="predicted" role="status"></div></section>`;
+}
+
+function predictedTable(result) {
+  if (result.status === 'not_built') return '<p class="note">The text model is not built.</p>';
+  if (result.status === 'empty') return '<p class="note">Nothing is left of this text after cleaning.</p>';
+  return `<p class="note">Read ${plural(result.tokens, 'token')}${result.truncated ? ', the most the model reads; the rest of the text was ignored' : ''}. Trained on the ${esc(result.months.join(', '))} claims.</p>
+    <table class="demographics-table"><caption class="sr">Predicted attributes and confidence</caption><thead><tr><th scope="col">Attribute</th><th scope="col">Prediction and confidence</th></tr></thead>
+    <tbody>${Object.entries(result.attributes).map(([attribute, prediction]) => `<tr><td><h3>${label(attribute)}</h3></td><td class="prediction">${predictionCell(attribute, prediction)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+async function predictText(form) {
+  const target = document.getElementById('predicted');
+  const button = form.querySelector('button');
+  button.disabled = true;
+  target.innerHTML = '<p class="note">Predicting…</p>';
+  try {
+    const body = JSON.stringify({ text: new FormData(form).get('text') });
+    target.innerHTML = predictedTable(await get('predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }));
+  } catch (error) {
+    target.innerHTML = `<p class="note error">${esc(error.message)}</p>`;
+  } finally {
+    button.disabled = false;
+  }
+}
 
 async function render() {
   const request = ++state.request;
@@ -488,6 +519,10 @@ async function loadMore(button) {
 
 document.addEventListener('submit', (event) => {
   event.preventDefault();
+  if (event.target.id === 'predict') {
+    predictText(event.target);
+    return;
+  }
   const form = new FormData(event.target);
   if (event.target.id === 'search') location.hash = `#/search/${enc(form.get('q').trim())}`;
   else location.hash = `#/${event.target.dataset.page}?${new URLSearchParams([...form].map(([k, v]) => [k, v.trim()]).filter(([, v]) => v))}`;

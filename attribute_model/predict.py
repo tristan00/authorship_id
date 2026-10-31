@@ -77,8 +77,8 @@ def calibrated(artifact, outputs):
 def predict(loaded, vectors, candidates=5):
     model, artifact = loaded
     values = np.asarray(vectors, dtype=np.float32)
-    if values.ndim != 2 or values.shape[1] != DIMENSIONS or not np.isfinite(values).all():
-        raise ValueError(f"Expected finite {DIMENSIONS}-dimensional user vectors")
+    if values.ndim != 2 or values.shape[1] != model.input.in_features or not np.isfinite(values).all():
+        raise ValueError(f"Expected finite {model.input.in_features}-dimensional inputs")
     result = [{} for _ in values]
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
@@ -252,7 +252,7 @@ def predict_file(model_path, targets, input_path, output_path):
     try:
         with NamedTemporaryFile(mode="w", encoding="utf-8", dir=output_path.parent, prefix=output_path.name + ".", suffix=".tmp", delete=False) as destination:
             temporary = Path(destination.name)
-            for number, (record, attributes) in enumerate(zip(records, predictions), 1):
+            for record, attributes in zip(records, predictions):
                 destination.write(json.dumps({"id": record.get("id", record.get("author", number)), "attributes": attributes}, ensure_ascii=False) + "\n")
         temporary.rename(output_path)
     finally:

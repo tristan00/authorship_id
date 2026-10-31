@@ -55,6 +55,10 @@ h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .main { padding-top: 20px; padding-bottom: 40px; display: flex; flex-direction: column; gap: 12px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .note { margin: 0; font-size: 13px; color: var(--muted); }
+.predict { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.predict textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; font: inherit; resize: vertical; }
+.predict button { height: 40px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--accent); color: #FFFFFF; font: inherit; font-weight: 600; cursor: pointer; }
+.predict button:disabled { opacity: .6; cursor: default; }
 .more { align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1px solid var(--field); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
 .badge { font-size: 12px; font-weight: 600; border-radius: 4px; padding: 2px 8px; color: var(--ink-3); background: var(--rule); }
 .badge.post { color: var(--accent-deep); background: var(--badge); }

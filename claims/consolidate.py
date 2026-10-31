@@ -1,7 +1,6 @@
 import multiprocessing
 import time
 import uuid
-from collections import Counter, defaultdict
 from itertools import groupby
 from operator import itemgetter
 
@@ -12,34 +11,25 @@ from database import DSN, LOGS, NO_AUTHOR, SCAN_WORKERS, vacuum, within
 from reddit_dumps import setup_logging
 
 from . import LOG, timed
-from .config import WORKERS
+from .config import EVIDENCE_MEMORY, PARTS_PER_WORKER, WORKERS
 from .rules import consolidate as rules
+from .rules import needs
 
 SCHEMA = """
 DROP TABLE IF EXISTS claim_evidence;
 DROP TABLE IF EXISTS consolidation;
-CREATE TABLE consolidation (
-    run_id uuid PRIMARY KEY,
-    months text[] NOT NULL,
-    started_at timestamptz NOT NULL,
-    finished_at timestamptz NOT NULL DEFAULT now(),
-    base uuid,
-    added text[]
-);
+CREATE TABLE consolidation (run_id uuid PRIMARY KEY, months text[] NOT NULL, started_at timestamptz NOT NULL, finished_at timestamptz NOT NULL DEFAULT now(), base uuid, added text[]);
+"""
+CLAIMS = """
 DROP TABLE IF EXISTS author_claims;
-CREATE TABLE author_claims (
-    author text NOT NULL,
-    attribute text NOT NULL,
-    value text NOT NULL,
-    candidates jsonb NOT NULL
-);
+CREATE TABLE author_claims (author text NOT NULL, attribute text NOT NULL, value text NOT NULL, support real NOT NULL, share real NOT NULL, candidates jsonb NOT NULL);
 """
 EVIDENCE = """
-SELECT t.author, 'text' AS source, t.record_id AS source_key, t.subreddit, c.field, c.value
+SELECT t.author, 'text' AS source, t.record_id AS source_key, t.subreddit, c.field, c.value, c.probability, c.text_sha256
 FROM text_claims c JOIN records t USING (text_sha256) WHERE t.author <> ALL(%(no_author)s) AND {months}
 UNION ALL
-SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, t.subreddit, f.field, f.value
-FROM records t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text WHERE t.author <> ALL(%(no_author)s) AND {months}
+SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, t.subreddit, f.field, f.value, f.probability, NULL::bytea
+FROM records t JOIN flair_claims f ON f.flair = t.author_flair_text WHERE t.author <> ALL(%(no_author)s) AND {months}
 """
 ADDED = """
 ANALYZE claim_evidence_added;
@@ -51,32 +41,26 @@ CREATE UNLOGGED TABLE claim_authors AS SELECT DISTINCT author FROM claim_evidenc
 ANALYZE claim_authors;
 DELETE FROM author_claims WHERE author IN (SELECT author FROM claim_authors);
 """
-CLAIMS = {False: "SELECT author, source, subreddit, field, value FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author",
-          True: """SELECT author, e.source, e.subreddit, e.field, e.value FROM claim_authors a JOIN claim_evidence e USING (author)
-                   WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author"""}
-PARTS_PER_WORKER = 2
-PARALLEL = (f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}", "SET parallel_setup_cost = 0", "SET parallel_tuple_cost = 0")
+READ = {False: "SELECT author, source, source_key, field, value, probability, text_sha256 FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author",
+        True: """SELECT author, e.source, e.source_key, e.field, e.value, e.probability, e.text_sha256 FROM claim_authors a JOIN claim_evidence e USING (author)
+                 WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author"""}
+PARALLEL = (f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}", "SET parallel_setup_cost = 0", "SET parallel_tuple_cost = 0", f"SET work_mem = '{EVIDENCE_MEMORY}'")
 
 
-def work(part, parts, touched):
-    setup_logging(LOGS / "claim_consolidation.log")
+def work(part, parts, touched, required):
+    setup_logging(LOGS / "claims.log")
     started = time.perf_counter()
-    decided = undecided = 0
+    decided = authors = 0
     with psycopg.connect(DSN) as conn:
-        rows = conn.execute(CLAIMS[touched], {"parts": parts, "part": part})
+        rows = conn.execute(READ[touched], {"parts": parts, "part": part})
         with conn.cursor().copy("COPY author_claims FROM STDIN") as copy:
             for author, group in groupby(rows, key=itemgetter(0)):
-                evidence = [row[1:] for row in group]
-                support = defaultdict(Counter)
-                for _, _, field, value in evidence:
-                    support[field][value] += 1
-                result = rules(evidence)
-                for attribute, value in result.items():
-                    ranked = sorted(support[attribute].items(), key=lambda item: (-item[1], item[0]))
-                    copy.write_row((author, attribute, value, Jsonb([{"value": item, "support": count} for item, count in ranked])))
-                decided += len(result)
-                undecided += len(support.keys() - result.keys())
-    LOG.info("consolidated part %s/%s attributes=%s undecided=%s seconds=%.1f", part + 1, parts, decided, undecided, time.perf_counter() - started)
+                authors += 1
+                for attribute, (value, support, share, candidates) in rules([row[1:] for row in group], required).items():
+                    ranked = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))
+                    copy.write_row((author, attribute, value, support, share, Jsonb([{"value": item, "support": round(amount, 3)} for item, amount in ranked])))
+                    decided += 1
+    LOG.info("consolidated part %s/%s authors=%s attributes=%s seconds=%.1f", part + 1, parts, authors, decided, time.perf_counter() - started)
     return decided
 
 
@@ -121,6 +105,14 @@ def base(conn, loaded):
 
 
 @timed
+def decide(touched):
+    parts = WORKERS * PARTS_PER_WORKER
+    required = needs()
+    with multiprocessing.Pool(WORKERS) as pool:
+        return sum(pool.starmap(work, [(part, parts, touched, required) for part in range(parts)]))
+
+
+@timed
 def consolidate():
     run_id = str(uuid.uuid4())
     with psycopg.connect(DSN) as conn:
@@ -133,13 +125,12 @@ def consolidate():
         LOG.info("consolidation months=%s base=%s added=%s", months, previous, added)
         if previous is None:
             conn.execute(SCHEMA)
+            conn.execute(CLAIMS)
             conn.commit()
             evidence(conn)
         else:
             append(conn, added)
-        parts = WORKERS * PARTS_PER_WORKER
-        with multiprocessing.Pool(WORKERS) as pool:
-            attributes = sum(pool.starmap(work, [(part, parts, previous is not None) for part in range(parts)]))
+        attributes = decide(previous is not None)
         conn.execute("INSERT INTO consolidation (run_id, months, started_at, base, added) VALUES (%s, %s, %s, %s, %s)", [run_id, months, started, previous, added])
         if previous is None:
             conn.execute("ALTER TABLE author_claims ADD PRIMARY KEY (author, attribute)")
@@ -147,3 +138,19 @@ def consolidate():
             conn.execute("DROP TABLE claim_evidence_added, claim_authors")
     vacuum("claim_evidence", "author_claims")
     LOG.info("consolidated run=%s months=%s attributes=%s", run_id, months, attributes)
+
+
+@timed
+def redecide():
+    run_id = str(uuid.uuid4())
+    with psycopg.connect(DSN) as conn:
+        started = conn.execute("SELECT now()").fetchone()[0]
+        months = conn.execute("SELECT months FROM consolidation").fetchone()[0]
+        conn.execute(CLAIMS)
+        conn.commit()
+        attributes = decide(False)
+        conn.execute("DELETE FROM consolidation")
+        conn.execute("INSERT INTO consolidation (run_id, months, started_at) VALUES (%s, %s, %s)", [run_id, months, started])
+        conn.execute("ALTER TABLE author_claims ADD PRIMARY KEY (author, attribute)")
+    vacuum("author_claims")
+    LOG.info("redecided run=%s attributes=%s", run_id, attributes)

@@ -5,8 +5,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from author_encoder.config import DIMENSIONS
-
 from .config import QUANTILES, validate
 
 
@@ -34,13 +32,13 @@ class LabelEmbedding(nn.Module):
 
 
 class AttributeModel(nn.Module):
-    def __init__(self, targets, specifications, width, depth, expand, dropout, rank):
+    def __init__(self, targets, specifications, width, depth, expand, dropout, rank, features):
         super().__init__()
         targets = validate(targets)
         if [spec["name"] for spec in specifications] != list(targets) or any(spec["type"] != targets[spec["name"]] for spec in specifications):
             raise ValueError("Target specifications do not match the configured fields")
         self.specifications = specifications
-        self.input = nn.Linear(DIMENSIONS, width)
+        self.input = nn.Linear(features["dimensions"], width)
         self.blocks = nn.Sequential(*(Block(width, expand, dropout) for _ in range(depth)))
         self.norm = nn.LayerNorm(width)
         self.numeric, self.categorical, self.embedding = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical", "embedding"))
@@ -67,14 +65,16 @@ class AttributeModel(nn.Module):
                    "center": torch.tensor([specifications[index]["center"] for index in self.numeric], dtype=torch.float32),
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
                    "quantiles": torch.tensor(QUANTILES, dtype=torch.float32),
-                   "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32)}
+                   "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
+                   "shift": torch.tensor(features["center"], dtype=torch.float32),
+                   "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32)}
         for name, value in buffers.items():
             self.register_buffer(name, value, persistent=False)
         self.widest = widest
         self.first_categorical = int(offsets[len(self.numeric)])
 
     def forward(self, vectors):
-        return self.norm(self.blocks(self.input(vectors * math.sqrt(DIMENSIONS))))
+        return self.norm(self.blocks(self.input((vectors - self.shift) * self.factor)))
 
     def outputs(self, hidden):
         flat = self.head(hidden)

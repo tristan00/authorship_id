@@ -21,3 +21,7 @@ Avoid treating this project as a file dump. Files here eed to have ongoing use t
 No git commit attribution allowed ever. no branch names that include codex ever.
 
 claim attributes can only be single values, either a numerical or a flat categorical.
+
+No git branches and no git worktrees
+
+Data anotation must be done with local agents. Wether the local model is downloaded on this machine or not is not allowed to be considered in the decision of wether to use a specific local model over another. 

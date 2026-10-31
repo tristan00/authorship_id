@@ -4,7 +4,7 @@ from pathlib import Path
 
 from reddit_dumps import setup_logging
 
-from .config import DATA, MODEL, ROOT, TARGETS, read_targets
+from .config import DATA, MODEL, ROOT, TARGETS, TEXT_DATA, TEXT_MODEL, TEXT_PARAMETERS, TUNE, read_targets
 
 
 def main():
@@ -25,7 +25,13 @@ def main():
     table = commands.add_parser("table")
     table.add_argument("--model", type=Path, default=MODEL)
     update = commands.add_parser("update")
-    for command in (prepare, train, predict, user, table, update):
+    text_prepare = commands.add_parser("text-prepare")
+    text_train = commands.add_parser("text-train")
+    tune = commands.add_parser("tune")
+    text_tune = commands.add_parser("text-tune")
+    text = commands.add_parser("text")
+    text.add_argument("text")
+    for command in (prepare, train, predict, user, table, update, text_prepare, text_train, tune, text_tune, text):
         command.add_argument("--targets", type=Path, default=TARGETS)
     args = parser.parse_args()
     targets = read_targets(args.targets)
@@ -45,9 +51,27 @@ def main():
     elif args.command == "table":
         from .predict import predict_table
         result = predict_table(args.model, targets)
-    else:
+    elif args.command == "update":
         from .update import update
         result = update(targets)
+    elif args.command == "text-prepare":
+        from .text import prepare
+        result = prepare(TEXT_DATA, targets)
+    elif args.command == "text-train":
+        from .text import load_text
+        from .train import train
+        result = train(TEXT_DATA, TEXT_MODEL, targets, TEXT_PARAMETERS, load_text)
+    elif args.command == "tune":
+        from .train import load_data
+        from .tune import tune as run
+        result = run(targets, load_data, DATA, TUNE / "account.json")
+    elif args.command == "text-tune":
+        from .text import load_text
+        from .tune import tune as run
+        result = run(targets, load_text, TEXT_DATA, TUNE / "text.json")
+    else:
+        from .text import predict_text
+        result = predict_text(TEXT_MODEL, targets, args.text)
     print(json.dumps(result))
 
 

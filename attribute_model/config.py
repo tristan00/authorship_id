@@ -7,6 +7,9 @@ ROOT = Path(r"C:\reddit_data\attribute_model")
 DATA = ROOT / "data"
 MODEL = ROOT / "model.pt"
 PREDICTIONS = ROOT / "predictions.staging"
+TEXT_DATA = ROOT / "text_data"
+TEXT_MODEL = ROOT / "text_model.pt"
+TUNE = ROOT / "tune"
 KINDS = {"numeric", "categorical", "embedding"}
 SEED = 719
 THREADS = 2
@@ -15,7 +18,15 @@ ENCODERS = 8
 SEGMENT_BYTES = 2 << 30
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
 QUANTILES = (.05, .5, .95)
-PARAMETERS = {"width": 1024, "depth": 3, "expand": 1, "dropout": .27, "rank": 128, "batch": 2048, "lr": .0015, "weight_decay": .27, "epochs": 6, "interval_mass": .9}
+CLEAN_TEXTS = 32
+CLEAN_BUCKETS = 64
+STRICT_SUPPORT = 3.
+STRICT_SHARE = .7
+PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank": 128, "batch": 2048, "lr": .001, "weight_decay": .1, "epochs": 6, "interval_mass": .9}
+TEXT_PARAMETERS = PARAMETERS
+TUNE_TRIALS = 18
+TUNE_ROUNDS = (2, 6, 12)
+TUNE_SPACE = {"width": (512, 1024, 2048), "depth": (1, 2, 3), "expand": (1, 2), "dropout": (.1, .2, .3, .5), "rank": (64, 128, 256), "batch": (1024, 2048, 4096), "lr": (3e-4, 5e-4, 1e-3, 2e-3), "weight_decay": (.01, .1, .3)}
 
 
 def unique(pairs):

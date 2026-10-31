@@ -193,11 +193,12 @@ def user_trends(author):
 
 @timed
 def user_claims(author):
-    from claim_extraction.config import FIELDS, NUMERIC
+    from claims.config import NUMERIC
+    from claims.schema import ALL_FIELDS
     with connect() as conn:
         run = conn.execute("SELECT finished_at FROM consolidation").fetchone()
         rows = conn.execute("SELECT attribute, value, candidates FROM author_claims WHERE author = %s", [author]).fetchall()
-        evidence = conn.execute("""SELECT c.field AS attribute, c.source, c.source_key, t.subreddit, c.value, t.created_utc,
+        evidence = conn.execute("""SELECT c.field AS attribute, c.source, c.source_key, t.subreddit, c.value, c.probability, t.created_utc,
                                           CASE WHEN a.value = c.value THEN 'accepted' ELSE 'outvoted' END AS state, s.record_id IS NOT NULL AS suspect
                                    FROM claim_evidence c
                                    LEFT JOIN author_claims a ON a.author = c.author AND a.attribute = c.field
@@ -218,7 +219,7 @@ def user_claims(author):
         "candidates": [{"value": value(row["attribute"], item["value"]), "support": item["support"]} for item in row["candidates"]],
         "outvoted": sum(item["attribute"] == row["attribute"] and item["state"] == "outvoted" for item in evidence),
         "stats": stats(row["attribute"])}} for row in rows]
-    return {"finished": run["finished_at"], "fields": list(FIELDS), "targets": targets, "evidence": evidence}
+    return {"finished": run["finished_at"], "fields": list(ALL_FIELDS), "targets": targets, "evidence": evidence}
 
 
 def prediction(row, name, kind, mass):
@@ -245,6 +246,15 @@ def user_predictions(author):
     return {"status": "ready", "attributes": {name: prediction(row, name, kind, run["interval_mass"]) for name, kind in run["targets"].items()},
             "split": next(name for name, buckets in SPLITS.items() if bucket in buckets), "claimed": claimed,
             "consolidation": run["source"]["consolidation"], "months": list(run["source"]["months"])}
+
+
+@timed
+def predict_text(text):
+    from attribute_model.config import TEXT_MODEL, read_targets
+    if not TEXT_MODEL.exists():
+        return {"status": "not_built"}
+    from attribute_model.text import predict_text as predicted
+    return predicted(TEXT_MODEL, read_targets(), text)
 
 
 FLAGGED_TEXT = "EXISTS (SELECT 1 FROM suspect_claim_texts s WHERE s.record_id = x.record_id)"

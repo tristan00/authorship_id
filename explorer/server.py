@@ -33,9 +33,9 @@ ROUTES = {
     ("subreddit", None, "authors"): lambda q, name: api.subreddit_authors(name, offset(q)),
 }
 POSTS = {
-    ("suspect",): lambda body: api.flag(body["record_id"], body["attribute"], body["value"], body["suspect"]),
+    ("suspect",): ({"record_id": str, "attribute": str, "value": str, "suspect": bool}, lambda body: api.flag(body["record_id"], body["attribute"], body["value"], body["suspect"])),
+    ("predict",): ({"text": str}, lambda body: api.predict_text(body["text"])),
 }
-FLAG = {"record_id": str, "attribute": str, "value": str, "suspect": bool}
 
 
 class BadRequest(Exception):
@@ -146,19 +146,19 @@ class Handler(BaseHTTPRequestHandler):
         except BadRequest as error:
             self.send(400, orjson.dumps({"error": str(error)}), "application/json")
 
-    def body(self):
+    def body(self, fields):
         try:
             body = orjson.loads(self.rfile.read(int(self.headers["Content-Length"])))
         except (TypeError, ValueError) as error:
             raise BadRequest("body must be JSON") from error
-        if not isinstance(body, dict) or any(not isinstance(body.get(k), kind) for k, kind in FLAG.items()):
-            raise BadRequest("body needs record_id, attribute, value and suspect")
+        if not isinstance(body, dict) or any(not isinstance(body.get(k), kind) for k, kind in fields.items()):
+            raise BadRequest(f"body needs {', '.join(fields)}")
         return body
 
     def receive(self):
         parts = [unquote(p) for p in urlsplit(self.path).path.strip("/").split("/") if p]
-        handler = POSTS.get(tuple(parts[1:])) if parts[:1] == ["api"] else None
-        self.answer(handler and (lambda: handler(self.body())))
+        entry = POSTS.get(tuple(parts[1:])) if parts[:1] == ["api"] else None
+        self.answer(entry and (lambda: entry[1](self.body(entry[0]))))
 
     def respond(self):
         url = urlsplit(self.path)

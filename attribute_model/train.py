@@ -111,25 +111,28 @@ def report(model, vectors, labels, specs, calibration):
     return result
 
 
-def gpu(arrays, selected):
-    vectors = torch.empty((len(selected), arrays["users"].shape[1]), dtype=torch.float16, device=DEVICE)
+def gpu(inputs, labels, selected):
+    vectors = torch.empty((len(selected), inputs.shape[1]), dtype=torch.from_numpy(inputs[:1].copy()).dtype, device=DEVICE)
     for start in range(0, len(selected), 1 << 20):
-        vectors[start:start + (1 << 20)] = torch.from_numpy(np.asarray(arrays["users"][selected[start:start + (1 << 20)]]))
-    return vectors, torch.as_tensor(np.asarray(arrays["labels"][selected]), dtype=torch.float32, device=DEVICE)
+        vectors[start:start + (1 << 20)] = torch.from_numpy(np.asarray(inputs[selected[start:start + (1 << 20)]]))
+    return vectors, torch.as_tensor(np.asarray(labels[selected]), dtype=torch.float32, device=DEVICE)
+
+
+def load_splits(manifest, targets, inputs, labels, splits):
+    selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
+    specs = specifications(targets, manifest["catalogs"], labels, selected["train"])
+    for name in ("validation", "calibration", "test"):
+        counts = np.isfinite(np.asarray(labels[selected[name]])).sum(0)
+        if (counts < 100).any():
+            raise ValueError(f"Fewer than 100 {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < 100)}")
+    LOG.info("attribute model rows=%s", {name: len(indices) for name, indices in selected.items()})
+    return specs, {name: gpu(inputs, labels, indices) for name, indices in selected.items()}
 
 
 @timed
 def load_data(directory, targets):
     manifest, arrays = load(directory, targets)
-    splits = np.asarray(arrays["splits"])
-    selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
-    specs = specifications(targets, manifest["catalogs"], arrays["labels"], selected["train"])
-    for name in ("validation", "calibration", "test"):
-        counts = np.isfinite(np.asarray(arrays["labels"][selected[name]])).sum(0)
-        if (counts < 100).any():
-            raise ValueError(f"Fewer than 100 {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < 100)}")
-    LOG.info("attribute model authors=%s", {name: len(indices) for name, indices in selected.items()})
-    return manifest, specs, {name: gpu(arrays, indices) for name, indices in selected.items()}
+    return (manifest, *load_splits(manifest, targets, arrays["users"], arrays["labels"], np.asarray(arrays["splits"])))
 
 
 def capacities(model, specs, rows, batch):
@@ -140,11 +143,15 @@ def capacities(model, specs, rows, batch):
 @timed
 def fit(model, specs, data, parameters):
     vectors, labels = data["train"]
+    capacity = capacities(model, specs, len(labels), parameters["batch"])
+    return run_epochs(model, len(labels), parameters, lambda index: model.loss(model(vectors[index].float()), labels[index], capacity), lambda: score(model, *data["validation"], specs))
+
+
+def run_epochs(model, rows, parameters, loss_of, validate):
     batch = parameters["batch"]
-    batches = len(labels) // batch
+    batches = rows // batch
     steps = batches * parameters["epochs"]
     warmup = max(1, round(.03 * steps))
-    capacity = capacities(model, specs, len(labels), batch)
     rate = torch.tensor(parameters["lr"], device=DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=rate, weight_decay=parameters["weight_decay"], fused=True, capturable=True)
     index = torch.zeros(batch, dtype=torch.long, device=DEVICE)
@@ -155,13 +162,13 @@ def fit(model, specs, data, parameters):
 
     def step():
         with torch.autocast(DEVICE, dtype=torch.bfloat16, cache_enabled=False):
-            loss, overflow = model.loss(model(vectors[index].float()), labels[index], capacity)
+            loss, overflow = loss_of(index)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1., foreach=True)
         optimizer.step()
         return loss.detach(), overflow
 
-    order = torch.randperm(len(labels), device=DEVICE, generator=generator)[:batches * batch].view(batches, batch)
+    order = torch.randperm(rows, device=DEVICE, generator=generator)[:batches * batch].view(batches, batch)
     model.train()
     side = torch.cuda.Stream()
     side.wait_stream(torch.cuda.current_stream())
@@ -179,7 +186,7 @@ def fit(model, specs, data, parameters):
     best, saved, history, number, started = math.inf, None, [], 3, time.perf_counter()
     for epoch in range(parameters["epochs"]):
         if epoch:
-            order = torch.randperm(len(labels), device=DEVICE, generator=generator)[:batches * batch].view(batches, batch)
+            order = torch.randperm(rows, device=DEVICE, generator=generator)[:batches * batch].view(batches, batch)
         model.train()
         total = torch.zeros((), device=DEVICE)
         dropped = torch.zeros((), dtype=torch.long, device=DEVICE)
@@ -191,9 +198,9 @@ def fit(model, specs, data, parameters):
             dropped += overflow
             number += 1
         if not torch.isfinite(total) or dropped:
-            raise FloatingPointError(f"Nonfinite attribute-model loss or {int(dropped)} labeled rows beyond the embedding-head capacity {capacity}")
+            raise FloatingPointError(f"Nonfinite attribute-model loss or {int(dropped)} labeled rows beyond the head capacity")
         trained = time.perf_counter() - started
-        validation, fields = score(model, *data["validation"], specs)
+        validation, fields = validate()
         history.append({"epoch": epoch + 1, "training_loss": float(total) / (batches - (3 if epoch == 0 else 0)), "validation_score": validation, "fields": fields})
         LOG.info("attribute model epoch=%d loss=%.5f validation=%.5f train_seconds=%.1f seconds=%.1f", epoch + 1, history[-1]["training_loss"], validation, trained, time.perf_counter() - started)
         if validation < best:
@@ -204,13 +211,13 @@ def fit(model, specs, data, parameters):
 
 
 @timed
-def train(directory, output, targets, parameters=PARAMETERS):
+def train(directory, output, targets, parameters=PARAMETERS, loader=load_data):
     targets = validate(targets)
     output = Path(output)
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     torch.manual_seed(SEED)
-    manifest, specs, data = load_data(directory, targets)
-    architecture = {key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}
+    manifest, specs, data = loader(directory, targets)
+    architecture = {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}, "features": manifest["features"]}
     model = AttributeModel(targets, specs, **architecture).to(DEVICE)
     best, history = fit(model, specs, data, parameters)
     authors = {name: len(labels) for name, (_, labels) in data.items()}
