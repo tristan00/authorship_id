@@ -9,7 +9,7 @@ from database import DSN, NO_AUTHOR
 
 from . import LOG, timed
 from .annotate import answers, generate, rows
-from .config import ANNOTATIONS, COMPASS_SUBREDDIT, FLAIR_ADULT_SHARE, FLAIR_AUTHORS, FLAIR_LENGTH, FLAIR_SHOWN, FLAIR_SUBREDDIT_AUTHORS, FLAIR_VOTERS, GATE_COMPARISONS, GATE_SKILL, TEACHER, WIDE
+from .config import ANNOTATIONS, COMPASS_SUBREDDIT, FLAIR_ADULT_SHARE, FLAIR_AUTHORS, FLAIR_LENGTH, FLAIR_SHOWN, FLAIR_SUBREDDIT_AUTHORS, GATE_COMPARISONS, GATE_SKILL, TEACHER, VERIFIERS, WIDE
 from .sample import MINOR
 from .schema import FANDOM, FLAIR, FLAIR_LINES, FLAIR_SCHEMA, FREE, flair_attributes, flair_facts
 
@@ -94,7 +94,7 @@ def annotate(minimum=FLAIR_AUTHORS):
                     out.write(json.dumps({"id": row["id"], "text": FLAIR.format(attributes=attributes, subreddit=subreddit, flair=row["flair"])}, ensure_ascii=False) + "\n")
                     written += 1
     LOG.info("flair value prompts=%d", written)
-    for model in FLAIR_VOTERS:
+    for model in VERIFIERS:
         generate(model, records, "flairs", 60)
 
 
@@ -109,7 +109,7 @@ def same(field, left, right):
 
 @timed
 def load():
-    others = [answers("flairs", model) for model in FLAIR_VOTERS if model != TEACHER]
+    others = [answers("flairs", model) for model in VERIFIERS if model != TEACHER]
     kept = {}
     proposals = 0
     for row, attribute, value in proposed():

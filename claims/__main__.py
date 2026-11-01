@@ -20,6 +20,7 @@ def main():
     gold.add_argument("--dataset", default="uniform")
     gold.add_argument("--limit", type=int, required=True)
     commands.add_parser("verify")
+    commands.add_parser("cotrain")
     flairs = commands.add_parser("flairs")
     flairs.add_argument("--minimum-authors", type=int, default=FLAIR_AUTHORS)
     commands.add_parser("flairs-load")
@@ -59,6 +60,9 @@ def main():
     elif args.command == "verify":
         from .annotate import verify
         verify()
+    elif args.command == "cotrain":
+        from .cotrain import propose
+        propose()
     elif args.command == "train":
         from .extractor import fit
         fit()

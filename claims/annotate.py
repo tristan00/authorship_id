@@ -1,11 +1,11 @@
 import json
 import subprocess
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 
 from . import LOG, timed
 from .config import ANNOTATIONS, ANNOTATOR, FAN_WHOLE, GOLD_TEXTS, TEACHER, TRAINING, VERIFIERS
-from .schema import CLOSED, FAN_WORDS, FANDOM_PROMPT, VERIFY, claim_text, parse
+from .schema import CLOSED, FAN_WORDS, FANDOM_PROMPT, VERIFY, claim_text, parse, renamed
 
 BEFORE, AFTER = 500, 300
 STOP = {"after": 2000, "max_error": .01, "max_shared_mib": 512}
@@ -124,13 +124,29 @@ def verify(datasets=TRAINING, model=TEACHER):
     generate(model, records, name, 4)
 
 
+def said_yes(answer):
+    return (answer or "").strip().upper().startswith("Y")
+
+
+def cotrained(model=TEACHER):
+    checked = votes("cotrain", model)
+    added = defaultdict(dict)
+    for row in rows(ANNOTATIONS / "cotrain.jsonl"):
+        value = renamed(row["attribute"], row["value"])
+        if value is not None and said_yes(checked.get(row["key"])):
+            added[row["id"]][row["attribute"], value] = row["quote"]
+    LOG.info("cotrain facts=%d texts=%d", sum(map(len, added.values())), len(added))
+    return added
+
+
 def facts(datasets=TRAINING, model=TEACHER):
     checked = votes("verify", model)
+    added = cotrained(model)
     total = kept = 0
     for identifier, text, found in proposals(datasets, model):
-        confirmed = {pair: quote for pair, quote in found.items() if (checked.get(fact_key(identifier, *pair)) or "").strip().upper().startswith("Y")}
+        confirmed = {pair: quote for pair, quote in found.items() if said_yes(checked.get(fact_key(identifier, *pair)))}
         total, kept = total + len(found), kept + len(confirmed)
-        yield identifier, text, confirmed
+        yield identifier, text, {**confirmed, **added.get(identifier, {})}
     LOG.info("teacher facts proposed=%d confirmed=%d", total, kept)
 
 
