@@ -32,5 +32,17 @@
   "housing": "categorical",
   "pets": "categorical",
   "military_status": "categorical",
-  "neurotype": "categorical"
+  "neurotype": "categorical",
+  "political_compass": "categorical",
+  "personality_type": "categorical",
+  "generation": "categorical",
+  "sports_team": "embedding",
+  "athlete": "embedding",
+  "artist": "embedding",
+  "author": "embedding",
+  "character": "embedding",
+  "franchise": "embedding",
+  "video_game": "embedding",
+  "creator": "embedding",
+  "celebrity": "embedding"
 }

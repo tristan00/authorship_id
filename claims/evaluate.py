@@ -8,10 +8,10 @@ import psycopg
 from database import DSN
 
 from . import LOG, timed
-from .annotate import answers, generate, rows, texts
-from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_ATTRIBUTE, GOLD_TEXTS, HELD_FOLDS, NEEDS, SHARE, TEACHER, THRESHOLDS, VERIFIERS
+from .annotate import answers, generate, rows, texts, votes
+from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_ATTRIBUTE, GOLD_TEXTS, HELD_FOLDS, NEEDS, TEACHER, THRESHOLDS, VERIFIERS
 from .extractor import load_extractor, predict, splitter, windows
-from .rules import agree, tally
+from .rules import agree, decide, flair_strength, strength
 from .sample import MINOR, safety
 from .schema import ALL_FIELDS, BOT, canonical
 
@@ -24,7 +24,10 @@ DESCRIPTIONS = {"age": "their age now", "height": "their height in centimeters",
                 "ethnicity": "their race or ethnicity", "religion": "their religion or belief", "political_identity": "their political identity", "relationship_status": "their relationship status now", "parental_status": "whether they have children",
                 "education": "their education, highest reached or current level", "field_of_study": "the subject they study or studied", "employment_status": "their main activity now", "occupation": "the field of their current job", "body_type": "their body type",
                 "hair_color": "their hair color", "physical_condition": "a physical condition they have now", "mental_condition": "a mental condition they have now", "neurotype": "a neurodevelopmental condition they have", "diet": "their diet", "smoking": "whether they smoke",
-                "living_with": "who they live with", "housing": "their housing", "pets": "their pets", "military_status": "their military status"}
+                "living_with": "who they live with", "housing": "their housing", "pets": "their pets", "military_status": "their military status", "political_compass": "their position on the political compass",
+                "personality_type": "their personality type", "generation": "the generation they belong to", "sports_team": "the sports team they support", "athlete": "the athlete they are most a fan of", "artist": "the musician, band or artist they are most a fan of",
+                "author": "the book author they are most a fan of", "character": "the fictional character they are most a fan of", "franchise": "the show, film series, anime, comic or book series they are most a fan of",
+                "video_game": "the video game they are most a fan of", "creator": "the streamer or online creator they are most a fan of", "celebrity": "the famous person they are most a fan of"}
 AUTHOR_PROMPT = """Below are excerpts written by one Reddit author in different posts and comments. An automatic system read them and found possible values for one thing about this author. Words between [[ and ]] are what the system used, and the system is often wrong. A flair is a label the author chose to show next to their name.
 
 Decide which option is true of the author now, using only these excerpts. Tags such as 28F or [M4F] at the start of the author's own post describe the author. Something said about another person, a question, a hypothetical, a joke, role-play, a quotation, or a past fact that no longer holds does not count. If the author's situation changed, use the most recent sincere statement. If an excerpt looks like the author but gives a value that conflicts with most of the others, weigh how clear each statement is.
@@ -44,14 +47,14 @@ def first_letter(answer, allowed):
 
 
 def text_truth(dataset):
-    votes = {model: answers(f"{dataset}.gold", model) for model in VERIFIERS}
+    ballots_of = {model: votes(f"{dataset}.gold", model) for model in VERIFIERS}
     truth, teacher = defaultdict(set), defaultdict(set)
     for item in rows(ANNOTATIONS / f"{dataset}.gold.jsonl"):
         pair = canonical(item["attribute"], item["value"])
         if pair is None:
             continue
         attribute, value = pair
-        ballots = [first_letter(votes[model].get(item["id"]), "YN") for model in VERIFIERS]
+        ballots = [first_letter(ballots_of[model].get(item["id"]), "YN") for model in VERIFIERS]
         if TEACHER in item["models"]:
             teacher[item["text_id"], attribute].add(str(value))
         if ballots[0] == "Y" and "Y" in ballots[1:]:
@@ -208,8 +211,9 @@ def summary(count):
 
 def score_need(members, attribute, need):
     count = Counter()
-    for label, amount, found in members:
-        score_add(count, found[0] if found and found[1] >= need and found[2] >= SHARE else None, label, attribute, amount)
+    for label, amount, entries in members:
+        found = decide(attribute, [(entry["value"], flair_strength(need) if entry["source"] == "flair" else strength(entry["probability"])) for entry in entries], need)
+        score_add(count, found[0] if found else None, label, attribute, amount)
     return count
 
 
@@ -224,8 +228,7 @@ def thresholds():
     for (author, attribute), label in truth.items():
         entries = table[author][attribute]
         stratum = attribute, len({entry["value"] for entry in entries}) > 1
-        found = tally(attribute, [(entry["value"], entry["probability"]) for entry in entries])
-        members[attribute].append((label, population[stratum] / sampled[stratum], found))
+        members[attribute].append((label, population[stratum] / sampled[stratum], entries))
         folds[attribute].append(zlib.crc32(author.encode()) % HELD_FOLDS)
     chosen, held, report = {}, Counter(), {}
     macro = []

@@ -4,6 +4,8 @@ import json
 from database import LOGS
 from reddit_dumps import setup_logging
 
+from .config import FLAIR_AUTHORS
+
 
 def main():
     parser = argparse.ArgumentParser(prog="claims")
@@ -13,10 +15,15 @@ def main():
     sample.add_argument("--authors", type=int, required=True)
     annotate = commands.add_parser("annotate")
     annotate.add_argument("dataset")
+    commands.add_parser("fandom")
     gold = commands.add_parser("text-gold")
     gold.add_argument("--dataset", default="uniform")
     gold.add_argument("--limit", type=int, required=True)
     commands.add_parser("verify")
+    flairs = commands.add_parser("flairs")
+    flairs.add_argument("--minimum-authors", type=int, default=FLAIR_AUTHORS)
+    commands.add_parser("flairs-load")
+    commands.add_parser("names")
     commands.add_parser("train")
     extract = commands.add_parser("extract")
     extract.add_argument("--reset", action="store_true")
@@ -34,9 +41,21 @@ def main():
     elif args.command == "annotate":
         from .annotate import extract as run
         run(args.dataset)
+    elif args.command == "fandom":
+        from .annotate import fandom as run
+        run()
     elif args.command == "text-gold":
         from .annotate import gold as run
         run(args.dataset, args.limit)
+    elif args.command == "flairs":
+        from .flairs import annotate as run
+        run(args.minimum_authors)
+    elif args.command == "flairs-load":
+        from .flairs import load
+        load()
+    elif args.command == "names":
+        from .names import annotate as run
+        run()
     elif args.command == "verify":
         from .annotate import verify
         verify()

@@ -10,14 +10,15 @@ from torch.nn import functional as F
 from transformers import AutoModel, AutoTokenizer
 
 from . import LOG, timed
-from .annotate import facts
+from .annotate import facts, fandom_checked
 from .config import BATCH_TEXTS, BATCH_TOKENS, ENCODER, EPOCHS, EXTRACTOR, FLOOR, LEARNING_RATE, MAX_TOKENS, OVERLAP, SEED, SPAN_CUT, YEAR
-from .schema import CITY_FIELDS, COUNTRY_FIELDS, FREE, REGION_FIELDS
+from .schema import CITY_FIELDS, COUNTRY_FIELDS, FANDOM, FREE, REGION_FIELDS
 
 DEVICE = "cuda"
 ENCODE_CHUNK = 50_000
 OTHER = "<other>"
-LIMITS = {**dict.fromkeys(CITY_FIELDS, 4000), **dict.fromkeys(REGION_FIELDS, 400), **dict.fromkeys(COUNTRY_FIELDS, 200), "native_language": 200}
+LIMITS = {**dict.fromkeys(CITY_FIELDS, 4000), **dict.fromkeys(REGION_FIELDS, 400), **dict.fromkeys(COUNTRY_FIELDS, 200), "native_language": 200, **dict.fromkeys(FANDOM, 2000)}
+MASK = re.compile(r"\]\([^)\s]*\)|https?://\S+|www\.\S+|\b[ur]/[\w-]+")
 DIGIT = re.compile(r"\d[\d,.]*")
 WHOLE = re.compile(r"(?<![\d.,])(\d{1,4})(?![\d,]|\.\d)")
 IMPERIAL = re.compile(r"(\d)\s*(?:'|’|ft|feet|foot)\s*(\d{1,2})?")
@@ -106,6 +107,10 @@ def padded(rows, pad):
     return torch.from_numpy(ids)
 
 
+def masked(text):
+    return MASK.sub(lambda match: " " * len(match.group()), text)
+
+
 def splitter(name):
     tokenizer = AutoTokenizer.from_pretrained(name).backend_tokenizer
     tokenizer.enable_truncation(max_length=MAX_TOKENS, stride=OVERLAP)
@@ -115,7 +120,7 @@ def splitter(name):
 
 def windows(tokenizer, texts):
     ids, offsets, lengths, owners = [], [], [], []
-    for owner, encoding in enumerate(tokenizer.encode_batch(texts)):
+    for owner, encoding in enumerate(tokenizer.encode_batch(list(map(masked, texts)))):
         for piece in (encoding, *encoding.overflowing):
             found = piece.ids
             ids += found
@@ -187,7 +192,7 @@ def build_catalog(rows):
     for _, _, found in rows:
         for (attribute, value) in found:
             counts[attribute][bucket(attribute, value)] += 1
-    catalog = {attribute: [value for value, count in counted.most_common(LIMITS.get(attribute, 300)) if count >= (2 if attribute in FREE else 1)] for attribute, counted in counts.items()}
+    catalog = {attribute: [value for value, count in counted.most_common(LIMITS.get(attribute, 300)) if count >= (2 if attribute in FREE or attribute in FANDOM else 1)] for attribute, counted in counts.items()}
     return {attribute: values + [OTHER] if attribute in LIMITS else values for attribute, values in catalog.items() if values}
 
 
@@ -246,9 +251,12 @@ def fit(encoder=ENCODER, out=EXTRACTOR, epochs=EPOCHS):
     pad = AutoTokenizer.from_pretrained(encoder).pad_token_id
     tokenizer = splitter(encoder)
     tokens, spans = [], []
+    checked = fandom_checked()
+    unchecked = np.array([row[0] not in checked for row in rows])
+    fan_columns = [position[attribute] for attribute in FANDOM if attribute in position]
     for start in range(0, len(rows), ENCODE_CHUNK):
         chunk = rows[start:start + ENCODE_CHUNK]
-        for row, encoding in zip(chunk, tokenizer.encode_batch([row[1] for row in chunk])):
+        for row, encoding in zip(chunk, tokenizer.encode_batch([masked(row[1]) for row in chunk])):
             tokens.append(np.array(encoding.ids, dtype=np.int32))
             spans.append(label_spans(row[1], row[2], position, index, encoding.offsets))
     lengths = np.fromiter(map(len, tokens), dtype=np.int32, count=len(tokens))
@@ -264,7 +272,9 @@ def fit(encoder=ENCODER, out=EXTRACTOR, epochs=EPOCHS):
             for column, value, marks in spans[item]:
                 y[row, marks, column] = 1
                 pairs.append((row, column, value))
-        return x.to(DEVICE), y.to(DEVICE), pairs
+        keep = torch.ones((len(chosen), 1, len(attributes)), dtype=torch.float32)
+        keep[np.flatnonzero(unchecked[chosen])[:, None], :, fan_columns] = 0
+        return x.to(DEVICE), y.to(DEVICE), pairs, keep.to(DEVICE)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=.01)
     steps = epochs * (len(tokens) // BATCH_TEXTS)
@@ -281,11 +291,11 @@ def fit(encoder=ENCODER, out=EXTRACTOR, epochs=EPOCHS):
             batches = [chunk[start:start + BATCH_TEXTS] for start in range(0, len(chunk) - BATCH_TEXTS + 1, BATCH_TEXTS)]
             rng.shuffle(batches)
             for chosen in batches:
-                x, y, pairs = batch_of(chosen)
+                x, y, pairs, keep = batch_of(chosen)
                 with torch.autocast(DEVICE, dtype=torch.bfloat16):
                     hidden, scores = model(x, pad)
                     mask = (x != pad)[..., None]
-                    tag = (F.binary_cross_entropy_with_logits(scores, y, reduction="none", pos_weight=positive) * mask).sum() / mask.sum()
+                    tag = (F.binary_cross_entropy_with_logits(scores, y, reduction="none", pos_weight=positive) * mask * keep).sum() / mask.sum()
                     loss = tag * 2 + value_loss(model, hidden, y, pairs)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)

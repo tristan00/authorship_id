@@ -4,8 +4,8 @@ import sys
 from collections import Counter
 
 from . import LOG, timed
-from .config import ANNOTATIONS, ANNOTATOR, GOLD_TEXTS, TEACHER, TRAINING, VERIFIERS
-from .schema import CLOSED, VERIFY, claim_text, parse
+from .config import ANNOTATIONS, ANNOTATOR, FAN_WHOLE, GOLD_TEXTS, TEACHER, TRAINING, VERIFIERS
+from .schema import CLOSED, FAN_WORDS, FANDOM_PROMPT, VERIFY, claim_text, parse
 
 BEFORE, AFTER = 500, 300
 STOP = {"after": 2000, "max_error": .01, "max_shared_mib": 512}
@@ -28,6 +28,22 @@ def answers(dataset, model):
             if row["error"] is None:
                 found[row["id"]] = row["answer"]
     return found
+
+
+def rounds(name):
+    return sorted(path.name for path in (ANNOTATIONS / "runs").glob(f"{name}*") if path.name == name or path.name.removeprefix(f"{name}.").isdigit())
+
+
+def votes(name, model):
+    found = {}
+    for run in rounds(name):
+        found.update(answers(run, model))
+    return found
+
+
+def next_round(name, model):
+    used = [run for run in rounds(name) if (ANNOTATIONS / "runs" / run / model / "manifest.json").exists()]
+    return f"{name}.{len(used)}" if used else name
 
 
 @timed
@@ -54,8 +70,27 @@ def extract(dataset, model=TEACHER):
     generate(model, records, dataset, 200)
 
 
+@timed
+def fandom(datasets=TRAINING, model=TEACHER):
+    records = ANNOTATIONS / "fandom.prompts.jsonl"
+    seen = set()
+    with open(records, "w", encoding="utf-8") as out:
+        for dataset in datasets:
+            for row in rows(ANNOTATIONS / f"{dataset}.jsonl"):
+                if row["id"] not in seen and (dataset in FAN_WHOLE or FAN_WORDS.search(row["text"])):
+                    seen.add(row["id"])
+                    out.write(json.dumps({"id": row["id"], "text": FANDOM_PROMPT.format(text=row["text"])}, ensure_ascii=False) + "\n")
+    LOG.info("fandom texts=%d", len(seen))
+    generate(model, records, "fandom", 120)
+
+
+def fandom_checked(model=TEACHER):
+    return frozenset(answers("fandom", model))
+
+
 def proposals(datasets, model=TEACHER):
     held = set(json.loads(GOLD_TEXTS.read_text(encoding="utf-8")))
+    fans = answers("fandom", model)
     seen = set()
     for dataset in datasets:
         found = answers(dataset, model)
@@ -63,7 +98,7 @@ def proposals(datasets, model=TEACHER):
             identifier = row["id"]
             if identifier in found and identifier not in seen and identifier not in held:
                 seen.add(identifier)
-                yield identifier, row["text"], parse(found[identifier], row["text"])
+                yield identifier, row["text"], {**parse(found[identifier], row["text"]), **parse(fans.get(identifier), row["text"])}
 
 
 def fact_key(identifier, attribute, value):
@@ -72,16 +107,23 @@ def fact_key(identifier, attribute, value):
 
 @timed
 def verify(datasets=TRAINING, model=TEACHER):
-    records = ANNOTATIONS / "verify.prompts.jsonl"
+    known = votes("verify", model)
+    name = next_round("verify", model)
+    records = ANNOTATIONS / f"{name}.prompts.jsonl"
+    written = 0
     with open(records, "w", encoding="utf-8") as out:
         for identifier, text, found in proposals(datasets, model):
             for (attribute, value), quote in found.items():
-                out.write(json.dumps({"id": fact_key(identifier, attribute, value), "text": VERIFY.format(claim=claim_text(attribute, value), quote=quote, text=excerpt(text, quote))}, ensure_ascii=False) + "\n")
-    generate(model, records, "verify", 4)
+                key = fact_key(identifier, attribute, value)
+                if key not in known:
+                    out.write(json.dumps({"id": key, "text": VERIFY.format(claim=claim_text(attribute, value), quote=quote, text=excerpt(text, quote))}, ensure_ascii=False) + "\n")
+                    written += 1
+    LOG.info("verify round=%s new facts=%d", name, written)
+    generate(model, records, name, 4)
 
 
 def facts(datasets=TRAINING, model=TEACHER):
-    checked = answers("verify", model)
+    checked = votes("verify", model)
     total = kept = 0
     for identifier, text, found in proposals(datasets, model):
         confirmed = {pair: quote for pair, quote in found.items() if (checked.get(fact_key(identifier, *pair)) or "").strip().upper().startswith("Y")}
@@ -103,19 +145,29 @@ def gold(dataset, limit):
     corpus = texts(dataset)
     runs = {model: answers(dataset, model) for model in VERIFIERS}
     shared = sorted(set.intersection(*map(set, runs.values())))[:limit]
+    records = ANNOTATIONS / "fandom.gold.prompts.jsonl"
+    with open(records, "w", encoding="utf-8") as out:
+        for identifier in shared:
+            out.write(json.dumps({"id": identifier, "text": FANDOM_PROMPT.format(text=corpus[identifier]["text"])}, ensure_ascii=False) + "\n")
+    for model in VERIFIERS:
+        generate(model, records, "fandom.gold", 120)
+    fans = {model: answers("fandom.gold", model) for model in VERIFIERS}
     proposals = {}
     for model, found in runs.items():
         for identifier in shared:
-            for (attribute, value), quote in parse(found[identifier], corpus[identifier]["text"]).items():
+            for (attribute, value), quote in {**parse(found[identifier], corpus[identifier]["text"]), **parse(fans[model].get(identifier), corpus[identifier]["text"])}.items():
                 entry = proposals.setdefault(f"{identifier}|{attribute}|{value}", {"text_id": identifier, "attribute": attribute, "value": value, "quote": quote, "models": []})
                 entry["models"].append(model)
-    records = ANNOTATIONS / f"{dataset}.gold.prompts.jsonl"
+    name = next_round(f"{dataset}.gold", VERIFIERS[0])
+    known = votes(f"{dataset}.gold", VERIFIERS[0])
+    records = ANNOTATIONS / f"{name}.prompts.jsonl"
     with open(records, "w", encoding="utf-8") as prompts, open(ANNOTATIONS / f"{dataset}.gold.jsonl", "w", encoding="utf-8") as items:
         for key, entry in proposals.items():
-            prompt = VERIFY.format(claim=claim_text(entry["attribute"], entry["value"]), quote=entry["quote"], text=excerpt(corpus[entry["text_id"]]["text"], entry["quote"]))
-            prompts.write(json.dumps({"id": key, "text": prompt}, ensure_ascii=False) + "\n")
+            if key not in known:
+                prompt = VERIFY.format(claim=claim_text(entry["attribute"], entry["value"]), quote=entry["quote"], text=excerpt(corpus[entry["text_id"]]["text"], entry["quote"]))
+                prompts.write(json.dumps({"id": key, "text": prompt}, ensure_ascii=False) + "\n")
             items.write(json.dumps({"id": key, **entry}, ensure_ascii=False) + "\n")
     GOLD_TEXTS.write_text(json.dumps(shared), encoding="utf-8")
-    LOG.info("gold texts=%d proposals=%d by_models=%s", len(shared), len(proposals), Counter(len(entry["models"]) for entry in proposals.values()).most_common())
+    LOG.info("gold round=%s texts=%d proposals=%d new=%d by_models=%s", name, len(shared), len(proposals), len(proposals) - sum(key in known for key in proposals), Counter(len(entry["models"]) for entry in proposals.values()).most_common())
     for model in VERIFIERS:
-        generate(model, records, f"{dataset}.gold", 4)
+        generate(model, records, name, 4)

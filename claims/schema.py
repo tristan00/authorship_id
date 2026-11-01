@@ -1,6 +1,7 @@
+import json
 import re
 
-from .config import YEAR
+from .config import NAMES_FILE, YEAR
 
 FREE = {'age': 'their age now, whole years',
  'birth_year': 'the year they were born, four digits',
@@ -134,6 +135,18 @@ DESCRIBE = {'relationship_status': 'right now',
  'mental_condition': 'a mental or neurodevelopmental condition they have now',
  'automated_account': 'the writer says this account is a bot'}
 CLAIMS = {'neurotype': 'the writer has {value}',
+          'political_compass': 'the writer places themselves at {value} on the political compass',
+          'personality_type': "the writer's personality type: {value}",
+          'generation': 'the writer belongs to the generation: {value}',
+          'sports_team': 'the writer supports the sports team {value}',
+          'athlete': 'the writer is a fan of the athlete {value}',
+          'artist': 'the writer is a fan of the artist {value}',
+          'author': 'the writer is a fan of the author {value}',
+          'character': 'the writer is a fan of the character {value}',
+          'franchise': 'the writer is a fan of {value}',
+          'video_game': 'the writer is a fan of the video game {value}',
+          'creator': 'the writer is a fan of the online creator {value}',
+          'celebrity': 'the writer is a fan of {value}',
           'age': 'the writer is {value} years old',
  'birth_year': 'the writer was born in {value}',
  'height': 'the writer is about {value} cm tall',
@@ -171,59 +184,6 @@ CLAIMS = {'neurotype': 'the writer has {value}',
  'pets': "the writer's pets: {value}",
  'military_status': "the writer's military status: {value}",
  'automated_account': 'the writer says this account is a bot'}
-COUNTRY_ALIASES = {
-    "us": "united states", "u.s": "united states", "usa": "united states", "u.s.a": "united states", "america": "united states",
-    "united states of america": "united states", "the us": "united states", "the usa": "united states", "states": "united states",
-    "uk": "united kingdom", "u.k": "united kingdom", "britain": "united kingdom", "great britain": "united kingdom",
-    "england": "united kingdom", "scotland": "united kingdom", "wales": "united kingdom", "northern ireland": "united kingdom",
-    "aus": "australia", "oz": "australia", "nz": "new zealand", "holland": "netherlands", "the netherlands": "netherlands",
-    "uae": "united arab emirates", "czechia": "czech republic", "korea": "south korea", "méxico": "mexico", "brasil": "brazil",
-    "deutschland": "germany", "españa": "spain", "türkiye": "turkey", "drc": "democratic republic of the congo", "phillipines": "philippines",
-    "the philippines": "philippines", "republic of ireland": "ireland", "côte d'ivoire": "ivory coast", "burma": "myanmar",
-}
-DEMONYMS = {
-    "american": "united states", "british": "united kingdom", "english": "united kingdom", "scottish": "united kingdom", "welsh": "united kingdom",
-    "brit": "united kingdom", "englishman": "united kingdom", "canadian": "canada", "australian": "australia", "aussie": "australia",
-    "kiwi": "new zealand", "new zealander": "new zealand", "irish": "ireland", "german": "germany", "french": "france", "italian": "italy",
-    "spanish": "spain", "portuguese": "portugal", "dutch": "netherlands", "belgian": "belgium", "swiss": "switzerland", "austrian": "austria",
-    "swedish": "sweden", "swede": "sweden", "norwegian": "norway", "danish": "denmark", "dane": "denmark", "finnish": "finland", "finn": "finland",
-    "icelandic": "iceland", "polish": "poland", "czech": "czech republic", "slovak": "slovakia", "hungarian": "hungary", "romanian": "romania",
-    "bulgarian": "bulgaria", "greek": "greece", "turkish": "turkey", "russian": "russia", "ukrainian": "ukraine", "belarusian": "belarus",
-    "serbian": "serbia", "croatian": "croatia", "bosnian": "bosnia and herzegovina", "slovenian": "slovenia", "albanian": "albania",
-    "lithuanian": "lithuania", "latvian": "latvia", "estonian": "estonia", "mexican": "mexico", "mexicano": "mexico", "brazilian": "brazil",
-    "argentinian": "argentina", "argentine": "argentina", "chilean": "chile", "colombian": "colombia", "peruvian": "peru",
-    "venezuelan": "venezuela", "cuban": "cuba", "dominican": "dominican republic", "puerto rican": "puerto rico", "jamaican": "jamaica",
-    "haitian": "haiti", "salvadoran": "el salvador", "guatemalan": "guatemala", "honduran": "honduras", "ecuadorian": "ecuador",
-    "chinese": "china", "japanese": "japan", "korean": "south korea", "south korean": "south korea", "taiwanese": "taiwan",
-    "vietnamese": "vietnam", "thai": "thailand", "filipino": "philippines", "filipina": "philippines", "indonesian": "indonesia",
-    "malaysian": "malaysia", "singaporean": "singapore", "indian": "india", "pakistani": "pakistan", "bangladeshi": "bangladesh",
-    "sri lankan": "sri lanka", "nepali": "nepal", "nepalese": "nepal", "afghan": "afghanistan", "iranian": "iran", "persian": "iran",
-    "iraqi": "iraq", "syrian": "syria", "lebanese": "lebanon", "jordanian": "jordan", "israeli": "israel", "palestinian": "palestine",
-    "saudi": "saudi arabia", "emirati": "united arab emirates", "egyptian": "egypt", "moroccan": "morocco", "algerian": "algeria",
-    "tunisian": "tunisia", "libyan": "libya", "nigerian": "nigeria", "ghanaian": "ghana", "kenyan": "kenya", "ethiopian": "ethiopia",
-    "somali": "somalia", "ugandan": "uganda", "tanzanian": "tanzania", "south african": "south africa", "zimbabwean": "zimbabwe",
-    "cameroonian": "cameroon", "senegalese": "senegal", "kazakh": "kazakhstan", "uzbek": "uzbekistan", "georgian": "georgia",
-    "armenian": "armenia", "azerbaijani": "azerbaijan", "mongolian": "mongolia", "hong konger": "hong kong",
-}
-REGION_ALIASES = {
-    "al": "alabama", "ak": "alaska", "az": "arizona", "ar": "arkansas", "ca": "california", "co": "colorado", "ct": "connecticut",
-    "de": "delaware", "dc": "district of columbia", "fl": "florida", "ga": "georgia", "hi": "hawaii", "id": "idaho", "il": "illinois",
-    "in": "indiana", "ia": "iowa", "ks": "kansas", "ky": "kentucky", "la": "louisiana", "me": "maine", "md": "maryland",
-    "ma": "massachusetts", "mi": "michigan", "mn": "minnesota", "ms": "mississippi", "mo": "missouri", "mt": "montana", "ne": "nebraska",
-    "nv": "nevada", "nh": "new hampshire", "nj": "new jersey", "nm": "new mexico", "ny": "new york", "nc": "north carolina",
-    "nd": "north dakota", "oh": "ohio", "ok": "oklahoma", "or": "oregon", "pa": "pennsylvania", "ri": "rhode island",
-    "sc": "south carolina", "sd": "south dakota", "tn": "tennessee", "tx": "texas", "ut": "utah", "vt": "vermont", "va": "virginia",
-    "wa": "washington", "wv": "west virginia", "wi": "wisconsin", "wy": "wyoming", "on": "ontario", "qc": "quebec", "bc": "british columbia",
-    "ab": "alberta", "mb": "manitoba", "sk": "saskatchewan", "ns": "nova scotia", "nb": "new brunswick", "nl": "newfoundland and labrador",
-    "pei": "prince edward island", "nsw": "new south wales", "vic": "victoria", "qld": "queensland",
-    "washington dc": "district of columbia", "washington d.c": "district of columbia", "d.c": "district of columbia", "cali": "california",
-    "socal": "california", "norcal": "california", "southern california": "california", "northern california": "california", "jersey": "new jersey",
-}
-CITY_ALIASES = {"nyc": "new york city", "new york": "new york city", "la": "los angeles", "l.a": "los angeles", "sf": "san francisco",
-          "philly": "philadelphia", "chi": "chicago", "vegas": "las vegas", "dc": "washington", "d.c": "washington", "washington dc": "washington",
-          "washington d.c": "washington", "cdmx": "mexico city", "nola": "new orleans", "atl": "atlanta", "indy": "indianapolis",
-          "bombay": "mumbai", "new delhi": "delhi", "roma": "rome", "münchen": "munich", "köln": "cologne", "wien": "vienna",
-          "praha": "prague", "lisboa": "lisbon", "bucurești": "bucharest", "kyiv": "kyiv", "kiev": "kyiv"}
 VERIFY = 'A system read a Reddit text and made a claim about the person who wrote it. Decide whether the claim is right.\n\nAnswer Y only if the writer states this about themselves, or it necessarily follows from what they state, it is true of them now, and the text gives this value. Tags such as 28F or [M4F] at the start of a post describe the writer.\n\nAnswer N if the text is about someone else, is a question, hypothetical, wish, plan, joke, role-play, fiction or quotation, if it was true only in the past, if the writer denies it, if the text gives a different value, or if the text does not settle it.\n\nClaim: {claim}\nThe system pointed at these words: {quote}\n\nText:\n{text}\n\nAnswer with one letter, Y or N.'
 OPENING = 'Read this text written by a Reddit user. Report what the writer states about themselves, using only the attributes below.\n\nReport a fact only if the writer states it about themselves, or it necessarily follows from what they state: "my wife" means married, "my kids" means has children, "here in Ohio we" means lives in Ohio. Post tags such as 28F or [M4F] at the start of a post describe the writer. Include a fact only if it is true of them now.\n\nDo not report facts about anyone else, questions, hypotheticals, wishes, plans, jokes, role-play, fiction, words quoted from someone else, or past facts that no longer hold. Do not guess from topic or writing style. Skip an attribute unless the text settles it.\n\nWrite one line per fact in this format:\nattribute | value | the writer\'s exact words, copied from the text\n\nAttributes with a free value:\n'
 SYNONYMS = {"sexual_orientation": {"heterosexual": "straight", "homosexual": "gay", "bi": "bisexual", "hetero": "straight"},
@@ -233,14 +193,33 @@ SYNONYMS = {"sexual_orientation": {"heterosexual": "straight", "homosexual": "ga
 NEURO = frozenset({"adhd", "autism", "both adhd and autism", "neurodivergent, unspecified"})
 DROPPED = frozenset({"drinking"})
 BOT = "automated_account"
-ALL_FIELDS = tuple(name for name in (*FREE, *CHOICES) if name not in DROPPED | {BOT, "birth_year"}) + ("neurotype",)
+FLAIR_ONLY = {"political_compass": ["auth-left", "auth-center", "auth-right", "left", "centrist", "right", "lib-left", "lib-center", "lib-right"],
+              "personality_type": ["INTJ", "INTP", "ENTJ", "ENTP", "INFJ", "INFP", "ENFJ", "ENFP", "ISTJ", "ISFJ", "ESTJ", "ESFJ", "ISTP", "ISFP", "ESTP", "ESFP"],
+              "generation": ["silent generation", "baby boomer", "gen x", "millennial", "gen z", "gen alpha"]}
+FANDOM = {"sports_team": "the real sports team they support, full club or franchise name",
+          "athlete": "the real athlete or racing driver they are a fan of",
+          "artist": "the musician, band or other artist they are a fan of",
+          "author": "the book author they are a fan of",
+          "character": "the fictional character they are a fan of, or play as their main in a game",
+          "franchise": "the TV show, film series, anime, manga, comic or book series they are a fan of",
+          "video_game": "the video game they are a fan of",
+          "creator": "the streamer, YouTuber, podcaster or other online creator they are a fan of",
+          "celebrity": "the actor, comedian or other famous person they are a fan of"}
+ALL_FIELDS = tuple(name for name in (*FREE, *CHOICES) if name not in DROPPED | {BOT, "birth_year"}) + ("neurotype", *FLAIR_ONLY, *FANDOM)
+FAN_WORDS = re.compile(r"\b(?:fans?|fandom|favou?rites?|favs?|faves?|lov(?:e|ed|es|ing)|adored?|obsessed|supporters?|stan|stans|rooting|die-?hard|lifelong|goat|authors?|writers?|novels?|streamers?|twitch|youtubers?|youtube|podcasts?|comedians?|actors?|actress|mains?|maining)\b", re.I)
+CLUB = re.compile(r"\s+(?:football club|f\.?c\.?|a\.?f\.?c\.?|c\.?f\.?)$")
+VAGUE = frozenset("this that the these those my our his her their him them it its he she they one game games movie movies film films show shows book books series song songs album albums character characters team teams player players author authors artist artists band bands music".split())
 NUMBERS = frozenset({"age", "birth_year", "height", "weight", "income"})
 BOUNDS = {"age": (1, 120), "birth_year": (1900, YEAR), "height": (120, 230), "weight": (30, 300), "income": (1000, 100_000_000)}
 COUNTRY_FIELDS = frozenset({"nationality", "residence_country", "origin_country"})
 REGION_FIELDS = frozenset({"residence_region", "origin_region"})
 CITY_FIELDS = frozenset({"residence_city", "origin_city"})
+KINDS = {**dict.fromkeys(COUNTRY_FIELDS, "country"), **dict.fromkeys(REGION_FIELDS, "state or region"), **dict.fromkeys(CITY_FIELDS, "city"),
+         "sports_team": "sports team", "athlete": "athlete", "artist": "musician or band", "author": "book author", "character": "fictional character",
+         "franchise": "show, film series, anime, manga, comic or book series", "video_game": "video game", "creator": "online creator", "celebrity": "famous person"}
+NAMES = json.loads(NAMES_FILE.read_text(encoding="utf-8"))
 EMPTY = frozenset({"unknown", "none", "n/a", "unspecified", "other"})
-LOWERED = {name: {value.lower(): value for value in values} for name, values in CHOICES.items()}
+LOWERED = {name: {value.lower(): value for value in values} for name, values in {**CHOICES, **FLAIR_ONLY}.items()}
 DIGITS = re.compile(r"[\d,]*\d(?:\.\d+)?")
 SQUEEZE = re.compile(r"[\W_]+")
 LETTERS = re.compile(r"[^\W\d_]")
@@ -249,17 +228,125 @@ CLOSED = OPENING + "\n".join(f"- {name}: {text}" for name, text in FREE.items())
     f"- {name}{' (' + DESCRIBE[name] + ')' if name in DESCRIBE else ''}: {' | '.join(values)}" for name, values in CHOICES.items()) + "\n\nIf the text states none of these about the writer, write only: none\n\nText:\n{text}\n\nAnswer:"
 
 
+FANDOM_PROMPT = """Read this text written by a Reddit user. Report what the writer says they are personally a fan of, using only the attributes below.
+
+Report a fact only if the writer says about themselves, now, that they are a fan or supporter of it, love it, follow it devotedly or name it as a favorite, and the text names it. Do not report anyone else's fandom, questions, hypotheticals, jokes, role-play, or things the writer only mentions, discusses, reviews, criticizes, owns or uses. Skip anything the text does not name, such as "this game" or "that show".
+
+Write one line per fact in this format:
+attribute | value | the writer's exact words, copied from the text
+
+Attributes:
+""" + "\n".join(f"- {name}: {text}" for name, text in FANDOM.items()) + """
+
+If the text states none of these, write only: none
+
+Text:
+{text}
+
+Answer:"""
+FLAIR_LINES = {name: f"- {name}: {text}" for name, text in {**FREE, **FANDOM}.items()} | {name: f"- {name}{' (' + DESCRIBE[name] + ')' if name in DESCRIBE else ''}: {' | '.join(values)}" for name, values in {**CHOICES, **FLAIR_ONLY}.items() if name not in DROPPED | {BOT}}
+FLAIR_INTRO = "A flair is a short label a Reddit user shows next to their name in a subreddit. Words between colons such as :Arsenal: are emoji names and count as part of the flair. "
+FLAIR_SCHEMA = FLAIR_INTRO + """In some subreddits users pick a flair that says something true about themselves. In others flairs are ranks, trade counts, game items, in-jokes or labels handed out by the subreddit, which say nothing about the person.
+
+Below are a subreddit and its most common flairs, with how many users wear each. Decide which of these attributes the flairs of this subreddit are used to tell about the person who wears them. List an attribute only if many of these flairs settle it.
+
+Attributes:
+""" + "\n".join(FLAIR_LINES.values()) + """
+
+Write one attribute name per line. If these flairs tell nothing about the person, write only: none
+
+Subreddit: r/{subreddit}
+Flairs:
+{flairs}
+
+Answer:"""
+FLAIR = FLAIR_INTRO + """Report what this flair says about the person who wears it, using only the attributes below. Skip an attribute unless the flair settles it, given how the subreddit uses flairs. If the flair gives an age range such as 20s or 25-30, give the middle of the range.
+
+Write one line per fact in this format:
+attribute | value
+
+If the flair settles none of these, write only: none
+
+Attributes:
+{attributes}
+
+Subreddit: r/{subreddit}
+Flair: {flair}
+
+Answer:"""
+NAME_PROMPT = """Someone wrote a name. Write the one standard English name of the thing they meant, in lower case, with no explanation. Expand abbreviations, nicknames, misspellings and names in other languages to the full standard name. A word for the people of a country means that country. If you do not recognize it, or it could mean several different things of this kind, such as a first name alone, write it back unchanged. Only if it is clearly not that kind of thing at all, write: none
+
+country: usa = united states
+country: united states of america = united states
+country: french = france
+country: canadian = canada
+country: filipino = philippines
+country: scottish = united kingdom
+country: england = united kingdom
+country: wales = united kingdom
+country: deutschland = germany
+country: ireland = ireland
+country: my house = none
+state or region: cali = california
+state or region: nsw = new south wales
+state or region: bayern = bavaria
+state or region: scotland = scotland
+state or region: england = england
+state or region: downtown = none
+city: nyc = new york city
+city: münchen = munich
+city: new delhi = delhi
+city: springfield = springfield
+city: germany = none
+sports team: knicks = new york knicks
+sports team: man utd = manchester united
+sports team: bayern = bayern munich
+sports team: rangers = rangers
+sports team: new york giants = new york giants
+athlete: lebron = lebron james
+athlete: alonso = fernando alonso
+athlete: james = james
+musician or band: taytay = taylor swift
+musician or band: nin = nine inch nails
+musician or band: olivia = olivia
+book author: tolkien = j. r. r. tolkien
+book author: sjm = sarah j. maas
+fictional character: spidey = spider-man
+fictional character: gandalf = gandalf
+fictional character: luna = luna
+fictional character: my mom = none
+show, film series, anime, manga, comic or book series: lotr = the lord of the rings
+show, film series, anime, manga, comic or book series: jjk = jujutsu kaisen
+show, film series, anime, manga, comic or book series: marvel = marvel
+video game: rdr2 = red dead redemption 2
+video game: peak = peak
+online creator: pewdiepie = pewdiepie
+famous person: arnie = arnold schwarzenegger
+famous person: michael = michael
+
+{kind}: {name} ="""
+FLAIR_VERIFY = """A Reddit user shows this flair next to their name in the subreddit r/{subreddit}: "{flair}"
+
+A flair is a short label, and words between colons are emoji names that count as part of it. It can be something the user says about themselves, but it is often a rank, a game item, an in-joke or a label handed out by the subreddit, which says nothing about the person.
+
+An automatic system read the flair and claimed: {claim}.
+
+Does the flair, as this subreddit uses flairs, say this about the person? A flair that may have gone a little out of date still counts. Answer with exactly one letter: Y or N."""
+
+
 def squeeze(text):
     return SQUEEZE.sub("", text.lower())
 
 
 def chosen(attribute, text):
     table = LOWERED[attribute]
-    if exact := table.get(text):
+    if exact := table.get(text) or SYNONYMS.get(attribute, {}).get(text):
         return exact
+    if not text or text in EMPTY:
+        return None
     word = re.compile(rf"\b{re.escape(text)}\b")
-    matches = [value for lowered, value in table.items() if word.search(lowered)] if text else []
-    return matches[0] if len(matches) == 1 else SYNONYMS.get(attribute, {}).get(text)
+    matches = [value for lowered, value in table.items() if word.search(lowered)]
+    return matches[0] if len(matches) == 1 else None
 
 
 def number(attribute, text):
@@ -273,25 +360,35 @@ def number(attribute, text):
     return amount if low <= amount <= high else None
 
 
-def place(attribute, text):
-    if attribute in COUNTRY_FIELDS:
-        text = DEMONYMS.get(text, COUNTRY_ALIASES.get(text, text))
-    elif attribute in REGION_FIELDS:
-        text = REGION_ALIASES.get(text, text)
-    elif attribute in CITY_FIELDS:
-        text = CITY_ALIASES.get(text, text)
-    return text
+def fan_value(attribute, text):
+    text = text.removeprefix("the ")
+    if attribute == "sports_team":
+        text = CLUB.sub("", text)
+    return text if set(text.split()) - VAGUE else None
+
+
+def cleaned(raw):
+    return raw.strip().strip("*_`\"'").lower()
+
+
+def spelled(attribute, raw):
+    text = cleaned(raw)
+    if not LETTERS.search(text) or len(text) > 40 or text in EMPTY:
+        return None
+    return fan_value(attribute, text) if attribute in FANDOM else text
+
+
+def renamed(attribute, text):
+    return NAMES.get(KINDS[attribute], {}).get(text, text) if attribute in KINDS else text
 
 
 def normalized(attribute, raw):
-    text = raw.strip().strip("*_`\"'").lower()
     if attribute in LOWERED:
-        return chosen(attribute, text)
+        return chosen(attribute, cleaned(raw))
     if attribute in NUMBERS:
-        return number(attribute, text)
-    if not LETTERS.search(text) or len(text) > 40 or text in EMPTY:
-        return None
-    return place(attribute, text)
+        return number(attribute, cleaned(raw))
+    text = spelled(attribute, raw)
+    return text and renamed(attribute, text)
 
 
 def canonical(attribute, value):
@@ -311,7 +408,7 @@ def parse(answer, text):
         if len(parts) < 3:
             continue
         attribute = parts[0].strip("-*\u2022 ").lower()
-        if attribute not in FREE and attribute not in CHOICES:
+        if attribute not in FREE and attribute not in CHOICES and attribute not in FANDOM:
             continue
         value = normalized(attribute, parts[1])
         quote = parts[2].strip().strip("\"'")
@@ -320,6 +417,33 @@ def parse(answer, text):
         pair = canonical(attribute, value)
         if pair:
             found.setdefault(pair, quote)
+    return found
+
+
+def flair_attributes(answer):
+    found = []
+    for line in (answer or "").splitlines():
+        name = line.partition("|")[0].partition(":")[0].strip("-*\u2022 `").lower()
+        if name in FLAIR_LINES and name not in found:
+            found.append(name)
+    return found
+
+
+def flair_facts(answer):
+    found = {}
+    for line in (answer or "").splitlines():
+        parts = [part.strip() for part in (line.split("|") if "|" in line else line.split(":", 1))]
+        if len(parts) < 2:
+            continue
+        attribute = parts[0].strip("-*\u2022 ").lower()
+        if attribute not in FREE and attribute not in FANDOM and attribute not in LOWERED:
+            continue
+        value = normalized(attribute, parts[1])
+        if value is None:
+            continue
+        pair = canonical(attribute, value)
+        if pair and pair[0] != BOT:
+            found.setdefault(*pair)
     return found
 
 

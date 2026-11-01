@@ -11,13 +11,11 @@ import psycopg
 from database import DSN, vacuum
 
 from . import LOG, timed
-from .config import EXTRACT_READERS, EXTRACTOR, FLAIR_BATCH, PART_PAGES
+from .config import EXTRACT_READERS, EXTRACTOR, PART_PAGES
 from .extractor import load_extractor, predict, splitter, windows
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS text_claims (text_sha256 bytea NOT NULL, field text NOT NULL, value text NOT NULL, start_char integer NOT NULL, end_char integer NOT NULL, probability real NOT NULL);
-CREATE TABLE IF NOT EXISTS flair_claims (flair text NOT NULL, field text NOT NULL, value text NOT NULL, probability real NOT NULL);
-CREATE TABLE IF NOT EXISTS flair_claims_seen (flair text PRIMARY KEY);
 """
 PARTS = """
 CREATE TABLE IF NOT EXISTS text_claims_parts (partition text NOT NULL, first_page bigint NOT NULL, texts bigint, claims bigint, read_seconds double precision, gpu_seconds double precision, finished_at timestamptz, PRIMARY KEY (partition, first_page));
@@ -25,8 +23,6 @@ CREATE TABLE IF NOT EXISTS text_claims_parts (partition text NOT NULL, first_pag
 FILL = "INSERT INTO text_claims_parts (partition, first_page) SELECT %s, generate_series(0, %s, %s) ON CONFLICT DO NOTHING"
 HOLDER = "SELECT tableoid::regclass::text FROM bodies WHERE month = %s LIMIT 1"
 TEXTS = "COPY (SELECT text_sha256, text FROM {partition} WHERE ctid >= '({low},0)'::tid AND ctid < '({high},0)'::tid AND month = ANY(%s) AND text <> '') TO STDOUT"
-FLAIRS = """COPY (SELECT DISTINCT author_flair_text FROM records WHERE author_flair_text IS NOT NULL AND author_flair_text <> ''
-            EXCEPT SELECT flair FROM flair_claims_seen) TO STDOUT"""
 INDEX = "CREATE INDEX IF NOT EXISTS text_claims_hash ON text_claims (text_sha256)"
 
 
@@ -86,8 +82,6 @@ def pending(reset):
         conn.execute(SCHEMA)
         if reset:
             conn.execute("TRUNCATE text_claims")
-            conn.execute("TRUNCATE flair_claims")
-            conn.execute("TRUNCATE flair_claims_seen")
             conn.execute("DROP TABLE IF EXISTS text_claims_parts")
             conn.execute("UPDATE months SET extracted_at = NULL")
         months = [month for month, in conn.execute("SELECT month FROM months WHERE extracted_at IS NULL ORDER BY month")]
@@ -108,33 +102,6 @@ def rows_of(digests, found):
     for owner, facts in found.items():
         for (attribute, value), (score, low, high) in facts.items():
             yield digests[owner], attribute, value, low, high, round(score, 4)
-
-
-@timed
-def flairs(model, pad, encoder):
-    tokenizer = splitter(encoder)
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute("SET max_parallel_workers_per_gather = 8")
-        fresh = []
-        with conn.cursor().copy(FLAIRS) as copy:
-            copy.set_types(["text"])
-            fresh += [flair for flair, in copy.rows()]
-        LOG.info("flairs fresh=%d", len(fresh))
-        written = 0
-        for start in range(0, len(fresh), FLAIR_BATCH):
-            batch = fresh[start:start + FLAIR_BATCH]
-            ids, offsets, lengths, owners = windows(tokenizer, batch)
-            found = predict(model, pad, ids, offsets, lengths, owners, batch)
-            with conn.transaction():
-                with conn.cursor().copy("COPY flair_claims (flair, field, value, probability) FROM STDIN") as copy:
-                    for owner, facts in found.items():
-                        for (attribute, value), (score, _, _) in facts.items():
-                            copy.write_row((batch[owner], attribute, value, round(score, 4)))
-                            written += 1
-                with conn.cursor().copy("COPY flair_claims_seen (flair) FROM STDIN") as copy:
-                    for flair in batch:
-                        copy.write_row((flair,))
-    LOG.info("flairs claims=%d", written)
 
 
 @timed
@@ -165,7 +132,6 @@ def run(reset=False):
                 seconds = time.perf_counter() - started
                 LOG.info("extract parts=%d/%d texts=%d claims=%d texts_per_second=%.0f gpu_share=%.2f read_seconds_per_part=%.1f eta_hours=%.1f", done, len(jobs), texts_done, found_total, texts_done / seconds, gpu_total / seconds, read_total / done, seconds / done * (len(jobs) - done) / 3600)
     writer.close()
-    flairs(model, pad, encoder)
     finish(months)
 
 
@@ -177,4 +143,4 @@ def finish(months):
         conn.execute("UPDATE months SET extracted_at = now() WHERE month = ANY(%s)", [months])
         conn.execute("DROP TABLE text_claims_parts")
         LOG.info("extracted months=%s text_claims rows=%s", months, conn.execute("SELECT count(*) FROM text_claims").fetchone()[0])
-    vacuum("text_claims", "flair_claims")
+    vacuum("text_claims")

@@ -32,5 +32,17 @@
 "housing": 0.5,
 "pets": 1,
 "military_status": 2,
-"neurotype": 2
+"neurotype": 2,
+"political_compass": 0.3,
+"personality_type": 0.3,
+"generation": 0.3,
+"sports_team": 1,
+"athlete": 1,
+"artist": 1,
+"author": 1,
+"character": 1,
+"franchise": 1,
+"video_game": 1,
+"creator": 1,
+"celebrity": 1
 }
