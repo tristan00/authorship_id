@@ -325,6 +325,99 @@ famous person: arnie = arnold schwarzenegger
 famous person: michael = michael
 
 {kind}: {name} ="""
+
+NAME_SAME = """Someone wrote a name for a kind of thing. A full name is proposed for it. Would most people who write that name, when naming that kind of thing, mean exactly the full name given? If several different things of that kind are commonly called that, or the full name is a different thing, answer N. Answer only Y or N.
+
+athlete: lebron -> lebron james = Y
+athlete: cr7 -> cristiano ronaldo = Y
+athlete: messi -> fernando alonso = N
+athlete: david -> david beckham = N
+musician or band: nin -> nine inch nails = Y
+musician or band: oasis -> coldplay = N
+musician or band: john -> john lennon = N
+book author: tolkien -> j. r. r. tolkien = Y
+book author: dan -> dan brown = N
+show, film series, anime, manga, comic or book series: got -> game of thrones = Y
+show, film series, anime, manga, comic or book series: thrones -> game of thrones = Y
+show, film series, anime, manga, comic or book series: batman -> lord of the rings = N
+video game: gta -> grand theft auto = Y
+video game: dragon -> dragon age = N
+video game: dune -> doom = N
+sports team: knicks -> new york knicks = Y
+sports team: giants -> new york giants = N
+sports team: lakers -> boston celtics = N
+fictional character: geralt -> geralt of rivia = Y
+fictional character: naruto -> batman = N
+fictional character: mike -> mike wazowski = N
+online creator: pewds -> pewdiepie = Y
+online creator: pewdiepie -> markiplier = N
+famous person: dicaprio -> leonardo dicaprio = Y
+famous person: jennifer -> jennifer lawrence = N
+country: usa -> united states = Y
+state or region: cali -> california = Y
+city: nyc -> new york city = Y
+city: paris -> london = N
+
+{kind}: {name} -> {target} ="""
+
+NAME_CHECK = """Someone named a thing of a given kind as something they are a fan of. Judge the name by itself. Answer with only one letter.
+A: it is a real thing of that kind and the name points to one specific one
+B: it is only a first name, a surname or a common word, so it does not say which one is meant
+C: it is clearly not that kind of thing at all
+D: you do not recognize it
+
+musician or band: taylor swift = A
+musician or band: radiohead = A
+musician or band: amy = B
+musician or band: supermarket = C
+musician or band: zqvart = D
+athlete: lionel messi = A
+athlete: paul = B
+athlete: pickleball = C
+book author: stephen king = A
+book author: robert = B
+book author: cookbook = C
+fictional character: batman = A
+fictional character: tom = B
+fictional character: star wars = C
+fictional character: keanu reeves = C
+video game: minecraft = A
+video game: board = C
+video game: team deathmatch = C
+show, film series, anime, manga, comic or book series: breaking bad = A
+show, film series, anime, manga, comic or book series: classroom = C
+sports team: arsenal = A
+sports team: tennis = C
+online creator: pewdiepie = A
+online creator: chris = B
+online creator: youtube = C
+online creator: netflix = C
+famous person: zendaya = A
+famous person: smith = B
+famous person: beer = C
+
+{kind}: {name} ="""
+
+NAME_GENERIC = """Someone named a fictional character they are a fan of. Is this a name that some well known fictional character actually goes by, or only a generic word, role, class or title? Answer with only one letter.
+A: some well known fictional character goes by this name
+B: only a generic word, role, class or title
+
+geralt = A
+hermione = A
+neo = A
+ellie = A
+link = A
+joker = A
+master chief = A
+wizard = B
+warrior = B
+teacher = B
+villain = B
+sir = B
+main = B
+friend = B
+
+{name} ="""
 def squeeze(text):
     return SQUEEZE.sub("", text.lower())
 

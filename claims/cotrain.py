@@ -2,7 +2,7 @@ import json
 
 from . import LOG, timed
 from .annotate import excerpt, fact_key, generate, next_round, proposals, votes
-from .config import ANNOTATIONS, FLOOR, TEACHER, TRAINING
+from .config import ANNOTATIONS, TEACHER, TRAINING
 from .extractor import load_extractor, predict, splitter, windows
 from .rules import agree
 from .schema import BOT, NUMBERS, VERIFY, claim_text, renamed
@@ -27,7 +27,7 @@ def written(digest_rows, found, known, prompts, items):
 
 
 @timed
-def propose(datasets=TRAINING, minimum=FLOOR):
+def propose(datasets=TRAINING):
     model, pad = load_extractor()
     tokenizer = splitter(model.encoder.config.name_or_path)
     known = votes("cotrain", TEACHER)

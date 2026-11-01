@@ -4,17 +4,26 @@ from collections import Counter, defaultdict
 
 import psycopg
 
-from database import DSN
+from database import DSN, vacuum
 
 from . import LOG, timed
 from .annotate import answers, generate, next_round, votes
-from .config import ANNOTATIONS, NAME_MENTIONS, NAMES_FILE, TEACHER, TRAINING, VERIFIERS
-from .schema import CLUB, KINDS, LETTERS, NAME_PROMPT, SQUEEZE, spelled
+from .config import ANNOTATIONS, NAME_CHECKED, NAME_MENTIONS, NAMES_FILE, TEACHER, TRAINING, VERIFIERS
+from .schema import CLUB, KINDS, LETTERS, NAME_CHECK, NAME_GENERIC, NAME_PROMPT, NAME_SAME, SQUEEZE, spelled
 
 RUN = "names"
+SAME = "names.same"
+CHECK = "names.check"
+GENERIC = "names.generic"
+SINGLE_NAMED = "fictional character"
 CLOSED = frozenset({"country", "state or region", "city"})
 LONGEST = 60
+SHORTEST = 2
 READ = "SELECT field, value, count(*) FROM text_claims WHERE field = ANY(%s) GROUP BY 1, 2 HAVING count(*) >= %s"
+CHANGES = "CREATE TEMP TABLE name_changes (field text NOT NULL, raw text NOT NULL, target text) ON COMMIT DROP"
+RENAME = "UPDATE {table} c SET value = n.target FROM name_changes n WHERE n.target IS NOT NULL AND c.field = n.field AND c.value = n.raw"
+REMOVE = "DELETE FROM {table} c USING name_changes n WHERE n.target IS NULL AND c.field = n.field AND c.value = n.raw"
+STORED = ("text_claims", "flair_claims")
 
 
 def folded(text):
@@ -59,27 +68,50 @@ def reading(kind, answer):
         text = CLUB.sub("", text)
     if text == "none":
         return text
-    return text if text and LETTERS.search(text) and len(text) <= LONGEST else None
+    return text if text and not text.endswith(": none") and LETTERS.search(text) and len(text) <= LONGEST else None
 
 
-def judged(kind, name, tables):
-    lead, *rest = (reading(kind, table.get(f"{kind}|{name}")) for table in tables)
-    if lead is None or folded(lead) == folded(name):
+def agreed(key, tables, wanted):
+    lead, *rest = ((table.get(key) or "").strip()[:1].upper() for table in tables)
+    return lead in wanted and any(item in wanted for item in rest)
+
+
+def proposal(name, ballot):
+    lead, one, two = ballot
+    if one and two and one != "none" and folded(one) == folded(two) and folded(one) != folded(name):
+        return one
+    return lead if lead and lead != "none" and folded(lead) != folded(name) else None
+
+
+def settled(ballot):
+    lead, *rest = ballot
+    return bool(lead) and any(item and folded(item) == folded(lead) for item in rest)
+
+
+def ballot_of(kind, name, tables):
+    return [reading(kind, table.get(f"{kind}|{name}")) for table in tables]
+
+
+def judged(kind, name, ballot, same):
+    lead, *rest = ballot
+    if lead == "none" and sum(item == "none" for item in rest) >= (1 if kind in CLOSED else len(rest)):
+        return None
+    target = proposal(name, ballot)
+    if target is None:
         return name
-    same = sum(1 for ballot in rest if ballot and folded(ballot) == folded(lead))
-    if lead == "none":
-        return None if same >= (1 if kind in CLOSED else len(rest)) else name
-    return lead if same else name
+    if target == lead and settled(ballot):
+        return target
+    return target if agreed(f"{kind}|{name}|{target}", same, ("Y",)) else name
 
 
-def built(kind, values, tables):
-    picked = {name: judged(kind, name, tables) for name in values}
+def resolved(kind, values, tables, same):
+    picked = {name: judged(kind, name, ballot_of(kind, name, tables), same) for name in values}
     final = {}
     for name in values:
         current, steps = picked[name], 0
         while current is not None and current != picked.get(current, current) and steps < 5:
             current, steps = picked[current], steps + 1
-        final[name] = current
+        final[name] = current if current is not None and len(folded(current)) >= SHORTEST else None
     mass = Counter()
     for name, target in final.items():
         if target is not None:
@@ -87,27 +119,93 @@ def built(kind, values, tables):
     spelling = {}
     for target, _ in mass.most_common():
         spelling.setdefault(folded(target), target)
-    return {name: target and spelling[folded(target)] for name, target in final.items() if target is None or spelling[folded(target)] != name}
+    total = Counter()
+    for target, amount in mass.items():
+        total[spelling[folded(target)]] += amount
+    return {name: target and spelling[folded(target)] for name, target in final.items()}, total
+
+
+def asked(run, items, tokens):
+    known = votes(run, TEACHER)
+    fresh = [(key, text) for key, text in items if key not in known]
+    LOG.info("names run=%s new=%d", run, len(fresh))
+    if fresh:
+        name = next_round(run, TEACHER)
+        records = ANNOTATIONS / f"{name}.prompts.jsonl"
+        with open(records, "w", encoding="utf-8") as out:
+            for key, text in fresh:
+                out.write(json.dumps({"id": key, "text": text}, ensure_ascii=False) + "\n")
+        for model in VERIFIERS:
+            generate(model, records, name, tokens)
+    return [votes(run, model) for model in VERIFIERS]
+
+
+def questions(counts, tables):
+    for kind, values in counts.items():
+        for name in values:
+            ballot = ballot_of(kind, name, tables)
+            target = proposal(name, ballot)
+            if target is not None and not (target == ballot[0] and settled(ballot)):
+                yield f"{kind}|{name}|{target}", NAME_SAME.format(kind=kind, name=name, target=target)
+
+
+def checked(final):
+    for kind, (_, total) in final.items():
+        if kind not in CLOSED:
+            for target, amount in total.items():
+                if amount >= NAME_CHECKED:
+                    yield f"{kind}|{target}", NAME_CHECK.format(kind=kind, name=target)
+
+
+def generic(final, checks):
+    for target in set(final[SINGLE_NAMED][0].values()) - {None}:
+        key = f"{SINGLE_NAMED}|{target}"
+        if agreed(key, checks, ("B", "C")):
+            yield key, NAME_GENERIC.format(name=target)
+
+
+def rejected(kind, target, checks, generics):
+    key = f"{kind}|{target}"
+    if kind == SINGLE_NAMED:
+        return agreed(key, checks, ("C",)) or agreed(key, generics, ("B",))
+    return agreed(key, checks, ("B", "C"))
 
 
 @timed
 def annotate(extra):
     counts = collected(extra)
-    known = votes(RUN, TEACHER)
-    name = next_round(RUN, TEACHER)
-    records = ANNOTATIONS / f"{name}.prompts.jsonl"
-    written = 0
-    with open(records, "w", encoding="utf-8") as out:
-        for kind, values in counts.items():
-            for value in values:
-                if f"{kind}|{value}" not in known:
-                    out.write(json.dumps({"id": f"{kind}|{value}", "text": NAME_PROMPT.format(kind=kind, name=value)}, ensure_ascii=False) + "\n")
-                    written += 1
-    LOG.info("names round=%s new=%d", name, written)
-    if written:
-        for model in VERIFIERS:
-            generate(model, records, name, 24)
-    tables = [votes(RUN, model) for model in VERIFIERS]
-    table = {kind: built(kind, values, tables) for kind, values in counts.items()}
+    tables = asked(RUN, ((f"{kind}|{value}", NAME_PROMPT.format(kind=kind, name=value)) for kind, values in counts.items() for value in values), 24)
+    kinds = set(KINDS.values())
+    for key in tables[0]:
+        kind, _, value = key.partition("|")
+        if kind in kinds:
+            counts[kind][value] += 0
+    same = asked(SAME, questions(counts, tables), 4)
+    final = {kind: resolved(kind, values, tables, same) for kind, values in counts.items()}
+    checks = asked(CHECK, checked(final), 4)
+    generics = asked(GENERIC, generic(final, checks), 4)
+    table = {}
+    for kind, (chosen, _) in final.items():
+        dropped = {target for target in set(chosen.values()) - {None} if rejected(kind, target, checks, generics)}
+        table[kind] = {name: None if target is None or target in dropped else target for name, target in chosen.items() if target is None or target in dropped or target != name}
+        LOG.info("names kind=%s names=%d rejected=%d", kind, len(chosen), len(dropped))
     NAMES_FILE.write_text(json.dumps(table, ensure_ascii=False, indent=0, sort_keys=True) + "\n", encoding="utf-8")
     LOG.info("names table=%s", {kind: len(entries) for kind, entries in table.items()})
+
+
+@timed
+def apply():
+    table = json.loads(NAMES_FILE.read_text(encoding="utf-8"))
+    with psycopg.connect(DSN) as conn:
+        conn.execute("SET LOCAL work_mem = '2GB'")
+        conn.execute(CHANGES)
+        with conn.cursor().copy("COPY name_changes FROM STDIN") as copy:
+            for field, kind in KINDS.items():
+                for raw, target in table.get(kind, {}).items():
+                    copy.write_row((field, raw, target))
+        conn.execute("ANALYZE name_changes")
+        for name in STORED:
+            renamed = conn.execute(RENAME.format(table=name)).rowcount
+            removed = conn.execute(REMOVE.format(table=name)).rowcount
+            LOG.info("names applied table=%s renamed=%d removed=%d", name, renamed, removed)
+    vacuum(*STORED)
