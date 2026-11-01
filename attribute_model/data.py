@@ -18,7 +18,7 @@ from author_encoder.lock import index_lock
 from author_encoder.model import load_model
 from author_encoder.texts import raw, scales
 from claims.config import NUMERIC
-from claims.schema import BOT
+from claims.schema import BOT, FLAIR_ONLY
 from database import DSN
 
 from . import LOG, timed, write_json
@@ -184,7 +184,8 @@ def prepare(directory, targets):
         buckets = np.fromiter(map(partition, names.to_pylist()), dtype=np.uint8, count=len(names))
         owner = pc.index_in(claims["author"], value_set=names).to_numpy()
         evaluated = np.isin(buckets[owner], [bucket for name in ("validation", "calibration", "test") for bucket in SPLITS[name]])
-        strict = pc.and_(pc.greater_equal(claims["support"], STRICT_SUPPORT), pc.greater_equal(claims["share"], STRICT_SHARE)).to_numpy(zero_copy_only=False)
+        judged = pc.and_(pc.greater_equal(claims["support"], STRICT_SUPPORT), pc.greater_equal(claims["share"], STRICT_SHARE))
+        strict = pc.or_(judged, pc.is_in(claims["attribute"], value_set=pa.array(list(FLAIR_ONLY)))).to_numpy(zero_copy_only=False)
         keep = ~evaluated | strict
         claims = claims.filter(pa.array(keep))
         owner = owner[keep]
