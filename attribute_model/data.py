@@ -22,7 +22,7 @@ from claims.schema import BOT
 from database import DSN
 
 from . import LOG, timed, write_json
-from .config import CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, check_targets, partition, validate
+from .config import CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, check_targets, partition, validate
 
 CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s)) TO STDOUT (FORMAT CSV)"
 BEARING = "COPY (SELECT DISTINCT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
@@ -57,7 +57,7 @@ def encode(values, name, kind):
         low, high = NUMERIC[name]
         return np.where((numbers >= low) & (numbers <= high), numbers, np.nan), None
     counts = pc.value_counts(values).to_pylist()
-    catalog = [item["values"] for item in sorted(counts, key=lambda item: (-item["counts"], item["values"]))]
+    catalog = [item["values"] for item in sorted(counts, key=lambda item: (-item["counts"], item["values"])) if kind != "embedding" or item["counts"] >= VALUE_AUTHORS]
     return pc.index_in(values, value_set=pa.array(catalog)).to_numpy().astype(np.float64), catalog
 
 

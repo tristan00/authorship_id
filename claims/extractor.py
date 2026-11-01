@@ -12,12 +12,18 @@ from transformers import AutoModel, AutoTokenizer
 from . import LOG, timed
 from .annotate import facts, fandom_checked
 from .config import BATCH_TEXTS, BATCH_TOKENS, ENCODER, EPOCHS, EXTRACTOR, FLOOR, LEARNING_RATE, MAX_TOKENS, OVERLAP, SEED, SPAN_CUT, YEAR
-from .schema import CITY_FIELDS, COUNTRY_FIELDS, FANDOM, FREE, REGION_FIELDS
+from .schema import CITY_FIELDS, COUNTRY_FIELDS, FANDOM, FREE, KINDS, NAMES, REGION_FIELDS, VAGUE, normalized
 
 DEVICE = "cuda"
 ENCODE_CHUNK = 50_000
 OTHER = "<other>"
-LIMITS = {**dict.fromkeys(CITY_FIELDS, 4000), **dict.fromkeys(REGION_FIELDS, 400), **dict.fromkeys(COUNTRY_FIELDS, 200), "native_language": 200, **dict.fromkeys(FANDOM, 2000)}
+FAN = "fan"
+LIMITS = {**dict.fromkeys(CITY_FIELDS, 4000), **dict.fromkeys(REGION_FIELDS, 400), **dict.fromkeys(COUNTRY_FIELDS, 200), "native_language": 200}
+ALIASES = {kind: defaultdict(set) for kind in NAMES}
+for kind, table in NAMES.items():
+    for raw, target in table.items():
+        if target:
+            ALIASES[kind][target].add(raw)
 MASK = re.compile(r"\]\([^)\s]*\)|https?://\S+|www\.\S+|\b[ur]/[\w-]+")
 DIGIT = re.compile(r"\d[\d,.]*")
 WHOLE = re.compile(r"(?<![\d.,])(\d{1,4})(?![\d,]|\.\d)")
@@ -141,6 +147,41 @@ def batches(lengths):
         start += size
 
 
+def whole_words(text, low, high):
+    while low > 0 and text[low - 1].isalnum():
+        low -= 1
+    while high < len(text) and text[high].isalnum():
+        high += 1
+    return low, high
+
+
+def read_name(attribute, span):
+    words = span.split()
+    while words and words[-1].lower() in VAGUE:
+        words.pop()
+    return None if "\n" in span else normalized(attribute, " ".join(words))
+
+
+def read_fans(model, column, hidden, here, part, weight, places, texts, found):
+    chosen, begins, offsets, owners = places
+    flags, peaks = weight.bool().cpu().numpy(), part.float().cpu().numpy()
+    spots = []
+    for line, row in enumerate(here.tolist()):
+        positions = np.flatnonzero(flags[line])
+        spots += [(row, line, run) for run in np.split(positions, np.flatnonzero(np.diff(positions) > 1) + 1)]
+    pooled = torch.stack([hidden[row, torch.as_tensor(run, device=DEVICE)].mean(0) for row, _, run in spots])
+    sure, picks = model.values[column](pooled).softmax(-1).max(-1)
+    for (row, line, run), pick, belief in zip(spots, picks.tolist(), sure.float().tolist()):
+        window = chosen[row]
+        owner = int(owners[window])
+        low, high = whole_words(texts[owner], int(offsets[begins[window] + run[0], 0]), int(offsets[begins[window] + run[-1], 1]))
+        attribute = model.catalog[FAN][pick]
+        value = read_name(attribute, texts[owner][low:high])
+        score = float(peaks[line, run].max()) * belief
+        if value is not None and score >= FLOOR and score > found[owner].get((attribute, value), (0.,))[0]:
+            found[owner][attribute, value] = (score, low, high)
+
+
 @torch.inference_mode()
 def predict(model, pad, ids, offsets, lengths, owners, texts):
     begins = np.cumsum(lengths) - lengths
@@ -157,6 +198,9 @@ def predict(model, pad, ids, offsets, lengths, owners, texts):
             here = rows[columns == column]
             part = probabilities[here, :, column]
             weight = ((part > SPAN_CUT) | (part >= top[here, column][:, None])).to(hidden.dtype)
+            if model.attributes[column] == FAN:
+                read_fans(model, column, hidden, here, part, weight, [chosen, begins, offsets, owners], texts, found)
+                continue
             sure, picks = model.values[column]((hidden[here] * weight[..., None]).sum(1) / weight.sum(1, keepdim=True)).softmax(-1).max(-1)
             flags = weight.float().cpu().numpy()
             attribute = model.attributes[column]
@@ -191,36 +235,62 @@ def build_catalog(rows):
     counts = defaultdict(Counter)
     for _, _, found in rows:
         for (attribute, value) in found:
-            counts[attribute][bucket(attribute, value)] += 1
-    catalog = {attribute: [value for value, count in counted.most_common(LIMITS.get(attribute, 300)) if count >= (2 if attribute in FREE or attribute in FANDOM else 1)] for attribute, counted in counts.items()}
+            if attribute in FANDOM:
+                counts[FAN][attribute] += 1
+            else:
+                counts[attribute][bucket(attribute, value)] += 1
+    catalog = {attribute: [value for value, count in counted.most_common(LIMITS.get(attribute, 300)) if count >= (2 if attribute in FREE else 1)] for attribute, counted in counts.items()}
     return {attribute: values + [OTHER] if attribute in LIMITS else values for attribute, values in catalog.items() if values}
+
+
+def quoted(attribute, name, quote, lowered):
+    start = lowered.find(quote.lower())
+    if start < 0:
+        return None
+    end = start + len(quote)
+    if attribute == "age":
+        inner = re.search(rf"(?<!\d){re.escape(name)}(?!\d)", lowered[start:end])
+        if inner:
+            return start + inner.start(), start + inner.end()
+    elif attribute in TIGHT:
+        inner = DIGIT.search(lowered[start:end])
+        if inner:
+            return start + inner.start(), end
+    return start, end
+
+
+def located(name, part, shift):
+    match = re.search(rf"(?<!\w){re.escape(name)}(?!\w)", part)
+    return match and (match.start() + shift, match.end() + shift)
+
+
+def mention(attribute, value, quote, lowered):
+    names = sorted({value, *ALIASES[KINDS[attribute]].get(value, ())}, key=len, reverse=True)
+    words = sorted({word for name in names for word in name.split() if len(word) > 2 and word not in VAGUE}, key=len, reverse=True)
+    start = max(lowered.find(quote.lower()), 0)
+    region = lowered[start:start + len(quote)]
+    searches = [(name, region, start) for name in names] + [(name, lowered, 0) for name in names] + [(word, region, start) for word in words]
+    return next(filter(None, (located(*search) for search in searches)), None)
 
 
 def label_spans(text, found, position, index, offsets):
     lowered, entries = text.lower(), []
     for (attribute, value), quote in found.items():
-        name = bucket(attribute, value)
-        if attribute not in position:
-            continue
-        if name not in index[attribute]:
-            if OTHER not in index[attribute]:
+        if attribute in FANDOM:
+            column, item, place = position[FAN], index[FAN][attribute], mention(attribute, value, quote, lowered)
+        else:
+            name = bucket(attribute, value)
+            if attribute not in position:
                 continue
-            name = OTHER
-        start = lowered.find(quote.lower())
-        if start < 0:
-            continue
-        end = start + len(quote)
-        if attribute == "age":
-            inner = re.search(rf"(?<!\d){re.escape(name)}(?!\d)", lowered[start:end])
-            if inner:
-                start, end = start + inner.start(), start + inner.end()
-        elif attribute in TIGHT:
-            inner = DIGIT.search(lowered[start:end])
-            if inner:
-                start += inner.start()
-        marks = [number for number, (low, high) in enumerate(offsets) if high > low and low < end and high > start]
-        if marks:
-            entries.append((position[attribute], index[attribute][name], marks))
+            if name not in index[attribute]:
+                if OTHER not in index[attribute]:
+                    continue
+                name = OTHER
+            column, item, place = position[attribute], index[attribute][name], quoted(attribute, name, quote, lowered)
+        if place:
+            marks = [number for number, (low, high) in enumerate(offsets) if high > low and low < place[1] and high > place[0]]
+            if marks:
+                entries.append((column, item, marks))
     return entries
 
 
@@ -253,7 +323,6 @@ def fit(encoder=ENCODER, out=EXTRACTOR, epochs=EPOCHS):
     tokens, spans = [], []
     checked = fandom_checked()
     unchecked = np.array([row[0] not in checked for row in rows])
-    fan_columns = [position[attribute] for attribute in FANDOM if attribute in position]
     for start in range(0, len(rows), ENCODE_CHUNK):
         chunk = rows[start:start + ENCODE_CHUNK]
         for row, encoding in zip(chunk, tokenizer.encode_batch([masked(row[1]) for row in chunk])):
@@ -273,7 +342,7 @@ def fit(encoder=ENCODER, out=EXTRACTOR, epochs=EPOCHS):
                 y[row, marks, column] = 1
                 pairs.append((row, column, value))
         keep = torch.ones((len(chosen), 1, len(attributes)), dtype=torch.float32)
-        keep[np.flatnonzero(unchecked[chosen])[:, None], :, fan_columns] = 0
+        keep[np.flatnonzero(unchecked[chosen]), :, position[FAN]] = 0
         return x.to(DEVICE), y.to(DEVICE), pairs, keep.to(DEVICE)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=.01)

@@ -22,6 +22,7 @@ CLEAN_TEXTS = 32
 CLEAN_BUCKETS = 64
 STRICT_SUPPORT = 3.
 STRICT_SHARE = .7
+VALUE_AUTHORS = 10
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank": 128, "batch": 2048, "lr": .001, "weight_decay": .1, "epochs": 6, "interval_mass": .9}
 TEXT_PARAMETERS = PARAMETERS
 TUNE_TRIALS = 18

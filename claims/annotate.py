@@ -72,25 +72,27 @@ def extract(dataset, model=TEACHER):
 
 @timed
 def fandom(datasets=TRAINING, model=TEACHER):
-    records = ANNOTATIONS / "fandom.prompts.jsonl"
-    seen = set()
+    seen = set(votes("fandom", model))
+    known = len(seen)
+    name = next_round("fandom", model)
+    records = ANNOTATIONS / f"{name}.prompts.jsonl"
     with open(records, "w", encoding="utf-8") as out:
         for dataset in datasets:
             for row in rows(ANNOTATIONS / f"{dataset}.jsonl"):
                 if row["id"] not in seen and (dataset in FAN_WHOLE or FAN_WORDS.search(row["text"])):
                     seen.add(row["id"])
                     out.write(json.dumps({"id": row["id"], "text": FANDOM_PROMPT.format(text=row["text"])}, ensure_ascii=False) + "\n")
-    LOG.info("fandom texts=%d", len(seen))
-    generate(model, records, "fandom", 120)
+    LOG.info("fandom round=%s new texts=%d", name, len(seen) - known)
+    generate(model, records, name, 120)
 
 
 def fandom_checked(model=TEACHER):
-    return frozenset(answers("fandom", model))
+    return frozenset(votes("fandom", model))
 
 
 def proposals(datasets, model=TEACHER):
     held = set(json.loads(GOLD_TEXTS.read_text(encoding="utf-8")))
-    fans = answers("fandom", model)
+    fans = votes("fandom", model)
     seen = set()
     for dataset in datasets:
         found = answers(dataset, model)
