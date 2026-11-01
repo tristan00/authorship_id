@@ -3,7 +3,7 @@ import math
 from collections import defaultdict
 
 from .config import BOT_PROBABILITY, BOT_SHARE, BOT_TEXTS, FLAIR_STRENGTH, NUMERIC, SHARE, THRESHOLDS, TOLERANCE
-from .schema import BOT
+from .schema import BOT, renamed
 
 
 def needs():
@@ -62,7 +62,8 @@ def distinct(rows):
     seen = set()
     for source, key, subreddit, field, value, probability, digest in rows:
         identity = digest or key
-        if (identity, field, value) not in seen:
+        value = renamed(field, value)
+        if value is not None and (identity, field, value) not in seen:
             seen.add((identity, field, value))
             yield source, key, subreddit, field, value, probability, identity
 

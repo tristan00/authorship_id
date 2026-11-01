@@ -325,15 +325,6 @@ famous person: arnie = arnold schwarzenegger
 famous person: michael = michael
 
 {kind}: {name} ="""
-FLAIR_VERIFY = """A Reddit user shows this flair next to their name in the subreddit r/{subreddit}: "{flair}"
-
-A flair is a short label, and words between colons are emoji names that count as part of it. It can be something the user says about themselves, but it is often a rank, a game item, an in-joke or a label handed out by the subreddit, which says nothing about the person.
-
-An automatic system read the flair and claimed: {claim}.
-
-Does the flair, as this subreddit uses flairs, say this about the person? A flair that may have gone a little out of date still counts. Answer with exactly one letter: Y or N."""
-
-
 def squeeze(text):
     return SQUEEZE.sub("", text.lower())
 

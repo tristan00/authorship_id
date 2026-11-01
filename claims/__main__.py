@@ -54,8 +54,8 @@ def main():
         from .flairs import load
         load()
     elif args.command == "names":
-        from .names import annotate as run
-        run()
+        from .names import annotate, extracted
+        annotate(extracted())
     elif args.command == "verify":
         from .annotate import verify
         verify()

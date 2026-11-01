@@ -13,7 +13,7 @@ from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_
 from .extractor import load_extractor, predict, splitter, windows
 from .rules import agree, decide, flair_strength, strength
 from .sample import MINOR, safety
-from .schema import ALL_FIELDS, BOT, canonical
+from .schema import ALL_FIELDS, BOT, canonical, renamed
 
 CUTS = (.2, .5, .8, .9, .95)
 LETTERS = "ABCDEFGH"
@@ -54,6 +54,9 @@ def text_truth(dataset):
         if pair is None:
             continue
         attribute, value = pair
+        value = renamed(attribute, value)
+        if value is None:
+            continue
         ballots = [first_letter(ballots_of[model].get(item["id"]), "YN") for model in VERIFIERS]
         if TEACHER in item["models"]:
             teacher[item["text_id"], attribute].add(str(value))
@@ -205,6 +208,10 @@ def f1(count):
     return 2 * count["hit"] / max(2 * count["hit"] + count["wrong"] + count["silent"], 1e-9)
 
 
+def fitted(count):
+    return 1.25 * count["hit"] / max(1.25 * count["hit"] + count["wrong"] + .25 * count["silent"], 1e-9)
+
+
 def summary(count):
     return {"precision": round(count["hit"] / max(count["hit"] + count["wrong"], 1e-9), 3), "recall": round(count["hit"] / max(count["hit"] + count["silent"], 1e-9), 3), "f1": round(f1(count), 3)}
 
@@ -237,10 +244,10 @@ def thresholds():
         for fold in range(HELD_FOLDS):
             train = [entry for entry, place in zip(entries, folds[attribute]) if place != fold]
             test = [entry for entry, place in zip(entries, folds[attribute]) if place == fold]
-            total += score_need(test, attribute, max(NEEDS, key=lambda need: f1(score_need(train, attribute, need))))
+            total += score_need(test, attribute, max(NEEDS, key=lambda need: fitted(score_need(train, attribute, need))))
         held += total
         macro.append(f1(total))
-        chosen[attribute] = max(NEEDS, key=lambda need: f1(score_need(entries, attribute, need)))
+        chosen[attribute] = max(NEEDS, key=lambda need: fitted(score_need(entries, attribute, need)))
         report[attribute] = {"need": chosen[attribute], **summary(score_need(entries, attribute, chosen[attribute]))}
     missing = sorted(set(ALL_FIELDS) - set(chosen))
     if missing:

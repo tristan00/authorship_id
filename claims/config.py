@@ -35,6 +35,7 @@ FLAIR_SUBREDDIT_AUTHORS = 10
 FLAIR_ADULT_SHARE = .05
 FLAIR_STRENGTH = 1.
 COMPASS_SUBREDDIT = "politicalcompassmemes"
+NAME_MENTIONS = 5
 FLAIR_VOTERS = ("gemma4-26b-a4b-nvfp4", "qwen3-32b-nvfp4", "qwen3-14b-fp8")
 WIDE = {"age": ("absolute", 5), "height": ("absolute", 5), "weight": ("relative", .15), "income": ("relative", .5)}
 GATE_COMPARISONS = 30

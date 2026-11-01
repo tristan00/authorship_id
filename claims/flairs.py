@@ -11,12 +11,13 @@ from . import LOG, timed
 from .annotate import answers, generate, rows
 from .config import ANNOTATIONS, COMPASS_SUBREDDIT, FLAIR_ADULT_SHARE, FLAIR_AUTHORS, FLAIR_LENGTH, FLAIR_SHOWN, FLAIR_SUBREDDIT_AUTHORS, FLAIR_VOTERS, GATE_COMPARISONS, GATE_SKILL, TEACHER, WIDE
 from .sample import MINOR
-from .schema import FLAIR, FLAIR_LINES, FLAIR_SCHEMA, FLAIR_VERIFY, claim_text, flair_attributes, flair_facts
+from .schema import FANDOM, FLAIR, FLAIR_LINES, FLAIR_SCHEMA, FREE, flair_attributes, flair_facts
 
 COUNTS = """COPY (SELECT subreddit, flair, count(*) FROM (SELECT DISTINCT subreddit, author_flair_text AS flair, author FROM records
             WHERE author_flair_text <> '' AND author <> ALL(%s)) pairs GROUP BY 1, 2 HAVING count(*) >= %s) TO STDOUT"""
 ORDINARY = "SELECT subreddit FROM records WHERE record_type = 'post' AND over_18 IS NOT NULL GROUP BY 1 HAVING avg(over_18::int) < %s"
 YOUNG = re.compile(r"\s*1[0-7]\s*")
+WORD = re.compile(r"\w+")
 TABLE = """
 DROP TABLE IF EXISTS flair_claims;
 CREATE TABLE flair_claims (subreddit text NOT NULL, flair text NOT NULL, field text NOT NULL, value text NOT NULL, PRIMARY KEY (subreddit, flair, field));
@@ -56,10 +57,6 @@ def proposed(model=TEACHER):
                 yield row, attribute, value
 
 
-def claim_key(row, attribute, value):
-    return f"{row['id']}|{attribute}|{value}"
-
-
 def grouped():
     found = defaultdict(list)
     for row in rows(ANNOTATIONS / "flairs.jsonl"):
@@ -97,36 +94,31 @@ def annotate(minimum=FLAIR_AUTHORS):
                     out.write(json.dumps({"id": row["id"], "text": FLAIR.format(attributes=attributes, subreddit=subreddit, flair=row["flair"])}, ensure_ascii=False) + "\n")
                     written += 1
     LOG.info("flair value prompts=%d", written)
-    generate(TEACHER, records, "flairs", 60)
-    records = ANNOTATIONS / "flairs.verify.prompts.jsonl"
-    count = 0
-    with open(records, "w", encoding="utf-8") as out:
-        for row, attribute, value in proposed():
-            out.write(json.dumps({"id": claim_key(row, attribute, value), "text": FLAIR_VERIFY.format(subreddit=row["subreddit"], flair=row["flair"], claim=claim_text(attribute, value))}, ensure_ascii=False) + "\n")
-            count += 1
-    LOG.info("flair proposals=%d", count)
     for model in FLAIR_VOTERS:
-        generate(model, records, "flairs.verify", 4)
+        generate(model, records, "flairs", 60)
 
 
-def confirmed(votes, key):
-    ballots = [(table.get(key) or "").strip().upper().startswith("Y") for table in votes]
-    return ballots[0] and any(ballots[1:])
+def same(field, left, right):
+    if right is None:
+        return False
+    if field not in WIDE and (field in FANDOM or field in FREE):
+        one, two = set(WORD.findall(left)), set(WORD.findall(right))
+        return one <= two or two <= one
+    return near(field, left, right)
 
 
 @timed
 def load():
-    votes = [answers("flairs.verify", model) for model in FLAIR_VOTERS]
+    others = [answers("flairs", model) for model in FLAIR_VOTERS if model != TEACHER]
     kept = {}
     proposals = 0
     for row, attribute, value in proposed():
         proposals += 1
-        key = claim_key(row, attribute, value)
         if attribute == "age" and value < 18 and not row["ordinary"]:
             continue
         if attribute == "political_compass" and row["subreddit"] != COMPASS_SUBREDDIT:
             continue
-        if attribute == "political_compass" or confirmed(votes, key):
+        if any(same(attribute, value, flair_facts(table.get(row["id"])).get(attribute)) for table in others):
             kept[row["subreddit"], row["flair"], attribute] = value
     with psycopg.connect(DSN) as conn:
         conn.execute(TABLE)
@@ -155,6 +147,8 @@ def gate(conn, stats, base):
 
     scopes = defaultdict(lambda: [0, 0, 0.])
     for (subreddit, flair, field, value), (count, hits) in stats.items():
+        if field in FANDOM:
+            continue
         expected = chance(field, value) * count
         for scope in ((subreddit, None, field), (subreddit, flair, field)):
             entry = scopes[scope]

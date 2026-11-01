@@ -2,14 +2,19 @@ import json
 import unicodedata
 from collections import Counter, defaultdict
 
+import psycopg
+
+from database import DSN
+
 from . import LOG, timed
 from .annotate import answers, generate, next_round, votes
-from .config import ANNOTATIONS, NAMES_FILE, TEACHER, TRAINING, VERIFIERS
+from .config import ANNOTATIONS, NAME_MENTIONS, NAMES_FILE, TEACHER, TRAINING, VERIFIERS
 from .schema import CLUB, KINDS, LETTERS, NAME_PROMPT, SQUEEZE, spelled
 
 RUN = "names"
 CLOSED = frozenset({"country", "state or region", "city"})
 LONGEST = 60
+READ = "SELECT field, value, count(*) FROM text_claims WHERE field = ANY(%s) GROUP BY 1, 2 HAVING count(*) >= %s"
 
 
 def folded(text):
@@ -26,14 +31,24 @@ def mentions(answer):
 
 
 @timed
-def collected():
+def collected(extra):
     counts = defaultdict(Counter)
-    sources = [(dataset, TEACHER) for dataset in (*TRAINING, "fandom")] + [(dataset, model) for model in VERIFIERS for dataset in ("uniform", "fandom.gold", "flairs")]
-    for dataset, model in dict.fromkeys(sources):
-        for answer in answers(dataset, model).values():
+    for found in (votes("fandom", TEACHER), *(answers(dataset, TEACHER) for dataset in TRAINING), *(answers(dataset, model) for model in VERIFIERS for dataset in ("uniform", "fandom.gold", "flairs"))):
+        for answer in found.values():
             for kind, value in mentions(answer):
                 counts[kind][value] += 1
+    for kind, values in extra.items():
+        counts[kind].update(values)
     LOG.info("names distinct=%s", {kind: len(values) for kind, values in counts.items()})
+    return counts
+
+
+@timed
+def extracted():
+    counts = defaultdict(Counter)
+    with psycopg.connect(DSN) as conn:
+        for field, value, amount in conn.execute(READ, [list(KINDS), NAME_MENTIONS]):
+            counts[KINDS[field]][value] += amount
     return counts
 
 
@@ -76,8 +91,8 @@ def built(kind, values, tables):
 
 
 @timed
-def annotate():
-    counts = collected()
+def annotate(extra):
+    counts = collected(extra)
     known = votes(RUN, TEACHER)
     name = next_round(RUN, TEACHER)
     records = ANNOTATIONS / f"{name}.prompts.jsonl"
