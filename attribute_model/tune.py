@@ -27,6 +27,7 @@ def attempt(targets, manifest, specs, data, parameters, epochs):
 @timed
 def tune(targets, load, directory, out):
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
+    out.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random(SEED)
     manifest, specs, data = load(directory, targets)
     trials = [PARAMETERS] + [{**PARAMETERS, **{key: rng.choice(values) for key, values in TUNE_SPACE.items()}} for _ in range(TUNE_TRIALS - 1)]
@@ -42,6 +43,7 @@ def tune(targets, load, directory, out):
             write_json(out, history)
         scored.sort(key=lambda item: item[0])
         trials = [parameters for _, parameters in scored[:max(1, len(scored) // 3)]]
-    best = {**trials[0], "epochs": TUNE_ROUNDS[-1]}
-    LOG.info("tune best score=%.5f parameters=%s", scored[0][0], json.dumps(best))
-    return {"score": scored[0][0], "parameters": best}
+    winner = min(history, key=lambda item: item["score"])
+    best = {**winner["parameters"], "epochs": winner["epochs"]}
+    LOG.info("tune best score=%.5f parameters=%s", winner["score"], json.dumps(best))
+    return {"score": winner["score"], "parameters": best}

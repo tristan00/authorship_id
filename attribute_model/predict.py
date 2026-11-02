@@ -24,11 +24,13 @@ from database import DSN
 from . import LOG, timed
 from .config import ENCODERS, GPU_MEMORY, PREDICTIONS, SEGMENT_BYTES, THREADS, check_targets, columns, validate
 from .model import AttributeModel, numeric
+from .subreddits import stored
+from .subreddits import vector as subreddit_vector
 
 SIGNATURE = b"PGCOPY\n\xff\r\n\x00" + bytes(8)
 TRAILER = b"\xff\xff"
 PUBLISH = """
-ALTER TABLE author_predictions_next ADD PRIMARY KEY (author);
+ALTER TABLE author_predictions_next ADD PRIMARY KEY (account);
 DROP TABLE IF EXISTS author_predictions;
 ALTER TABLE author_predictions_next RENAME TO author_predictions;
 ALTER INDEX author_predictions_next_pkey RENAME TO author_predictions_pkey;
@@ -39,7 +41,7 @@ CREATE TABLE prediction (model_id uuid PRIMARY KEY, source jsonb NOT NULL, targe
 
 
 def schema(targets):
-    result = [("author", "text")]
+    result = [("account", "text")]
     for name, kind in targets.items():
         result += zip(columns(name, kind), ("real",) * 3 if kind == "numeric" else ("text", "real"))
     return result
@@ -96,8 +98,8 @@ def predict(loaded, vectors, candidates=5):
 
 
 @torch.inference_mode()
-def infer(model, artifact, catalogs, chunk, device):
-    vectors = torch.from_numpy(chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()).to(device)
+def infer(model, artifact, catalogs, chunk, subreddits, device):
+    vectors = torch.from_numpy(np.concatenate([chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS), subreddits], 1).astype(np.float32)).to(device)
     numbers, indices = [], []
     for spec, _, scored in calibrated(artifact, model.outputs(model(vectors))):
         if spec["type"] == "numeric":
@@ -143,10 +145,12 @@ def binary(columns):
 
 def encoded(dataset, model, artifact, device, batch):
     catalogs = {spec["name"]: pa.array(spec["values"]) for spec in artifact["specifications"] if spec["type"] != "numeric"}
+    subreddits, place = stored(), 0
     with ThreadPoolExecutor(ENCODERS) as pool:
         pending = deque()
-        for chunk in dataset.to_batches(columns=["author", "vector"], batch_size=batch):
-            pending.append((chunk.num_rows, pool.submit(binary, infer(model, artifact, catalogs, chunk, device))))
+        for chunk in dataset.to_batches(columns=["author", "vector"], batch_size=batch, scan_in_order=True):
+            pending.append((chunk.num_rows, pool.submit(binary, infer(model, artifact, catalogs, chunk, np.asarray(subreddits[place:place + chunk.num_rows]), device))))
+            place += chunk.num_rows
             if len(pending) > 2 * ENCODERS:
                 rows, future = pending.popleft()
                 yield rows, future.result()
@@ -266,4 +270,4 @@ def predict_user(model_path, targets, author):
     found = vector(author)
     if found is None:
         raise ValueError(f"No user vector for {author}")
-    return {"author": author, "sampled_texts": found["sampled_texts"], "attributes": predict(load_model(model_path, targets), [found["vector"]])[0]}
+    return {"author": author, "sampled_texts": found["sampled_texts"], "attributes": predict(load_model(model_path, targets), [np.concatenate([found["vector"], subreddit_vector(author)])])[0]}

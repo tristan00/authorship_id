@@ -17,7 +17,7 @@ POOL = ConnectionPool(DSN, min_size=POOL_MIN, max_size=POOL_MAX, timeout=POOL_WA
 CURSOR = re.compile(r"(\d{1,15}):(t[13]_[0-9a-z]{1,20})")
 FIELDS = "record_id, record_type, author, subreddit, created_utc, text_status, text_sha256"
 TOP_END = "\U0010FFFF"
-AUTHOR_BRANCH = "(SELECT author FROM author_predictions WHERE author >= %s AND author <= %s AND author ILIKE %s ORDER BY author LIMIT %s)"
+AUTHOR_BRANCH = "(SELECT account AS author FROM author_predictions WHERE account >= %s AND account <= %s AND account ILIKE %s ORDER BY account LIMIT %s)"
 SUBREDDIT_SKIP = """WITH RECURSIVE found AS (
     (SELECT subreddit FROM records WHERE subreddit >= %(low)s AND subreddit <= %(high)s ORDER BY subreddit LIMIT 1)
     UNION ALL
@@ -237,7 +237,7 @@ def author(name):
         claims = conn.execute("SELECT attribute, value FROM author_claims WHERE author = %s ORDER BY attribute LIMIT %s", [name, CLAIMS]).fetchall()
         published = conn.execute("SELECT targets, interval_mass, source->>'consolidation' AS consolidation FROM prediction").fetchone()
         run = conn.execute("SELECT run_id::text AS run_id FROM consolidation").fetchone()
-        prediction = conn.execute("SELECT * FROM author_predictions WHERE author = %s", [name]).fetchone()
+        prediction = conn.execute("SELECT * FROM author_predictions WHERE account = %s", [name]).fetchone()
     predicted = predicted_attributes(prediction, published["targets"]) if prediction and published else {}
     stated = [{"attribute": claim["attribute"], "stated": claim["value"], "predicted": predicted.get(claim["attribute"])} for claim in claims]
     claimed = {claim["attribute"] for claim in claims}

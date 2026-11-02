@@ -22,7 +22,8 @@ from claims.schema import BOT, FLAIR_ONLY
 from database import DSN
 
 from . import LOG, timed, write_json
-from .config import CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, check_targets, partition, validate
+from .config import CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, SUBREDDIT_CHUNK, SUBREDDIT_RANK, VALUE_AUTHORS, check_targets, partition, validate
+from .subreddits import stored
 
 CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s)) TO STDOUT (FORMAT CSV)"
 BEARING = "COPY (SELECT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
@@ -91,8 +92,8 @@ def bearing_rows(conn, texts):
 
 @timed
 def clean_rows(users, labeled, mask, starts):
-    stored = users.to_table(columns=["author"], scan_in_order=True)["author"]
-    labels = pc.fill_null(pc.index_in(stored, value_set=labeled), -1).to_numpy()
+    names = users.to_table(columns=["author"], scan_in_order=True)["author"]
+    labels = pc.fill_null(pc.index_in(names, value_set=labeled), -1).to_numpy()
     rows_of, owners_of, places, position = [], [], [], np.full(len(labeled), -1, dtype=np.int64)
     scanned = kept = 0
     for batch in users.to_batches(columns=["sample_rows"], batch_size=65536, scan_in_order=True):
@@ -116,9 +117,9 @@ def clean_rows(users, labeled, mask, starts):
         scanned += batch.num_rows
         if scanned % (64 * 65536) < batch.num_rows:
             LOG.info("clean rows scanned=%d kept_authors=%d", scanned, kept)
-    if scanned != len(stored):
+    if scanned != len(names):
         raise ValueError("User store rows changed between the author and sample scans")
-    return np.concatenate(rows_of), np.concatenate(owners_of), position, stored.take(pa.array(np.concatenate(places))).to_pylist()
+    return np.concatenate(rows_of), np.concatenate(owners_of), position, np.concatenate(places)
 
 
 @timed
@@ -147,7 +148,7 @@ def clean_vectors(texts, rows, owners, count, path):
                 LOG.info("clean codes fragments=%d/%d seconds=%.1f", done, len(fragments), time.perf_counter() - started)
     spill.close()
     model, scale = load_model("cuda"), scales(texts)
-    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(count, DIMENSIONS))
+    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(count, DIMENSIONS + SUBREDDIT_RANK))
     for part in range(CLEAN_BUCKETS):
         file = work / f"codes_{part}.arrow"
         table = read(file, FETCHED)
@@ -155,7 +156,7 @@ def clean_vectors(texts, rows, owners, count, path):
         codes = table.column("vector").combine_chunks().flatten().to_numpy().reshape(-1, FEATURES)
         arrangement = np.argsort(owners[slots], kind="stable")
         people, first, sizes = np.unique(owners[slots][arrangement], return_index=True, return_counts=True)
-        vectors[people] = head(model, codes[arrangement], scale, first, sizes).astype(np.float16)
+        vectors[people, :DIMENSIONS] = head(model, codes[arrangement], scale, first, sizes).astype(np.float16)
         del table, codes
         file.unlink()
         if part % 8 == 7:
@@ -163,6 +164,14 @@ def clean_vectors(texts, rows, owners, count, path):
     vectors.flush()
     shutil.rmtree(work)
     return vectors
+
+
+@timed
+def add_subreddits(vectors, places):
+    subreddits = stored()
+    for start in range(0, len(places), SUBREDDIT_CHUNK):
+        vectors[start:start + SUBREDDIT_CHUNK, DIMENSIONS:] = subreddits[places[start:start + SUBREDDIT_CHUNK]]
+    vectors.flush()
 
 
 @timed
@@ -197,10 +206,12 @@ def prepare(directory, targets):
         owner = remap[owner]
         LOG.info("labeled authors=%d rows=%d", len(labeled), claims.num_rows)
         mask, starts = bearing_rows(conn, texts)
-        rows, row_owners, position, authors = clean_rows(users, labeled, mask, starts)
+        rows, row_owners, position, places = clean_rows(users, labeled, mask, starts)
+        authors = users.to_table(columns=["author"], scan_in_order=True)["author"].take(pa.array(places)).to_pylist()
         del mask, starts
         staging.mkdir(parents=True)
         vectors = clean_vectors(texts, rows, row_owners, len(authors), staging / "users.npy")
+        add_subreddits(vectors, places)
     placed = position[owner]
     present = placed >= 0
     labels = np.full((len(authors), len(targets)), np.nan, dtype=np.float32)
@@ -217,7 +228,7 @@ def prepare(directory, targets):
     splits = np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors))
     training = np.flatnonzero(np.isin(splits, SPLITS["train"]))
     sample = np.asarray(vectors[training[::max(1, len(training) // SPREAD_ROWS)]], dtype=np.float32)
-    features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
+    features = {"dimensions": DIMENSIONS + SUBREDDIT_RANK, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
     np.save(staging / "labels.npy", labels)
     np.save(staging / "splits.npy", splits)
     np.save(staging / "clean_rows.npy", rows)
@@ -239,6 +250,6 @@ def load(directory, targets):
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     check_targets(targets, manifest["targets"])
     arrays = {name: np.load(directory / f"{name}.npy", mmap_mode="r", allow_pickle=False) for name in ARRAYS}
-    if arrays["users"].shape != (manifest["authors"], DIMENSIONS) or arrays["labels"].shape != (manifest["authors"], len(targets)) or len(arrays["splits"]) != manifest["authors"]:
+    if arrays["users"].shape != (manifest["authors"], manifest["features"]["dimensions"]) or arrays["labels"].shape != (manifest["authors"], len(targets)) or len(arrays["splits"]) != manifest["authors"]:
         raise ValueError("Prepared arrays do not match the manifest")
     return manifest, arrays

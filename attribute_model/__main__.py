@@ -25,13 +25,14 @@ def main():
     table = commands.add_parser("table")
     table.add_argument("--model", type=Path, default=MODEL)
     update = commands.add_parser("update")
+    subreddits = commands.add_parser("subreddits")
     text_prepare = commands.add_parser("text-prepare")
     text_train = commands.add_parser("text-train")
     tune = commands.add_parser("tune")
     text_tune = commands.add_parser("text-tune")
     text = commands.add_parser("text")
     text.add_argument("text")
-    for command in (prepare, train, predict, user, table, update, text_prepare, text_train, tune, text_tune, text):
+    for command in (prepare, train, predict, user, table, update, subreddits, text_prepare, text_train, tune, text_tune, text):
         command.add_argument("--targets", type=Path, default=TARGETS)
     args = parser.parse_args()
     targets = read_targets(args.targets)
@@ -51,6 +52,9 @@ def main():
     elif args.command == "table":
         from .predict import predict_table
         result = predict_table(args.model, targets)
+    elif args.command == "subreddits":
+        from .subreddits import build
+        result = build()
     elif args.command == "update":
         from .update import update
         result = update(targets)

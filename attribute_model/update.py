@@ -8,6 +8,7 @@ from . import LOG, timed
 from .config import DATA, MODEL, TEXT_DATA, TEXT_MODEL, TEXT_PARAMETERS, validate
 from .data import prepare, source
 from .predict import predict_table
+from .subreddits import build, current
 from .text import load_text
 from .text import prepare as prepare_text
 from .train import train
@@ -33,6 +34,8 @@ def update(targets):
     with psycopg.connect(DSN, row_factory=dict_row) as conn:
         expected, predicted = source(conn), published(conn)
     result = {"months": list(expected["months"]), "consolidation": expected["consolidation"]}
+    if not current():
+        result["subreddits"] = build()
     if stale(MODEL, targets, expected):
         LOG.info("attribute model retrains for months=%s consolidation=%s", result["months"], result["consolidation"])
         result["prepared"] = prepare(DATA, targets)

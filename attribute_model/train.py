@@ -17,7 +17,7 @@ from .model import AttributeModel, numeric, specifications
 DEVICE = "cuda"
 
 
-def collect(model, vectors, labels, column, batch=32768):
+def collect(model, vectors, labels, column, batch=8192):
     model.eval()
     outputs, targets = [], []
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
@@ -29,7 +29,7 @@ def collect(model, vectors, labels, column, batch=32768):
     return torch.cat(outputs), torch.cat(targets)
 
 
-def score(model, vectors, labels, specs, batch=32768):
+def score(model, vectors, labels, specs, batch=8192):
     model.eval()
     sums = counts = 0
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
