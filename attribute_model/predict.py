@@ -24,8 +24,6 @@ from database import DSN
 from . import LOG, timed
 from .config import ENCODERS, GPU_MEMORY, PREDICTIONS, SEGMENT_BYTES, THREADS, check_targets, columns, validate
 from .model import AttributeModel, numeric
-from .subreddits import stored
-from .subreddits import vector as subreddit_vector
 
 SIGNATURE = b"PGCOPY\n\xff\r\n\x00" + bytes(8)
 TRAILER = b"\xff\xff"
@@ -102,8 +100,8 @@ def predict(loaded, vectors, candidates=5):
 
 
 @torch.inference_mode()
-def infer(model, artifact, catalogs, chunk, subreddits, device):
-    vectors = torch.from_numpy(np.concatenate([chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS), subreddits], 1).astype(np.float32)).to(device)
+def infer(model, artifact, catalogs, chunk, device):
+    vectors = torch.from_numpy(chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()).to(device)
     numbers, indices = [], []
     hidden = model(vectors)
     stated = model.stated(hidden).sigmoid().cpu().numpy()
@@ -151,12 +149,10 @@ def binary(columns):
 
 def encoded(dataset, model, artifact, device, batch):
     catalogs = {spec["name"]: pa.array(spec["values"]) for spec in artifact["specifications"] if spec["type"] != "numeric"}
-    subreddits, place = stored(), 0
     with ThreadPoolExecutor(ENCODERS) as pool:
         pending = deque()
-        for chunk in dataset.to_batches(columns=["author", "vector"], batch_size=batch, scan_in_order=True):
-            pending.append((chunk.num_rows, pool.submit(binary, infer(model, artifact, catalogs, chunk, np.asarray(subreddits[place:place + chunk.num_rows]), device))))
-            place += chunk.num_rows
+        for chunk in dataset.to_batches(columns=["author", "vector"], batch_size=batch):
+            pending.append((chunk.num_rows, pool.submit(binary, infer(model, artifact, catalogs, chunk, device))))
             if len(pending) > 2 * ENCODERS:
                 rows, future = pending.popleft()
                 yield rows, future.result()
@@ -276,4 +272,4 @@ def predict_user(model_path, targets, author):
     found = vector(author)
     if found is None:
         raise ValueError(f"No user vector for {author}")
-    return {"author": author, "sampled_texts": found["sampled_texts"], "attributes": predict(load_model(model_path, targets), [np.concatenate([found["vector"], subreddit_vector(author)])])[0]}
+    return {"author": author, "sampled_texts": found["sampled_texts"], "attributes": predict(load_model(model_path, targets), [found["vector"]])[0]}

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import shutil
 import time
@@ -17,13 +18,12 @@ from author_encoder.index import FEATURES, PROTOCOL, Spill, head, read, vectors_
 from author_encoder.lock import index_lock
 from author_encoder.model import load_model
 from author_encoder.texts import raw, scales
-from claims.config import NUMERIC
+from claims.config import NAMES_FILE, NUMERIC
 from claims.schema import BOT, FLAIR_ONLY
 from database import DSN
 
 from . import LOG, timed, write_json
-from .config import CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, SUBREDDIT_CHUNK, SUBREDDIT_RANK, VALUE_AUTHORS, check_targets, partition, validate
-from .subreddits import stored
+from .config import BEARING_MASK, BEARING_STAMP, CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, VECTOR_CHUNK, check_targets, partition, validate
 
 CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s::claim_field[])) TO STDOUT (FORMAT CSV)"
 BEARING = "COPY (SELECT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
@@ -64,6 +64,14 @@ def encode(values, name, kind):
 
 @timed
 def bearing_rows(conn, texts):
+    fragments = sorted(texts.get_fragments(), key=lambda fragment: fragment.fragment_id)
+    counts = np.array([fragment.count_rows() for fragment in fragments], dtype=np.int64)
+    starts = np.zeros(fragments[-1].fragment_id + 1, dtype=np.int64)
+    starts[[fragment.fragment_id for fragment in fragments]] = np.cumsum(counts) - counts
+    stamp = json.dumps([texts.version, str(conn.execute("SELECT max(extracted_at) FROM months").fetchone()[0]), hashlib.sha256(NAMES_FILE.read_bytes()).hexdigest()])
+    if BEARING_STAMP.exists() and BEARING_STAMP.read_text(encoding="utf-8") == stamp:
+        LOG.info("fact bearing rows reused")
+        return np.unpackbits(np.load(BEARING_MASK), count=int(counts.sum())).astype(bool), starts
     data = bytearray()
     with conn.cursor().copy(BEARING, [BOT]) as copy:
         for chunk in copy:
@@ -72,10 +80,6 @@ def bearing_rows(conn, texts):
     known = np.unique(np.frombuffer(bytes.fromhex(np.frombuffer(data, dtype=np.uint8).reshape(-1, 19)[:, 2:18].tobytes().decode("ascii")), dtype=">u8").astype(np.uint64))
     del data
     LOG.info("fact bearing digests=%d", len(known))
-    fragments = sorted(texts.get_fragments(), key=lambda fragment: fragment.fragment_id)
-    counts = np.array([fragment.count_rows() for fragment in fragments], dtype=np.int64)
-    starts = np.zeros(fragments[-1].fragment_id + 1, dtype=np.int64)
-    starts[[fragment.fragment_id for fragment in fragments]] = np.cumsum(counts) - counts
     mask = np.zeros(int(counts.sum()), dtype=bool)
 
     def mark(fragment):
@@ -87,6 +91,8 @@ def bearing_rows(conn, texts):
     with ThreadPoolExecutor(ENCODERS) as pool:
         list(pool.map(mark, fragments))
     LOG.info("fact bearing rows=%d of %d", int(mask.sum()), len(mask))
+    np.save(BEARING_MASK, np.packbits(mask))
+    BEARING_STAMP.write_text(stamp, encoding="utf-8")
     return mask, starts
 
 
@@ -149,13 +155,13 @@ def reusable(directory, authors, rows, owners, expected):
 
 @timed
 def clean_vectors(texts, rows, owners, count, path, previous, earlier):
-    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(count, DIMENSIONS + SUBREDDIT_RANK))
+    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(count, DIMENSIONS))
     reused = np.flatnonzero(earlier >= 0)
     if len(reused):
         stored = np.load(previous / "users.npy", mmap_mode="r")
-        for start in range(0, len(reused), SUBREDDIT_CHUNK):
-            chosen = reused[start:start + SUBREDDIT_CHUNK]
-            vectors[chosen, :DIMENSIONS] = stored[earlier[chosen], :DIMENSIONS]
+        for start in range(0, len(reused), VECTOR_CHUNK):
+            chosen = reused[start:start + VECTOR_CHUNK]
+            vectors[chosen] = stored[earlier[chosen], :DIMENSIONS]
         del stored
     changed = earlier[owners] < 0
     if not changed.any():
@@ -190,7 +196,7 @@ def clean_vectors(texts, rows, owners, count, path, previous, earlier):
         codes = table.column("vector").combine_chunks().flatten().to_numpy().reshape(-1, FEATURES)
         arrangement = np.argsort(owners[slots], kind="stable")
         people, first, sizes = np.unique(owners[slots][arrangement], return_index=True, return_counts=True)
-        vectors[people, :DIMENSIONS] = head(model, codes[arrangement], scale, first, sizes).astype(np.float16)
+        vectors[people] = head(model, codes[arrangement], scale, first, sizes).astype(np.float16)
         del table, codes
         file.unlink()
         if part % 8 == 7:
@@ -198,14 +204,6 @@ def clean_vectors(texts, rows, owners, count, path, previous, earlier):
     vectors.flush()
     shutil.rmtree(work)
     return vectors
-
-
-@timed
-def add_subreddits(vectors, places):
-    subreddits = stored()
-    for start in range(0, len(places), SUBREDDIT_CHUNK):
-        vectors[start:start + SUBREDDIT_CHUNK, DIMENSIONS:] = subreddits[places[start:start + SUBREDDIT_CHUNK]]
-    vectors.flush()
 
 
 @timed
@@ -245,7 +243,6 @@ def prepare(directory, targets):
         del mask, starts
         staging.mkdir(parents=True)
         vectors = clean_vectors(texts, rows, row_owners, len(authors), staging / "users.npy", directory, reusable(directory, authors, rows, row_owners, expected))
-        add_subreddits(vectors, places)
     placed = position[owner]
     present = placed >= 0
     labels = np.full((len(authors), len(targets)), np.nan, dtype=np.float32)
@@ -262,7 +259,7 @@ def prepare(directory, targets):
     splits = np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors))
     training = np.flatnonzero(np.isin(splits, SPLITS["train"]))
     sample = np.asarray(vectors[training[::max(1, len(training) // SPREAD_ROWS)]], dtype=np.float32)
-    features = {"dimensions": DIMENSIONS + SUBREDDIT_RANK, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
+    features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
     np.save(staging / "labels.npy", labels)
     np.save(staging / "splits.npy", splits)
     np.save(staging / "clean_rows.npy", rows)
