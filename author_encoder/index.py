@@ -395,7 +395,7 @@ def build(loaded, path=VECTOR_STORE, texts_path=TEXT_STORE, buckets=BUCKETS):
             result |= sample(work, previous(path if base else None, buckets), buckets, fragments)
             result |= fetch(work, dataset, fragments)
             from .model import load_model
-            result |= encode(work, staging, buckets, load_model("cpu"), scales(dataset))
+            result |= encode(work, staging, buckets, load_model("cuda"), scales(dataset))
             if not staging.exists():
                 lance.write_dataset(SCHEMA.empty_table(), staging)
             stored = lance.dataset(staging)
