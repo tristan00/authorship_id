@@ -2,18 +2,20 @@ import hashlib
 import json
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import lance
 import numpy as np
 import psycopg
 import pyarrow as pa
+import torch
 import pyarrow.compute as pc
 from pyarrow import csv
 
 from database import DSN, NO_AUTHOR, within
 from . import LOG, timed
-from .config import BUCKETS, DIMENSIONS, HEAD_TEXTS, LUAR, MAX_LENGTH, RECORD_BLOCKS, TEXT_STORE, TEXTS_PER_USER, USER_SEARCH, VECTOR_STORE, VECTOR_WORK
+from .config import BUCKETS, DIMENSIONS, FETCH_THREADS, HEAD_TEXTS, LUAR, MAX_LENGTH, RECORD_BLOCKS, TEXT_STORE, TEXTS_PER_USER, USER_SEARCH, VECTOR_STORE, VECTOR_WORK, WHOLE_FRAGMENT_SHARE
 from .lock import index_lock
 from .texts import DIGEST, raw, scales
 
@@ -104,6 +106,14 @@ def lists(sizes, values):
 
 def read(path, schema):
     return pa.ipc.open_stream(str(path)).read_all() if path.exists() else schema.empty_table()
+
+
+def vectors_at(dataset, fragment, offsets):
+    piece = dataset.get_fragment(int(fragment))
+    if len(offsets) >= WHOLE_FRAGMENT_SHARE * piece.count_rows():
+        return piece.to_table(columns=["vector"]).column(0).combine_chunks().flatten().to_numpy().reshape(-1, FEATURES)[offsets]
+    unique, inverse = np.unique(offsets, return_inverse=True)
+    return piece.take(unique.tolist(), columns=["vector"]).column(0).combine_chunks().flatten().to_numpy().reshape(-1, FEATURES)[inverse]
 
 
 class Spill:
@@ -286,11 +296,15 @@ def fetch(work, dataset, fragments):
             located += len(unknown)
         owners, offsets = rows >> np.uint64(32), (rows & np.uint64(0xFFFFFFFF)).astype(np.int64)
         codes = np.empty((len(rows), FEATURES), dtype=np.int8)
-        for fragment in np.unique(owners):
-            selected = np.flatnonzero(owners == fragment)
-            unique, inverse = np.unique(offsets[selected], return_inverse=True)
-            values = dataset.get_fragment(int(fragment)).take(unique.tolist(), columns=["vector"]).column(0).combine_chunks()
-            codes[selected] = values.flatten().to_numpy().reshape(-1, FEATURES)[inverse]
+        ordered = np.argsort(owners, kind="stable")
+        fragments, starts = np.unique(owners[ordered], return_index=True)
+
+        def place(item):
+            selected = ordered[item[0]:item[1]]
+            codes[selected] = vectors_at(dataset, item[2], offsets[selected])
+
+        with ThreadPoolExecutor(FETCH_THREADS) as pool:
+            list(pool.map(place, zip(starts, np.append(starts[1:], len(owners)), fragments)))
         spill.write(requests.column("bucket").to_numpy(), pa.record_batch([requests.column("slot").combine_chunks(), pa.array(rows),
                                                                            pa.FixedSizeListArray.from_arrays(pa.array(codes.ravel()), FEATURES)], schema=FETCHED))
         path.unlink()
@@ -301,15 +315,21 @@ def fetch(work, dataset, fragments):
 
 
 def head(model, codes, scale, starts, lengths):
+    device = model.linear.weight.device
     vectors, order, begin = np.empty((len(lengths), DIMENSIONS), dtype=np.float32), np.argsort(lengths, kind="stable"), 0
+    held = torch.from_numpy(np.ascontiguousarray(codes)).to(device)
+    gains = torch.as_tensor(scale, dtype=torch.float32, device=device)
+    first, sizes = torch.as_tensor(starts, device=device), torch.as_tensor(lengths, device=device)
     while begin < len(order):
         widths = lengths[order[begin:begin + HEAD_TEXTS]]
         end = begin + max(1, int(np.count_nonzero(np.arange(1, len(widths) + 1) * widths <= HEAD_TEXTS)))
         users = order[begin:end]
+        chosen = torch.as_tensor(users, device=device)
         width = int(lengths[users].max())
-        present = np.arange(width) < lengths[users, None]
-        batch = codes[np.where(present, starts[users, None] + np.arange(width), 0)].astype(np.float32) * scale * present[:, :, None]
-        vectors[users] = model.users(batch, lengths[users])
+        columns = torch.arange(width, device=device)
+        present = columns < sizes[chosen, None]
+        batch = held[torch.where(present, first[chosen, None] + columns, 0)].float() * gains * present[:, :, None]
+        vectors[users] = model.users(batch, sizes[chosen])
         begin = end
     return vectors
 

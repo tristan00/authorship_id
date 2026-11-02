@@ -39,15 +39,16 @@ def plausible(attribute, value):
 
 
 def tally(attribute, mentions):
-    support = defaultdict(float)
+    amounts = defaultdict(list)
     for value, amount in mentions:
         if plausible(attribute, value):
-            support[value] += amount
-    if not support:
+            amounts[value].append(amount)
+    if not amounts:
         return None
-    scores = {value: sum(amount for other, amount in support.items() if close(attribute, value, other)) for value in support} if attribute in TOLERANCE else support
+    support = {value: math.fsum(found) for value, found in amounts.items()}
+    scores = {value: math.fsum(amount for other, amount in support.items() if close(attribute, value, other)) for value in support} if attribute in TOLERANCE else support
     best = max(sorted(scores), key=lambda value: (scores[value], support[value]))
-    return best, scores[best], scores[best] / sum(support.values()), support
+    return best, scores[best], scores[best] / math.fsum(support.values()), support
 
 
 def decide(attribute, mentions, need):

@@ -11,7 +11,7 @@ import torch
 
 from author_encoder import clean
 from author_encoder.config import MAX_LENGTH, TEXT_STORE
-from author_encoder.index import FEATURES
+from author_encoder.index import FEATURES, vectors_at
 from author_encoder.lock import index_lock
 from author_encoder.model import load_model as load_encoder
 from author_encoder.texts import MONTHS, quantize, scales
@@ -34,9 +34,7 @@ def fetch(dataset, rows, path):
     ends, started = np.append(starts[1:], len(rows)), time.perf_counter()
 
     def read(index):
-        offsets, inverse = np.unique((rows[starts[index]:ends[index]] & np.uint64(0xFFFFFFFF)).astype(np.int64), return_inverse=True)
-        values = dataset.get_fragment(int(fragments[index])).take(offsets.tolist(), columns=["vector"]).column(0).combine_chunks()
-        codes[starts[index]:ends[index]] = values.flatten().to_numpy().reshape(-1, FEATURES)[inverse]
+        codes[starts[index]:ends[index]] = vectors_at(dataset, fragments[index], (rows[starts[index]:ends[index]] & np.uint64(0xFFFFFFFF)).astype(np.int64))
 
     with ThreadPoolExecutor(ENCODERS) as pool:
         for index, _ in enumerate(pool.map(read, range(len(fragments))), 1):

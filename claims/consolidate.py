@@ -12,7 +12,7 @@ from database import DSN, LOGS, NO_AUTHOR, SCAN_WORKERS, vacuum, within
 from reddit_dumps import setup_logging
 
 from . import LOG, timed
-from .config import EVIDENCE_MEMORY, PARTS_PER_WORKER, WORKERS
+from .config import BOT_AUTHORS, EVIDENCE_MEMORY, PARTS_PER_WORKER, WORKERS
 from .flairs import blocked_scopes, gate, near
 from .rules import audit, needs
 from .rules import consolidate as rules
@@ -44,25 +44,35 @@ CREATE UNLOGGED TABLE claim_authors AS SELECT DISTINCT author FROM claim_evidenc
 ANALYZE claim_authors;
 DELETE FROM author_claims WHERE author IN (SELECT author FROM claim_authors);
 """
-READ = {False: "COPY (SELECT author, source, source_key, subreddit, field, value, probability, text_sha256 FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author) TO STDOUT",
-        True: """COPY (SELECT author, e.source, e.source_key, e.subreddit, e.field, e.value, e.probability, e.text_sha256 FROM claim_authors a JOIN claim_evidence e USING (author)
-                 WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author) TO STDOUT"""}
+NEEDED = "source, CASE WHEN source = 'flair' THEN source_key END, CASE WHEN source = 'flair' THEN subreddit END, field, value, probability, substring(text_sha256 for 8)"
+READ = {False: f"COPY (SELECT author, {NEEDED} FROM claim_evidence WHERE author >= %(low)s AND author < %(high)s ORDER BY author) TO STDOUT",
+        True: f"""COPY (SELECT author, {NEEDED} FROM claim_authors a JOIN claim_evidence e USING (author)
+                 WHERE author >= %(low)s AND author < %(high)s ORDER BY author) TO STDOUT"""}
+DISTINCT_ROWS = "SELECT DISTINCT ON (author, field, value, text_sha256, flair_key) author, source, source_key, subreddit, field, value, probability, text_sha256 FROM (SELECT *, CASE WHEN source = 'flair' THEN source_key END AS flair_key FROM ({rows}) unsorted) keyed ORDER BY author, field, value, text_sha256, flair_key"
+EDGES = "SELECT author FROM claim_evidence TABLESAMPLE SYSTEM (0.1) ORDER BY author"
+LAST_AUTHOR = "\U0010FFFF"
 READ_TYPES = ("text", "text", "text", "text", "text", "text", "float4", "bytea")
 PARALLEL = (f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}", "SET parallel_setup_cost = 0", "SET parallel_tuple_cost = 0", f"SET work_mem = '{EVIDENCE_MEMORY}'")
 
 
-def streamed(conn, touched, part, parts):
-    with conn.cursor().copy(READ[touched], {"parts": parts, "part": part}) as copy:
+def author_ranges(conn, parts):
+    authors = [row[0] for row in conn.execute(EDGES)]
+    edges = sorted({authors[len(authors) * part // parts] for part in range(1, parts)})
+    return list(zip(["", *edges], [*edges, LAST_AUTHOR]))
+
+
+def streamed(conn, touched, low, high):
+    with conn.cursor().copy(READ[touched], {"low": low, "high": high}) as copy:
         copy.set_types(READ_TYPES)
         for author, group in groupby(copy.rows(), key=itemgetter(0)):
             yield author, [row[1:] for row in group]
 
 
-def inspect(part, parts, required):
+def inspect(low, high, required):
     setup_logging(LOGS / "claims.log")
     stats, base = {}, defaultdict(Counter)
     with psycopg.connect(DSN) as conn:
-        for _, rows in streamed(conn, False, part, parts):
+        for _, rows in streamed(conn, False, low, high):
             decided, pairs = audit(rows, required)
             for field, value in decided.items():
                 base[field][value] += 1
@@ -73,19 +83,19 @@ def inspect(part, parts, required):
     return stats, {field: dict(counted) for field, counted in base.items()}
 
 
-def work(part, parts, touched, required, blocked):
+def work(low, high, touched, required, blocked):
     setup_logging(LOGS / "claims.log")
     started = time.perf_counter()
     decided = authors = 0
     with psycopg.connect(DSN) as reader, psycopg.connect(DSN) as conn:
         with conn.cursor().copy("COPY author_claims FROM STDIN") as copy:
-            for author, rows in streamed(reader, touched, part, parts):
+            for author, rows in streamed(reader, touched, low, high):
                 authors += 1
                 for attribute, (value, support, share, candidates) in rules(rows, required, blocked).items():
                     ranked = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))
                     copy.write_row((author, attribute, value, support, share, Jsonb([{"value": item, "support": round(amount, 3)} for item, amount in ranked])))
                     decided += 1
-    LOG.info("consolidated part %s/%s authors=%s attributes=%s seconds=%.1f", part + 1, parts, authors, decided, time.perf_counter() - started)
+    LOG.info("consolidated from=%s authors=%s attributes=%s seconds=%.1f", low, authors, decided, time.perf_counter() - started)
     return decided
 
 
@@ -93,7 +103,7 @@ def work(part, parts, touched, required, blocked):
 def evidence(conn):
     for setting in PARALLEL:
         conn.execute(setting)
-    rows = conn.execute(f"CREATE TABLE claim_evidence AS {EVIDENCE.format(months='true')}", {"no_author": NO_AUTHOR}).rowcount
+    rows = conn.execute(f"CREATE TABLE claim_evidence AS {DISTINCT_ROWS.format(rows=EVIDENCE.format(months='true'))}", {"no_author": [*NO_AUTHOR, *BOT_AUTHORS]}).rowcount
     conn.execute("CREATE INDEX claim_evidence_author ON claim_evidence (author, field)")
     conn.execute(f"ALTER TABLE claim_evidence SET (parallel_workers = {SCAN_WORKERS})")
     conn.commit()
@@ -107,7 +117,7 @@ def append(conn, added):
     conn.execute("DELETE FROM consolidation")
     conn.execute("DROP TABLE IF EXISTS claim_evidence_added, claim_authors")
     query = EVIDENCE.format(months=within(added, "t.created_utc"))
-    rows = conn.execute(f"CREATE UNLOGGED TABLE claim_evidence_added AS {query}", {"no_author": NO_AUTHOR}).rowcount
+    rows = conn.execute(f"CREATE UNLOGGED TABLE claim_evidence_added AS {query}", {"no_author": [*NO_AUTHOR, *BOT_AUTHORS]}).rowcount
     conn.execute(ADDED)
     authors = conn.execute("SELECT count(*) FROM claim_authors").fetchone()[0]
     conn.commit()
@@ -130,11 +140,11 @@ def base(conn, loaded):
 
 @timed
 def inspected(conn):
-    parts = WORKERS * PARTS_PER_WORKER
+    ranges = author_ranges(conn, WORKERS * PARTS_PER_WORKER)
     required = needs()
     stats, base = {}, defaultdict(Counter)
     with multiprocessing.Pool(WORKERS) as pool:
-        for found, counted in pool.starmap(inspect, [(part, parts, required) for part in range(parts)]):
+        for found, counted in pool.starmap(inspect, [(low, high, required) for low, high in ranges]):
             for key, (count, hits) in found.items():
                 entry = stats.setdefault(key, [0, 0])
                 entry[0] += count
@@ -145,11 +155,11 @@ def inspected(conn):
 
 
 @timed
-def decide(touched, blocked):
-    parts = WORKERS * PARTS_PER_WORKER
+def decide(conn, touched, blocked):
     required = needs()
+    ranges = author_ranges(conn, WORKERS * PARTS_PER_WORKER)
     with multiprocessing.Pool(WORKERS) as pool:
-        return sum(pool.starmap(work, [(part, parts, touched, required, blocked) for part in range(parts)]))
+        return sum(pool.starmap(work, [(low, high, touched, required, blocked) for low, high in ranges]))
 
 
 @timed
@@ -171,7 +181,7 @@ def consolidate():
             evidence(conn)
         else:
             append(conn, added)
-        attributes = decide(previous is not None, inspected(conn) if previous is None else blocked_scopes(conn))
+        attributes = decide(conn, previous is not None, inspected(conn) if previous is None else blocked_scopes(conn))
         conn.execute("INSERT INTO consolidation (run_id, months, started_at, base, added) VALUES (%s, %s, %s, %s, %s)", [run_id, months, started, previous, added])
         if previous is None:
             conn.execute("ALTER TABLE author_claims ADD PRIMARY KEY (author, attribute)")
@@ -190,7 +200,7 @@ def redecide():
         conn.execute(FIELD_TYPE)
         conn.execute(CLAIMS)
         conn.commit()
-        attributes = decide(False, inspected(conn))
+        attributes = decide(conn, False, inspected(conn))
         conn.execute("DELETE FROM consolidation")
         conn.execute("INSERT INTO consolidation (run_id, months, started_at) VALUES (%s, %s, %s)", [run_id, months, started])
         conn.execute("ALTER TABLE author_claims ADD PRIMARY KEY (author, attribute)")

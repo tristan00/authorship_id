@@ -13,7 +13,7 @@ from psycopg.rows import dict_row
 from pyarrow import csv
 
 from author_encoder.config import DIMENSIONS, TEXT_STORE, VECTOR_STORE, VECTOR_WORK
-from author_encoder.index import FEATURES, PROTOCOL, Spill, head, read
+from author_encoder.index import FEATURES, PROTOCOL, Spill, head, read, vectors_at
 from author_encoder.lock import index_lock
 from author_encoder.model import load_model
 from author_encoder.texts import raw, scales
@@ -136,9 +136,7 @@ def clean_vectors(texts, rows, owners, count, path):
     started = time.perf_counter()
 
     def fetch(index):
-        offsets, inverse = np.unique((rows_sorted[begins[index]:ends[index]] & np.uint64(0xFFFFFFFF)).astype(np.int64), return_inverse=True)
-        values = texts.get_fragment(int(fragments[index])).take(offsets.tolist(), columns=["vector"]).column(0).combine_chunks()
-        return index, values.flatten().to_numpy().reshape(-1, FEATURES)[inverse]
+        return index, vectors_at(texts, fragments[index], (rows_sorted[begins[index]:ends[index]] & np.uint64(0xFFFFFFFF)).astype(np.int64))
 
     with ThreadPoolExecutor(ENCODERS) as pool:
         for done, (index, codes) in enumerate(pool.map(fetch, range(len(fragments))), 1):
