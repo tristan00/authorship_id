@@ -5,3 +5,4 @@ data/
 .venv/
 .ipynb_checkpoints/
 *.pdf
+Agents.md
