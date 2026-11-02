@@ -107,7 +107,7 @@ def bodies(month):
         source.execute(f"SET work_mem = '{SORT_MEMORY}'")
         source.execute(f"SET max_parallel_workers_per_gather = {SORT_WORKERS}")
         source.execute("SET enable_hashjoin = off")
-        source.execute("SET enable_mergejoin = off")
+        source.execute("SET enable_nestloop = off")
         target.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
         cursor.execute("CREATE TABLE bodies_{name} (LIKE bodies, CHECK (month = '{month}')) WITH ({storage})".format(**names))
         with source.cursor().copy(NEW_BODIES) as out, cursor.copy(f"COPY bodies_{names['name']} FROM STDIN (FORMAT binary, FREEZE)") as into:

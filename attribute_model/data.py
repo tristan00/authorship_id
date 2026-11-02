@@ -123,7 +123,44 @@ def clean_rows(users, labeled, mask, starts):
 
 
 @timed
-def clean_vectors(texts, rows, owners, count, path):
+def reusable(directory, authors, rows, owners, expected):
+    missing = np.full(len(authors), -1, dtype=np.int64)
+    if not (directory / "clean_rows.npy").exists():
+        return missing
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    if manifest["source"]["months"] != expected["months"] or manifest["source"]["protocol"] != expected["protocol"]:
+        return missing
+    known = pa.array(json.loads((directory / "authors.json").read_text(encoding="utf-8")))
+    earlier = pc.fill_null(pc.index_in(pa.array(authors), value_set=known), -1).to_numpy().astype(np.int64)
+    old_rows, old_owners = np.load(directory / "clean_rows.npy"), np.load(directory / "clean_owners.npy")
+    old_sizes, sizes = np.bincount(old_owners, minlength=len(known)), np.bincount(owners, minlength=len(authors))
+    old_starts, starts = np.cumsum(old_sizes) - old_sizes, np.cumsum(sizes) - sizes
+    candidates = np.flatnonzero((earlier >= 0) & (sizes == old_sizes[earlier]))
+    lengths = sizes[candidates]
+    slot = np.repeat(np.arange(len(candidates)), lengths)
+    offset = np.arange(len(slot)) - (np.cumsum(lengths) - lengths)[slot]
+    differs = rows[starts[candidates][slot] + offset] != old_rows[old_starts[earlier[candidates]][slot] + offset]
+    keep = np.full(len(authors), -1, dtype=np.int64)
+    same = candidates[np.bincount(slot, weights=differs, minlength=len(candidates)) == 0]
+    keep[same] = earlier[same]
+    LOG.info("clean vectors reusable=%d of %d", len(same), len(authors))
+    return keep
+
+
+@timed
+def clean_vectors(texts, rows, owners, count, path, previous, earlier):
+    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(count, DIMENSIONS + SUBREDDIT_RANK))
+    reused = np.flatnonzero(earlier >= 0)
+    if len(reused):
+        stored = np.load(previous / "users.npy", mmap_mode="r")
+        for start in range(0, len(reused), SUBREDDIT_CHUNK):
+            chosen = reused[start:start + SUBREDDIT_CHUNK]
+            vectors[chosen, :DIMENSIONS] = stored[earlier[chosen], :DIMENSIONS]
+        del stored
+    changed = earlier[owners] < 0
+    if not changed.any():
+        return vectors
+    rows, owners = rows[changed], owners[changed]
     work = VECTOR_WORK / "clean"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
@@ -146,7 +183,6 @@ def clean_vectors(texts, rows, owners, count, path):
                 LOG.info("clean codes fragments=%d/%d seconds=%.1f", done, len(fragments), time.perf_counter() - started)
     spill.close()
     model, scale = load_model("cuda"), scales(texts)
-    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(count, DIMENSIONS + SUBREDDIT_RANK))
     for part in range(CLEAN_BUCKETS):
         file = work / f"codes_{part}.arrow"
         table = read(file, FETCHED)
@@ -208,7 +244,7 @@ def prepare(directory, targets):
         authors = users.to_table(columns=["author"], scan_in_order=True)["author"].take(pa.array(places)).to_pylist()
         del mask, starts
         staging.mkdir(parents=True)
-        vectors = clean_vectors(texts, rows, row_owners, len(authors), staging / "users.npy")
+        vectors = clean_vectors(texts, rows, row_owners, len(authors), staging / "users.npy", directory, reusable(directory, authors, rows, row_owners, expected))
         add_subreddits(vectors, places)
     placed = position[owner]
     present = placed >= 0
