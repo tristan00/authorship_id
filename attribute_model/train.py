@@ -73,6 +73,14 @@ def calibrate(model, vectors, labels, specs, mass):
     return result
 
 
+def stated_auc(model, vectors, labels, batch=8192):
+    scores = torch.cat([model.stated(model(vectors[start:start + batch].float())).float() for start in range(0, len(vectors), batch)])
+    present = torch.isfinite(labels)
+    ranks = scores.argsort(0).argsort(0).double() + 1
+    positives = present.sum(0).double()
+    return (((ranks * present).sum(0) - positives * (positives + 1) / 2) / (positives * (len(labels) - positives))).tolist()
+
+
 def expected_calibration(confidence, correct, bins=15):
     edges = np.linspace(0, 1, bins + 1)[1:-1]
     which = np.digitize(confidence, edges)
@@ -108,6 +116,10 @@ def report(model, vectors, labels, specs, calibration):
                                     "top5_accuracy": top5, "macro_recall": float(np.mean(wins[counts > 0] / counts[counts > 0])),
                                     "log_loss": float(F.nll_loss(logged.clamp_min_(math.log(1e-12)), target)), "prior_log_loss": float(-prior[target].log().mean()),
                                     "calibration_error": expected_calibration(confidence.cpu().numpy(), correct)}
+    with torch.autocast(DEVICE, dtype=torch.bfloat16):
+        model.eval()
+        for spec, auc in zip(specs, stated_auc(model, vectors, labels)):
+            result[spec["name"]] |= {"stated_share": spec["stated"], "stated_auc": auc}
     return result
 
 

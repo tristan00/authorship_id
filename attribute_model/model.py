@@ -47,7 +47,11 @@ class AttributeModel(nn.Module):
         self.slices = dict(zip(self.numeric + self.categorical, zip(offsets[:-1].tolist(), offsets[1:].tolist())))
         self.head = nn.Linear(width, int(offsets[-1]))
         self.embeddings = nn.ModuleList(LabelEmbedding(width, len(specifications[index]["values"]), rank) for index in self.embedding)
+        self.stated = nn.Linear(width, len(specifications))
+        shares = torch.tensor([spec["stated"] for spec in specifications], dtype=torch.float32)
         with torch.no_grad():
+            self.stated.weight.normal_(std=.01)
+            self.stated.bias.copy_(shares.logit())
             self.head.weight.normal_(std=.01)
             self.head.bias.zero_()
             for index in self.numeric:
@@ -66,6 +70,7 @@ class AttributeModel(nn.Module):
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
                    "quantiles": torch.tensor(QUANTILES, dtype=torch.float32),
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
+                   "stated_baseline": -(shares * shares.log() + (1 - shares) * (1 - shares).log()),
                    "shift": torch.tensor(features["center"], dtype=torch.float32),
                    "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32)}
         for name, value in buffers.items():
@@ -110,9 +115,12 @@ class AttributeModel(nn.Module):
                 overflow += (counts[index] - capacity[slot]).clamp_min(0)
         return sums, counts, overflow
 
+    def stated_loss(self, hidden, labels):
+        return (F.binary_cross_entropy_with_logits(self.stated(hidden).float(), torch.isfinite(labels).float(), reduction="none").mean(0) / self.stated_baseline).mean()
+
     def loss(self, hidden, labels, capacity=None):
         sums, counts, overflow = self.terms(hidden, labels, capacity)
-        return (sums / counts.clamp_min(1) / self.baseline).mean(), overflow
+        return (sums / counts.clamp_min(1) / self.baseline).mean() + self.stated_loss(hidden, labels), overflow
 
 
 def numeric(output, spec):
@@ -127,7 +135,7 @@ def specifications(targets, catalogs, labels, training):
         observed = observed[np.isfinite(observed)]
         if len(observed) < 2:
             raise ValueError(f"{name}: fewer than two training labels")
-        spec = {"name": name, "type": kind, "training_labels": len(observed)}
+        spec = {"name": name, "type": kind, "training_labels": len(observed), "stated": len(observed) / len(training)}
         if kind == "numeric":
             center = float(np.median(observed))
             scale = float(np.median(np.abs(observed - center)) * 1.4826)

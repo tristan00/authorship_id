@@ -9,7 +9,7 @@ from attribute_model.config import columns, read_targets
 from database import DSN, NO_AUTHOR
 
 from . import timed
-from .config import CLAIMS, EXCERPT, EXCERPT_READ, GROUPS, PAGE, PARENTS, POOL_MAX, POOL_MIN, POOL_WAIT, POST_SCAN, RECENT, SEARCH, SEARCH_INPUT, SEARCH_VARIANT_CHARS, SESSION, SIMILAR, STARTS
+from .config import CLAIMS, EXCERPT, EXCERPT_READ, GROUPS, LIFT_SHOWN, OPTIONAL, PAGE, PARENTS, POOL_MAX, POOL_MIN, POOL_WAIT, POST_SCAN, RECENT, SEARCH, SEARCH_INPUT, SEARCH_VARIANT_CHARS, SESSION, SIMILAR, STARTS, WEAK_LIFT, WEAK_RATIO
 
 POOL = ConnectionPool(DSN, min_size=POOL_MIN, max_size=POOL_MAX, timeout=POOL_WAIT, open=False, check=ConnectionPool.check_connection,
                       kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": None, "options": SESSION})
@@ -118,6 +118,19 @@ def claims_check(rows, consolidated):
     return {"name": "Claims", "current": True, "detail": "Claims are consolidated across every loaded month."}
 
 
+def trust_of(evaluation):
+    found = {}
+    for attribute, row in evaluation.items():
+        if "accuracy" in row:
+            ratio = row["log_loss"] / row["prior_log_loss"]
+            found[attribute] = {"kind": "share", "model": row["accuracy"], "baseline": row["majority_baseline_accuracy"], "tested": row["n"], "ratio": ratio, "stated_by": row["stated_share"],
+                                "weak": ratio >= WEAK_RATIO or row["accuracy"] - row["majority_baseline_accuracy"] < WEAK_LIFT}
+        else:
+            ratio = row["mae"] / row["median_baseline_mae"]
+            found[attribute] = {"kind": "error", "model": row["mae"], "baseline": row["median_baseline_mae"], "tested": row["n"], "ratio": ratio, "stated_by": row["stated_share"], "weak": ratio >= WEAK_RATIO}
+    return found
+
+
 def predictions_check(published, run, loaded, protocol, targets):
     if published is None:
         return {"name": "Predictions", "current": False, "detail": "No predictions are published."}
@@ -156,11 +169,12 @@ def status():
         rows = conn.execute("SELECT month, loaded_at, extracted_at FROM months ORDER BY month").fetchall()
         consolidated = conn.execute(CONSOLIDATED).fetchone()["current"]
         run = conn.execute("SELECT run_id::text AS run_id FROM consolidation").fetchone()
-        published = conn.execute("SELECT source, targets FROM prediction").fetchone()
+        published = conn.execute("SELECT source, targets, evaluation FROM prediction").fetchone()
     loaded = {row["month"]: str(row["loaded_at"]) for row in rows}
     encoded = json.loads(lance.dataset(TEXT_STORE).schema.metadata[MONTHS])
     return {"months": list(loaded), "checks": [claims_check(rows, consolidated), predictions_check(published, run, loaded, json.loads(PROTOCOL), read_targets()),
-                                               vectors_check(source(VECTOR_STORE), encoded, loaded)]}
+                                               vectors_check(source(VECTOR_STORE), encoded, loaded)],
+            "trust": sorted(({"attribute": attribute} | row for attribute, row in trust_of(published["evaluation"]).items()), key=lambda row: row["ratio"]) if published else []}
 
 
 def common(conn):
@@ -235,14 +249,17 @@ def author(name):
     with POOL.connection() as conn:
         require_author(conn, name)
         claims = conn.execute("SELECT attribute, value FROM author_claims WHERE author = %s ORDER BY attribute LIMIT %s", [name, CLAIMS]).fetchall()
-        published = conn.execute("SELECT targets, interval_mass, source->>'consolidation' AS consolidation FROM prediction").fetchone()
+        published = conn.execute("SELECT targets, evaluation, interval_mass, source->>'consolidation' AS consolidation FROM prediction").fetchone()
         run = conn.execute("SELECT run_id::text AS run_id FROM consolidation").fetchone()
         prediction = conn.execute("SELECT * FROM author_predictions WHERE account = %s", [name]).fetchone()
     predicted = predicted_attributes(prediction, published["targets"]) if prediction and published else {}
+    trust = trust_of(published["evaluation"]) if published else {}
+    predicted = {attribute: value | {"trust": trust[attribute], "optional": attribute in OPTIONAL, "lift": prediction[f"{attribute}_stated"] / trust[attribute]["stated_by"]} for attribute, value in predicted.items()}
     stated = [{"attribute": claim["attribute"], "stated": claim["value"], "predicted": predicted.get(claim["attribute"])} for claim in claims]
     claimed = {claim["attribute"] for claim in claims}
-    others = [{"attribute": attribute, "stated": None, "predicted": value} for attribute, value in predicted.items() if attribute not in claimed]
-    return {"name": name, "stated": stated, "predicted_only": sorted(others, key=confidence_order), "has_prediction": bool(predicted),
+    others = [{"attribute": attribute, "stated": None, "predicted": value} for attribute, value in predicted.items() if attribute not in claimed and (not value["optional"] or value["lift"] >= LIFT_SHOWN)]
+    no_sign = sorted(attribute for attribute, value in predicted.items() if attribute not in claimed and value["optional"] and value["lift"] < LIFT_SHOWN)
+    return {"name": name, "stated": stated, "predicted_only": sorted(others, key=confidence_order), "no_sign": no_sign, "has_prediction": bool(predicted),
             "interval_mass": published and published["interval_mass"], "stale": bool(published and (run is None or published["consolidation"] != run["run_id"]))}
 
 

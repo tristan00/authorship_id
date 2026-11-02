@@ -174,6 +174,10 @@ function home(page) {
       h('p', { class: 'muted small' }, `${data.months.length} ${plural(data.months.length, 'month')} loaded: ${data.months.join(', ')}`),
       h('ul', { class: 'status' }, data.checks.map(check => h('li', { class: check.current ? 'current' : 'stale' },
         h('span', { class: 'dot', 'aria-hidden': 'true' }), h('span', { class: 'name' }, check.name), h('span', { class: 'detail' }, check.detail)))),
+      data.trust.length > 0 && h('details', { class: 'section' },
+        h('summary', {}, h('h2', {}, 'How far to trust predictions')),
+        h('p', { class: 'note' }, 'Tested on authors the model never saw, among those who state a value, strongest first. Guessing means always answering the most common value. Attributes marked weak barely beat guessing. Stated by is the share of authors with any stated attribute who state this one.'),
+        h('div', { class: 'body' }, trustTable(data.trust))),
     ], page),
   );
   document.getElementById('search').focus();
@@ -219,14 +223,42 @@ function feed(url, show, emptyMessage, page) {
   return h('div', {}, list, foot);
 }
 
+const miss = value => (value < 100 ? String(Math.round(value * 10) / 10) : whole.format(Math.round(value)));
+
+function trustLine(row) {
+  return row.kind === 'share'
+    ? `Right ${percent(row.model)} of the time in testing. Always guessing the most common value is right ${percent(row.baseline)}.`
+    : `Off by ${miss(row.model)} on average in testing. Always guessing the middle value is off by ${miss(row.baseline)}.`;
+}
+
+function weakTag(trust) {
+  return trust.weak ? h('span', { class: 'weak', title: trustLine(trust) }, 'weak') : null;
+}
+
+function liftTag(predicted) {
+  return predicted.optional ? h('span', { class: 'extra', title: 'How much more likely than an average author this one is to mention this at all.' }, `${Math.round(predicted.lift * 10) / 10}x average`) : null;
+}
+
 function predictedCell(attribute, predicted) {
   if (predicted.kind === 'numeric') {
     return [
-      h('span', {}, amount(attribute, predicted.value) + UNITS[attribute]),
+      h('span', { title: trustLine(predicted.trust) }, amount(attribute, predicted.value) + UNITS[attribute]),
       h('span', { class: 'extra' }, `range ${amount(attribute, predicted.lower)} to ${amount(attribute, predicted.upper)}`),
+      weakTag(predicted.trust),
     ];
   }
-  return [h('span', {}, predicted.value), h('span', { class: 'extra' }, percent(predicted.probability))];
+  return [h('span', { title: trustLine(predicted.trust) }, predicted.value), h('span', { class: 'extra' }, percent(predicted.probability)), liftTag(predicted), weakTag(predicted.trust)];
+}
+
+function trustTable(rows) {
+  return h('table', { class: 'trust' },
+    h('thead', {}, h('tr', {}, h('th', {}, 'Attribute'), h('th', {}, 'Model'), h('th', {}, 'Guessing'), h('th', {}, 'Tested on'), h('th', {}, 'Stated by'))),
+    h('tbody', {}, rows.map(row => h('tr', {},
+      h('th', { scope: 'row' }, label(row.attribute), row.weak && h('span', { class: 'weak' }, 'weak')),
+      h('td', {}, row.kind === 'share' ? percent(row.model) + ' right' : `off by ${miss(row.model)}`),
+      h('td', {}, row.kind === 'share' ? percent(row.baseline) + ' right' : `off by ${miss(row.baseline)}`),
+      h('td', {}, whole.format(row.tested)),
+      h('td', {}, row.stated_by < .01 ? `${Math.round(row.stated_by * 1000) / 10}%` : percent(row.stated_by))))));
 }
 
 function statedCell(attribute, value) {
@@ -263,7 +295,8 @@ function profile(data) {
     !data.has_prediction && h('p', { class: 'notice spaced' }, 'The model has no prediction for this author.'),
     h('table', { class: 'profile' }, h('thead', {}, h('tr', {}, h('th', {}, 'Attribute'), h('th', {}, 'Stated'), h('th', {}, 'Predicted'))), body),
     expand,
-    data.has_prediction && h('p', { class: 'note spaced' }, `Ranges are ${percent(data.interval_mass)} intervals. Percentages are model probabilities.`),
+    data.no_sign.length > 0 && h('p', { class: 'note spaced' }, `No sign of: ${data.no_sign.map(label).join(', ')}. This author is not more likely than average to mention these, so no value is guessed.`),
+    data.has_prediction && h('p', { class: 'note spaced' }, `Ranges are ${percent(data.interval_mass)} intervals. Percentages are how likely each value is if this author stated one, not how likely it is to apply to them.`),
   ].filter(Boolean);
 }
 

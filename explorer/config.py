@@ -24,3 +24,8 @@ PARENTS = 20
 CLAIMS = 200
 EXCERPT_READ = 1000
 EXCERPT = 240
+OPTIONAL = frozenset({"military_status", "neurotype", "mental_condition", "physical_condition", "diet", "pets", "parental_status", "smoking",
+                      "sports_team", "athlete", "artist", "author", "character", "franchise", "video_game", "creator", "celebrity"})
+LIFT_SHOWN = 2.
+WEAK_RATIO = .9
+WEAK_LIFT = .02

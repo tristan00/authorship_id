@@ -36,7 +36,7 @@ ALTER TABLE author_predictions_next RENAME TO author_predictions;
 ALTER INDEX author_predictions_next_pkey RENAME TO author_predictions_pkey;
 ANALYZE author_predictions;
 DROP TABLE IF EXISTS prediction;
-CREATE TABLE prediction (model_id uuid PRIMARY KEY, source jsonb NOT NULL, targets jsonb NOT NULL, interval_mass real NOT NULL, users bigint NOT NULL, finished_at timestamptz NOT NULL DEFAULT clock_timestamp());
+CREATE TABLE prediction (model_id uuid PRIMARY KEY, source jsonb NOT NULL, targets jsonb NOT NULL, evaluation jsonb NOT NULL, interval_mass real NOT NULL, users bigint NOT NULL, finished_at timestamptz NOT NULL DEFAULT clock_timestamp());
 """
 
 
@@ -44,7 +44,7 @@ def schema(targets):
     result = [("account", "text")]
     for name, kind in targets.items():
         result += zip(columns(name, kind), ("real",) * 3 if kind == "numeric" else ("text", "real"))
-    return result
+    return result + [(f"{name}_stated", "real") for name in targets]
 
 
 def build(artifact):
@@ -94,6 +94,10 @@ def predict(loaded, vectors, candidates=5):
                     for row, (labels, scores) in enumerate(zip(indices.tolist(), probabilities.tolist()), start):
                         options = [{"value": spec["values"][label], "probability": probability} for label, probability in zip(labels, scores)]
                         result[row][name] = {"type": spec["type"], "value": options[0]["value"], "probability": options[0]["probability"], "candidates": options}
+            stated = model.stated(model(torch.from_numpy(values[start:start + 1024]))).sigmoid().tolist()
+            for row, chances in enumerate(stated, start):
+                for spec, chance in zip(artifact["specifications"], chances):
+                    result[row][spec["name"]]["stated"] = chance
     return result
 
 
@@ -101,7 +105,9 @@ def predict(loaded, vectors, candidates=5):
 def infer(model, artifact, catalogs, chunk, subreddits, device):
     vectors = torch.from_numpy(np.concatenate([chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS), subreddits], 1).astype(np.float32)).to(device)
     numbers, indices = [], []
-    for spec, _, scored in calibrated(artifact, model.outputs(model(vectors))):
+    hidden = model(vectors)
+    stated = model.stated(hidden).sigmoid().cpu().numpy()
+    for spec, _, scored in calibrated(artifact, model.outputs(hidden)):
         if spec["type"] == "numeric":
             numbers += scored
         else:
@@ -117,7 +123,7 @@ def infer(model, artifact, catalogs, chunk, subreddits, device):
         else:
             result += [catalogs[spec["name"]].take(indices[:, category]), numbers[:, number]]
             number, category = number + 1, category + 1
-    return result
+    return result + [stated[:, column] for column in range(stated.shape[1])]
 
 
 def binary(columns):
@@ -197,8 +203,8 @@ def load_segments(fields, artifact, segments):
             raise RuntimeError("Prediction segments are incomplete; nothing was published")
         started = time.perf_counter()
         conn.execute(PUBLISH)
-        conn.execute("INSERT INTO prediction (model_id, source, targets, interval_mass, users) VALUES (%s, %s, %s, %s, %s)",
-                     [artifact["model_id"], Jsonb(artifact["source"]), Jsonb(artifact["targets"]), artifact["parameters"]["interval_mass"], item])
+        conn.execute("INSERT INTO prediction (model_id, source, targets, evaluation, interval_mass, users) VALUES (%s, %s, %s, %s, %s, %s)",
+                     [artifact["model_id"], Jsonb(artifact["source"]), Jsonb(artifact["targets"]), Jsonb(artifact["evaluation"]), artifact["parameters"]["interval_mass"], item])
         LOG.info("attribute predictions keyed and published users=%d seconds=%.1f", item, time.perf_counter() - started)
     return item
 

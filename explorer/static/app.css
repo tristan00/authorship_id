@@ -92,6 +92,14 @@ aside .section:first-child { padding-top: 0; border-top: 0; }
 .profile td { width: 33%; }
 .profile .group th { padding-top: 1.25rem; color: var(--muted); font-size: .875rem; font-weight: 600; }
 .profile .extra { color: var(--muted); font-size: .875rem; margin-left: .375rem; font-variant-numeric: tabular-nums; }
+details > summary { cursor: pointer; }
+details > summary h2 { display: inline; }
+.weak { margin-left: .375rem; padding: 0 .375rem; font-size: .75rem; color: var(--warn); background: var(--warn-bg); border-radius: 4px; }
+.trust { width: 100%; max-width: 44rem; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.trust th, .trust td { padding: .3rem .75rem .3rem 0; text-align: left; border-bottom: 1px solid var(--line); }
+.trust thead th { color: var(--muted); font-size: .875rem; font-weight: 600; }
+.trust tbody th { font-weight: 500; }
+.trust td { white-space: nowrap; }
 .banner { padding: .625rem .875rem; margin-bottom: .75rem; color: var(--warn); background: var(--warn-bg); border-radius: 6px; }
 
 .texts > li { padding: .75rem 0; border-bottom: 1px solid var(--line); }
