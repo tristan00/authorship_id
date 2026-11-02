@@ -6,7 +6,6 @@ from claims.consolidate import consolidate
 from claims.extract import run as extract
 from database import DSN, LOGS
 from database.load import add, verify
-from explorer.prepare import prepare
 from reddit_dumps import setup_logging
 from reddit_dumps.catalog import load_catalog, month_index
 from reddit_dumps.download import delete, download, files
@@ -15,7 +14,6 @@ from . import LOG, timed
 
 CONSOLIDATED = """SELECT EXISTS (SELECT FROM consolidation WHERE months = (SELECT array_agg(month ORDER BY month) FROM months)
     AND started_at > (SELECT max(extracted_at) FROM months))"""
-EXPLORED = "SELECT EXISTS (SELECT FROM explorer_totals WHERE run_id = (SELECT run_id FROM consolidation))"
 
 
 def loaded(month):
@@ -105,14 +103,6 @@ def attributes():
 
 
 @timed
-def explorer():
-    if current("explorer_totals", EXPLORED):
-        LOG.info("explorer matches the consolidation")
-        return
-    prepare()
-
-
-@timed
 def run(month):
     fetch(month)
     upcoming = background(prefetch, following(month))
@@ -123,7 +113,6 @@ def run(month):
         try:
             extract()
             consolidation()
-            explorer()
         finally:
             wait(encoder)
         attributes()
