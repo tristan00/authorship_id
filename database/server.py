@@ -53,8 +53,7 @@ CREATE TABLE records_{name} (LIKE records, CHECK (created_utc >= {start} AND cre
 CREATE UNLOGGED TABLE bodies_stage (text_sha256 bytea NOT NULL, text text NOT NULL, words integer NOT NULL, month text NOT NULL);
 """
 INDEXES = ("ALTER TABLE records_{name} ADD PRIMARY KEY (record_id)", "CREATE INDEX records_{name}_subreddit ON records_{name} (subreddit, created_utc)",
-           "CREATE INDEX records_{name}_author ON records_{name} (author, created_utc) INCLUDE (record_type, record_id)",
-           "CREATE INDEX records_{name}_link ON records_{name} (link_id)")
+           "CREATE INDEX records_{name}_author ON records_{name} (author, created_utc) INCLUDE (record_type, record_id)")
 NEW_BODIES = """
 COPY (SELECT DISTINCT ON (text_sha256) text_sha256, text, words, month FROM bodies_stage s
       WHERE NOT EXISTS (SELECT FROM bodies b WHERE b.text_sha256 = s.text_sha256) ORDER BY text_sha256) TO STDOUT (FORMAT binary)

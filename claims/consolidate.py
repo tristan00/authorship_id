@@ -87,7 +87,6 @@ def evidence(conn):
     for setting in PARALLEL:
         conn.execute(setting)
     rows = conn.execute(f"CREATE TABLE claim_evidence AS {EVIDENCE.format(months='true')}", {"no_author": NO_AUTHOR}).rowcount
-    conn.execute("CREATE INDEX claim_evidence_source ON claim_evidence (source_key)")
     conn.execute("CREATE INDEX claim_evidence_author ON claim_evidence (author, field)")
     conn.execute(f"ALTER TABLE claim_evidence SET (parallel_workers = {SCAN_WORKERS})")
     conn.commit()
