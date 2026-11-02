@@ -8,7 +8,7 @@ import psycopg
 from database import DSN
 
 from . import LOG, timed
-from .annotate import answers, generate, rows, texts, votes
+from .annotate import generate, next_round, rounds, rows, texts, votes
 from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_ATTRIBUTE, GOLD_TEXTS, HELD_FOLDS, NEEDS, PLACE_CHAINS, TEACHER, THRESHOLDS, VERIFIERS
 from .extractor import load_extractor, predict, splitter, windows
 from .rules import CHAINED, agree, chain, decide, flair_strength, needs, place_paths, strength
@@ -138,12 +138,14 @@ def expanded(fields):
 @timed
 def author_gold():
     table = {author: expanded(fields) for author, fields in cohort_evidence().items()}
+    judged = {row["id"] for row in rows(ANNOTATIONS / "author_gold.jsonl")}
     pools = defaultdict(lambda: ([], []))
     for author in sorted(table):
         for field, entries in table[author].items():
-            pools[field][len({entry["value"] for entry in entries}) > 1].append(author)
-    rng, picked = random.Random(5), []
-    for field, (plain, conflicted) in pools.items():
+            if f"{author}|{field}" not in judged:
+                pools[field][len({entry["value"] for entry in entries}) > 1].append(author)
+    rng, picked = random.Random(5 + len(rounds("author_gold"))), []
+    for field, (plain, conflicted) in sorted(pools.items()):
         rng.shuffle(plain)
         rng.shuffle(conflicted)
         taken = conflicted[:GOLD_PER_ATTRIBUTE // 2]
@@ -163,7 +165,7 @@ def author_gold():
     adult, minors = safety()
     written = blocked = 0
     records = ANNOTATIONS / "author_gold.prompts.jsonl"
-    with open(records, "w", encoding="utf-8") as prompts, open(ANNOTATIONS / "author_gold.jsonl", "w", encoding="utf-8") as items:
+    with open(records, "w", encoding="utf-8") as prompts, open(ANNOTATIONS / "author_gold.jsonl", "a", encoding="utf-8") as items:
         for author, field in picked:
             options, risky, values = [], False, list(shown[author, field])
             for letter, value in zip(LETTERS, values):
@@ -186,8 +188,9 @@ def author_gold():
             items.write(json.dumps({"id": key, "author": author, "attribute": field, "values": values}, ensure_ascii=False) + "\n")
             written += 1
     LOG.info("author gold items=%d blocked=%d", written, blocked)
+    run = next_round("author_gold", TEACHER)
     for model in VERIFIERS:
-        generate(model, records, "author_gold", 4)
+        generate(model, records, run, 4)
 
 
 def gold_choice(answer, values):
@@ -200,10 +203,10 @@ def gold_choice(answer, values):
 
 
 def author_truth():
-    votes = {model: answers("author_gold", model) for model in VERIFIERS}
+    ballots = {model: votes("author_gold", model) for model in VERIFIERS}
     truth = {}
     for item in rows(ANNOTATIONS / "author_gold.jsonl"):
-        picks = [gold_choice(votes[model].get(item["id"]), item["values"]) for model in VERIFIERS]
+        picks = [gold_choice(ballots[model].get(item["id"]), item["values"]) for model in VERIFIERS]
         if picks[0] is not None and picks[0] in picks[1:]:
             truth[item["author"], item["attribute"]] = picks[0]
     return truth

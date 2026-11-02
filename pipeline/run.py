@@ -80,10 +80,20 @@ def clean(month):
 
 
 @timed
+def tables():
+    from claims.names import annotate, apply, extracted
+    from claims.places import annotate as places
+    annotate(extracted())
+    apply()
+    places()
+
+
+@timed
 def consolidation():
     if current("consolidation", CONSOLIDATED):
         LOG.info("consolidation covers every extracted month")
         return
+    tables()
     consolidate()
 
 
@@ -112,9 +122,9 @@ def run(month):
         encoder = background(vectors)
         try:
             extract()
-            consolidation()
         finally:
             wait(encoder)
+        consolidation()
         attributes()
     finally:
         wait(upcoming)

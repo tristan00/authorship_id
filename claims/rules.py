@@ -2,7 +2,7 @@ import json
 import math
 from collections import defaultdict
 
-from .config import BOT_PROBABILITY, BOT_SHARE, BOT_TEXTS, FLAIR_STRENGTH, NUMERIC, PLACE_CHAINS, PLACE_LEVELS, PLACE_WEIGHTS, PLACES_FILE, SHARE, THRESHOLDS, TOLERANCE
+from .config import BOT_PROBABILITY, BOT_SHARE, BOT_TEXTS, CHILD_AGE, FLAIR_STRENGTH, NOT_A_CHILD, NUMERIC, PLACE_CHAINS, PLACE_LEVELS, PLACE_WEIGHTS, PLACES_FILE, SHARE, THRESHOLDS, TOLERANCE
 from .schema import BOT
 
 PLACES = json.loads(PLACES_FILE.read_text(encoding="utf-8"))
@@ -119,6 +119,8 @@ def consolidate(rows, required, blocked):
             decided[field] = found
     for fields in PLACE_CHAINS:
         decided.update(chain(fields, mentions, required))
+    if "age" in decided and float(decided["age"][0]) < CHILD_AGE and any(field in decided and decided[field][0] in values for field, values in NOT_A_CHILD.items()):
+        del decided["age"]
     return decided
 
 
