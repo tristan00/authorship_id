@@ -25,7 +25,7 @@ from . import LOG, timed, write_json
 from .config import CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, check_targets, partition, validate
 
 CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s)) TO STDOUT (FORMAT CSV)"
-BEARING = "COPY (SELECT DISTINCT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
+BEARING = "COPY (SELECT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
 ARRAYS = ("users", "labels", "splits")
 SPREAD_ROWS = 1 << 20
 FETCHED = pa.schema([pa.field("slot", pa.uint64()), pa.field("vector", pa.list_(pa.int8(), FEATURES))])
@@ -67,9 +67,9 @@ def bearing_rows(conn, texts):
     with conn.cursor().copy(BEARING, [BOT]) as copy:
         for chunk in copy:
             data += chunk
-    known = np.frombuffer(bytes.fromhex(np.frombuffer(data, dtype=np.uint8).reshape(-1, 19)[:, 2:18].tobytes().decode("ascii")), dtype=">u8").astype(np.uint64)
+    LOG.info("fact bearing copied bytes=%d", len(data))
+    known = np.unique(np.frombuffer(bytes.fromhex(np.frombuffer(data, dtype=np.uint8).reshape(-1, 19)[:, 2:18].tobytes().decode("ascii")), dtype=">u8").astype(np.uint64))
     del data
-    known.sort()
     LOG.info("fact bearing digests=%d", len(known))
     fragments = sorted(texts.get_fragments(), key=lambda fragment: fragment.fragment_id)
     counts = np.array([fragment.count_rows() for fragment in fragments], dtype=np.int64)

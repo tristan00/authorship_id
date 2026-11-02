@@ -9,9 +9,9 @@ from database import DSN
 
 from . import LOG, timed
 from .annotate import answers, generate, rows, texts, votes
-from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_ATTRIBUTE, GOLD_TEXTS, HELD_FOLDS, NEEDS, TEACHER, THRESHOLDS, VERIFIERS
+from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_ATTRIBUTE, GOLD_TEXTS, HELD_FOLDS, NEEDS, PLACE_CHAINS, TEACHER, THRESHOLDS, VERIFIERS
 from .extractor import load_extractor, predict, splitter, windows
-from .rules import agree, decide, flair_strength, strength
+from .rules import CHAINED, agree, chain, decide, flair_strength, needs, place_paths, strength
 from .sample import MINOR, safety
 from .schema import ALL_FIELDS, BOT, canonical, renamed
 
@@ -120,9 +120,24 @@ def cohort_evidence():
     return table
 
 
+def expanded(fields):
+    found = defaultdict(list)
+    for field, entries in fields.items():
+        if field not in CHAINED:
+            found[field] += [{**entry, "field": field, "origin": entry["value"], "weight": 1.} for entry in entries]
+    for places in PLACE_CHAINS:
+        for depth, field in enumerate(places):
+            for entry in fields.get(field, ()):
+                for weight, path in place_paths(depth, entry["value"]):
+                    for upper, target in enumerate(places):
+                        if path[upper] is not None:
+                            found[target].append({**entry, "field": field, "origin": entry["value"], "value": path[upper], "weight": weight})
+    return found
+
+
 @timed
 def author_gold():
-    table = cohort_evidence()
+    table = {author: expanded(fields) for author, fields in cohort_evidence().items()}
     pools = defaultdict(lambda: ([], []))
     for author in sorted(table):
         for field, entries in table[author].items():
@@ -138,8 +153,8 @@ def author_gold():
         grouped = defaultdict(list)
         for entry in table[author][field]:
             grouped[entry["value"]].append(entry)
-        ranked = sorted(grouped, key=lambda value: -sum(entry["probability"] for entry in grouped[value]))[:6]
-        shown[author, field] = {value: sorted(grouped[value], key=lambda entry: -entry["probability"])[:3] for value in ranked}
+        ranked = sorted(grouped, key=lambda value: -sum(entry["weight"] * entry["probability"] for entry in grouped[value]))[:6]
+        shown[author, field] = {value: sorted(grouped[value], key=lambda entry: -entry["weight"] * entry["probability"])[:3] for value in ranked}
         digests |= {entry["digest"] for value in ranked for entry in shown[author, field][value] if entry["digest"]}
     with psycopg.connect(DSN) as conn:
         bodies = dict(conn.execute("SELECT text_sha256, text FROM bodies WHERE text_sha256 = ANY(%s)", [list(digests)]).fetchall())
@@ -160,7 +175,7 @@ def author_gold():
                     text = bodies[entry["digest"]]
                     if entry["subreddit"] in adult and (author in minors or MINOR.search(text) or (field == "age" and float(value) < 18)):
                         risky = True
-                    low, high = spans[entry["digest"], field, value]
+                    low, high = spans[entry["digest"], entry["field"], entry["origin"]]
                     lines.append(f"  - r/{entry['subreddit']}: {excerpt(text, low, high)}")
                 options.append(f"{letter}: {value}\n" + "\n".join(lines))
             if risky:
@@ -216,10 +231,22 @@ def summary(count):
     return {"precision": round(count["hit"] / max(count["hit"] + count["wrong"], 1e-9), 3), "recall": round(count["hit"] / max(count["hit"] + count["silent"], 1e-9), 3), "f1": round(f1(count), 3)}
 
 
-def score_need(members, attribute, need):
+def mention_amounts(entries, need):
+    return [(entry["value"], flair_strength(need) if entry["source"] == "flair" else strength(entry["probability"])) for entry in entries]
+
+
+def outcome(fields, attribute, required):
+    if attribute not in CHAINED:
+        return decide(attribute, mention_amounts(fields.get(attribute, ()), required[attribute]), required[attribute])
+    places = next(places for places in PLACE_CHAINS if attribute in places)
+    return chain(places, {field: mention_amounts(fields.get(field, ()), required[field]) for field in places}, required).get(attribute)
+
+
+def score_need(members, attribute, need, base):
     count = Counter()
-    for label, amount, entries in members:
-        found = decide(attribute, [(entry["value"], flair_strength(need) if entry["source"] == "flair" else strength(entry["probability"])) for entry in entries], need)
+    required = {**base, attribute: need}
+    for label, amount, fields in members:
+        found = outcome(fields, attribute, required)
         score_add(count, found[0] if found else None, label, attribute, amount)
     return count
 
@@ -228,27 +255,30 @@ def score_need(members, attribute, need):
 def thresholds():
     truth = author_truth()
     table = cohort_evidence()
-    population = Counter((field, len({entry["value"] for entry in entries}) > 1) for fields in table.values() for field, entries in fields.items())
-    sampled = Counter((attribute, len({entry["value"] for entry in table[author][attribute]}) > 1) for author, attribute in truth)
+    shown = {author: expanded(fields) for author, fields in table.items()}
+    population = Counter((field, len({entry["value"] for entry in entries}) > 1) for fields in shown.values() for field, entries in fields.items())
+    sampled = Counter((attribute, len({entry["value"] for entry in shown[author][attribute]}) > 1) for author, attribute in truth)
     members = defaultdict(list)
     folds = defaultdict(list)
     for (author, attribute), label in truth.items():
-        entries = table[author][attribute]
-        stratum = attribute, len({entry["value"] for entry in entries}) > 1
-        members[attribute].append((label, population[stratum] / sampled[stratum], entries))
+        stratum = attribute, len({entry["value"] for entry in shown[author][attribute]}) > 1
+        members[attribute].append((label, population[stratum] / sampled[stratum], table[author]))
         folds[attribute].append(zlib.crc32(author.encode()) % HELD_FOLDS)
     chosen, held, report = {}, Counter(), {}
     macro = []
-    for attribute, entries in members.items():
+    base = needs()
+    for attribute in (name for name in ALL_FIELDS if name in members):
+        entries = members[attribute]
         total = Counter()
         for fold in range(HELD_FOLDS):
             train = [entry for entry, place in zip(entries, folds[attribute]) if place != fold]
             test = [entry for entry, place in zip(entries, folds[attribute]) if place == fold]
-            total += score_need(test, attribute, max(NEEDS, key=lambda need: fitted(score_need(train, attribute, need))))
+            total += score_need(test, attribute, max(NEEDS, key=lambda need: fitted(score_need(train, attribute, need, base))), base)
         held += total
         macro.append(f1(total))
-        chosen[attribute] = max(NEEDS, key=lambda need: fitted(score_need(entries, attribute, need)))
-        report[attribute] = {"need": chosen[attribute], **summary(score_need(entries, attribute, chosen[attribute]))}
+        chosen[attribute] = max(NEEDS, key=lambda need: fitted(score_need(entries, attribute, need, base)))
+        base[attribute] = chosen[attribute]
+        report[attribute] = {"need": chosen[attribute], **summary(score_need(entries, attribute, chosen[attribute], base))}
     missing = sorted(set(ALL_FIELDS) - set(chosen))
     if missing:
         raise ValueError(f"No gold for {missing}")

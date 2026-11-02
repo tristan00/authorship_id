@@ -25,6 +25,7 @@ def main():
     flairs.add_argument("--minimum-authors", type=int, default=FLAIR_AUTHORS)
     commands.add_parser("flairs-load")
     commands.add_parser("names")
+    commands.add_parser("places")
     commands.add_parser("train")
     extract = commands.add_parser("extract")
     extract.add_argument("--reset", action="store_true")
@@ -58,6 +59,9 @@ def main():
         from .names import annotate, apply, extracted
         annotate(extracted())
         apply()
+    elif args.command == "places":
+        from .places import annotate as run
+        run()
     elif args.command == "verify":
         from .annotate import verify
         verify()

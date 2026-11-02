@@ -2,8 +2,11 @@ import json
 import math
 from collections import defaultdict
 
-from .config import BOT_PROBABILITY, BOT_SHARE, BOT_TEXTS, FLAIR_STRENGTH, NUMERIC, SHARE, THRESHOLDS, TOLERANCE
+from .config import BOT_PROBABILITY, BOT_SHARE, BOT_TEXTS, FLAIR_STRENGTH, NUMERIC, PLACE_CHAINS, PLACE_LEVELS, PLACE_WEIGHTS, PLACES_FILE, SHARE, THRESHOLDS, TOLERANCE
 from .schema import BOT
+
+PLACES = json.loads(PLACES_FILE.read_text(encoding="utf-8"))
+CHAINED = frozenset(field for fields in PLACE_CHAINS for field in fields)
 
 
 def needs():
@@ -54,6 +57,33 @@ def decide(attribute, mentions, need):
     return found
 
 
+def place_paths(depth, value):
+    found = PLACES[PLACE_LEVELS[depth]].get(value)
+    if found is None:
+        return [(1., tuple(value if place == depth else None for place in range(len(PLACE_LEVELS))))]
+    return list(zip(PLACE_WEIGHTS.get(len(found), ()), map(tuple, found)))
+
+
+def fits(path, chosen):
+    return all(want is None or have is None or have == want for want, have in zip(chosen, path))
+
+
+def shares(amount, options, chosen, depth):
+    live = [(weight, path) for weight, path in options if fits(path, chosen)]
+    total = sum(weight for weight, _ in live)
+    return [(path[depth], amount * weight / total) for weight, path in live if path[depth] is not None]
+
+
+def chain(fields, mentions, required):
+    pool = [(amount, place_paths(depth, value)) for depth, field in enumerate(fields) for value, amount in mentions.get(field, ())]
+    decided, chosen = {}, [None] * len(PLACE_LEVELS)
+    for depth, field in enumerate(fields):
+        if found := decide(field, [entry for amount, options in pool for entry in shares(amount, options, chosen, depth)], required[field]):
+            decided[field] = found
+            chosen[depth] = found[0]
+    return decided
+
+
 def automated(texts, flagged):
     return len(flagged) >= BOT_TEXTS and len(flagged) >= BOT_SHARE * len(texts)
 
@@ -85,8 +115,10 @@ def consolidate(rows, required, blocked):
         return {}
     decided = {}
     for field, entries in mentions.items():
-        if found := decide(field, entries, required[field]):
+        if field not in CHAINED and (found := decide(field, entries, required[field])):
             decided[field] = found
+    for fields in PLACE_CHAINS:
+        decided.update(chain(fields, mentions, required))
     return decided
 
 

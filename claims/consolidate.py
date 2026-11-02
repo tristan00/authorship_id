@@ -43,19 +43,26 @@ CREATE UNLOGGED TABLE claim_authors AS SELECT DISTINCT author FROM claim_evidenc
 ANALYZE claim_authors;
 DELETE FROM author_claims WHERE author IN (SELECT author FROM claim_authors);
 """
-READ = {False: "SELECT author, source, source_key, subreddit, field, value, probability, text_sha256 FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author",
-        True: """SELECT author, e.source, e.source_key, e.subreddit, e.field, e.value, e.probability, e.text_sha256 FROM claim_authors a JOIN claim_evidence e USING (author)
-                 WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author"""}
+READ = {False: "COPY (SELECT author, source, source_key, subreddit, field, value, probability, text_sha256 FROM claim_evidence WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author) TO STDOUT",
+        True: """COPY (SELECT author, e.source, e.source_key, e.subreddit, e.field, e.value, e.probability, e.text_sha256 FROM claim_authors a JOIN claim_evidence e USING (author)
+                 WHERE abs(hashtext(author)) %% %(parts)s = %(part)s ORDER BY author) TO STDOUT"""}
+READ_TYPES = ("text", "text", "text", "text", "text", "text", "float4", "bytea")
 PARALLEL = (f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}", "SET parallel_setup_cost = 0", "SET parallel_tuple_cost = 0", f"SET work_mem = '{EVIDENCE_MEMORY}'")
+
+
+def streamed(conn, touched, part, parts):
+    with conn.cursor().copy(READ[touched], {"parts": parts, "part": part}) as copy:
+        copy.set_types(READ_TYPES)
+        for author, group in groupby(copy.rows(), key=itemgetter(0)):
+            yield author, [row[1:] for row in group]
 
 
 def inspect(part, parts, required):
     setup_logging(LOGS / "claims.log")
     stats, base = {}, defaultdict(Counter)
     with psycopg.connect(DSN) as conn:
-        rows = conn.execute(READ[False], {"parts": parts, "part": part})
-        for _, group in groupby(rows, key=itemgetter(0)):
-            decided, pairs = audit([row[1:] for row in group], required)
+        for _, rows in streamed(conn, False, part, parts):
+            decided, pairs = audit(rows, required)
             for field, value in decided.items():
                 base[field][value] += 1
             for subreddit, flair, field, value, written in pairs:
@@ -69,12 +76,11 @@ def work(part, parts, touched, required, blocked):
     setup_logging(LOGS / "claims.log")
     started = time.perf_counter()
     decided = authors = 0
-    with psycopg.connect(DSN) as conn:
-        rows = conn.execute(READ[touched], {"parts": parts, "part": part})
+    with psycopg.connect(DSN) as reader, psycopg.connect(DSN) as conn:
         with conn.cursor().copy("COPY author_claims FROM STDIN") as copy:
-            for author, group in groupby(rows, key=itemgetter(0)):
+            for author, rows in streamed(reader, touched, part, parts):
                 authors += 1
-                for attribute, (value, support, share, candidates) in rules([row[1:] for row in group], required, blocked).items():
+                for attribute, (value, support, share, candidates) in rules(rows, required, blocked).items():
                     ranked = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))
                     copy.write_row((author, attribute, value, support, share, Jsonb([{"value": item, "support": round(amount, 3)} for item, amount in ranked])))
                     decided += 1
