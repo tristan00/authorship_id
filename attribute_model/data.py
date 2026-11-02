@@ -25,7 +25,7 @@ from . import LOG, timed, write_json
 from .config import CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, SUBREDDIT_CHUNK, SUBREDDIT_RANK, VALUE_AUTHORS, check_targets, partition, validate
 from .subreddits import stored
 
-CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s)) TO STDOUT (FORMAT CSV)"
+CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s::claim_field[])) TO STDOUT (FORMAT CSV)"
 BEARING = "COPY (SELECT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
 ARRAYS = ("users", "labels", "splits")
 SPREAD_ROWS = 1 << 20

@@ -248,7 +248,7 @@ def confidence_order(item):
 def author(name):
     with POOL.connection() as conn:
         require_author(conn, name)
-        claims = conn.execute("SELECT attribute, value FROM author_claims WHERE author = %s ORDER BY attribute LIMIT %s", [name, CLAIMS]).fetchall()
+        claims = conn.execute("SELECT attribute::text AS attribute, value FROM author_claims WHERE author = %s ORDER BY 1 LIMIT %s", [name, CLAIMS]).fetchall()
         published = conn.execute("SELECT targets, evaluation, interval_mass, source->>'consolidation' AS consolidation FROM prediction").fetchone()
         run = conn.execute("SELECT run_id::text AS run_id FROM consolidation").fetchone()
         prediction = conn.execute("SELECT * FROM author_predictions WHERE account = %s", [name]).fetchone()

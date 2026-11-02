@@ -16,6 +16,7 @@ from .config import EVIDENCE_MEMORY, PARTS_PER_WORKER, WORKERS
 from .flairs import blocked_scopes, gate, near
 from .rules import audit, needs
 from .rules import consolidate as rules
+from .schema import FIELD_TYPE
 
 SCHEMA = """
 DROP TABLE IF EXISTS claim_evidence;
@@ -24,7 +25,7 @@ CREATE TABLE consolidation (run_id uuid PRIMARY KEY, months text[] NOT NULL, sta
 """
 CLAIMS = """
 DROP TABLE IF EXISTS author_claims;
-CREATE TABLE author_claims (author text NOT NULL, attribute text NOT NULL, value text NOT NULL, support real NOT NULL, share real NOT NULL, candidates jsonb NOT NULL);
+CREATE TABLE author_claims (author text NOT NULL, attribute claim_field NOT NULL, value text NOT NULL, support real NOT NULL, share real NOT NULL, candidates jsonb NOT NULL);
 """
 EVIDENCE = """
 SELECT t.author, 'text' AS source, t.record_id AS source_key, t.subreddit, c.field, c.value, c.probability, c.text_sha256
@@ -163,6 +164,7 @@ def consolidate():
         previous, added = base(conn, loaded) or (None, None)
         LOG.info("consolidation months=%s base=%s added=%s", months, previous, added)
         if previous is None:
+            conn.execute(FIELD_TYPE)
             conn.execute(SCHEMA)
             conn.execute(CLAIMS)
             conn.commit()
@@ -185,6 +187,7 @@ def redecide():
     with psycopg.connect(DSN) as conn:
         started = conn.execute("SELECT now()").fetchone()[0]
         months = conn.execute("SELECT months FROM consolidation").fetchone()[0]
+        conn.execute(FIELD_TYPE)
         conn.execute(CLAIMS)
         conn.commit()
         attributes = decide(False, inspected(conn))

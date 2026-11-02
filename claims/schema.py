@@ -220,6 +220,8 @@ KINDS = {**dict.fromkeys(COUNTRY_FIELDS, "country"), **dict.fromkeys(REGION_FIEL
          "sports_team": "sports team", "athlete": "athlete", "artist": "musician or band", "author": "book author", "character": "fictional character",
          "franchise": "show, film series, anime, manga, comic or book series", "video_game": "video game", "creator": "online creator", "celebrity": "famous person"}
 KINDS |= {FAN_PREFIX + name: KINDS[name] for name in FANDOM}
+STORED_KINDS = {field: kind for field, kind in KINDS.items() if field not in FANDOM}
+FIELD_TYPE = "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'claim_field') THEN CREATE TYPE claim_field AS ENUM (" + ", ".join(f"'{name}'" for name in (*ALL_FIELDS, BOT)) + "); END IF; END $$;\n"
 NAMES = json.loads(NAMES_FILE.read_text(encoding="utf-8"))
 EMPTY = frozenset({"unknown", "none", "n/a", "unspecified", "other"})
 LOWERED = {name: {value.lower(): value for value in values} for name, values in {**CHOICES, **FLAIR_ONLY}.items()}

@@ -13,8 +13,8 @@ from .schema import CITY_FIELDS, COUNTRY_FIELDS, REGION_FIELDS, renamed
 RUN = "places"
 CHECK_RUN = "places.check"
 FIELDS = dict(zip(PLACE_LEVELS, (COUNTRY_FIELDS, REGION_FIELDS, CITY_FIELDS)))
-TEXTS = "SELECT field, value FROM text_claims WHERE field = ANY(%s) GROUP BY 1, 2"
-FLAIRS = "SELECT DISTINCT field, value FROM flair_claims WHERE field = ANY(%s)"
+TEXTS = "SELECT field, value FROM text_claims WHERE field = ANY(%s::claim_field[]) GROUP BY 1, 2"
+FLAIRS = "SELECT DISTINCT field, value FROM flair_claims WHERE field = ANY(%s::claim_field[])"
 PROMPT = """Say where a place named by a Reddit user is. You get the name and whether the user gave it as a country, a region or a city.
 
 Write one line for each real place this name commonly refers to, most likely first, at most three lines, in this format:

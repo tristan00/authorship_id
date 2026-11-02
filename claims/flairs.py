@@ -11,7 +11,7 @@ from . import LOG, timed
 from .annotate import answers, generate, rows
 from .config import ANNOTATIONS, COMPASS_SUBREDDIT, FLAIR_ADULT_SHARE, FLAIR_AUTHORS, FLAIR_LENGTH, FLAIR_SHOWN, FLAIR_SUBREDDIT_AUTHORS, GATE_COMPARISONS, GATE_SKILL, TEACHER, VERIFIERS, WIDE
 from .sample import MINOR
-from .schema import FAN_FIELDS, FANDOM, FLAIR, FLAIR_LINES, FLAIR_SCHEMA, FREE, flair_attributes, flair_facts, stored_field
+from .schema import FAN_FIELDS, FANDOM, FIELD_TYPE, FLAIR, FLAIR_LINES, FLAIR_SCHEMA, FREE, flair_attributes, flair_facts, stored_field
 
 COUNTS = """COPY (SELECT subreddit, flair, count(*) FROM (SELECT DISTINCT subreddit, author_flair_text AS flair, author FROM records
             WHERE author_flair_text <> '' AND author <> ALL(%s)) pairs GROUP BY 1, 2 HAVING count(*) >= %s) TO STDOUT"""
@@ -20,11 +20,11 @@ YOUNG = re.compile(r"\s*1[0-7]\s*")
 WORD = re.compile(r"\w+")
 TABLE = """
 DROP TABLE IF EXISTS flair_claims;
-CREATE TABLE flair_claims (subreddit text NOT NULL, flair text NOT NULL, field text NOT NULL, value text NOT NULL, PRIMARY KEY (subreddit, flair, field));
+CREATE TABLE flair_claims (subreddit text NOT NULL, flair text NOT NULL, field claim_field NOT NULL, value text NOT NULL, PRIMARY KEY (subreddit, flair, field));
 """
 GATE = """
 DROP TABLE IF EXISTS flair_gate;
-CREATE TABLE flair_gate (subreddit text NOT NULL, flair text, field text NOT NULL, comparisons integer NOT NULL, agreement real NOT NULL, chance real NOT NULL, skill real NOT NULL, kept boolean NOT NULL);
+CREATE TABLE flair_gate (subreddit text NOT NULL, flair text, field claim_field NOT NULL, comparisons integer NOT NULL, agreement real NOT NULL, chance real NOT NULL, skill real NOT NULL, kept boolean NOT NULL);
 """
 
 
@@ -121,6 +121,7 @@ def load():
         if any(same(attribute, value, flair_facts(table.get(row["id"])).get(attribute)) for table in others):
             kept[row["subreddit"], row["flair"], attribute] = value
     with psycopg.connect(DSN) as conn:
+        conn.execute(FIELD_TYPE)
         conn.execute(TABLE)
         with conn.cursor().copy("COPY flair_claims (subreddit, flair, field, value) FROM STDIN") as copy:
             for (subreddit, flair, attribute), value in kept.items():
@@ -163,6 +164,7 @@ def gate(conn, stats, base):
         rows_out.append((subreddit, flair, field, count, agreement, random, skill, kept))
         if not kept:
             blocked.add((subreddit, flair, field))
+    conn.execute(FIELD_TYPE)
     conn.execute(GATE)
     with conn.cursor().copy("COPY flair_gate FROM STDIN") as copy:
         for row in rows_out:

@@ -12,11 +12,11 @@ from database import DSN, vacuum
 
 from . import LOG, timed
 from .config import EXTRACT_READERS, EXTRACTOR, PART_PAGES
-from .schema import stored_field
+from .schema import FIELD_TYPE, stored_field
 from .extractor import load_extractor, predict, splitter, windows
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS text_claims (text_sha256 bytea NOT NULL, field text NOT NULL, value text NOT NULL, start_char integer NOT NULL, end_char integer NOT NULL, probability real NOT NULL);
+CREATE TABLE IF NOT EXISTS text_claims (text_sha256 bytea NOT NULL, field claim_field NOT NULL, value text NOT NULL, start_char integer NOT NULL, end_char integer NOT NULL, probability real NOT NULL);
 """
 PARTS = """
 CREATE TABLE IF NOT EXISTS text_claims_parts (partition text NOT NULL, first_page bigint NOT NULL, texts bigint, claims bigint, read_seconds double precision, gpu_seconds double precision, finished_at timestamptz, PRIMARY KEY (partition, first_page));
@@ -80,6 +80,7 @@ class Writer(Thread):
 @timed
 def pending(reset):
     with psycopg.connect(DSN) as conn:
+        conn.execute(FIELD_TYPE)
         conn.execute(SCHEMA)
         if reset:
             conn.execute("TRUNCATE text_claims")

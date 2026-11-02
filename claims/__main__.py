@@ -26,6 +26,9 @@ def main():
     commands.add_parser("flairs-load")
     commands.add_parser("names")
     commands.add_parser("places")
+    rename = commands.add_parser("rename")
+    rename.add_argument("old")
+    rename.add_argument("new")
     commands.add_parser("train")
     extract = commands.add_parser("extract")
     extract.add_argument("--reset", action="store_true")
@@ -62,6 +65,9 @@ def main():
     elif args.command == "places":
         from .places import annotate as run
         run()
+    elif args.command == "rename":
+        from .rename import rename as run
+        result = run(args.old, args.new)
     elif args.command == "verify":
         from .annotate import verify
         verify()

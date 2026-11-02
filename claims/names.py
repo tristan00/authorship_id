@@ -9,7 +9,7 @@ from database import DSN, vacuum
 from . import LOG, timed
 from .annotate import answers, generate, next_round, votes
 from .config import ANNOTATIONS, NAME_CHECKED, NAME_MENTIONS, NAMES_FILE, TEACHER, TRAINING, VERIFIERS
-from .schema import CLUB, KINDS, LETTERS, NAME_CHECK, NAME_GENERIC, NAME_PROMPT, NAME_SAME, SQUEEZE, spelled
+from .schema import CLUB, KINDS, LETTERS, NAME_CHECK, NAME_GENERIC, NAME_PROMPT, NAME_SAME, SQUEEZE, STORED_KINDS, spelled
 
 RUN = "names"
 SAME = "names.same"
@@ -19,8 +19,8 @@ SINGLE_NAMED = "fictional character"
 CLOSED = frozenset({"country", "state or region", "city"})
 LONGEST = 60
 SHORTEST = 2
-READ = "SELECT field, value, count(*) FROM text_claims WHERE field = ANY(%s) GROUP BY 1, 2 HAVING count(*) >= %s"
-CHANGES = "CREATE TEMP TABLE name_changes (field text NOT NULL, raw text NOT NULL, target text) ON COMMIT DROP"
+READ = "SELECT field, value, count(*) FROM text_claims WHERE field = ANY(%s::claim_field[]) GROUP BY 1, 2 HAVING count(*) >= %s"
+CHANGES = "CREATE TEMP TABLE name_changes (field claim_field NOT NULL, raw text NOT NULL, target text) ON COMMIT DROP"
 RENAME = "UPDATE {table} c SET value = n.target FROM name_changes n WHERE n.target IS NOT NULL AND c.field = n.field AND c.value = n.raw"
 REMOVE = "DELETE FROM {table} c USING name_changes n WHERE n.target IS NULL AND c.field = n.field AND c.value = n.raw"
 STORED = ("text_claims", "flair_claims")
@@ -56,8 +56,8 @@ def collected(extra):
 def extracted():
     counts = defaultdict(Counter)
     with psycopg.connect(DSN) as conn:
-        for field, value, amount in conn.execute(READ, [list(KINDS), NAME_MENTIONS]):
-            counts[KINDS[field]][value] += amount
+        for field, value, amount in conn.execute(READ, [list(STORED_KINDS), NAME_MENTIONS]):
+            counts[STORED_KINDS[field]][value] += amount
     return counts
 
 
@@ -200,7 +200,7 @@ def apply():
         conn.execute("SET LOCAL work_mem = '2GB'")
         conn.execute(CHANGES)
         with conn.cursor().copy("COPY name_changes FROM STDIN") as copy:
-            for field, kind in KINDS.items():
+            for field, kind in STORED_KINDS.items():
                 for raw, target in table.get(kind, {}).items():
                     copy.write_row((field, raw, target))
         conn.execute("ANALYZE name_changes")
