@@ -205,7 +205,9 @@ FANDOM = {"sports_team": "the real sports team they support, full club or franch
           "video_game": "the video game they are a fan of",
           "creator": "the streamer, YouTuber, podcaster or other online creator they are a fan of",
           "celebrity": "the actor, comedian or other famous person they are a fan of"}
-ALL_FIELDS = tuple(name for name in (*FREE, *CHOICES) if name not in DROPPED | {BOT, "birth_year"}) + ("neurotype", *FLAIR_ONLY, *FANDOM)
+FAN_PREFIX = "fan_"
+FAN_FIELDS = tuple(FAN_PREFIX + name for name in FANDOM)
+ALL_FIELDS = tuple(name for name in (*FREE, *CHOICES) if name not in DROPPED | {BOT, "birth_year"}) + ("neurotype", *FLAIR_ONLY, *FAN_FIELDS)
 FAN_WORDS = re.compile(r"\b(?:fans?|fandom|favou?rites?|favs?|faves?|lov(?:e|ed|es|ing)|adored?|obsessed|supporters?|stan|stans|rooting|die-?hard|lifelong|goat|authors?|writers?|novels?|streamers?|twitch|youtubers?|youtube|podcasts?|comedians?|actors?|actress|mains?|maining)\b", re.I)
 CLUB = re.compile(r"\s+(?:football club|f\.?c\.?|a\.?f\.?c\.?|c\.?f\.?)$")
 VAGUE = frozenset("this that the these those my our his her their him them it its he she they one game games movie movies film films show shows book books series song songs album albums character characters team teams player players author authors artist artists band bands music".split())
@@ -217,6 +219,7 @@ CITY_FIELDS = frozenset({"residence_city", "origin_city"})
 KINDS = {**dict.fromkeys(COUNTRY_FIELDS, "country"), **dict.fromkeys(REGION_FIELDS, "state or region"), **dict.fromkeys(CITY_FIELDS, "city"),
          "sports_team": "sports team", "athlete": "athlete", "artist": "musician or band", "author": "book author", "character": "fictional character",
          "franchise": "show, film series, anime, manga, comic or book series", "video_game": "video game", "creator": "online creator", "celebrity": "famous person"}
+KINDS |= {FAN_PREFIX + name: KINDS[name] for name in FANDOM}
 NAMES = json.loads(NAMES_FILE.read_text(encoding="utf-8"))
 EMPTY = frozenset({"unknown", "none", "n/a", "unspecified", "other"})
 LOWERED = {name: {value.lower(): value for value in values} for name, values in {**CHOICES, **FLAIR_ONLY}.items()}
@@ -460,6 +463,10 @@ def spelled(attribute, raw):
     if not LETTERS.search(text) or len(text) > 40 or text in EMPTY:
         return None
     return fan_value(attribute, text) if attribute in FANDOM else text
+
+
+def stored_field(attribute):
+    return FAN_PREFIX + attribute if attribute in FANDOM else attribute
 
 
 def renamed(attribute, text):

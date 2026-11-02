@@ -11,7 +11,7 @@ from . import LOG, timed
 from .annotate import answers, generate, rows
 from .config import ANNOTATIONS, COMPASS_SUBREDDIT, FLAIR_ADULT_SHARE, FLAIR_AUTHORS, FLAIR_LENGTH, FLAIR_SHOWN, FLAIR_SUBREDDIT_AUTHORS, GATE_COMPARISONS, GATE_SKILL, TEACHER, VERIFIERS, WIDE
 from .sample import MINOR
-from .schema import FANDOM, FLAIR, FLAIR_LINES, FLAIR_SCHEMA, FREE, flair_attributes, flair_facts
+from .schema import FAN_FIELDS, FANDOM, FLAIR, FLAIR_LINES, FLAIR_SCHEMA, FREE, flair_attributes, flair_facts, stored_field
 
 COUNTS = """COPY (SELECT subreddit, flair, count(*) FROM (SELECT DISTINCT subreddit, author_flair_text AS flair, author FROM records
             WHERE author_flair_text <> '' AND author <> ALL(%s)) pairs GROUP BY 1, 2 HAVING count(*) >= %s) TO STDOUT"""
@@ -125,7 +125,7 @@ def load():
         with conn.cursor().copy("COPY flair_claims (subreddit, flair, field, value) FROM STDIN") as copy:
             for (subreddit, flair, attribute), value in kept.items():
                 value = str(int(value)) if isinstance(value, float) else value
-                copy.write_row((subreddit, flair, attribute, value))
+                copy.write_row((subreddit, flair, stored_field(attribute), value))
         conn.execute("ANALYZE flair_claims")
     LOG.info("flair claims proposals=%d confirmed=%d subreddits=%d fields=%s", proposals, len(kept), len({key[0] for key in kept}), Counter(key[2] for key in kept).most_common())
 
@@ -147,7 +147,7 @@ def gate(conn, stats, base):
 
     scopes = defaultdict(lambda: [0, 0, 0.])
     for (subreddit, flair, field, value), (count, hits) in stats.items():
-        if field in FANDOM:
+        if field in FAN_FIELDS:
             continue
         expected = chance(field, value) * count
         for scope in ((subreddit, None, field), (subreddit, flair, field)):

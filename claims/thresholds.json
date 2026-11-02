@@ -36,13 +36,13 @@
 "political_compass": 0.3,
 "personality_type": 0.3,
 "generation": 0.3,
-"sports_team": 3,
-"athlete": 2,
-"artist": 1,
-"author": 0.5,
-"character": 0.7,
-"franchise": 1,
-"video_game": 0.5,
-"creator": 0.7,
-"celebrity": 0.5
+"fan_sports_team": 3,
+"fan_athlete": 2,
+"fan_artist": 1,
+"fan_author": 0.5,
+"fan_character": 0.7,
+"fan_franchise": 1,
+"fan_video_game": 0.5,
+"fan_creator": 0.7,
+"fan_celebrity": 0.5
 }

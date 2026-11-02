@@ -25,9 +25,9 @@ DESCRIPTIONS = {"age": "their age now", "height": "their height in centimeters",
                 "education": "their education, highest reached or current level", "field_of_study": "the subject they study or studied", "employment_status": "their main activity now", "occupation": "the field of their current job", "body_type": "their body type",
                 "hair_color": "their hair color", "physical_condition": "a physical condition they have now", "mental_condition": "a mental condition they have now", "neurotype": "a neurodevelopmental condition they have", "diet": "their diet", "smoking": "whether they smoke",
                 "living_with": "who they live with", "housing": "their housing", "pets": "their pets", "military_status": "their military status", "political_compass": "their position on the political compass",
-                "personality_type": "their personality type", "generation": "the generation they belong to", "sports_team": "the sports team they support", "athlete": "the athlete they are most a fan of", "artist": "the musician, band or artist they are most a fan of",
-                "author": "the book author they are most a fan of", "character": "the fictional character they are most a fan of", "franchise": "the show, film series, anime, comic or book series they are most a fan of",
-                "video_game": "the video game they are most a fan of", "creator": "the streamer or online creator they are most a fan of", "celebrity": "the famous person they are most a fan of"}
+                "personality_type": "their personality type", "generation": "the generation they belong to", "fan_sports_team": "the sports team they support", "fan_athlete": "the athlete they are most a fan of", "fan_artist": "the musician, band or artist they are most a fan of",
+                "fan_author": "the book author they are most a fan of", "fan_character": "the fictional character they are most a fan of", "fan_franchise": "the show, film series, anime, comic or book series they are most a fan of",
+                "fan_video_game": "the video game they are most a fan of", "fan_creator": "the streamer or online creator they are most a fan of", "fan_celebrity": "the famous person they are most a fan of"}
 AUTHOR_PROMPT = """Below are excerpts written by one Reddit author in different posts and comments. An automatic system read them and found possible values for one thing about this author. Words between [[ and ]] are what the system used, and the system is often wrong. A flair is a label the author chose to show next to their name.
 
 Decide which option is true of the author now, using only these excerpts. Tags such as 28F or [M4F] at the start of the author's own post describe the author. Something said about another person, a question, a hypothetical, a joke, role-play, a quotation, or a past fact that no longer holds does not count. If the author's situation changed, use the most recent sincere statement. If an excerpt looks like the author but gives a value that conflicts with most of the others, weigh how clear each statement is.
@@ -138,7 +138,7 @@ def expanded(fields):
 @timed
 def author_gold():
     table = {author: expanded(fields) for author, fields in cohort_evidence().items()}
-    judged = {row["id"] for row in rows(ANNOTATIONS / "author_gold.jsonl")}
+    judged = {f"{row['author']}|{row['attribute']}" for row in rows(ANNOTATIONS / "author_gold.jsonl")}
     pools = defaultdict(lambda: ([], []))
     for author in sorted(table):
         for field, entries in table[author].items():

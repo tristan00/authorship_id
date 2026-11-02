@@ -36,13 +36,13 @@
   "political_compass": "categorical",
   "personality_type": "categorical",
   "generation": "categorical",
-  "sports_team": "embedding",
-  "athlete": "embedding",
-  "artist": "embedding",
-  "author": "embedding",
-  "character": "embedding",
-  "franchise": "embedding",
-  "video_game": "embedding",
-  "creator": "embedding",
-  "celebrity": "embedding"
+  "fan_sports_team": "embedding",
+  "fan_athlete": "embedding",
+  "fan_artist": "embedding",
+  "fan_author": "embedding",
+  "fan_character": "embedding",
+  "fan_franchise": "embedding",
+  "fan_video_game": "embedding",
+  "fan_creator": "embedding",
+  "fan_celebrity": "embedding"
 }

@@ -12,6 +12,7 @@ from database import DSN, vacuum
 
 from . import LOG, timed
 from .config import EXTRACT_READERS, EXTRACTOR, PART_PAGES
+from .schema import stored_field
 from .extractor import load_extractor, predict, splitter, windows
 
 SCHEMA = """
@@ -101,7 +102,7 @@ def pending(reset):
 def rows_of(digests, found):
     for owner, facts in found.items():
         for (attribute, value), (score, low, high) in facts.items():
-            yield digests[owner], attribute, value, low, high, round(score, 4)
+            yield digests[owner], stored_field(attribute), value, low, high, round(score, 4)
 
 
 @timed
