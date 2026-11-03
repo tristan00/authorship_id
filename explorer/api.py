@@ -212,38 +212,17 @@ def search(query):
         return {"authors": ranked(author_hits(conn, query), query, known["author"]), "subreddits": ranked(subreddit_hits(conn, query.lower()), query, known["subreddit"])}
 
 
-def predicted_attributes(prediction, targets):
-    found = {}
-    for attribute, kind in targets.items():
-        names = columns(attribute, kind)
-        if kind == "numeric":
-            found[attribute] = {"kind": "numeric", "value": prediction[names[0]], "lower": prediction[names[1]], "upper": prediction[names[2]]}
-        else:
-            found[attribute] = {"kind": "categorical", "value": prediction[names[0]], "probability": prediction[names[1]]}
-    return found
-
-
-def confidence_order(item):
-    predicted = item["predicted"]
-    if predicted["kind"] == "numeric":
-        return 1, (predicted["upper"] - predicted["lower"]) / (abs(predicted["value"]) or 1)
-    return 0, -predicted["probability"]
-
-
 @timed
 def author(name):
     with POOL.connection() as conn:
         require_author(conn, name)
         claims = conn.execute("SELECT attribute::text AS attribute, value FROM author_claims WHERE author = %s ORDER BY 1 LIMIT %s", [name, CLAIMS]).fetchall()
-        published = conn.execute("SELECT targets, interval_mass, source->>'consolidation' AS consolidation FROM prediction").fetchone()
-        run = conn.execute("SELECT run_id::text AS run_id FROM consolidation").fetchone()
+        published = conn.execute("SELECT targets FROM prediction").fetchone()
         prediction = conn.execute("SELECT * FROM author_predictions WHERE account = %s", [name]).fetchone()
-    predicted = predicted_attributes(prediction, published["targets"]) if prediction and published else {}
-    stated = [{"attribute": claim["attribute"], "stated": claim["value"], "predicted": predicted.get(claim["attribute"])} for claim in claims]
-    claimed = {claim["attribute"] for claim in claims}
-    others = [{"attribute": attribute, "stated": None, "predicted": value} for attribute, value in predicted.items() if attribute not in claimed]
-    return {"name": name, "stated": stated, "predicted_only": sorted(others, key=confidence_order), "has_prediction": bool(predicted),
-            "interval_mass": published and published["interval_mass"], "stale": bool(published and (run is None or published["consolidation"] != run["run_id"]))}
+    predicted = {attribute: prediction[columns(attribute, kind)[0]] for attribute, kind in published["targets"].items()} if prediction and published else {}
+    stated = {claim["attribute"]: claim["value"] for claim in claims}
+    rows = [{"attribute": attribute, "stated": stated.get(attribute), "predicted": predicted.get(attribute)} for attribute in sorted(stated.keys() | predicted.keys())]
+    return {"name": name, "attributes": rows, "has_prediction": bool(predicted)}
 
 
 @timed

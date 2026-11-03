@@ -31,7 +31,6 @@ const moment = seconds => dateTime.format(new Date(seconds * 1000));
 const percent = share => `${Math.round(share * 100)}%`;
 const UNITS = { age: ' years', height: ' cm', weight: ' kg', income: ' USD a year', birth_year: '' };
 const amount = (attribute, value) => (attribute === 'birth_year' ? String(Math.round(value)) : whole.format(Math.round(value)));
-const PREDICTED_SHOWN = 10;
 const plural = (count, word) => (count === 1 ? word : `${word}s`);
 
 function label(name) {
@@ -219,51 +218,26 @@ function feed(url, show, emptyMessage, page) {
   return h('div', {}, list, foot);
 }
 
-function predictedCell(attribute, predicted) {
-  if (predicted.kind === 'numeric') {
-    return [
-      h('span', {}, amount(attribute, predicted.value) + UNITS[attribute]),
-      h('span', { class: 'extra' }, `range ${amount(attribute, predicted.lower)} to ${amount(attribute, predicted.upper)}`),
-    ];
-  }
-  return [h('span', {}, predicted.value), h('span', { class: 'extra' }, percent(predicted.probability))];
-}
-
-function statedCell(attribute, value) {
+function shown(attribute, value) {
   return attribute in UNITS && Number.isFinite(Number(value)) ? amount(attribute, Number(value)) + UNITS[attribute] : value;
 }
 
 function profileRow(item) {
   return h('tr', {},
     h('th', { scope: 'row' }, label(item.attribute)),
-    item.stated === null ? h('td') : h('td', { 'data-label': 'Stated' }, statedCell(item.attribute, item.stated)),
-    item.predicted ? h('td', { 'data-label': 'Predicted' }, predictedCell(item.attribute, item.predicted)) : h('td'));
+    item.stated === null ? h('td') : h('td', { 'data-label': 'Stated' }, shown(item.attribute, item.stated)),
+    item.predicted === null ? h('td') : h('td', { 'data-label': 'Predicted' }, shown(item.attribute, item.predicted)));
 }
 
 function profile(data) {
-  if (!data.stated.length && !data.has_prediction) {
+  if (!data.attributes.length) {
     return h('p', { class: 'notice' }, 'This author has no stated attributes and the model has no prediction for them.');
   }
-  const body = h('tbody', {}, data.stated.map(profileRow));
-  if (data.stated.length && data.predicted_only.length) {
-    body.append(h('tr', { class: 'group' }, h('th', { colspan: '3' }, 'Predicted only, most confident first')));
-  }
-  body.append(...data.predicted_only.slice(0, PREDICTED_SHOWN).map(profileRow));
-  const rest = data.predicted_only.slice(PREDICTED_SHOWN);
-  const expand = rest.length > 0 && h('button', {
-    class: 'spaced',
-    onclick: event => {
-      body.append(...rest.map(profileRow));
-      event.target.remove();
-    },
-  }, `Show ${rest.length} more ${plural(rest.length, 'prediction')}`);
   return [
-    data.has_prediction && data.stale && h('p', { class: 'banner' }, 'Predictions predate the current claims.'),
-    !data.stated.length && h('p', { class: 'notice spaced' }, 'This author has not stated any attributes.'),
+    data.attributes.every(item => item.stated === null) && h('p', { class: 'notice spaced' }, 'This author has not stated any attributes.'),
     !data.has_prediction && h('p', { class: 'notice spaced' }, 'The model has no prediction for this author.'),
-    h('table', { class: 'profile' }, h('thead', {}, h('tr', {}, h('th', {}, 'Attribute'), h('th', {}, 'Stated'), h('th', {}, 'Predicted'))), body),
-    expand,
-    data.has_prediction && h('p', { class: 'note spaced' }, `Ranges are ${percent(data.interval_mass)} intervals. Percentages are model probabilities.`),
+    h('table', { class: 'profile' }, h('thead', {}, h('tr', {}, h('th', {}, 'Attribute'), h('th', {}, 'Stated'), h('th', {}, 'Predicted'))),
+      h('tbody', {}, data.attributes.map(profileRow))),
   ].filter(Boolean);
 }
 

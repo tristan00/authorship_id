@@ -8,7 +8,6 @@
   --link: #1f5fbf;
   --good: #2c7a4f;
   --warn: #9a5512;
-  --warn-bg: #fbf1e3;
   --bad: #b3362f;
   --mark: #eef3fb;
 }
@@ -22,7 +21,6 @@
     --link: #8ab4f0;
     --good: #5dbb8a;
     --warn: #e0a15c;
-    --warn-bg: #2c2418;
     --bad: #ef8079;
     --mark: #1e2632;
   }
@@ -90,9 +88,6 @@ aside .section:first-child { padding-top: 0; border-top: 0; }
 .profile thead th { color: var(--muted); font-size: .875rem; font-weight: 600; }
 .profile tbody th { font-weight: 500; width: 34%; }
 .profile td { width: 33%; }
-.profile .group th { padding-top: 1.25rem; color: var(--muted); font-size: .875rem; font-weight: 600; }
-.profile .extra { color: var(--muted); font-size: .875rem; margin-left: .375rem; font-variant-numeric: tabular-nums; }
-.banner { padding: .625rem .875rem; margin-bottom: .75rem; color: var(--warn); background: var(--warn-bg); border-radius: 6px; }
 
 .texts > li { padding: .75rem 0; border-bottom: 1px solid var(--line); }
 .texts > li:first-child { padding-top: 0; }
@@ -137,7 +132,6 @@ button:hover { border-color: var(--muted); }
   .profile thead { display: none; }
   .profile, .profile tbody, .profile tr, .profile th, .profile td { display: block; width: 100%; }
   .profile tr { padding: .5rem 0; border-bottom: 1px solid var(--line); }
-  .profile tr.group { padding: 1rem 0 0; }
   .profile th, .profile td { padding: 0; border: 0; }
   .profile tbody th { width: 100%; }
   .profile td { width: 100%; }
