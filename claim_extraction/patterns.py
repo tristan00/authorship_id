@@ -14,6 +14,7 @@ HEDGE = re.compile(r"\b(?:if|would|wish|hope|imagine|pretend|unless|whether|wann
                    r"not|never|no longer|anymore|former|formerly|when i was|back when|before i was)\b|n't\b")
 SELF_HEDGE = re.compile(r"\b(?:if|would|wish|hope|imagine|pretend|unless|whether|wanna|want to|trying to|going to|gonna|might|maybe|used to|not|never|no longer|anymore|"
                         r"when i was|back when)\b|n't\b")
+TAGGED = re.compile(r"$^")
 DISTANCE = re.compile(r"\s*(?:away|ago|long|deep|high|wide|tall|run|race|views|subs|followers|people|users|members|miles)")
 UNITS = r"(?:years? ago|yrs? ago|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|times|percent|%|lbs?|kgs?|pounds|miles|km|cm|dollars|bucks|k\b|grand|hp|mph|degrees|feet|ft|inches|in\b|seconds|secs?|euros?|points|pts|ounces|oz|inch)"
 
@@ -33,6 +34,8 @@ def question(text, end):
 
 
 def hedged(text, start, end, pattern=HEDGE):
+    if pattern is TAGGED:
+        return False
     return bool(pattern.search(text, max(clause(text, start), start - 40), start)) or question(text, end)
 
 
@@ -137,7 +140,7 @@ JOBS = {
                            "microbiologist|ecologist|statistician|economist",
     "doctor, nurse or clinical health": "doctor|physician|nurse|rn|np|nurse practitioner|surgeon|dentist|pharmacist|paramedic|emt|physical therapist|physiotherapist|"
                                         "occupational therapist|radiologist|resident|anesthesiologist|psychiatrist|psychologist|therapist|veterinarian|vet tech|optometrist|"
-                                        "midwife|dental hygienist|physician assistant|pa-c|doula|counselor|counsellor|nursing student|med student|medical student|gp",
+                                        "midwife|dental hygienist|physician assistant|pa-c|doula|nursing student|med student|medical student|gp",
     "health support or care work": "cna|caregiver|care worker|carer|support worker|home health aide|medical assistant|pharmacy tech|pharmacy technician|personal care assistant|"
                                    "phlebotomist|dental assistant|hospice worker",
     "teaching or education": "teacher|tutor|lecturer|educator|teaching assistant|substitute teacher|kindergarten teacher|preschool teacher|elementary teacher|"
@@ -148,7 +151,7 @@ JOBS = {
                                           "recruiter|entrepreneur|business owner|cto|cfo",
     "marketing, media or communications": "marketer|journalist|editor|copywriter|reporter|social media manager|marketing manager|pr specialist|content writer|digital marketer",
     "arts, design or entertainment": "artist|designer|graphic designer|musician|actor|actress|photographer|writer|author|illustrator|animator|dj|filmmaker|tattoo artist|"
-                                     "streamer|content creator|youtuber|model|painter|singer|dancer|game designer|ux designer|interior designer|comedian|producer|composer|"
+                                     "streamer|content creator|youtuber|model|painter|singer|dancer|florist|baker|tailor|seamstress|jeweler|game designer|ux designer|interior designer|comedian|producer|composer|"
                                      "video editor|voice actor|cosplayer|novelist|poet",
     "sales or retail": "cashier|sales rep|salesman|saleswoman|retail worker|sales associate|realtor|real estate agent|store manager|car salesman|wholesaler",
     "food service or hospitality": "chef|cook|line cook|server|waiter|waitress|bartender|barista|dishwasher|baker|hotel manager|sous chef|busser|hostess",
@@ -159,7 +162,7 @@ JOBS = {
     "police, fire or security": "cop|police officer|firefighter|security guard|detective|correctional officer|sheriff|state trooper|dispatcher",
     "military": "soldier|marine|sailor|airman|infantryman",
     "government or public service": "civil servant|government employee|federal employee|city employee|public servant",
-    "social work or religious work": "social worker|pastor|priest|minister|youth pastor|chaplain|nun|rabbi|imam|case worker|youth worker",
+    "social work or religious work": "social worker|pastor|priest|minister|youth pastor|chaplain|nun|rabbi|imam|case worker|youth worker|counselor|counsellor|substance use counselor|addiction counselor",
     "office or administrative": "receptionist|secretary|admin assistant|administrative assistant|office manager|data entry clerk|clerk|customer service rep|call center agent|"
                                 "office worker|executive assistant",
     "cleaning, maintenance or personal service": "janitor|cleaner|housekeeper|maintenance worker|hairdresser|hairstylist|barber|nanny|groundskeeper|dog walker|nail tech|"
@@ -230,8 +233,8 @@ def tags(text, lowered, found):
             tag = lowered[match.start():match.end()]
             if not COUPLE.search(tag) and not PARTNERED.search(lowered) and SEEKING.search(lowered):
                 found.setdefault(("relationship_status", "single"), match.start())
-            if pair := re.search(r"(nb|[mf])[mf]?\s*4\s*([mf])(?![a-z])", tag):
-                found.setdefault(("sexual_orientation", "straight" if pair.group(1) != pair.group(2) else "gay" if pair.group(1) == "m" else "lesbian"), match.start())
+            if (pair := re.search(r"([mf])\s*4\s*([mf])(?![a-z])", tag)) and pair.group(1) == pair.group(2):
+                found.setdefault(("sexual_orientation", "gay" if pair.group(1) == "m" else "lesbian"), match.start())
     for match in re.finditer(TAG, lowered):
         if match.group(1) and (re.match(rf"\s*{UNITS}", lowered[match.end():]) or DISTANCE.match(lowered, match.end())):
             continue
@@ -265,17 +268,28 @@ RULES = [
     rule("age", r"\b(?:i|me|i'm|im|i am|myself|ich)\b[^.!?\n()]{0,25}\((\d{2})\)", lambda match: ages(match.group(1)), SELF_HEDGE),
     rule("age", r"(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\bour )(?<!\btheir )(?<!\bthe )(?<!\ba )(?<!\ban )(?:^|(?<=[\s(\[,]))(\d{2})\s?(?:yo|y/o|y\.o\.?|yr old|year old|years old|yrs old)\b(?! (?:son|daughter|kid|brother|sister|girl|boy|cousin|nephew|niece|dog|cat|car|house|man|woman|guy|male|female|friend|wife|husband)\b)", lambda match: ages(match.group(1)), SELF_HEDGE),
     rule("age", r"\b(?:tengo|tenho|j'ai) (\d{2})(?: (?:años|anos|ans))?\b|\bya[sş] ?:? ?(\d{2})\b|\b(\d{2}) jahre alt\b|\bich bin (\d{2})\b", lambda match: ages(next(filter(None, match.groups()))), SELF_HEDGE),
-    rule("age", r"[\[\(]\s*([mfw])\s*[,/]\s*(\d{2})\s*[\]\)]|[\[\(]\s*(\d{2})\s*[,/]\s*([mfw])\s*[\]\)]", lambda match: ages(match.group(2) or match.group(3)), SELF_HEDGE),
-    rule("gender", r"[\[\(]\s*([mfw])\s*[,/]\s*\d{2}\s*[\]\)]|[\[\(]\s*\d{2}\s*[,/]\s*([mfw])\s*[\]\)]", lambda match: {"m": "male", "f": "female", "w": "female"}[match.group(1) or match.group(2)], SELF_HEDGE),
+    rule("age", r"(?:^\W*|\b(?:i|me|ich|myself|moi|yo)\s*)(?:[\[\(]\s*([mfw])\s*[,/]\s*(\d{2})\s*[\]\)]|[\[\(]\s*(\d{2})\s*[,/]\s*([mfw])\s*[\]\)])", lambda match: ages(match.group(2) or match.group(3)), TAGGED),
+    rule("gender", r"(?:^\W*|\b(?:i|me|ich|myself|moi|yo)\s*)(?:[\[\(]\s*([mfw])\s*[,/]\s*\d{2}\s*[\]\)]|[\[\(]\s*\d{2}\s*[,/]\s*([mfw])\s*[\]\)])", lambda match: {"m": "male", "f": "female", "w": "female"}[match.group(1) or match.group(2)], TAGGED),
     rule("gender", rf"\b{I} (?:an? |the |also an? |just an? |only an? |still an? |actually an? |literally an? )?{ADJECTIVES}{GENDER_WORDS}\b(?! (?:friend|friends|of|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff)\b)(?!'s)", group(GENDERS)),
-    rule("gender", rf"\bas an? (?:fully )?{ADJECTIVES}{GENDER_WORDS}\b(?!'s| of\b)", group(GENDERS)),
+    rule("gender", rf"(?<!\byou )(?<!\bhim )(?<!\bher )(?<!\bthem )(?<!\bme )\bas an? (?:fully )?{ADJECTIVES}{GENDER_WORDS}\b(?!'s| of\b)", group(GENDERS)),
     rule("gender", r"\bmy (?:\w+ ){0,3}?(cock|dick|penis|balls|bbc|bwc|foreskin|beard)\b|\bmy (?:\w+ ){0,3}?(pussy|boobs|tits|breasts|vagina|clit|period|cervix|uterus|bra|nipples)\b",
          lambda match: "male" if match.group(1) else "female", SELF_HEDGE),
     rule("gender", r"(?:^|[\s,(\]])(milf|hotwife|daddy|dilf|bull|twink|femboy|sissy|bimbo)(?: here| looking| seeking| loves| needs| wants| for| 4\b)", group({"milf": "female", "hotwife": "female", "bimbo": "female", "daddy": "male", "dilf": "male", "bull": "male", "twink": "male", "femboy": "male", "sissy": "male"}), SELF_HEDGE),
     rule("gender", rf"(?:^|[.!?,;] *)(?:a )?{ADJECTIVES}{GENDER_WORDS} here\b", group(GENDERS)),
     rule("gender", rf"\b{I} (?:a |an )?(non-binary|nonbinary|enby|genderfluid|agender|genderqueer|trans woman|transwoman|trans girl|trans man|transman|trans guy|mtf|ftm|transgender|trans)\b(?! (?:people|rights|friend|kids))", group(GENDERS)),
     rule("gender", r"\b(she|he|they)\s?/\s?(?:her|hers|him|his|them|they)\b", group({"she": "female", "he": "male", "they": "non-binary"}), SELF_HEDGE),
-    rule("gender", r"(?:^|(?<=[\s,(\]]))[\(\[]\s*([mf])\s*[\)\]]", group(GENDERS), SELF_HEDGE),
+    rule("gender", r"(?:^|(?<=[\s,(\]]))[\(\[]\s*([mf])\s*[\)\]]", group(GENDERS), TAGGED),
+    rule("gender", r"\b(?:makes|made|got|gets|getting) me (?:so )?(hard|wet)\b|\b(?:i'm|im|i am) (?:so |already |rock )?(hard|wet|dripping) (?:for|thinking|right now)\b|\bi'?m your (girl|boy|man|woman|princess|slut|goddess)\b",
+         lambda match: {"hard": "male", "wet": "female", "dripping": "female", "girl": "female", "princess": "female", "slut": "female", "goddess": "female", "boy": "male", "man": "male", "woman": "female"}[next(filter(None, match.groups()))], SELF_HEDGE),
+    rule("gender", r"(?<![\w'])[\(\[]?(female|male|guy|girl|woman|man|dude|lady|f|m)(?: in(?:my |her |his )?(?:early |mid |late )?\d0'?s)? here\b|\bfellow (?:\w+ )?(dude|guy|woman|man|lady|girl|mom|dad) here\b",
+         lambda match: GENDERS[match.group(1) or match.group(2)], TAGGED),
+    rule("gender", rf"^\W*\d{{2}}\s*,?\s+(?:(?:single|married|white|black|asian|latino|latina|hispanic|indian|tall|short|fit|chubby|bi|straight|gay|hung|older|young|discreet|horny|local|cute|shy|sexy|thick|petite|curvy|clean|ddf|attractive|handsome|hot) )*(male|female|guy|girl|man|woman|dude|lady|queen|king|bbw|milf|stud|bull|twink|femboy|daddy)\b",
+         lambda match: {"queen": "female", "king": "male", "bbw": "female", "milf": "female", "stud": "male", "bull": "male", "twink": "male", "femboy": "male", "daddy": "male"}.get(match.group(1)) or GENDERS[match.group(1)], TAGGED),
+    rule("gender", r"(?:^|[\s,(\[])(t4[mfat]|ts girl|tgirl|trans girl|transgirl|mtf|ftm|trans guy|transman|transwoman)\b|^\W*(agender|non-?binary|enby|genderfluid|genderqueer)\b|\b(domme|dominatrix|mistress)\b(?= (?:here|looking|seeking|available|for)\b)",
+         lambda match: GENDERS.get(match.group(1), "trans woman") if match.group(1) and not match.group(1).startswith("t4") else "trans woman" if match.group(1) else GENDERS[match.group(2).replace("nonbinary", "non-binary")] if match.group(2) else "female", TAGGED),
+    rule("gender", r"(?:^|[\s.!?])([mf])\s?(\d{2})\W*$|(?:^|[\s.!?])(\d{2})(?:\s?(f)| (m))\W*$", lambda match: GENDERS[match.group(1) or match.group(4) or match.group(5)], TAGGED),
+    rule("age", r"(?:^|[\s.!?])([mf])\s?(\d{2})\W*$|(?:^|[\s.!?])(\d{2})(?:\s?f| m)\W*$", lambda match: ages(match.group(2) or match.group(3)), TAGGED),
+    rule("age", rf"^\W*(\d{{2}})\s*,?\s+(?:(?:single|married|white|black|asian|latino|latina|hispanic|indian|tall|short|fit|chubby|bi|straight|gay|hung|older|young|discreet|horny|local|cute|shy|sexy|thick|petite|curvy|clean|ddf|attractive|handsome|hot) )*(?:male|female|guy|girl|man|woman|dude|lady|queen|king|bbw|milf|stud|bull|twink|femboy|daddy|bottom|top|sub|dom|cuck|virgin|couple)\b", lambda match: ages(match.group(1)), TAGGED),
     rule("gender", r"\b(?:soy|sou) (?:un |una |uma |um )?(hombre|mujer|chica|chico|homem|mulher)\b|\bje suis une? (homme|femme)\b|\bich bin (?:ein |eine )?(mann|frau)\b",
          lambda match: {"hombre": "male", "chico": "male", "homem": "male", "homme": "male", "mann": "male"}.get(next(filter(None, match.groups())), "female")),
     rule("relationship_status", r"\b(?:my|me|our) (wife|husband|hubby|wifey|spouse|girlfriend|boyfriend|gf|bf|fianc[ée]e?|bae|partner|missus|missis|wifes|husbands)(?:'s)?\b(?! (?:in crime|and i broke up))", group({**RELATIONS, "missus": "married", "missis": "married", "wifes": "married", "husbands": "married"})),
@@ -297,7 +311,7 @@ RULES = [
     rule("parental_status", r"\b(?:mom|mum|mother|dad|father) of (?:\d+|one|two|three|four|five)\b", fixed("has children"), SELF_HEDGE),
     rule("parental_status", r"\b(?:i'm|im|i am) (?:\d+ (?:weeks?|months?) )?pregnant\b|\b\d+ weeks pregnant\b|\bwe(?:'re| are) expecting\b|\bmy pregnancy\b", fixed("expecting a child")),
     rule("parental_status", r"\bi (?:don't|do not|dont) have (?:any )?(?:kids|children)\b|\bi'm child-?free\b|\bwe(?:'re| are) child-?free\b|\bno kids of my own\b", fixed("no children"), re.compile(r"\b(?:if|would|wish)\b")),
-    rule("automated_account", r"\bi am a bot\b|\bi'm a bot\b|\bthis is a bot\b|\bthis action was performed automatically\b|\bsou um bot\b|\bsoy un bot\b|\bbeep boop\b", fixed("bot"), re.compile(r"$^")),
+    rule("automated_account", r"^(?![\s\S]*\b(?:removed|remove|approv\w*|karma|title|session id)\b)[\s\S]*?(?:\bi am a bot\b|\bi'm a bot\b|\bthis is a bot\b|\bthis action was performed automatically\b|\bsou um bot\b|\bsoy un bot\b|\bbeep boop\b)", fixed("bot"), TAGGED),
     rule("pets", r"\bmy (?:\w+ )?(dogs?|pup|puppy|puppies|doggo|pupper|golden retriever|lab|labrador|pitbull|pit bull|german shepherd|husky|corgi|chihuahua|poodle|beagle|dachshund)(?:'s)?\b", fixed("dog")),
     rule("pets", r"\bmy (?:\w+ )?(cats?|kitten|kitty|kitties|kittens)(?:'s)?\b", fixed("cat")),
     rule("pets", r"\bi (?:don't|do not|dont) have (?:any )?pets\b|\bi have no pets\b", fixed("no pets"), re.compile(r"\b(?:if|would|wish)\b")),
@@ -308,9 +322,9 @@ RULES = [
     rule("housing", r"\bi (?:own|bought) (?:a|my|our) (?:\w+ )?(?:house|home|condo|townhouse|townhome)\b|\b(?:my|our) mortgage\b|\b(?:as a|i'm a|im a) homeowner\b|\bwe (?:own|bought) (?:a|our) (?:house|home)\b|\bwhen (?:i|we) bought (?:my|our) house\b", fixed("homeowner")),
     rule("housing", r"\bmy (?:landlord|lease)\b|\bi rent (?:a|an|my)\b|\bi'm renting\b|\b(?:as a|i'm a) renter\b|\bmy rent (?:is|went)\b", fixed("renter")),
     rule("housing", r"\b(?:i'm|im|i am) (?:currently |now )?homeless\b|\bi live in my car\b", fixed("homeless")),
-    rule("employment_status", r"\bi work (?:as|at|for|in|from home|remotely|part[- ]time|full[- ]time|nights|weekends|\d+ hours|retail|construction|the|a|an|with|on|two|2|three|long|12|10|8|overtime|doubles|every)\b|\bmy (?:boss|coworkers?|co-workers?|manager|employer|job|workplace|shift|shifts|work|paycheck|paychecks|salary|wage|wages|commute|office|clients|colleagues|work day|workday|work week|team lead|supervisor)\b|\b(?:at|after|before|from|off) work\b|\bi'?m at work\b|\bon my (?:lunch|break)\b|\bfor a living\b|\bi get paid\b|\bi(?:'ve| have) been (?:teaching|working)\b|\b(?:i'm|im|i am) (?:currently )?(?:working|doing an? (?:\w+ )?internship|employed|interning)\b|\bi'm on shift\b|\b(?:a|my) (?:\w+ )?(?:job|day job)\b(?= (?:and|but|so|that|where|which|i))", fixed("employed")),
+    rule("employment_status", r"\bi work (?:as|at|for|in|from home|remotely|part[- ]time|full[- ]time|nights|weekends|\d+ hours|retail|construction|the same|two|2|three|long|12|10|8|overtime|doubles|every)\b|\bmy (?:employer|paycheck|paychecks|salary|wage|wages|commute to work|work day|workday|work week|shift|shifts|day job|full[- ]time job|part[- ]time job|job)\b(?! (?:hunt|search|application|interview|offer)\b)|\bi'?m at work\b|\bon my lunch break\b|\bfor a living\b|\bi get paid\b|\bi(?:'ve| have) been teaching\b|\b(?:i'm|im|i am) (?:currently )?(?:doing an? (?:\w+ )?internship|employed|interning|working (?:as|at|in|for|full|part|from))\b|\bi'm on shift\b|\b(?:day|days|hours) of work\b", fixed("employed")),
     rule("employment_status", r"\b(?:i'm|im|i am) (?:a |an )?(?:old |now )?retired\b|\b\(retired\)|\bretired (?:now|since|for)\b|\bmy retirement\b(?! (?:account|fund|savings|plan|age))", fixed("retired")),
-    rule("employment_status", r"\b(?:i'm|im|i am) (?:a |an )?(?:solo |serial |first[- ]time |startup )?(?:founder|co-?founder|entrepreneur|freelancer|contractor|business owner|small business owner)\b|\bmy (?:own )?(?:business|company|agency|startup|shop|store|salon|studio|practice|brand)\b(?! (?:card|account|class|school|trip))|\bi (?:have |just )?started (?:a|an|my own|my) (?:business|company|agency|startup)\b|\bi'm self employed\b|\bi freelance\b", fixed("self-employed or business owner")),
+    rule("employment_status", r"\b(?:i'm|im|i am) (?:a |an )?(?:solo |serial |first[- ]time |startup )?(?:founder|co-?founder|entrepreneur|freelancer|contractor|business owner|small business owner)\b|(?<!minding )(?<!mind )\bmy (?:own )?(?:business|company|agency|startup|salon|studio|practice)\b(?! (?:card|account|class|school|trip))|\bi (?:have |just )?started (?:a|an|my own|my) (?:business|company|agency|startup)\b|\bi'm self employed\b|\bi freelance\b", fixed("self-employed or business owner")),
     rule("employment_status", r"\b(?:i'm|im|i am) (?:almost |nearly |currently |now )?(?:in )?(?:my )?(?:1st|2nd|3rd|4th|first|second|third|fourth|final|last) year (?:of|in|at)\b|\bmy (?:bs|ba|bsc|degree|major|course|courses|uni|university|college|thesis|dissertation|lecturer|lectures|semester|classes|professor|exams?|finals|coursework|program)\b|\bi'?m (?:studying|in school|in college|in uni)\b|\bwhile (?:i'm |im |i am )?studying\b|\bi study\b", fixed("student")),
     rule("employment_status", r"\b(?:i'm|im|i am) (?:currently |now )?(?:unemployed|jobless|between jobs|out of work)\b|\bi (?:just )?(?:lost|got laid off from|got fired from) my job\b|\bi got laid off\b", fixed("unemployed")),
     rule("employment_status", r"\b(?:i'm|im|i am) (?:now |recently |semi-|happily )?retired\b|\bsince i retired\b|\bi retired (?:in|last|a few|from)\b|\bas a retiree\b", fixed("retired")),
@@ -358,8 +372,9 @@ RULES = [
     rule("diet", r"\bi (?:eat|love) meat\b|\bi'?m a (?:meat eater|carnivore|omnivore)\b", fixed("eats everything")),
     rule("smoking", r"\bi (?:smoke|vape)(?: cigarettes| cigs| a pack| daily| every day)?\b(?! (?:weed|pot|a joint|joints|blunts|cannabis|marijuana|meat|out)\b)|\b(?:i'm|im|i am) a (?:heavy |chain |social )?smoker\b|\bas a smoker\b|\bmy (?:vape|cigarettes)\b", fixed("smoker or vaper"), SELF_HEDGE),
     rule("smoking", r"\bi (?:don't|do not|dont|never) smoke\b|\bi quit smoking\b|\b(?:i'm|im|i am) a non-?smoker\b|\bi've never smoked\b", fixed("non-smoker"), re.compile(r"\b(?:if|would|wish)\b")),
-    rule("military_status", rf"\b(?:{I}|as) (?:a |an )?(?:proud |disabled |combat |retired |former )?(?:army|navy|marine|marine corps|air force|military|usmc|combat|iraq|afghanistan|war|coast guard) (?:vet|veteran)\b|\b(?:{I}|as) (?:a |an )?(?:proud |disabled |combat )?veteran\b|\bwhen i was in the (?:army|navy|marines|air force|military|service|marine corps)\b|\bi (?:served|was) in the (?:army|navy|marines|air force|military|coast guard|marine corps)\b|\bi (?:served|did \w+ tours?) in (?:iraq|afghanistan|vietnam)\b", fixed("military veteran"), SELF_HEDGE),
-    rule("military_status", r"\b(?:i'm|im|i am) (?:currently )?(?:in|serving in) the (?:army|navy|marines|air force|military|national guard|coast guard|marine corps)\b|\b(?:i'm|im|i am) (?:on )?active duty\b|\b(?:i'm|im|i am) (?:a |an )?(?:active duty )?(?:soldier|marine|sailor|airman|service member)\b", fixed("serving in the military")),
+    rule("military_status", rf"(?P<serving>\b{I} (?:currently |still )?(?:in|serving in|enlisted in) the (?:army|navy|marines|air force|military|national guard|coast guard|marine corps|reserves|space force)\b|\b{I} (?:on )?active duty\b|\b{I} (?:a |an )?(?:active duty )?(?:soldier|marine|sailor|airman|service ?member|infantryman|paratrooper)\b|\b{I} (?:currently )?(?:deployed|stationed)\b|\bmy (?:unit|platoon|squadron|battalion|deployment|chain of command|first sergeant|drill sergeant|commanding officer|nco|squad leader)\b)"
+         rf"|(?P<veteran>\b(?:{I}|as) (?:a |an )?(?:proud |disabled |combat |retired |former |old )?(?:(?:army|navy|marine|marine corps|air force|military|usmc|combat|iraq|afghanistan|war|coast guard) )?(?:vet|veteran)\b(?! (?:tech|clinic|bill|school|student)\b)|\bwhen i was in the (?:army|navy|marines|air force|military|service|marine corps)\b|\bi (?:served|was) in the (?:army|navy|marines|air force|military|coast guard|marine corps)\b|\bi served (?:my country|\d+ years|overseas|(?:two|three|four|\d) tours)\b|\bi (?:got out of|retired from|separated from) the (?:army|navy|marines|air force|military|service)\b|\bretired (?:chief|sergeant|master sergeant|colonel|lieutenant|major|captain|petty officer|sgt|gunny|army|navy|marine|air force)\b)",
+         lambda match: "serving in the military" if match.group("serving") else "military veteran", SELF_HEDGE),
     rule("nationality", rf"\b{I} (?:a |an |also |half |proudly |a proud )?({'|'.join(map(re.escape, DEMONYMS))})(?: citizen| national)?(?=$|[\s.,!;:)])(?! (?:food|people|culture|company|government|accent|friend|girlfriend|boyfriend|wife|husband|music|movies?|guy|girl|man|woman|stuff|style|tv|teacher|class|course|school|version|player)\b)", group(DEMONYMS)),
     rule("nationality", rf"\bas an? ({'|'.join(map(re.escape, DEMONYMS))})(?: citizen| person| myself| national)?\b(?! (?:company|government|food|man|woman|guy|girl|accent)\b)", group(DEMONYMS)),
     rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:language|tongue) is (\w+)\b|\b(\w+) is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) an? native (\w+) speaker\b|\bnative (\w+) speaker here\b",
@@ -369,8 +384,8 @@ RULES = [
     rule("height", rf"\b{I} (?:only |about |around |almost |nearly |barely |like |just )?(1[4-9]\d|2[01]\d)\s*cm\b", lambda match: match.group(1)),
     rule("weight", rf"\bi (?:weigh|weight|'m at|am at|'m currently at|'m currently)\s+(?:about |around |roughly |almost |like |just under |over |under )?(\d{{2,3}}(?:\.\d)?)\s*(lbs?|pounds|kg|kgs|kilos)\b|\b{I} (\d{{2,3}})\s*(lbs?|pounds|kg|kgs)\b",
          lambda match: (lambda amount, unit: str(round(amount * (1 if unit.startswith("k") else .4536))))(float(match.group(1) or match.group(3)), match.group(2) or match.group(4))),
-    rule("income", r"\bi (?:make|earn|made|bring in|bring home|gross|net|take home|clear)\s+(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly )?\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand)?\s*(?:a|per|/|an?)\s*(?:year|yr|annum)\b|\bmy (?:salary|income) is (?:about |around |roughly |over |like |~)?\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand)?\b",
-         lambda match: (lambda amount, scale: str(int(amount * (1000 if scale else 1))) if 1000 <= amount * (1000 if scale else 1) <= 100_000_000 else None)(float((match.group(1) or match.group(3)).replace(",", "")), match.group(2) or match.group(4))),
+    rule("income", r"(?:\b(?:i|me) (?:make|made|earn|earned|bring in|bring home|gross|net|take home|clear|pull|pulled)|\bmy (?:salary|income|pay) is)\s+(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly |an? )?\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand)?\s*(?:(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b|(annually|yearly|monthly|hourly|weekly)\b|(?=\s*(?:$|[.,!;)])))",
+         lambda match: (lambda amount: str(int(amount)) if 1000 <= amount <= 100_000_000 else None)(float(match.group(1).replace(",", "")) * (1000 if match.group(2) else 1) * {"year": 1, "yr": 1, "annum": 1, "annually": 1, "yearly": 1, "month": 12, "mo": 12, "monthly": 12, "hour": 2080, "hr": 2080, "hourly": 2080, "week": 52, "wk": 52, "weekly": 52, None: 1}[match.group(3) or match.group(4)]), SELF_HEDGE),
     rule("body_type", rf"\b{I} (?:very |really |pretty |quite |a bit |kinda |kind of |super |too |so |a little |slightly |a |an )?({'|'.join(map(re.escape, BODIES))})\b(?! (?:fan|deal|part|news|on|in|for|with|of|to|time|enough|guy|girl|man|woman)\b)", group(BODIES)),
     rule("body_type", r"(?:^|[\s,|/])(bbw|curvy|petite|chubby|athletic|muscular|slim)\s*(?:f|female|woman|girl|m|male|guy|here)\b", group(BODIES), SELF_HEDGE),
     rule("hair_color", r"\bmy (?:natural )?(blonde?|brown|black|red|ginger|auburn|grey|gray|white|silver|pink|blue|purple|green) hair\b|\bi have (?:long |short |curly |natural )?(blonde?|brown|black|red|ginger|auburn|grey|gray|white|silver|pink|blue|purple|green) hair\b",
@@ -424,7 +439,26 @@ RULES = [
                 "ministry": "social work or religious work", "church": "social work or religious work", "security": "police, fire or security", "engineering": "engineering", "research": "science or research",
                 "academia": "science or research", "lab": "science or research", "clinic": "doctor, nurse or clinical health", "dental office": "doctor, nurse or clinical health", "vet clinic": "doctor, nurse or clinical health",
                 "salon": "cleaning, maintenance or personal service"}), SELF_HEDGE),
-    rule("occupation", r"\bmy (patients|students|pupils|clients|customers|classroom|lesson plans?|caseload|shift at the hospital|unit|charge nurse|clinic)\b",
+    rule("occupation", r"\bi (?:sell|teach|tutor|clean|drive|cook|bartend|code|program|nurse|deliver|repair|fix|build|install|cut hair|do hair|do nails|tattoo|farm|trade|edit|photograph|film|stream|cam|dance|model|dj|translate|design|write) (?:\w+ ){0,3}?(?:for a living|for work|professionally|as a job|for my job|full[- ]time|part[- ]time|things to|cars|houses|homes|kids|students|online|on twitch|for clients)\b|\b(?:doing|do) (?:\w+ )?(teaching|nursing|accounting|tutoring|bartending|cleaning|delivery|deliveries|construction|plumbing|welding|modeling|camming|photography|freelance design|web design|graphic design|translation|security|retail|sales) (?:work |jobs? )?(?:right now|now|currently|for a living|full[- ]time|part[- ]time|these days)\b",
+         lambda match: {"teaching": "teaching or education", "tutoring": "teaching or education", "nursing": "doctor, nurse or clinical health", "accounting": "finance or accounting", "bartending": "food service or hospitality",
+                        "cleaning": "cleaning, maintenance or personal service", "delivery": "transport or delivery", "deliveries": "transport or delivery", "construction": "skilled trade or construction",
+                        "plumbing": "skilled trade or construction", "welding": "skilled trade or construction", "modeling": "arts, design or entertainment", "camming": "sex work or adult content",
+                        "photography": "arts, design or entertainment", "freelance design": "arts, design or entertainment", "web design": "arts, design or entertainment", "graphic design": "arts, design or entertainment",
+                        "translation": "other job", "security": "police, fire or security", "retail": "sales or retail", "sales": "sales or retail"}.get(match.group(1)) or {
+                        "sell": "sales or retail", "teach": "teaching or education", "tutor": "teaching or education", "clean": "cleaning, maintenance or personal service", "drive": "transport or delivery",
+                        "cook": "food service or hospitality", "bartend": "food service or hospitality", "code": "software or IT", "program": "software or IT", "nurse": "doctor, nurse or clinical health",
+                        "deliver": "transport or delivery", "repair": "skilled trade or construction", "fix": "skilled trade or construction", "build": "skilled trade or construction", "install": "skilled trade or construction",
+                        "cut": "cleaning, maintenance or personal service", "do": "cleaning, maintenance or personal service", "tattoo": "arts, design or entertainment", "farm": "farming or outdoor work",
+                        "trade": "finance or accounting", "edit": "arts, design or entertainment", "photograph": "arts, design or entertainment", "film": "arts, design or entertainment",
+                        "stream": "arts, design or entertainment", "cam": "sex work or adult content", "dance": "arts, design or entertainment", "model": "arts, design or entertainment",
+                        "dj": "arts, design or entertainment", "translate": "other job", "design": "arts, design or entertainment", "write": "arts, design or entertainment"}[match.group().split()[1]], SELF_HEDGE),
+    rule("occupation", r"\b(?:doing|started|got|landed|have|finished|completed|in) (?:a|an|my) (?:\w+ )?(banking|finance|accounting|marketing|engineering|software|it|law|legal|nursing|teaching|research|design|consulting|sales|hr|government|journalism) (?:internship|apprenticeship|placement|residency|co-?op)\b|\b(?:camming|cam model|cam girl|onlyfans|only fans|of creator|selling content|custom (?:content|videos|vids))\b",
+         lambda match: {"banking": "finance or accounting", "finance": "finance or accounting", "accounting": "finance or accounting", "marketing": "marketing, media or communications", "engineering": "engineering",
+                        "software": "software or IT", "it": "software or IT", "law": "law", "legal": "law", "nursing": "doctor, nurse or clinical health", "teaching": "teaching or education", "research": "science or research",
+                        "design": "arts, design or entertainment", "consulting": "business, management or consulting", "sales": "sales or retail", "hr": "business, management or consulting",
+                        "government": "government or public service", "journalism": "marketing, media or communications"}.get(match.group(1), "sex work or adult content"), SELF_HEDGE),
+    rule("relationship_status", r"(?:^\W*(?:\d{2}\s*)?(?:[\[\(]\w+[\]\)]\s*)?(?:\w+ )?married\b|\bmarried(?:/| and | )(?:dl|discreet|curious|bi|man|woman|guy|milf|dad|mom|couple|but|white|black|hwp|male|female|m\b|f\b))", fixed("married"), TAGGED),
+    rule("occupation", r"\bmy (patients|students|pupils|clients|customers|classroom|lesson plans?|caseload|shift at the hospital|charge nurse|clinic)\b",
          group({"patients": "doctor, nurse or clinical health", "students": "teaching or education", "pupils": "teaching or education", "clients": "business, management or consulting",
                 "customers": "sales or retail", "classroom": "teaching or education", "lesson plan": "teaching or education", "lesson plans": "teaching or education", "caseload": "social work or religious work",
                 "shift at the hospital": "doctor, nurse or clinical health", "unit": "doctor, nurse or clinical health", "charge nurse": "doctor, nurse or clinical health", "clinic": "doctor, nurse or clinical health"}), SELF_HEDGE),
@@ -465,9 +499,6 @@ RULES = [
          lambda match: (lambda word: {"mexicano": "hispanic or latino", "mexicana": "hispanic or latino", "negro": "black", "negra": "black", "blanco": "white", "blanca": "white", "native": "indigenous"}.get(word) or ETHNICITIES.get(word) or "white")(next(filter(None, match.groups()), "white")), SELF_HEDGE),
     rule("native_language", r"\benglish (?:is not|isn't|is no|ain't|isnt) my (?:native|first|mother|main) (?:language|tongue)\b|\b(?:i'm|im|i am) not (?:a )?native (?:english )?speaker\b|\bnon[- ]native (?:english )?speaker\b|\bmy english (?:is|isn't) (?:not )?(?:bad|good|great|perfect)\b(?=.{0,40}(?:sorry|excuse|forgive|native))", fixed("not english"), re.compile(r"$^")),
     rule("native_language", r"\b(\w+) is the only language i (?:speak|know)\b|\bas (?:a )?native (\w+ )?speakers?\b", lambda match: (lambda word: (LANGUAGE_NAMES.get(word, word) if word in LANGUAGES else None) if word else "english")((match.group(1) or (match.group(2) or "").strip())), SELF_HEDGE),
-    rule("military_status", r"\bmy (?:squadron|platoon|battalion|company commander|unit|deployment|command|chain of command|first sergeant|drill sergeant|mos|rate|ship|base|cos|nco|co|squad leader)\b|\bi(?:'m| am) (?:currently )?(?:deployed|stationed)\b|\bwhen i(?:'m| am) deployed\b|\b\d+(?:st|nd|rd|th) (?:meu|infantry|airborne|marines|cav|cavalry)\b",
-         fixed("serving in the military"), SELF_HEDGE),
-    rule("military_status", r"\bi served (?:my country|\d+ years|in|for|on|with|overseas|two tours|three tours)\b|\bretired (?:chief|sergeant|master sergeant|colonel|lieutenant|major|captain|petty officer|sgt|gunny|army|navy|marine|air force)\b|\bwhen i (?:got out|was enlisted|enlisted)\b|\b(?:i'm|im|i am) (?:a |an )?(?:old |retired |former )?(?:\w+ )?(?:veteran|vet)\b(?= (?:here|and|myself|of)|[.,!])", fixed("military veteran"), SELF_HEDGE),
     rule("political_identity", r"\b(?:i'm|im|i am|i m) (?:on the |firmly on the |pretty |very |far |more |center |centre |a )?(left|right|left[- ]wing|right[- ]wing|leftist|left[- ]leaning|right[- ]leaning|lefty|righty)\b(?! (?:handed|eye|side|hand|now|here|there)\b)",
          lambda match: "socialist or left" if match.group(1).startswith("left") or match.group(1) == "lefty" else "conservative or right", SELF_HEDGE),
     rule("political_identity", r"\bi(?:'m| am) (?:actually )?a (?:proud |big |huge |strong )?supporter of (?:the )?(democrats?|labour|labor|bernie|aoc|republicans?|gop|trump|maga|tories|conservatives|greens|ndp|liberals)\b",
@@ -477,8 +508,6 @@ RULES = [
     rule("religion", r"\b(?:allah|inshallah|insha'?allah|alhamdulillah|mashallah|masha'?allah|jazakallah|subhanallah|prophet muhammad|astaghfirullah)\b|\bramadan mubarak\b|\bmy (?:salah|wudu|deen|hijab)\b", fixed("muslim"), SELF_HEDGE),
     rule("religion", r"\b(?:bible study|my bible|jesus is my|my lord and savior|my savior|praise god|god bless|christ is king|my rosary|i'm (?:a )?catholic|as a catholic)\b", fixed("christian"), SELF_HEDGE),
     rule("religion", r"\bi(?:'m| am) not (?:a )?religious(?: person)?\b|\bi (?:don't|do not) (?:believe in god|follow (?:any )?religion)\b|\bi loathe (?:all )?religion\b", lambda match: "atheist" if "god" in match.group() or "loathe" in match.group() else "spiritual, no religion", re.compile(r"$^")),
-    rule("income", r"\b(?:i|me) (?:make|made|earn|earned|bring in|take home|gross|net|pull|pulled)\s+(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly |an? )?\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand)?\s*(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b",
-         lambda match: (lambda amount: str(int(amount)) if 1000 <= amount <= 100_000_000 else None)(float(match.group(1).replace(",", "")) * (1000 if match.group(2) else 1) * {"year": 1, "yr": 1, "annum": 1, "month": 12, "mo": 12, "hour": 2080, "hr": 2080, "week": 52, "wk": 52}[match.group(3)]), SELF_HEDGE),
 ]
 FAVORITE = re.compile(rf"(?i:\bmy (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|favs) ({KIND_WORDS})(?: of all time| ever| right now| atm| at the moment)? (?:is|has to be|would be|would have to be|was always|remains|are)\s+){NAME}")
 FAVORED = re.compile(rf"{NAME}(?i: (?:is|are|was|has always been|will always be) (?:still |definitely |probably |easily |honestly |hands down )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|goat)(?: ({KIND_WORDS}))?\b)")
@@ -526,7 +555,6 @@ def fandom(text, found):
         if hedged(part.lower(), cue.start(), cue.end(), SELF_HEDGE):
             continue
         first = len(part) - len(part.lstrip())
-        lowered_text = text.lower()
         names = []
         for match in CANDIDATE.finditer(part):
             name = (match.group(1) or match.group(2)).strip()
@@ -629,8 +657,11 @@ def extract(texts):
         text = prepared(raw)
         lowered = text.lower()
         found = {}
+        automatic = bool(BOT_TEXT.search(lowered))
         tags(text, lowered, found)
         for attribute, pattern, value, hedge in RULES:
+            if automatic and attribute != "automated_account":
+                continue
             for match in pattern.finditer(lowered):
                 if (stated := value(match)) is not None and not hedged(lowered, match.start(), match.end(), hedge):
                     found.setdefault((attribute, stated), match.start())
@@ -638,8 +669,6 @@ def extract(texts):
         fandom(text, found)
         places(text, lowered, found)
         stated = {attribute for attribute, _ in found}
-        if "occupation" in stated and "employment_status" not in stated:
-            found[("employment_status", "employed")] = min(position for (attribute, _), position in found.items() if attribute == "occupation")
         if ("relationship_status", "married") in found and "living_with" not in stated:
             found[("living_with", "partner or family")] = found[("relationship_status", "married")]
         earliest = {}
