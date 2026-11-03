@@ -108,11 +108,9 @@ def dumps(month):
 
 @timed
 def add(months):
-    from .server import counts, create, finish, reloadable, schema
+    from .server import counts, create, finish, schema
     with psycopg.connect(DSN) as conn:
         schema(conn)
-        for month in months:
-            reloadable(conn, month)
         conn.execute("DELETE FROM months WHERE month = ANY(%s)", [months])
     for month in sorted(months):
         create(month)

@@ -101,12 +101,6 @@ def schema(conn):
     conn.execute(SCHEMA)
 
 
-def reloadable(conn, month):
-    found = conn.execute("SELECT tableoid::regclass::text FROM records WHERE created_utc >= %s AND created_utc < %s LIMIT 1", bounds(month)).fetchone()
-    if found and found[0] != "records_" + partition(month)["name"]:
-        raise ValueError(f"{month} lies in partition {found[0]} with other months and cannot be reloaded alone")
-
-
 @timed
 def create(month):
     with psycopg.connect(DSN) as conn:
