@@ -1,10 +1,11 @@
 import json
 import subprocess
 import sys
+import zlib
 from collections import Counter, defaultdict
 
 from . import LOG, timed
-from .config import ANNOTATIONS, ANNOTATOR, FAN_WHOLE, GOLD_TEXTS, TEACHER, TRAINING, VERIFIERS
+from .config import ANNOTATIONS, ANNOTATOR, FAN_WHOLE, GOLD_TEXTS, HELD_DATASET, HELD_PARTS, TEACHER, TRAINING, VERIFIERS
 from .schema import CLOSED, FAN_WORDS, FANDOM_PROMPT, VERIFY, claim_text, parse, renamed
 
 BEFORE, AFTER = 500, 300
@@ -90,8 +91,12 @@ def fandom_checked(model=TEACHER):
     return frozenset(votes("fandom", model))
 
 
+def held_out():
+    return frozenset(row["id"] for row in rows(ANNOTATIONS / f"{HELD_DATASET}.jsonl") if zlib.crc32(row["id"].encode()) % HELD_PARTS == 0)
+
+
 def proposals(datasets, model=TEACHER):
-    held = set(json.loads(GOLD_TEXTS.read_text(encoding="utf-8")))
+    held = held_out()
     fans = votes("fandom", model)
     seen = set()
     for dataset in datasets:
@@ -162,7 +167,7 @@ def excerpt(text, quote):
 def gold(dataset, limit):
     corpus = texts(dataset)
     runs = {model: answers(dataset, model) for model in VERIFIERS}
-    shared = sorted(set.intersection(*map(set, runs.values())))[:limit]
+    shared = sorted(set.intersection(*map(set, runs.values())) & held_out())[:limit]
     records = ANNOTATIONS / "fandom.gold.prompts.jsonl"
     with open(records, "w", encoding="utf-8") as out:
         for identifier in shared:

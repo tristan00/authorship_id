@@ -42,7 +42,7 @@ def mentions(answer):
 @timed
 def collected(extra):
     counts = defaultdict(Counter)
-    for found in (votes("fandom", TEACHER), *(answers(dataset, TEACHER) for dataset in TRAINING), *(answers(dataset, model) for model in VERIFIERS for dataset in ("uniform", "fandom.gold", "flairs"))):
+    for found in (votes("fandom", TEACHER), *(answers(dataset, TEACHER) for dataset in TRAINING), *(answers("flairs", model) for model in VERIFIERS)):
         for answer in found.values():
             for kind, value in mentions(answer):
                 counts[kind][value] += 1

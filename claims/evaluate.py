@@ -8,7 +8,7 @@ import psycopg
 from database import DSN
 
 from . import LOG, timed
-from .annotate import generate, next_round, rounds, rows, texts, votes
+from .annotate import generate, held_out, next_round, rounds, rows, texts, votes
 from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_ATTRIBUTE, GOLD_TEXTS, HELD_FOLDS, NEEDS, PLACE_CHAINS, TEACHER, THRESHOLDS, VERIFIERS
 from .extractor import load_extractor, predict, splitter, windows
 from .rules import CHAINED, agree, chain, decide, flair_strength, needs, place_paths, strength
@@ -81,7 +81,8 @@ def extractor(dataset="uniform", path=EXTRACTOR):
     truth, teacher = text_truth(dataset)
     wanted = Counter(attribute for (_, attribute), values in truth.items() for _ in values)
     corpus = texts(dataset)
-    held = [identifier for identifier in json.loads(GOLD_TEXTS.read_text(encoding="utf-8")) if identifier in corpus]
+    kept = held_out()
+    held = [identifier for identifier in json.loads(GOLD_TEXTS.read_text(encoding="utf-8")) if identifier in corpus and identifier in kept]
     body = [corpus[identifier]["text"] for identifier in held]
     model, pad = load_extractor(path)
     found = predict(model, pad, *windows(splitter(model.encoder.config.name_or_path), body), body)
