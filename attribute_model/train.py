@@ -22,9 +22,9 @@ def collect(model, vectors, labels, column, batch=8192):
     outputs, targets = [], []
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
         for start in range(0, len(vectors), batch):
-            target = labels[start:start + batch, column]
+            target = labels[start:start + batch, column].to(DEVICE)
             present = torch.isfinite(target)
-            outputs.append(model.outputs(model(vectors[start:start + batch][present].float()))[column].float())
+            outputs.append(model.outputs(model(vectors[start:start + batch].to(DEVICE)[present].float()))[column].float())
             targets.append(target[present])
     return torch.cat(outputs), torch.cat(targets)
 
@@ -34,7 +34,7 @@ def score(model, vectors, labels, specs, batch=8192):
     sums = counts = 0
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
         for start in range(0, len(vectors), batch):
-            batch_sums, batch_counts, _ = model.terms(model(vectors[start:start + batch].float()), labels[start:start + batch])
+            batch_sums, batch_counts, _ = model.terms(model(vectors[start:start + batch].to(DEVICE).float()), labels[start:start + batch].to(DEVICE))
             sums, counts = sums + batch_sums, counts + batch_counts
     ratios = (sums / counts / model.baseline).tolist()
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
@@ -74,8 +74,8 @@ def calibrate(model, vectors, labels, specs, mass):
 
 
 def stated_auc(model, vectors, labels, batch=8192):
-    scores = torch.cat([model.stated(model(vectors[start:start + batch].float())).float() for start in range(0, len(vectors), batch)])
-    present = torch.isfinite(labels)
+    scores = torch.cat([model.stated(model(vectors[start:start + batch].to(DEVICE).float())).float() for start in range(0, len(vectors), batch)])
+    present = torch.isfinite(labels).to(DEVICE)
     ranks = scores.argsort(0).argsort(0).double() + 1
     positives = present.sum(0).double()
     return (((ranks * present).sum(0) - positives * (positives + 1) / 2) / (positives * (len(labels) - positives))).tolist()
@@ -123,11 +123,11 @@ def report(model, vectors, labels, specs, calibration):
     return result
 
 
-def gpu(inputs, labels, selected):
-    vectors = torch.empty((len(selected), inputs.shape[1]), dtype=torch.from_numpy(inputs[:1].copy()).dtype, device=DEVICE)
+def gpu(inputs, labels, selected, device=DEVICE):
+    vectors = torch.empty((len(selected), inputs.shape[1]), dtype=torch.from_numpy(inputs[:1].copy()).dtype, device=device)
     for start in range(0, len(selected), 1 << 20):
         vectors[start:start + (1 << 20)] = torch.from_numpy(np.asarray(inputs[selected[start:start + (1 << 20)]]))
-    return vectors, torch.as_tensor(np.asarray(labels[selected]), dtype=torch.float32, device=DEVICE)
+    return vectors, torch.as_tensor(np.asarray(labels[selected]), dtype=torch.float32, device=device)
 
 
 def load_splits(manifest, targets, inputs, labels, splits):
@@ -138,7 +138,7 @@ def load_splits(manifest, targets, inputs, labels, splits):
         if (counts < 100).any():
             raise ValueError(f"Fewer than 100 {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < 100)}")
     LOG.info("attribute model rows=%s", {name: len(indices) for name, indices in selected.items()})
-    return specs, {name: gpu(inputs, labels, indices) for name, indices in selected.items()}
+    return specs, {name: gpu(inputs, labels, indices, DEVICE if name == "train" else "cpu") for name, indices in selected.items()}
 
 
 @timed
