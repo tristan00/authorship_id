@@ -2,6 +2,7 @@ import hashlib
 import json
 import shutil
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -181,12 +182,20 @@ def clean_vectors(texts, rows, owners, count, path, previous, earlier):
     def fetch(index):
         return index, vectors_at(texts, fragments[index], (rows_sorted[begins[index]:ends[index]] & np.uint64(0xFFFFFFFF)).astype(np.int64))
 
+    def write(index, codes):
+        slots = order[begins[index]:ends[index]]
+        spill.write(bucket[slots], pa.record_batch([pa.array(slots.astype(np.uint64)), pa.FixedSizeListArray.from_arrays(pa.array(codes.ravel()), FEATURES)], schema=FETCHED))
+        if index % 256 == 255:
+            LOG.info("clean codes fragments=%d/%d seconds=%.1f", index + 1, len(fragments), time.perf_counter() - started)
+
     with ThreadPoolExecutor(ENCODERS) as pool:
-        for done, (index, codes) in enumerate(pool.map(fetch, range(len(fragments))), 1):
-            slots = order[begins[index]:ends[index]]
-            spill.write(bucket[slots], pa.record_batch([pa.array(slots.astype(np.uint64)), pa.FixedSizeListArray.from_arrays(pa.array(codes.ravel()), FEATURES)], schema=FETCHED))
-            if done % 256 == 0:
-                LOG.info("clean codes fragments=%d/%d seconds=%.1f", done, len(fragments), time.perf_counter() - started)
+        pending = deque()
+        for index in range(len(fragments)):
+            pending.append(pool.submit(fetch, index))
+            if len(pending) > ENCODERS:
+                write(*pending.popleft().result())
+        while pending:
+            write(*pending.popleft().result())
     spill.close()
     model, scale = load_model("cuda"), scales(texts)
     for part in range(CLEAN_BUCKETS):
