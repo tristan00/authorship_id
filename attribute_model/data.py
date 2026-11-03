@@ -14,8 +14,8 @@ from pyarrow import csv
 from author_encoder.config import DIMENSIONS, VECTOR_STORE
 from author_encoder.index import PROTOCOL
 from author_encoder.lock import index_lock
-from claims.config import NUMERIC
-from claims.schema import FLAIR_ATTRIBUTES
+from claim_consolidation.config import NUMERIC
+from claim_extraction.schema import FLAIR_ATTRIBUTES
 from database import DSN
 
 from . import LOG, timed, write_json

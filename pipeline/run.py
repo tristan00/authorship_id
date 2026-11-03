@@ -2,8 +2,7 @@ import multiprocessing
 
 import psycopg
 
-from claims.consolidate import consolidate
-from claims.extract import run as extract
+from claim_consolidation.consolidate import consolidate
 from database import DSN, LOGS
 from database.load import add, verify
 from reddit_dumps import setup_logging
@@ -80,20 +79,10 @@ def clean(month):
 
 
 @timed
-def tables():
-    from claims.names import annotate, apply, extracted
-    from claims.places import annotate as places
-    annotate(extracted())
-    apply()
-    places()
-
-
-@timed
 def consolidation():
     if current("consolidation", CONSOLIDATED):
         LOG.info("consolidation covers every extracted month")
         return
-    tables()
     consolidate()
 
 
@@ -119,11 +108,7 @@ def run(month):
     try:
         load(month)
         clean(month)
-        encoder = background(vectors)
-        try:
-            extract()
-        finally:
-            wait(encoder)
+        wait(background(vectors))
         consolidation()
         attributes()
     finally:

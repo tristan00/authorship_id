@@ -2,7 +2,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from claims.schema import BINARY, NO
+from claim_extraction.schema import BINARY, NO
 
 TARGETS = Path(__file__).with_name("targets.json")
 ROOT = Path(r"C:\reddit_data\attribute_model")

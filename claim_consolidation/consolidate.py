@@ -8,15 +8,15 @@ from operator import itemgetter
 import psycopg
 from psycopg.types.json import Jsonb
 
+from claim_extraction.schema import FIELD_TYPE
+from claim_flair.gate import blocked_scopes, gate, near
 from database import DSN, LOGS, NO_AUTHOR, SCAN_WORKERS, vacuum, within
 from reddit_dumps import setup_logging
 
 from . import LOG, timed
-from .config import BOT_AUTHORS, EVIDENCE_MEMORY, PARTS_PER_WORKER, WORKERS
-from .flairs import blocked_scopes, gate, near
-from .rules import audit, needs
+from .config import BOT_AUTHORS, EVIDENCE_MEMORY, NEED, PARTS_PER_WORKER, WORKERS
+from .rules import audit
 from .rules import consolidate as rules
-from .schema import FIELD_TYPE
 
 SCHEMA = """
 DROP TABLE IF EXISTS claim_evidence;
@@ -75,12 +75,12 @@ def streamed(conn, touched, low, high):
             yield author, [row[1:] for row in group]
 
 
-def inspect(low, high, required):
-    setup_logging(LOGS / "claims.log")
+def inspect(low, high):
+    setup_logging(LOGS / "consolidation.log")
     stats, base = {}, defaultdict(Counter)
     with psycopg.connect(DSN) as conn:
         for _, rows in streamed(conn, False, low, high):
-            decided, pairs = audit(rows, required)
+            decided, pairs = audit(rows, NEED)
             for field, value in decided.items():
                 base[field][value] += 1
             for subreddit, flair, field, value, written in pairs:
@@ -90,15 +90,15 @@ def inspect(low, high, required):
     return stats, {field: dict(counted) for field, counted in base.items()}
 
 
-def work(low, high, touched, required, blocked):
-    setup_logging(LOGS / "claims.log")
+def work(low, high, touched, blocked):
+    setup_logging(LOGS / "consolidation.log")
     started = time.perf_counter()
     decided = authors = 0
     with psycopg.connect(DSN) as reader, psycopg.connect(DSN) as conn:
         with conn.cursor().copy(f"COPY {TARGET[touched]} FROM STDIN") as copy:
             for author, rows in streamed(reader, touched, low, high):
                 authors += 1
-                for attribute, (value, support, share, candidates) in rules(rows, required, blocked).items():
+                for attribute, (value, support, share, candidates) in rules(rows, NEED, blocked).items():
                     ranked = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))
                     copy.write_row((author, attribute, value, support, share, Jsonb([{"value": item, "support": round(amount, 3)} for item, amount in ranked])))
                     decided += 1
@@ -148,10 +148,9 @@ def base(conn, loaded):
 @timed
 def inspected(conn):
     ranges = author_ranges(conn, WORKERS * PARTS_PER_WORKER)
-    required = needs()
     stats, base = {}, defaultdict(Counter)
     with multiprocessing.Pool(WORKERS) as pool:
-        for found, counted in pool.starmap(inspect, [(low, high, required) for low, high in ranges]):
+        for found, counted in pool.starmap(inspect, ranges):
             for key, (count, hits) in found.items():
                 entry = stats.setdefault(key, [0, 0])
                 entry[0] += count
@@ -163,10 +162,9 @@ def inspected(conn):
 
 @timed
 def decide(conn, touched, blocked):
-    required = needs()
     ranges = author_ranges(conn, WORKERS * PARTS_PER_WORKER)
     with multiprocessing.Pool(WORKERS) as pool:
-        return sum(pool.starmap(work, [(low, high, touched, required, blocked) for low, high in ranges]))
+        return sum(pool.starmap(work, [(low, high, touched, blocked) for low, high in ranges]))
 
 
 @timed
