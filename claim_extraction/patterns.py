@@ -211,6 +211,10 @@ START = rf"^\W{{0,3}}(\d{{2}})(?=\s*[\[\(]?\s*[mf]?\s*4\s*[mfatr]|\s*[\[\(]\s*[m
 OTHERS = re.compile(r"\b(?:my|his|her|their|our|your|he|she|him|boyfriend|girlfriend|bf|gf|husband|wife|hubby|partner|ex|friend|son|daughter|brother|sister|mom|dad|mother|"
                     r"father|dom|sub|guy|girl|man|woman|someone|somebody|with|e\.g|eg|example|like|for|to|and|older|younger|current|new|another|this|that)\W*$")
 SELF = re.compile(r"(?:\b(?:i|me|myself|i'm|im|i am|ich|moi|yo)|^)\W*$")
+SHAPES = {"thicc": "curvy", "chub": "chubby or overweight", "chunky": "chubby or overweight", "dadbod": "average", "dad bod": "average", "beefy": "athletic or muscular", "stocky": "chubby or overweight",
+          "hourglass": "curvy", "rellenita": "chubby or overweight", "gordita": "chubby or overweight", "flaca": "very thin", "tiny": "very thin", "ripped": "athletic or muscular", "toned": "athletic or muscular"}
+DESCRIBED = re.compile(r"(?:^|[\s,.!/(|+-])(thick|thicc|curvy|chubby|chub|chunky|bbw|slim|slender|skinny|athletic|fit|muscular|fat|overweight|obese|petite|tiny|average|dadbod|dad bod|stocky|beefy|ripped|toned|hourglass|rellenita|gordita|flaca|plus[- ]size)"
+                       r"(?= (?:build|built|body|frame|figure|shape|and |but |af\b|asf\b|girl|guy|woman|man|bottom|top|bear|daddy|milf|wife|mom|dad|f\b|m\b|here|latina|black|white|asian|blonde|brunette|\d)|[\s,.!/)|]*$|\s*[,/|])")
 COUPLE = re.compile(r"(?:nb|[mf])[mf]\s*4|couple")
 PARTNERED = re.compile(r"\b(?:my|our) (?:wife|husband|hubby|gf|bf|girlfriend|boyfriend|partner)\b|\bmarried\b|\bhotwife\b|\bcouple\b|\bcuck")
 SEEKING = re.compile(r"\blooking for\b|\bseeking\b|\banyone\b|\bhmu\b|\bdm me\b|\bhost(?:ing)?\b|\bwanna\b|\bwant(?:s)? (?:a|to|some)\b|\bneed(?:s)? (?:a|some)\b|\bavailable\b|\bsnap\b|\bkik\b|\btonight\b")
@@ -246,6 +250,10 @@ def tags(text, lowered, found):
         found.setdefault(("age", age), match.start())
     if match := re.match(START, lowered):
         found.setdefault(("age", match.group(1)), 0)
+    if re.search(FOR, lowered[:120]) or re.search(TAG, lowered[:60]) or re.match(r"\W*(?:i'm|im|i am)\b", lowered):
+        for match in DESCRIBED.finditer(lowered[:400]):
+            if not OTHERS.search(lowered[max(0, match.start() - 20):match.start()]):
+                found.setdefault(("body_type", BODIES.get(match.group(1)) or SHAPES[match.group(1)]), match.start())
 
 
 SINGLE = frozenset({"age", "gender"})
@@ -576,6 +584,29 @@ def fandom(text, found):
             named(kind, name, found, sentence.start())
 
 
+ADJACENT = re.compile(r"\b(?:i (?:really |absolutely |just |also |still |honestly |do |genuinely )?(?:love|loved|adore|adored|enjoy|enjoyed)|obsessed with|addicted to|can'?t get enough of|a (?:huge |big |massive )?fan of|in love with|hooked on|"
+                      r"my (?:all[- ]time |absolute |personal )?(?:favou?rite|fave|fav)(?: \w+)? (?:is|has to be|would be|was)|i'?m (?:currently |still |also )?(?:playing|watching|reading|listening to|replaying|rewatching|bingeing|binging)|"
+                      r"i'?ve been (?:playing|watching|reading|listening to|replaying|rewatching|bingeing|binging|obsessed with)|i (?:just )?(?:finished|beat|started) (?:playing |watching |reading )?)\s+"
+                      r"((?:the )?[\w'&:.!+-]+(?: [\w'&:.!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|it|is|was|lol|too|again|right|atm|lately|recently|these|since|for|with|on|in|at|when|while|haha|tbh|honestly|now|today)\b)")
+GENERIC = frozenset("it this that these those him her them you me my your his their our how when being having to a an some any all every everything anything something nothing games game gaming music songs song anime "
+                    "shows show movies movie films film books book reading watching playing food sex cock dick pussy ass porn people men women guys girls kids dogs cats animals life it's them. "
+                    "him. you. that. this. here there out up down so very much more most doing going getting seeing playing talking working".split())
+
+
+def adjacent(text, found):
+    lowered = text.lower()
+    for match in ADJACENT.finditer(lowered):
+        name = re.sub(r"^the ", "", match.group(1)).strip()
+        words = name.split()
+        if not words or words[0] in GENERIC or words[-1] in GENERIC or words[0] in COMMON or len(name) < 3 or not LETTERS.search(name) or hedged(lowered, match.start(), match.end(), SELF_HEDGE) or NEGATIVE.search(lowered[match.start():match.end() + 40]):
+            continue
+        part = text[max(0, match.start() - 150):match.end() + 150]
+        kinds = {kind: 3 * len(pattern.findall(part)) + len(pattern.findall(text)) for kind, pattern in CONTEXTS.items()}
+        kind = max(kinds, key=kinds.get)
+        if kinds[kind]:
+            named(kind, name, found, match.start())
+
+
 def favorites(text, found):
     for pattern in (FAVORITE, FAVORED):
         for match in pattern.finditer(text):
@@ -667,6 +698,7 @@ def extract(texts):
                     found.setdefault((attribute, stated), match.start())
         favorites(text, found)
         fandom(text, found)
+        adjacent(text, found)
         places(text, lowered, found)
         stated = {attribute for attribute, _ in found}
         if ("relationship_status", "married") in found and "living_with" not in stated:
