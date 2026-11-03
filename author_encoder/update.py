@@ -11,6 +11,7 @@ from database import DSN
 
 from . import LOG, timed
 from .config import TEXT_STORE, VECTOR_STORE, VECTOR_WORK
+from .exact import quantize
 from .index import build
 from .lock import index_lock
 from .texts import MONTHS, write
@@ -64,4 +65,5 @@ def users():
         LOG.info("user vector update months=%s", loaded)
         built = build(loaded, VECTOR_STORE, TEXT_STORE)
         cleaned = cleanup(VECTOR_STORE)
-    return {"months": loaded, "users": built, "cleanup": cleaned}
+        exact = quantize(VECTOR_STORE)
+    return {"months": loaded, "users": built, "cleanup": cleaned, "exact": exact}

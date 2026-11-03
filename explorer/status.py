@@ -4,6 +4,7 @@ import lance
 
 from attribute_model.config import read_targets
 from author_encoder.config import TEXT_STORE, VECTOR_STORE
+from author_encoder.exact import current
 from author_encoder.index import PROTOCOL, source
 from author_encoder.texts import MONTHS
 from reddit_dumps import timed
@@ -80,7 +81,9 @@ def vectors(loaded):
         return check("Vectors", False, "The user vector store is missing or was built with a different protocol.")
     if built["months"] != loaded:
         return check("Vectors", False, compare("User vectors", built["months"], loaded))
-    return check("Vectors", True, f"Text and user vectors cover all {len(loaded)} loaded months.")
+    if not current():
+        return check("Vectors", False, "Exact search data does not match the user vector store.")
+    return check("Vectors", True, f"Text and user vectors cover all {len(loaded)} loaded months, and exact search data matches them.")
 
 
 def counts(counted, loaded):

@@ -15,7 +15,7 @@ from pyarrow import csv
 
 from database import DSN, NO_AUTHOR, within
 from . import LOG, timed
-from .config import BUCKETS, DIMENSIONS, FETCH_THREADS, HEAD_TEXTS, LUAR, MAX_LENGTH, RECORD_BLOCKS, TEXT_STORE, TEXTS_PER_USER, USER_SEARCH, VECTOR_STORE, VECTOR_WORK, WHOLE_FRAGMENT_SHARE
+from .config import BUCKETS, DIMENSIONS, FETCH_THREADS, HEAD_TEXTS, LUAR, MAX_LENGTH, RECORD_BLOCKS, TEXT_STORE, TEXTS_PER_USER, VECTOR_STORE, VECTOR_WORK, WHOLE_FRAGMENT_SHARE
 from .lock import index_lock
 from .texts import DIGEST, raw, scales
 
@@ -400,7 +400,6 @@ def build(loaded, path=VECTOR_STORE, texts_path=TEXT_STORE, buckets=BUCKETS):
                 lance.write_dataset(SCHEMA.empty_table(), staging)
             stored = lance.dataset(staging)
             rows = stored.count_rows()
-            stored.create_index("vector", index_type="IVF_RQ", metric="cosine", num_partitions=max(1, int(np.sqrt(rows))))
             stored.create_scalar_index("author", index_type="BTREE")
             lance.dataset(staging).update_schema_metadata({"source": json.dumps({"months": loaded, "buckets": buckets, "fragments": len(fragments),
                                                                                   "layout": layout(fragments, len(fragments))}, sort_keys=True)})
@@ -432,15 +431,3 @@ def vector(author, path=VECTOR_STORE):
         return None
     return {"author": author, "usable_texts": rows[0]["usable_texts"], "sampled_texts": len(rows[0]["sample_ids"]), "sample_ids": rows[0]["sample_ids"],
             "dimensions": DIMENSIONS, "vector": rows[0]["vector"]}
-
-
-@timed
-def similar(author, limit=50, path=VECTOR_STORE):
-    if not 1 <= limit <= 200:
-        raise ValueError("Similarity result limit must be between 1 and 200")
-    found = vector(author, path)
-    if found is None:
-        return None
-    table = users(path).to_table(nearest={"column": "vector", "q": np.asarray(found["vector"], dtype=np.float32), "k": limit + 1, **USER_SEARCH}, columns=["author", "_distance"])
-    pairs = zip(table.column("author").to_pylist(), table.column("_distance").to_pylist())
-    return [{"author": name, "similarity": float(np.clip(1 - distance, -1, 1))} for name, distance in pairs if name != author][:limit]

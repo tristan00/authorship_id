@@ -15,6 +15,7 @@ def main():
     update = commands.add_parser("update", help="Encode the bodies missing from the text vector store.")
     update.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
     commands.add_parser("users", help="Add the loaded months missing from the user vectors, recomputing only the users they change.")
+    commands.add_parser("exact", help="Rebuild the quantized user vectors that exact nearest-neighbour search scans.")
     encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description='Each input line: {"author": "name", "texts": ["text", ...]}. Each author needs at least one usable text; up to 256 are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
     encode.add_argument("--input", type=Path, required=True)
     encode.add_argument("--output", type=Path, required=True, help="A new JSONL output file.")
@@ -39,14 +40,18 @@ def main():
     elif args.command == "users":
         from .update import users
         result = users()
+    elif args.command == "exact":
+        from .exact import quantize
+        result = quantize()
     elif args.command == "encode":
         from .predict import encode_file
         result = encode_file(args.input, args.output, args.device)
     else:
-        from .index import similar, users, vector
+        from .exact import nearest
+        from .index import users, vector
         if users(args.store) is None:
             parser.error("The user vector store is not built; run users first.")
-        result = similar(args.author, args.limit, args.store) if args.command == "similar" else vector(args.author, args.store)
+        result = nearest(args.author, args.limit, args.store) if args.command == "similar" else vector(args.author, args.store)
         if result is None:
             parser.error(f"No vector for {args.author}; users need at least one usable text.")
         if args.output is not None:
