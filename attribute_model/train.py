@@ -85,6 +85,7 @@ def probabilities(model, vectors, labels, column, fitted, everyone=False):
         yield (output / fitted["temperature"]).softmax(1), target
 
 
+@timed
 def categorical(model, vectors, labels, column, spec):
     sample, target = collect(model, vectors, labels, column, TEMPERATURE_ROWS)
     fitted = {"temperature": temperature(sample, target.long())}
@@ -127,6 +128,7 @@ def calibrate(model, vectors, labels, specs, mass):
     return result
 
 
+@timed
 def categorical_report(model, vectors, labels, column, spec, fitted):
     chosen, targets, losses, tops, spreads = [], [], [], [], []
     prior = torch.as_tensor(spec["prior"], device=DEVICE)
