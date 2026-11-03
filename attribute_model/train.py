@@ -10,7 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import BIAS_PENALTY, GPU_MEMORY, PARAMETERS, SEED, SPLITS, validate
+from .config import GPU_MEMORY, PARAMETERS, SEED, SPLITS, validate
 from .data import load
 from .model import AttributeModel, numeric, specifications
 
@@ -22,9 +22,9 @@ def collect(model, vectors, labels, column, batch=8192):
     outputs, targets = [], []
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
         for start in range(0, len(vectors), batch):
-            target = labels[start:start + batch, column].to(DEVICE)
+            target = labels[start:start + batch, column]
             present = torch.isfinite(target)
-            outputs.append(model.outputs(model(vectors[start:start + batch].to(DEVICE)[present].float()))[column].float())
+            outputs.append(model.outputs(model(vectors[start:start + batch][present].float()))[column].float())
             targets.append(target[present])
     return torch.cat(outputs), torch.cat(targets)
 
@@ -34,29 +34,26 @@ def score(model, vectors, labels, specs, batch=8192):
     sums = counts = 0
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
         for start in range(0, len(vectors), batch):
-            batch_sums, batch_counts, _ = model.terms(model(vectors[start:start + batch].to(DEVICE).float()), labels[start:start + batch].to(DEVICE))
+            batch_sums, batch_counts, _ = model.terms(model(vectors[start:start + batch].float()), labels[start:start + batch])
             sums, counts = sums + batch_sums, counts + batch_counts
     ratios = (sums / counts / model.baseline).tolist()
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
 
 
-def scaling(logits, target, batch=16384):
+def temperature(logits, target, batch=16384):
     log_t = torch.zeros(1, device=logits.device, requires_grad=True)
-    bias = torch.zeros(logits.shape[1], device=logits.device, requires_grad=True)
-    optimizer = torch.optim.LBFGS([log_t, bias], lr=.1, max_iter=200)
+    optimizer = torch.optim.LBFGS([log_t], lr=.1, max_iter=100)
 
     def closure():
         optimizer.zero_grad()
         total = torch.zeros((), device=logits.device)
         for start in range(0, len(logits), batch):
-            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp() + bias, target[start:start + batch], reduction="sum") / len(logits)
+            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp(), target[start:start + batch], reduction="sum") / len(logits)
             loss.backward()
             total += loss.detach()
-        penalty = BIAS_PENALTY * bias.pow(2).sum()
-        penalty.backward()
-        return total + penalty.detach()
+        return total
     optimizer.step(closure)
-    return float(log_t.detach().exp()), bias.detach().cpu().tolist()
+    return float(log_t.detach().exp())
 
 
 @timed
@@ -72,17 +69,8 @@ def calibrate(model, vectors, labels, specs, mass):
                 raise ValueError(f"{spec['name']}: too few calibration labels for a {mass:.0%} interval")
             result.append({"n": len(residuals), "mass": mass, "radius": float(residuals[rank - 1])})
         else:
-            temperature, bias = scaling(output, target.long())
-            result.append({"n": len(target), "temperature": temperature, "bias": bias})
+            result.append({"n": len(target), "temperature": temperature(output, target.long())})
     return result
-
-
-def stated_auc(model, vectors, labels, batch=8192):
-    scores = torch.cat([model.stated(model(vectors[start:start + batch].to(DEVICE).float())).float() for start in range(0, len(vectors), batch)])
-    present = torch.isfinite(labels).to(DEVICE)
-    ranks = scores.argsort(0).argsort(0).double() + 1
-    positives = present.sum(0).double()
-    return (((ranks * present).sum(0) - positives * (positives + 1) / 2) / (positives * (len(labels) - positives))).tolist()
 
 
 def expected_calibration(confidence, correct, bins=15):
@@ -107,7 +95,7 @@ def report(model, vectors, labels, specs, calibration):
                                     "interval_width_median": float((upper - lower).median())}
         else:
             target = target.long()
-            logged = (output.div_(fitted["temperature"]) + torch.as_tensor(fitted["bias"], device=output.device)).log_softmax(1)
+            logged = output.div_(fitted["temperature"]).log_softmax(1)
             del output
             confidence, predicted = logged.max(1)
             confidence = confidence.exp()
@@ -120,18 +108,14 @@ def report(model, vectors, labels, specs, calibration):
                                     "top5_accuracy": top5, "macro_recall": float(np.mean(wins[counts > 0] / counts[counts > 0])),
                                     "log_loss": float(F.nll_loss(logged.clamp_min_(math.log(1e-12)), target)), "prior_log_loss": float(-prior[target].log().mean()),
                                     "calibration_error": expected_calibration(confidence.cpu().numpy(), correct)}
-    with torch.autocast(DEVICE, dtype=torch.bfloat16):
-        model.eval()
-        for spec, auc in zip(specs, stated_auc(model, vectors, labels)):
-            result[spec["name"]] |= {"stated_share": spec["stated"], "stated_auc": auc}
     return result
 
 
-def gpu(inputs, labels, selected, device=DEVICE):
-    vectors = torch.empty((len(selected), inputs.shape[1]), dtype=torch.from_numpy(inputs[:1].copy()).dtype, device=device)
+def gpu(inputs, labels, selected):
+    vectors = torch.empty((len(selected), inputs.shape[1]), dtype=torch.from_numpy(inputs[:1].copy()).dtype, device=DEVICE)
     for start in range(0, len(selected), 1 << 20):
         vectors[start:start + (1 << 20)] = torch.from_numpy(np.asarray(inputs[selected[start:start + (1 << 20)]]))
-    return vectors, torch.as_tensor(np.asarray(labels[selected]), dtype=torch.float32, device=device)
+    return vectors, torch.as_tensor(np.asarray(labels[selected]), dtype=torch.float32, device=DEVICE)
 
 
 def load_splits(manifest, targets, inputs, labels, splits):
@@ -142,7 +126,7 @@ def load_splits(manifest, targets, inputs, labels, splits):
         if (counts < 100).any():
             raise ValueError(f"Fewer than 100 {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < 100)}")
     LOG.info("attribute model rows=%s", {name: len(indices) for name, indices in selected.items()})
-    return specs, {name: gpu(inputs, labels, indices, DEVICE if name == "train" else "cpu") for name, indices in selected.items()}
+    return specs, {name: gpu(inputs, labels, indices) for name, indices in selected.items()}
 
 
 @timed

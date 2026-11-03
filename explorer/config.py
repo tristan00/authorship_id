@@ -24,8 +24,3 @@ PARENTS = 20
 CLAIMS = 200
 EXCERPT_READ = 1000
 EXCERPT = 240
-OPTIONAL = frozenset({"military_status", "neurotype", "mental_condition", "physical_condition", "diet", "pets", "parental_status", "smoking",
-                      "fan_sports_team", "fan_athlete", "fan_artist", "fan_author", "fan_character", "fan_franchise", "fan_video_game", "fan_creator", "fan_celebrity"})
-LIFT_SHOWN = 2.
-WEAK_RATIO = .9
-WEAK_LIFT = .02

@@ -18,7 +18,7 @@ from author_encoder.texts import MONTHS, quantize, scales
 from author_encoder.tokens import load_tokenizer
 
 from . import LOG, timed, write_json
-from .config import DATA, ENCODERS, SPLITS, TEXT_TRAINING_ROWS, check_targets, validate
+from .config import DATA, ENCODERS, SPLITS, check_targets, validate
 from .data import load
 from .predict import load_model, predict
 from .train import load_splits
@@ -55,13 +55,9 @@ def prepare(directory, targets):
     manifest, arrays = load(DATA, targets)
     author_buckets = np.asarray(arrays["splits"])
     staging.mkdir(parents=True)
-    all_rows, all_owners = np.load(DATA / "clean_rows.npy"), np.load(DATA / "clean_owners.npy")
-    rank = np.arange(len(all_owners)) - np.searchsorted(all_owners, np.arange(manifest["authors"]))[all_owners]
-    keep = (rank == 0) | ((rank < TEXT_TRAINING_ROWS) & np.isin(author_buckets[all_owners], SPLITS["train"]))
-    rows, owners = all_rows[keep], all_owners[keep]
-    del all_rows, all_owners, rank, keep
-    order = np.argsort(rows)
-    rows, owners = rows[order], owners[order]
+    rows = np.load(DATA / "clean_rows.npy")[np.searchsorted(np.load(DATA / "clean_owners.npy"), np.arange(manifest["authors"]))]
+    owners = np.argsort(rows)
+    rows = rows[owners]
     with index_lock(TEXT_STORE):
         texts = lance.dataset(TEXT_STORE)
         if json.loads(texts.schema.metadata[MONTHS]) != manifest["source"]["months"]:
