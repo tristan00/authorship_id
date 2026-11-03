@@ -70,6 +70,7 @@ class AttributeModel(nn.Module):
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
                    "quantiles": torch.tensor(QUANTILES, dtype=torch.float32),
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
+                   "weight": (labels := torch.tensor([float(spec["training_labels"]) for spec in specifications])) / labels.mean(),
                    "stated_baseline": -(shares * shares.log() + (1 - shares) * (1 - shares).log()),
                    "shift": torch.tensor(features["center"], dtype=torch.float32),
                    "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32)}
@@ -120,7 +121,7 @@ class AttributeModel(nn.Module):
 
     def loss(self, hidden, labels, capacity=None):
         sums, counts, overflow = self.terms(hidden, labels, capacity)
-        return (sums / counts.clamp_min(1) / self.baseline).mean() + self.stated_loss(hidden, labels), overflow
+        return (sums / counts.clamp_min(1) / self.baseline * self.weight).mean() + self.stated_loss(hidden, labels), overflow
 
 
 def numeric(output, spec):

@@ -21,6 +21,7 @@ ENCODERS = 8
 SEGMENT_BYTES = 2 << 30
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
 QUANTILES = (.05, .5, .95)
+BIAS_PENALTY = 1e-3
 CLEAN_TEXTS = 128
 TEXT_TRAINING_ROWS = 3
 CLEAN_BUCKETS = 64

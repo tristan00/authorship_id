@@ -70,7 +70,7 @@ def calibrated(artifact, outputs):
             value, lower, upper = numeric(output, spec)
             yield spec, fitted, (value, lower - fitted["radius"], upper + fitted["radius"])
         else:
-            yield spec, fitted, (output / fitted["temperature"]).softmax(1)
+            yield spec, fitted, (output / fitted["temperature"] + torch.as_tensor(fitted["bias"], device=output.device)).softmax(1)
 
 
 @timed

@@ -10,7 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import GPU_MEMORY, PARAMETERS, SEED, SPLITS, validate
+from .config import BIAS_PENALTY, GPU_MEMORY, PARAMETERS, SEED, SPLITS, validate
 from .data import load
 from .model import AttributeModel, numeric, specifications
 
@@ -40,20 +40,23 @@ def score(model, vectors, labels, specs, batch=8192):
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
 
 
-def temperature(logits, target, batch=16384):
+def scaling(logits, target, batch=16384):
     log_t = torch.zeros(1, device=logits.device, requires_grad=True)
-    optimizer = torch.optim.LBFGS([log_t], lr=.1, max_iter=100)
+    bias = torch.zeros(logits.shape[1], device=logits.device, requires_grad=True)
+    optimizer = torch.optim.LBFGS([log_t, bias], lr=.1, max_iter=200)
 
     def closure():
         optimizer.zero_grad()
         total = torch.zeros((), device=logits.device)
         for start in range(0, len(logits), batch):
-            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp(), target[start:start + batch], reduction="sum") / len(logits)
+            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp() + bias, target[start:start + batch], reduction="sum") / len(logits)
             loss.backward()
             total += loss.detach()
-        return total
+        penalty = BIAS_PENALTY * bias.pow(2).sum()
+        penalty.backward()
+        return total + penalty.detach()
     optimizer.step(closure)
-    return float(log_t.detach().exp())
+    return float(log_t.detach().exp()), bias.detach().cpu().tolist()
 
 
 @timed
@@ -69,7 +72,8 @@ def calibrate(model, vectors, labels, specs, mass):
                 raise ValueError(f"{spec['name']}: too few calibration labels for a {mass:.0%} interval")
             result.append({"n": len(residuals), "mass": mass, "radius": float(residuals[rank - 1])})
         else:
-            result.append({"n": len(target), "temperature": temperature(output, target.long())})
+            temperature, bias = scaling(output, target.long())
+            result.append({"n": len(target), "temperature": temperature, "bias": bias})
     return result
 
 
@@ -103,7 +107,7 @@ def report(model, vectors, labels, specs, calibration):
                                     "interval_width_median": float((upper - lower).median())}
         else:
             target = target.long()
-            logged = output.div_(fitted["temperature"]).log_softmax(1)
+            logged = (output.div_(fitted["temperature"]) + torch.as_tensor(fitted["bias"], device=output.device)).log_softmax(1)
             del output
             confidence, predicted = logged.max(1)
             confidence = confidence.exp()
