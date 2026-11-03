@@ -32,6 +32,7 @@ const percent = share => `${Math.round(share * 100)}%`;
 const UNITS = { age: ' years', height: ' cm', weight: ' kg', income: ' USD a year', birth_year: '' };
 const amount = (attribute, value) => (attribute === 'birth_year' ? String(Math.round(value)) : whole.format(Math.round(value)));
 const PREDICTED_SHOWN = 10;
+const UNCLEAR = .5;
 const plural = (count, word) => (count === 1 ? word : `${word}s`);
 
 function label(name) {
@@ -246,6 +247,9 @@ function predictedCell(attribute, predicted) {
       h('span', { class: 'extra' }, `range ${amount(attribute, predicted.lower)} to ${amount(attribute, predicted.upper)}`),
       weakTag(predicted.trust),
     ];
+  }
+  if (predicted.probability < UNCLEAR) {
+    return [h('span', { class: 'muted', title: trustLine(predicted.trust) }, 'Unclear'), h('span', { class: 'extra' }, `leaning ${predicted.value}, ${percent(predicted.probability)}`), liftTag(predicted), weakTag(predicted.trust)];
   }
   return [h('span', { title: trustLine(predicted.trust) }, predicted.value), h('span', { class: 'extra' }, percent(predicted.probability)), liftTag(predicted), weakTag(predicted.trust)];
 }
