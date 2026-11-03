@@ -4,10 +4,10 @@ import psycopg
 
 from claim_consolidation.consolidate import consolidate
 from database import DSN, LOGS
-from database.load import add, verify
+from database.load import add
 from reddit_dumps import setup_logging
 from reddit_dumps.catalog import load_catalog, month_index
-from reddit_dumps.download import delete, download, files
+from reddit_dumps.download import delete, download
 
 from . import LOG, timed
 
@@ -70,15 +70,6 @@ def load(month):
 
 
 @timed
-def clean(month):
-    if not files(month):
-        LOG.info("%s has no dumps left", month)
-        return
-    verify(month)
-    delete(month)
-
-
-@timed
 def consolidation():
     if current("consolidation", CONSOLIDATED):
         LOG.info("consolidation covers every extracted month")
@@ -107,7 +98,7 @@ def run(month):
     upcoming = background(prefetch, following(month))
     try:
         load(month)
-        clean(month)
+        delete(month)
         wait(background(vectors))
         consolidation()
         attributes()

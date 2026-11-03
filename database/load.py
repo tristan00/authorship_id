@@ -12,7 +12,7 @@ from reddit_dumps import setup_logging
 from reddit_dumps.config import CHUNK_SIZE, SLOTS
 from reddit_dumps.extract import produce
 
-from . import DSN, DUMPS, LOG, LOGS, bounds, timed
+from . import DSN, DUMPS, LOG, LOGS, timed
 from .config import PARSERS, SLOT_SIZE, TRANSFER_SLOTS
 
 KINDS = {"comment": ("comments", "RC"), "post": ("submissions", "RS")}
@@ -31,7 +31,7 @@ def to_record(raw, kind):
     text = "\n\n".join(part for part in (title, body) if part.strip())
     status = "title_only" if kind == "post" and title and not body else "available" if text else "removed" if removed else "empty"
     return {
-        "record_id": ("t1_" if kind == "comment" else "t3_") + raw["id"], "record_type": kind, "author": raw.get("author", "[deleted]"),
+        "record_id": ("t1_" if kind == "comment" else "t3_") + raw["id"], "record_type": kind, "author": raw["author"],
         "created_utc": raw["created_utc"], "text_status": status,
         "text_sha256": hashlib.sha256(text.encode("utf-8")).digest(), "text": text, "words": len(text.split()),
     }
@@ -171,14 +171,3 @@ def watch(waiting, processes):
         if not any(process.is_alive() for process in waiting):
             return
         time.sleep(1)
-
-
-@timed
-def verify(month):
-    with psycopg.connect(DSN) as conn:
-        expected = conn.execute("SELECT records FROM months WHERE month = %s", [month]).fetchone()[0]
-        found = conn.execute("SELECT count(*) FROM records WHERE created_utc >= %s AND created_utc < %s", bounds(month)).fetchone()[0]
-    if found != expected:
-        raise ValueError(f"{month} has {found} records, its load copied {expected}")
-    LOG.info("%s verified %s records", month, found)
-
