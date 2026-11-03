@@ -17,14 +17,14 @@ from .model import AttributeModel, adjusted, decide, numeric, specifications
 DEVICE = "cuda"
 
 
-def streamed(model, vectors, labels, column, limit=None, batch=8192):
+def streamed(model, vectors, labels, column, limit=None, batch=8192, everyone=False):
     model.eval()
     taken = 0
     for start in range(0, len(vectors), batch):
         if limit is not None and taken >= limit:
             return
         target = labels[start:start + batch, column].to(DEVICE)
-        present = torch.isfinite(target)
+        present = torch.ones_like(target, dtype=torch.bool) if everyone else torch.isfinite(target)
         with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
             output = model.output(model(vectors[start:start + batch].to(DEVICE)[present].float()), column).float()
         taken += len(output)
@@ -74,41 +74,38 @@ def macro_recall(predicted, target, classes):
     return float((torch.bincount(target[predicted == target], minlength=classes).float() / sizes.clamp_min(1))[sizes > 0].mean())
 
 
-def threshold(spread, positive):
-    order = torch.argsort(spread, descending=True)
-    hits = positive[order].double().cumsum(0)
-    best = int((hits.square() / torch.arange(1, len(spread) + 1, device=spread.device)).argmax())
-    return float(spread[order[best]])
-
-
 def area(spread, positive):
     ranks = torch.argsort(torch.argsort(spread)).double() + 1
     count = positive.sum().double()
     return float(((ranks * positive).sum() - count * (count + 1) / 2) / (count * (len(spread) - count)))
 
 
-def probabilities(model, vectors, labels, column, fitted):
-    for output, target in streamed(model, vectors, labels, column):
-        yield (output / fitted["temperature"]).softmax(1), target.long()
+def probabilities(model, vectors, labels, column, fitted, everyone=False):
+    for output, target in streamed(model, vectors, labels, column, everyone=everyone):
+        yield (output / fitted["temperature"]).softmax(1), target
 
 
 def categorical(model, vectors, labels, column, spec):
     sample, target = collect(model, vectors, labels, column, TEMPERATURE_ROWS)
     fitted = {"temperature": temperature(sample, target.long())}
     del sample
-    picks, targets, spreads = [], [], []
-    for scored, target in probabilities(model, vectors, labels, column, fitted):
-        picks.append(torch.stack([adjusted(scored, spec, tau) for tau in TAUS], 1))
-        targets.append(target)
+    classes = len(spec["values"])
+    prior = torch.as_tensor(spec["prior"], device=DEVICE)
+    if spec["default"] is not None:
+        prior[spec["default"]] = 0
+    stated = float(prior.sum())
+    prior /= stated
+    shares, spreads = torch.zeros((len(TAUS), classes), device=DEVICE), []
+    for scored, _ in probabilities(model, vectors, labels, column, fitted, everyone=True):
+        for place, tau in enumerate(TAUS):
+            shares[place] += torch.bincount(adjusted(scored, spec, tau), minlength=classes)
         if spec["default"] is not None:
             spreads.append(1 - scored[:, spec["default"]])
-    picks, targets = torch.cat(picks), torch.cat(targets)
-    fitted["n"] = len(targets)
-    rows = targets != spec["default"] if spec["default"] is not None else torch.ones_like(targets, dtype=torch.bool)
-    scores = [macro_f1(picks[rows, place], targets[rows], len(spec["values"])) for place in range(len(TAUS))]
-    fitted["tau"] = TAUS[int(np.argmax(scores))]
+    distances = (shares / shares.sum(1, keepdim=True) - prior).abs().sum(1) / 2
+    fitted |= {"n": int(shares[0].sum()), "tau": TAUS[int(distances.argmin())], "distance": float(distances.min())}
     if spec["default"] is not None:
-        fitted["threshold"] = threshold(torch.cat(spreads), rows)
+        spreads = torch.cat(spreads)
+        fitted["threshold"] = float(spreads.kthvalue(max(1, round(len(spreads) * (1 - stated)))).values)
     return fitted
 
 
@@ -134,6 +131,7 @@ def categorical_report(model, vectors, labels, column, spec, fitted):
     chosen, targets, losses, tops, spreads = [], [], [], [], []
     prior = torch.as_tensor(spec["prior"], device=DEVICE)
     for scored, target in probabilities(model, vectors, labels, column, fitted):
+        target = target.long()
         chosen.append(decide(scored, spec, fitted))
         targets.append(target)
         losses.append(-scored.gather(1, target[:, None]).squeeze(1).clamp_min(1e-12).log())

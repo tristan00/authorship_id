@@ -66,6 +66,7 @@ class AttributeModel(nn.Module):
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
                    "quantiles": torch.tensor(QUANTILES, dtype=torch.float32),
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
+                   "weight": (stated := torch.tensor([float(spec["stated_labels"]) for spec in specifications])) / stated.mean(),
                    "shift": torch.tensor(features["center"], dtype=torch.float32),
                    "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32)}
         for name, value in buffers.items():
@@ -118,7 +119,7 @@ class AttributeModel(nn.Module):
 
     def loss(self, hidden, labels, capacity=None):
         sums, counts, overflow = self.terms(hidden, labels, capacity)
-        return (sums / counts.clamp_min(1) / self.baseline).mean(), overflow
+        return (sums / counts.clamp_min(1) / self.baseline * self.weight).mean(), overflow
 
 
 def numeric(output, spec):
@@ -147,7 +148,7 @@ def specifications(targets, catalogs, labels, training):
         observed = observed[np.isfinite(observed)]
         if len(observed) < 2:
             raise ValueError(f"{name}: fewer than two training labels")
-        spec = {"name": name, "type": kind, "training_labels": len(observed)}
+        spec = {"name": name, "type": kind, "training_labels": len(observed), "stated_labels": len(observed)}
         if kind == "numeric":
             center = float(np.median(observed))
             scale = float(np.median(np.abs(observed - center)) * 1.4826)
@@ -163,7 +164,8 @@ def specifications(targets, catalogs, labels, training):
                 raise ValueError(f"{name}: at least two categorical values are required")
             counts = np.bincount(observed.astype(np.int64), minlength=len(values))
             prior = (counts + .5) / (counts.sum() + .5 * len(values))
-            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "baseline": float(-np.log(prior[observed.astype(np.int64)]).mean()),
-                     "default": values.index(DEFAULTS[name]) if name in DEFAULTS else None}
+            default = values.index(DEFAULTS[name]) if name in DEFAULTS else None
+            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "baseline": float(-np.log(prior[observed.astype(np.int64)]).mean()), "default": default,
+                     "stated_labels": len(observed) - (int(counts[default]) if default is not None else 0)}
         result.append(spec)
     return result

@@ -28,8 +28,9 @@ CLEAN_BUCKETS = 64
 STRICT_SUPPORT = 3.
 STRICT_SHARE = .7
 VALUE_AUTHORS = 10
-DEFAULTS = {"parental_status": "no children", "military_status": "never served", "smoking": "non-smoker", "diet": "eats meat", **dict.fromkeys(BINARY, NO), **dict.fromkeys(FAN_FIELDS, "none")}
-TAUS = tuple(step / 10 for step in range(11))
+DEFAULTS = {"native_language": "english", "sexual_orientation": "straight", "parental_status": "no children", "military_status": "never served", "smoking": "non-smoker", "diet": "eats meat",
+            **dict.fromkeys(BINARY, NO), **dict.fromkeys(FAN_FIELDS, "none")}
+TAUS = tuple(step / 10 for step in range(16))
 TEMPERATURE_ROWS = 1 << 16
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "epochs": 6, "interval_mass": .9}
 TEXT_PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank": 128, "batch": 2048, "lr": .001, "weight_decay": .1, "epochs": 6, "interval_mass": .9}
