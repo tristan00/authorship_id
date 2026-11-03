@@ -4,21 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="referrer" content="no-referrer">
-<title>Explorer</title>
+<title>Authorship explorer</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="/app.css">
-<script src="/app.js" defer></script>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/js/main.js"></script>
 </head>
 <body>
-<header class="top">
-<a class="brand" href="#/">Explorer</a>
-<nav class="nav" aria-label="Tools"><a href="#/predict">Predict text</a></nav>
-<div class="finder">
-<input id="search" class="search" type="search" placeholder="Search authors and subreddits" aria-label="Search authors and subreddits" autocomplete="off" autocapitalize="off" spellcheck="false">
-<div id="results" class="results" aria-live="polite"></div>
-</div>
+<header class="band">
+  <a class="mark" href="#/"><span class="mark-a">authorship</span><span class="mark-b">explorer</span></a>
+  <nav class="primary" aria-label="Sections">
+    <a href="#/" data-section="home">Index</a>
+    <a href="#/predict" data-section="predict">Predict text</a>
+  </nav>
+  <div class="finder" id="finder"></div>
 </header>
-<main id="main"></main>
+<main id="view" class="view"></main>
 </body>
 </html>

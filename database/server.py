@@ -68,8 +68,10 @@ DROP TABLE bodies_stage;
 COUNTS = {
     "author": sql.SQL("""SELECT author, count(*) AS texts, count(*) FILTER (WHERE record_type = 'post') AS posts, min(created_utc) AS first_seen,
         max(created_utc) AS last_seen FROM records WHERE author <> ALL({}) GROUP BY author""").format(sql.Literal(NO_AUTHOR)),
-    "subreddit": sql.SQL("SELECT subreddit, count(*) AS texts, min(created_utc) AS first_seen, max(created_utc) AS last_seen FROM records GROUP BY subreddit"),
+    "subreddit": sql.SQL("""SELECT subreddit, count(*) AS texts, count(*) FILTER (WHERE record_type = 'post') AS posts, min(created_utc) AS first_seen,
+        max(created_utc) AS last_seen FROM records GROUP BY subreddit"""),
 }
+SEQSCAN = {"author": "off", "subreddit": "on"}
 SWAP = """
 DROP TABLE IF EXISTS {key}_counts;
 ALTER TABLE {key}_counts_stage RENAME TO {key}_counts;
@@ -168,7 +170,7 @@ def finish(month):
 def count(key):
     stage = f"{key}_counts_stage"
     with psycopg.connect(DSN, autocommit=True) as conn:
-        for setting in (f"max_parallel_workers_per_gather = {COUNT_WORKERS}", f"work_mem = '{SORT_MEMORY}'", "enable_partitionwise_aggregate = on", "enable_seqscan = off"):
+        for setting in (f"max_parallel_workers_per_gather = {COUNT_WORKERS}", f"work_mem = '{SORT_MEMORY}'", "enable_partitionwise_aggregate = on", f"enable_seqscan = {SEQSCAN[key]}"):
             conn.execute(f"SET {setting}")
         conn.execute(f"DROP TABLE IF EXISTS {stage}")
         rows = conn.execute(sql.SQL("CREATE TABLE {} AS ").format(sql.Identifier(stage)) + COUNTS[key]).rowcount
