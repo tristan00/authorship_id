@@ -9,7 +9,7 @@ from psycopg.errors import QueryCanceled
 from psycopg_pool import PoolTimeout
 
 from . import LOG, STATIC, api, timed
-from .config import HOSTS, IPV4, IPV6, PORT
+from .config import HOSTS, IPV4, IPV6, PORT, POST_BYTES
 
 FILES = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/app.css": ("app.css", "text/css; charset=utf-8")}
 SECURITY = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY",
@@ -23,12 +23,11 @@ ROUTES = (
     (("author", None, "activity"), lambda query, name: api.author_activity(name)),
     (("author", None, "subreddits"), lambda query, name: api.author_subreddits(name)),
     (("author", None, "similar"), lambda query, name: api.author_similar(name)),
-    (("author", None, "texts"), lambda query, name: api.author_texts(name, single(query, "before"))),
     (("subreddit", None, "activity"), lambda query, name: api.subreddit_activity(name)),
-    (("subreddit", None, "posts"), lambda query, name: api.subreddit_posts(name, single(query, "before"))),
     (("subreddit", None, "authors"), lambda query, name: api.subreddit_authors(name)),
     (("text", None), lambda query, record_id: api.text(record_id)),
 )
+POSTS = {"/api/predict": api.predict}
 
 
 def single(query, name):
@@ -48,6 +47,20 @@ def answer(split):
         raise api.BadRequest("The address contains a character that cannot be searched.")
     handler, values = resolve([unquote(part) for part in split.path.split("/")[2:]])
     return handler(parse_qs(split.query, keep_blank_values=True), *values)
+
+
+def received(handler, length, read):
+    if handler is None:
+        raise api.NotFound("There is nothing at this address.")
+    if length is None or not length.isdigit():
+        raise api.BadRequest("The request needs a Content-Length header.")
+    if int(length) > POST_BYTES:
+        raise api.BadRequest(f"The request is larger than {POST_BYTES} bytes.")
+    try:
+        body = orjson.loads(read(int(length)))
+    except orjson.JSONDecodeError as error:
+        raise api.BadRequest("The request body is not valid JSON.") from error
+    return handler(body)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -76,17 +89,19 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Host") not in HOSTS:
             return self.error(400, "This server only answers on localhost.")
         split = urlsplit(self.path)
-        if split.path in FILES:
+        if self.command == "GET" and split.path in FILES:
             name, content_type = FILES[split.path]
             return self.send(200, (STATIC / name).read_bytes(), content_type)
         if not split.path.startswith("/api/"):
             return self.error(404, "There is nothing at this address.")
         try:
-            result = answer(split)
+            result = answer(split) if self.command == "GET" else self.posted(split)
         except api.NotFound as error:
             return self.error(404, str(error))
         except api.BadRequest as error:
             return self.error(400, str(error))
+        except api.Unavailable as error:
+            return self.error(503, str(error))
         except (QueryCanceled, PoolTimeout):
             LOG.exception("timed out %s", self.path)
             return self.error(500, "This took too long to load. Try again in a moment.")
@@ -95,15 +110,24 @@ class Handler(BaseHTTPRequestHandler):
             return self.error(500, "Something went wrong loading this. The details are in explorer.log.")
         return self.send(200, orjson.dumps(result), "application/json")
 
-    def do_GET(self):
+    def posted(self, split):
+        self.close_connection = True
+        if self.headers.get("Content-Type") != "application/json":
+            raise api.BadRequest("Send the request as application/json.")
+        return received(POSTS.get(split.path), self.headers.get("Content-Length"), self.rfile.read)
+
+    def handle_method(self):
         started = time.perf_counter()
         try:
             status = self.route()
         except GONE:
             self.close_connection = True
-            LOG.info("GET %s client left %.0fms", self.path, (time.perf_counter() - started) * 1000)
+            LOG.info("%s %s client left %.0fms", self.command, self.path, (time.perf_counter() - started) * 1000)
             return
-        LOG.info("GET %s %d %.0fms", self.path, status, (time.perf_counter() - started) * 1000)
+        LOG.info("%s %s %d %.0fms", self.command, self.path, status, (time.perf_counter() - started) * 1000)
+
+    do_GET = handle_method
+    do_POST = handle_method
 
 
 class Server(ThreadingHTTPServer):

@@ -108,7 +108,7 @@ def dumps(month):
 
 @timed
 def add(months):
-    from .server import create, finish, reloadable, schema
+    from .server import counts, create, finish, reloadable, schema
     with psycopg.connect(DSN) as conn:
         schema(conn)
         for month in months:
@@ -120,6 +120,7 @@ def add(months):
         finish(month)
         with psycopg.connect(DSN) as conn:
             conn.execute("INSERT INTO months (month, records) VALUES (%s, %s)", [month, rows])
+    counts()
 
 
 @timed

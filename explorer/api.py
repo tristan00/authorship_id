@@ -1,5 +1,7 @@
+import calendar
 import json
-import re
+import threading
+from datetime import datetime, timezone
 from itertools import product
 
 from psycopg.rows import dict_row
@@ -9,12 +11,12 @@ from attribute_model.config import columns, read_targets
 from database import DSN, NO_AUTHOR
 
 from . import timed
-from .config import CLAIMS, EXCERPT, EXCERPT_READ, GROUPS, PAGE, PARENTS, POOL_MAX, POOL_MIN, POOL_WAIT, POST_SCAN, RECENT, SEARCH, SEARCH_INPUT, SEARCH_VARIANT_CHARS, SESSION, SIMILAR, STARTS
+from .config import ACTIVITY_TIMEOUT, KNOWN, PARENTS, POOL_MAX, POOL_MIN, POOL_WAIT, SEARCH, SEARCH_INPUT, SEARCH_VARIANT_CHARS, SESSION, SIMILAR, STARTS, WINDOW
 
 POOL = ConnectionPool(DSN, min_size=POOL_MIN, max_size=POOL_MAX, timeout=POOL_WAIT, open=False, check=ConnectionPool.check_connection,
                       kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": None, "options": SESSION})
+PREDICTING = threading.Lock()
 
-CURSOR = re.compile(r"(\d{1,15}):(t[13]_[0-9a-z]{1,20})")
 FIELDS = "record_id, record_type, author, subreddit, created_utc, text_status, text_sha256"
 TOP_END = "\U0010FFFF"
 AUTHOR_BRANCH = "(SELECT account AS author FROM author_predictions WHERE account >= %s AND account <= %s AND account ILIKE %s ORDER BY account LIMIT %s)"
@@ -32,9 +34,11 @@ PARENT_CHAIN = f"""WITH RECURSIVE chain AS (
 ) SELECT * FROM chain ORDER BY depth DESC"""
 CONSOLIDATED = """SELECT EXISTS (SELECT FROM consolidation WHERE months = (SELECT array_agg(month ORDER BY month) FROM months)
     AND started_at > (SELECT max(extracted_at) FROM months)) AS current"""
-STATISTICS = """SELECT s.attname, s.most_common_vals::text::text[] AS names, s.most_common_freqs AS shares, c.reltuples
-    FROM pg_stats s JOIN pg_class c ON c.oid = 'records'::regclass
-    WHERE s.schemaname = 'public' AND s.tablename = 'records' AND s.inherited AND s.attname IN ('author', 'subreddit')"""
+HOURS = "SELECT created_utc / 3600 AS hour, count(*) AS texts FROM records WHERE {} = %s GROUP BY 1"
+AUTHOR_WHERE = """SELECT subreddit, count(*) AS texts FROM (SELECT subreddit FROM records WHERE author = %s ORDER BY created_utc DESC LIMIT %s) newest
+    GROUP BY subreddit ORDER BY texts DESC, subreddit"""
+SUBREDDIT_WHO = """SELECT author, count(*) AS texts FROM (SELECT author FROM records WHERE subreddit = %s ORDER BY created_utc DESC LIMIT %s) newest
+    GROUP BY author ORDER BY texts DESC, author"""
 
 
 class NotFound(Exception):
@@ -45,37 +49,33 @@ class BadRequest(Exception):
     pass
 
 
-def cursor_of(before):
-    if before is None:
-        return None
-    match = CURSOR.fullmatch(before)
-    if match is None:
-        raise BadRequest("That page position is not valid.")
-    return int(match[1]), match[2]
-
-
-def keyset(cursor):
-    return ("", []) if cursor is None else (" AND created_utc <= %s AND (created_utc, record_id) < (%s, %s)", [cursor[0], cursor[0], cursor[1]])
-
-
-def position(row):
-    return f"{row['created_utc']}:{row['record_id']}"
+class Unavailable(Exception):
+    pass
 
 
 def require_author(conn, name):
-    if name in NO_AUTHOR or not conn.execute("SELECT EXISTS (SELECT FROM records WHERE author = %s) AS found", [name]).fetchone()["found"]:
+    found = conn.execute("SELECT texts, posts, first_seen, last_seen FROM author_counts WHERE author = %s", [name]).fetchone()
+    if found is None:
         raise NotFound(f"No author is named {name}. Author names are case sensitive.")
+    return found
 
 
 def require_subreddit(conn, name):
-    if not conn.execute("SELECT EXISTS (SELECT FROM records WHERE subreddit = %s) AS found", [name]).fetchone()["found"]:
+    found = conn.execute("SELECT texts, first_seen, last_seen FROM subreddit_counts WHERE subreddit = %s", [name]).fetchone()
+    if found is None:
         raise NotFound(f"No subreddit is named {name}.")
+    return found
 
 
-def bodies_of(conn, rows, length=None):
+def slow(conn, query, params):
+    with conn.transaction():
+        conn.execute(f"SET LOCAL statement_timeout = {ACTIVITY_TIMEOUT}")
+        return conn.execute(query, params).fetchall()
+
+
+def bodies_of(conn, rows):
     hashes = list({row["text_sha256"] for row in rows})
-    text = "text" if length is None else f"left(text, {int(length)}) AS text"
-    return {row["text_sha256"]: row["text"] for row in conn.execute(f"SELECT text_sha256, {text} FROM bodies WHERE text_sha256 = ANY(%s)", [hashes])}
+    return {row["text_sha256"]: row["text"] for row in conn.execute("SELECT text_sha256, text FROM bodies WHERE text_sha256 = ANY(%s)", [hashes])}
 
 
 def split_text(row, text):
@@ -85,27 +85,13 @@ def split_text(row, text):
     return "", text
 
 
-def base_shape(row):
-    return {"record_id": row["record_id"], "type": row["record_type"], "author": row["author"], "author_page": row["author"] not in NO_AUTHOR,
-            "subreddit": row["subreddit"], "created_utc": row["created_utc"], "status": row["text_status"]}
-
-
-def listed(conn, rows):
-    bodies = bodies_of(conn, rows, EXCERPT_READ)
-    shaped = []
-    for row in rows:
-        title, body = split_text(row, bodies.get(row["text_sha256"], ""))
-        flat = " ".join(body.split())
-        shaped.append(base_shape(row) | {"title": title, "excerpt": flat if len(flat) <= EXCERPT else flat[:EXCERPT].rstrip() + "..."})
-    return shaped
-
-
 def full(conn, rows):
     bodies = bodies_of(conn, rows)
     shaped = []
     for row in rows:
         title, body = split_text(row, bodies.get(row["text_sha256"], ""))
-        shaped.append(base_shape(row) | {"title": title, "body": body})
+        shaped.append({"record_id": row["record_id"], "type": row["record_type"], "author": row["author"], "author_page": row["author"] not in NO_AUTHOR,
+                       "subreddit": row["subreddit"], "created_utc": row["created_utc"], "status": row["text_status"], "title": title, "body": body})
     return shaped
 
 
@@ -144,6 +130,12 @@ def vectors_check(stored, encoded, loaded):
     return {"name": "Vectors", "current": not problems, "detail": " ".join(problems) or "Text and author vectors cover every loaded month."}
 
 
+def counts_check(counted, loaded):
+    if counted != list(loaded):
+        return {"name": "Counts", "current": False, "detail": "Author and subreddit counts do not cover the loaded months."}
+    return {"name": "Counts", "current": True, "detail": "Author and subreddit counts cover every loaded month."}
+
+
 @timed
 def status():
     import lance
@@ -157,17 +149,15 @@ def status():
         consolidated = conn.execute(CONSOLIDATED).fetchone()["current"]
         run = conn.execute("SELECT run_id::text AS run_id FROM consolidation").fetchone()
         published = conn.execute("SELECT source, targets FROM prediction").fetchone()
+        counted = conn.execute("SELECT months FROM counted").fetchone()["months"]
     loaded = {row["month"]: str(row["loaded_at"]) for row in rows}
     encoded = json.loads(lance.dataset(TEXT_STORE).schema.metadata[MONTHS])
     return {"months": list(loaded), "checks": [claims_check(rows, consolidated), predictions_check(published, run, loaded, json.loads(PROTOCOL), read_targets()),
-                                               vectors_check(source(VECTOR_STORE), encoded, loaded)]}
+                                               vectors_check(source(VECTOR_STORE), encoded, loaded), counts_check(counted, loaded)]}
 
 
 def common(conn):
-    found = {"author": [], "subreddit": []}
-    for row in conn.execute(STATISTICS).fetchall():
-        found[row["attname"]] = [{"name": name, "texts": round(share * row["reltuples"])} for name, share in zip(row["names"], row["shares"]) if name not in NO_AUTHOR]
-    return found
+    return {key: conn.execute(f"SELECT {key} AS name, texts FROM {key}_counts ORDER BY texts DESC, {key} LIMIT %s", [KNOWN]).fetchall() for key in ("author", "subreddit")}
 
 
 def ranked(names, query, known):
@@ -193,8 +183,7 @@ def author_hits(conn, query):
     pairs = [(variant, pattern) for variant in case_variants(query) for pattern in patterns]
     params = [value for variant, pattern in pairs for value in (variant, variant + TOP_END, pattern, SEARCH)]
     names = {row["author"] for row in conn.execute(" UNION ALL ".join([AUTHOR_BRANCH] * len(pairs)), params)}
-    if query not in NO_AUTHOR:
-        names |= {row["author"] for row in conn.execute("SELECT author FROM records WHERE author = %s LIMIT 1", [query])}
+    names |= {row["author"] for row in conn.execute("SELECT author FROM author_counts WHERE author = %s", [query])}
     return names
 
 
@@ -212,34 +201,50 @@ def search(query):
         return {"authors": ranked(author_hits(conn, query), query, known["author"]), "subreddits": ranked(subreddit_hits(conn, query.lower()), query, known["subreddit"])}
 
 
+def detail(prediction, attribute, kind):
+    stored = columns(attribute, kind)
+    return {"value": prediction[stored[0]]} | {column.removeprefix(attribute + "_"): prediction[column] for column in stored[1:]}
+
+
 @timed
 def author(name):
     with POOL.connection() as conn:
         require_author(conn, name)
-        claims = conn.execute("SELECT attribute::text AS attribute, value FROM author_claims WHERE author = %s ORDER BY 1 LIMIT %s", [name, CLAIMS]).fetchall()
-        published = conn.execute("SELECT targets FROM prediction").fetchone()
+        claims = conn.execute("SELECT attribute::text AS attribute, value, support, share FROM author_claims WHERE author = %s", [name]).fetchall()
+        published = conn.execute("SELECT targets, interval_mass FROM prediction").fetchone()
         prediction = conn.execute("SELECT * FROM author_predictions WHERE account = %s", [name]).fetchone()
-    predicted = {attribute: prediction[columns(attribute, kind)[0]] for attribute, kind in published["targets"].items()} if prediction and published else {}
-    stated = {claim["attribute"]: claim["value"] for claim in claims}
-    rows = [{"attribute": attribute, "stated": stated.get(attribute), "predicted": predicted.get(attribute)} for attribute in sorted(stated.keys() | predicted.keys())]
-    return {"name": name, "attributes": rows, "has_prediction": bool(predicted)}
+    targets = published["targets"]
+    predicted = {attribute: detail(prediction, attribute, kind) for attribute, kind in targets.items()} if prediction else {}
+    stated = {claim["attribute"]: claim for claim in claims}
+    rows = [{"attribute": attribute, "kind": targets.get(attribute), "stated": stated.get(attribute), "predicted": predicted.get(attribute)} for attribute in sorted(stated.keys() | predicted.keys())]
+    return {"name": name, "attributes": rows, "has_prediction": bool(predicted), "interval_mass": published["interval_mass"]}
+
+
+def when(conn, column, name):
+    months = {row["month"]: 0 for row in conn.execute("SELECT month FROM months ORDER BY month")}
+    hours, days = [0] * 24, [0] * 7
+    for row in slow(conn, HOURS.format(column), [name]):
+        moment = datetime.fromtimestamp(row["hour"] * 3600, timezone.utc)
+        hours[moment.hour] += row["texts"]
+        days[moment.weekday()] += row["texts"]
+        months[moment.strftime("%Y-%m")] += row["texts"]
+    return {"hours": [{"hour": hour, "texts": texts} for hour, texts in enumerate(hours)],
+            "weekdays": [{"day": calendar.day_name[day], "texts": texts} for day, texts in enumerate(days)],
+            "months": [{"month": month, "texts": texts} for month, texts in months.items()]}
 
 
 @timed
 def author_activity(name):
     with POOL.connection() as conn:
-        require_author(conn, name)
-        return conn.execute("""SELECT count(*) AS texts, count(*) FILTER (WHERE record_type = 'post') AS posts, min(created_utc) AS first_seen, max(created_utc) AS last_seen
-            FROM records WHERE author = %s""", [name]).fetchone()
+        return require_author(conn, name) | when(conn, "author", name)
 
 
 @timed
 def author_subreddits(name):
     with POOL.connection() as conn:
-        require_author(conn, name)
-        rows = conn.execute("""SELECT subreddit, count(*) AS texts FROM (SELECT subreddit FROM records WHERE author = %s ORDER BY created_utc DESC LIMIT %s) newest
-            GROUP BY subreddit ORDER BY texts DESC, subreddit LIMIT %s""", [name, RECENT, GROUPS]).fetchall()
-    return {"window": RECENT, "subreddits": rows}
+        texts = require_author(conn, name)["texts"]
+        rows = slow(conn, AUTHOR_WHERE, [name, WINDOW])
+    return {"texts": texts, "counted": min(texts, WINDOW), "subreddits": rows}
 
 
 @timed
@@ -254,53 +259,24 @@ def author_similar(name):
     if found is None:
         return {"similar": None}
     table = users().to_table(nearest={"column": "vector", "q": np.asarray(found["vector"], dtype=np.float32), "k": SIMILAR + 1, **USER_SEARCH}, columns=["author", "usable_texts", "_distance"])
-    rows = [{"author": row["author"], "usable_texts": row["usable_texts"], "similarity": max(-1.0, min(1.0, 1 - row["_distance"]))} for row in table.to_pylist() if row["author"] != name]
+    rows = [{"author": row["author"], "usable_texts": row["usable_texts"], "similarity": 1 - row["_distance"]} for row in table.to_pylist() if row["author"] != name]
     return {"similar": rows[:SIMILAR]}
-
-
-@timed
-def author_texts(name, before):
-    condition, params = keyset(cursor_of(before))
-    with POOL.connection() as conn:
-        require_author(conn, name)
-        rows = conn.execute(f"SELECT {FIELDS} FROM records WHERE author = %s{condition} ORDER BY created_utc DESC, record_id DESC LIMIT %s", [name, *params, PAGE + 1]).fetchall()
-        return {"texts": listed(conn, rows[:PAGE]), "next": position(rows[PAGE - 1]) if len(rows) > PAGE else None}
 
 
 @timed
 def subreddit_activity(name):
     name = name.lower()
     with POOL.connection() as conn:
-        require_subreddit(conn, name)
-        return {"name": name} | conn.execute("SELECT count(*) AS texts, min(created_utc) AS first_seen, max(created_utc) AS last_seen FROM records WHERE subreddit = %s", [name]).fetchone()
-
-
-@timed
-def subreddit_posts(name, before):
-    name = name.lower()
-    condition, params = keyset(cursor_of(before))
-    with POOL.connection() as conn:
-        require_subreddit(conn, name)
-        rows = conn.execute(f"SELECT {FIELDS} FROM records WHERE subreddit = %s{condition} ORDER BY created_utc DESC, record_id DESC LIMIT %s", [name, *params, POST_SCAN]).fetchall()
-        posts, stop = [], len(rows)
-        for index, row in enumerate(rows):
-            if row["record_type"] == "post":
-                posts.append(row)
-                if len(posts) == PAGE:
-                    stop = index + 1
-                    break
-        more = stop < len(rows) or len(rows) == POST_SCAN
-        return {"texts": listed(conn, posts), "next": position(rows[stop - 1]) if more else None}
+        return require_subreddit(conn, name) | when(conn, "subreddit", name)
 
 
 @timed
 def subreddit_authors(name):
     name = name.lower()
     with POOL.connection() as conn:
-        require_subreddit(conn, name)
-        rows = conn.execute("""SELECT author, count(*) AS texts FROM (SELECT author FROM records WHERE subreddit = %s ORDER BY created_utc DESC LIMIT %s) newest
-            WHERE author <> ALL(%s) GROUP BY author ORDER BY texts DESC, author LIMIT %s""", [name, RECENT, NO_AUTHOR, GROUPS]).fetchall()
-    return {"window": RECENT, "authors": rows}
+        texts = require_subreddit(conn, name)["texts"]
+        rows = slow(conn, SUBREDDIT_WHO, [name, WINDOW])
+    return {"texts": texts, "counted": min(texts, WINDOW), "authors": [row | {"author_page": row["author"] not in NO_AUTHOR} for row in rows]}
 
 
 def chain_end(row, chain):
@@ -324,3 +300,16 @@ def text(record_id):
             found = conn.execute(f"SELECT {FIELDS} FROM records WHERE record_id = %s", [row["link_id"]]).fetchall()
             post = {"record_id": found[0]["record_id"], "title": full(conn, found)[0]["title"]} if found else None
         return full(conn, [row])[0] | {"parents": full(conn, chain), "post": post, "chain_end": chain_end(row, chain)}
+
+
+@timed
+def predict(body):
+    if not isinstance(body, dict) or not isinstance(body.get("text"), str):
+        raise BadRequest("Send a JSON object with a text string.")
+    from attribute_model.config import TEXT_MODEL
+    from attribute_model.text import predict_text
+    with PREDICTING:
+        try:
+            return predict_text(TEXT_MODEL, read_targets(), body["text"])
+        except (ValueError, RuntimeError) as error:
+            raise Unavailable(str(error)) from error

@@ -16,22 +16,18 @@ function h(tag, props, ...kids) {
 }
 
 const links = {
-  author: name => `#/author/${encodeURIComponent(name)}`,
-  subreddit: name => `#/subreddit/${encodeURIComponent(name)}`,
+  author: (name, tab) => `#/author/${encodeURIComponent(name)}${tab ? `/${tab}` : ''}`,
+  subreddit: (name, tab) => `#/subreddit/${encodeURIComponent(name)}${tab ? `/${tab}` : ''}`,
   text: id => `#/text/${encodeURIComponent(id)}`,
 };
 const api = (...parts) => '/api/' + parts.map(encodeURIComponent).join('/');
 
 const whole = new Intl.NumberFormat();
-const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
-const dateOnly = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
-const dateTime = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' });
-const day = seconds => dateOnly.format(new Date(seconds * 1000));
-const moment = seconds => dateTime.format(new Date(seconds * 1000));
-const percent = share => `${Math.round(share * 100)}%`;
-const UNITS = { age: ' years', height: ' cm', weight: ' kg', income: ' USD a year', birth_year: '' };
-const amount = (attribute, value) => (attribute === 'birth_year' ? String(Math.round(value)) : whole.format(Math.round(value)));
+const timestamp = seconds => new Date(seconds * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+const UNITS = { age: ' years', height: ' cm', weight: ' kg', income: ' USD a year' };
 const plural = (count, word) => (count === 1 ? word : `${word}s`);
+const raw = value => (value === null || value === undefined ? '' : String(value));
+const shown = (attribute, value) => (value === null || value === undefined ? '' : `${value}${UNITS[attribute] || ''}`);
 
 function label(name) {
   const words = name.replace(/_/g, ' ').trim();
@@ -45,8 +41,8 @@ class Failure extends Error {
   }
 }
 
-async function getJson(url, signal) {
-  const response = await fetch(url, { signal });
+async function request(url, signal, options) {
+  const response = await fetch(url, { ...options, signal });
   const body = await response.json();
   if (!response.ok) throw new Failure(response.status, body.error);
   return body;
@@ -58,10 +54,6 @@ function placeholder() {
   return h('div', { class: 'placeholder', 'aria-label': 'Loading' }, h('span'), h('span'), h('span'));
 }
 
-function inlinePlaceholder() {
-  return h('span', { class: 'inline-placeholder', 'aria-label': 'Loading' });
-}
-
 function failed(page, failure, retry) {
   if (failure.name === 'AbortError') return null;
   if (failure.status === 404) {
@@ -71,29 +63,37 @@ function failed(page, failure, retry) {
   return h('p', { class: 'error', role: 'alert' }, describe(failure), h('button', { onclick: retry }, 'Try again'));
 }
 
-function fill(box, url, render, page, waiting = placeholder) {
-  const start = () => fill(box, url, render, page, waiting);
-  box.replaceChildren(waiting());
-  getJson(url, page.signal)
-    .then(data => box.replaceChildren(...[render(data)].flat()))
+function fill(box, url, render, page, options) {
+  const start = () => fill(box, url, render, page, options);
+  box.replaceChildren(placeholder());
+  request(url, page.signal, options)
+    .then(data => box.replaceChildren(...[render(data)].flat().filter(Boolean)))
     .catch(failure => {
       const shown = failed(page, failure, start);
       if (shown) box.replaceChildren(shown);
     });
+  return box;
 }
 
 function section(title, note, content) {
   return h('section', { class: 'section' }, h('h2', {}, title), note && h('p', { class: 'note' }, note), h('div', { class: 'body' }, content));
 }
 
-function loaded(title, note, url, render, page) {
-  const box = h('div');
-  fill(box, url, render, page);
-  return section(title, note, box);
+function table(headings, rows) {
+  return h('div', { class: 'table-wrap' }, h('table', { class: 'grid' },
+    h('thead', {}, h('tr', {}, headings.map(heading => h('th', { scope: 'col' }, heading)))),
+    h('tbody', {}, rows)));
 }
 
+const head = text => h('th', { scope: 'row' }, text);
+const cell = content => h('td', {}, content);
+const count = value => h('td', { class: 'num' }, whole.format(value));
+const exact = value => h('td', { class: 'num' }, raw(value));
+const pair = (name, value) => h('tr', {}, head(name), cell(value));
+
 const nameList = rows => h('ul', { class: 'names' }, rows);
-const nameRow = (href, name, count) => h('li', {}, h('a', { href }, name), count && h('span', { class: 'count' }, count));
+const nameRow = (href, name, note) => h('li', {}, h('a', { href }, name), note && h('span', { class: 'count' }, note));
+const texts = number => `${whole.format(number)} ${plural(number, 'text')}`;
 
 function startSearch() {
   const input = document.getElementById('search');
@@ -125,7 +125,7 @@ function startSearch() {
   const run = (query, open) => {
     close();
     const mine = searching = new AbortController();
-    getJson(`${api('search')}?q=${encodeURIComponent(query)}`, mine.signal)
+    request(`${api('search')}?q=${encodeURIComponent(query)}`, mine.signal)
       .then(data => {
         show(query, data);
         const hits = [...results.querySelectorAll('a')];
@@ -161,19 +161,16 @@ const clearSearch = startSearch();
 
 function home(page) {
   document.title = 'Explorer';
-  const note = 'Approximate counts from database statistics.';
-  const startRows = (rows, link) => nameList(rows.map(row => nameRow(link(row.name), row.name, `about ${compact.format(row.texts)} texts`)));
-  const starting = h('div');
-  fill(starting, api('starts'), data => h('div', { class: 'columns' },
-    section('Most active subreddits', note, startRows(data.subreddits, links.subreddit)),
-    section('Most active authors', note, startRows(data.authors, links.author))), page);
+  const startRows = (rows, link) => nameList(rows.map(row => nameRow(link(row.name), row.name, texts(row.texts))));
   main.replaceChildren(
-    starting,
-    loaded('Data status', null, api('status'), data => [
+    fill(h('div'), api('starts'), data => h('div', { class: 'columns' },
+      section('Most active subreddits', null, startRows(data.subreddits, links.subreddit)),
+      section('Most active authors', null, startRows(data.authors, links.author))), page),
+    fill(h('div'), api('status'), data => section('Data status', null, [
       h('p', { class: 'muted small' }, `${data.months.length} ${plural(data.months.length, 'month')} loaded: ${data.months.join(', ')}`),
       h('ul', { class: 'status' }, data.checks.map(check => h('li', { class: check.current ? 'current' : 'stale' },
         h('span', { class: 'dot', 'aria-hidden': 'true' }), h('span', { class: 'name' }, check.name), h('span', { class: 'detail' }, check.detail)))),
-    ], page),
+    ]), page),
   );
   document.getElementById('search').focus();
 }
@@ -182,51 +179,18 @@ function authorLink(row) {
   return row.author_page ? h('a', { href: links.author(row.author) }, row.author) : h('span', {}, row.author || 'Unknown author');
 }
 
-function textRow(text, show) {
-  const missingText = text.status === 'removed' ? 'Removed' : 'No text';
-  const title = text.title || text.excerpt || missingText;
-  const classes = ['item-title', text.title && 'post', title === missingText && 'state'].filter(Boolean).join(' ');
-  return h('li', {},
-    h('a', { class: classes, href: links.text(text.record_id) }, title),
-    text.title && text.excerpt && h('p', { class: 'excerpt' }, text.excerpt),
-    h('div', { class: 'meta' },
-      show === 'subreddit' ? h('a', { href: links.subreddit(text.subreddit) }, text.subreddit) : authorLink(text),
-      h('span', {}, day(text.created_utc)),
-      show === 'subreddit' && h('span', {}, text.type)));
-}
-
-function feed(url, show, emptyMessage, page) {
-  const list = h('ul', { class: 'texts' });
-  const foot = h('div', { class: 'foot' });
-  let cursor = null;
-  const more = () => {
-    foot.replaceChildren(placeholder());
-    getJson(cursor ? `${url}?before=${encodeURIComponent(cursor)}` : url, page.signal).then(data => {
-      data.texts.forEach(row => list.append(textRow(row, show)));
-      cursor = data.next;
-      foot.replaceChildren(...[
-        !list.children.length && !cursor && h('p', { class: 'notice' }, emptyMessage),
-        !data.texts.length && cursor && h('p', { class: 'notice small' }, 'No posts among these texts. Older ones may have some.'),
-        cursor && h('button', { onclick: more }, 'Load more'),
-      ].filter(Boolean));
-    }).catch(failure => {
-      const shown = failed(page, failure, more);
-      if (shown) foot.replaceChildren(shown);
-    });
-  };
-  more();
-  return h('div', {}, list, foot);
-}
-
-function shown(attribute, value) {
-  return attribute in UNITS && Number.isFinite(Number(value)) ? amount(attribute, Number(value)) + UNITS[attribute] : value;
-}
-
 function profileRow(item) {
+  const stated = item.stated || {};
+  const predicted = item.predicted || {};
   return h('tr', {},
-    h('th', { scope: 'row' }, label(item.attribute)),
-    item.stated === null ? h('td') : h('td', { 'data-label': 'Stated' }, shown(item.attribute, item.stated)),
-    item.predicted === null ? h('td') : h('td', { 'data-label': 'Predicted' }, shown(item.attribute, item.predicted)));
+    head(label(item.attribute)),
+    cell(shown(item.attribute, stated.value)),
+    exact(stated.support),
+    exact(stated.share),
+    cell(shown(item.attribute, predicted.value)),
+    exact(predicted.probability),
+    cell(shown(item.attribute, predicted.lower)),
+    cell(shown(item.attribute, predicted.upper)));
 }
 
 function profile(data) {
@@ -236,59 +200,133 @@ function profile(data) {
   return [
     data.attributes.every(item => item.stated === null) && h('p', { class: 'notice spaced' }, 'This author has not stated any attributes.'),
     !data.has_prediction && h('p', { class: 'notice spaced' }, 'The model has no prediction for this author.'),
-    h('table', { class: 'profile' }, h('thead', {}, h('tr', {}, h('th', {}, 'Attribute'), h('th', {}, 'Stated'), h('th', {}, 'Predicted'))),
-      h('tbody', {}, data.attributes.map(profileRow))),
-  ].filter(Boolean);
+    h('p', { class: 'note spaced' }, `Lower and upper bound an interval with mass ${data.interval_mass}.`),
+    table(['Attribute', 'Stated', 'Stated support', 'Stated share', 'Predicted', 'Probability', 'Lower', 'Upper'], data.attributes.map(profileRow)),
+  ];
 }
 
-function fact(word, count) {
-  return h('span', {}, h('b', {}, whole.format(count)), ` ${plural(count, word)}`);
+const windowNote = data => (data.counted === data.texts
+  ? `Counted over all ${texts(data.texts)}.`
+  : `Counted over the newest ${whole.format(data.counted)} of ${texts(data.texts)}.`);
+
+function timing(data) {
+  return [
+    section('Hour of day (UTC)', null, table(['Hour', 'Texts'], data.hours.map(row => {
+      const hour = String(row.hour).padStart(2, '0');
+      return h('tr', {}, head(`${hour}:00 to ${hour}:59`), count(row.texts));
+    }))),
+    section('Day of week (UTC)', null, table(['Day', 'Texts'], data.weekdays.map(row => h('tr', {}, head(row.day), count(row.texts))))),
+    section('Month (UTC)', null, table(['Month', 'Texts'], data.months.map(row => h('tr', {}, head(row.month), count(row.texts))))),
+  ];
 }
 
-function authorPage(page, name) {
-  document.title = `${name} - Explorer`;
-  const facts = h('div', { class: 'facts' });
-  fill(facts, api('author', name, 'activity'), data => [
-    fact('text', data.texts),
-    fact('post', data.posts),
-    h('span', {}, `First seen ${day(data.first_seen)}`),
-    h('span', {}, `Last seen ${day(data.last_seen)}`),
-  ], page, inlinePlaceholder);
+function activity(page, url, totals, where) {
+  const when = h('div');
+  return [
+    fill(h('div'), url, data => {
+      when.replaceChildren(...timing(data));
+      return section('Totals', null, table(['Measure', 'Value'], totals(data)));
+    }, page),
+    when,
+    where,
+  ];
+}
+
+function authorActivity(page, name) {
+  const where = fill(h('div'), api('author', name, 'subreddits'), data => section('Subreddits', windowNote(data), table(['Subreddit', 'Texts'],
+    data.subreddits.map(row => h('tr', {}, head(h('a', { href: links.subreddit(row.subreddit) }, row.subreddit)), count(row.texts))))), page);
+  return activity(page, api('author', name, 'activity'), data => [
+    pair('Texts', whole.format(data.texts)),
+    pair('Posts', whole.format(data.posts)),
+    pair('First seen', timestamp(data.first_seen)),
+    pair('Last seen', timestamp(data.last_seen)),
+  ], where);
+}
+
+function authorSimilar(page, name) {
+  return fill(h('div'), api('author', name, 'similar'), data => {
+    if (data.similar === null) return h('p', { class: 'notice' }, 'This author has no writing style vector, so similar authors cannot be found.');
+    return section('Similar authors', `The ${data.similar.length} nearest authors by writing style vector.`, table(['Author', 'Cosine similarity', 'Usable texts'],
+      data.similar.map(row => h('tr', {}, head(h('a', { href: links.author(row.author) }, row.author)), exact(row.similarity), count(row.usable_texts)))));
+  }, page);
+}
+
+function authorProfile(page, name) {
+  return fill(h('div'), api('author', name), profile, page);
+}
+
+function subredditActivity(page, name) {
+  return activity(page, api('subreddit', name, 'activity'), data => [
+    pair('Texts', whole.format(data.texts)),
+    pair('First seen', timestamp(data.first_seen)),
+    pair('Last seen', timestamp(data.last_seen)),
+  ], null);
+}
+
+function subredditAuthors(page, name) {
+  return fill(h('div'), api('subreddit', name, 'authors'), data => section('Authors', windowNote(data), table(['Author', 'Texts'],
+    data.authors.map(row => h('tr', {}, head(authorLink(row)), count(row.texts))))), page);
+}
+
+const TABS = {
+  author: [['profile', 'Profile', authorProfile], ['activity', 'Activity', authorActivity], ['similar', 'Similar authors', authorSimilar]],
+  subreddit: [['activity', 'Activity', subredditActivity], ['authors', 'Authors', subredditAuthors]],
+};
+
+function entityPage(page, kind, name, tab) {
+  const tabs = TABS[kind];
+  const chosen = tab === undefined ? tabs[0] : tabs.find(([key]) => key === tab);
+  if (!chosen) {
+    showMissing(page, 'This page has no such tab.');
+    return;
+  }
+  const [key, title, render] = chosen;
+  document.title = `${name} - ${title} - Explorer`;
   main.replaceChildren(
-    h('div', { class: 'page-title' }, h('h1', {}, name), facts),
-    h('div', { class: 'split' },
-      h('div', {},
-        loaded('Profile', null, api('author', name), profile, page),
-        section('Newest texts', null, feed(api('author', name, 'texts'), 'subreddit', 'This author has no texts.', page))),
-      h('aside', {},
-        loaded('Where they post', 'From their newest 1,000 texts.', api('author', name, 'subreddits'), data => (
-          nameList(data.subreddits.map(row => nameRow(links.subreddit(row.subreddit), row.subreddit, `${whole.format(row.texts)} ${plural(row.texts, 'text')}`)))), page),
-        loaded('Most similar writers', 'By writing style.', api('author', name, 'similar'), data => {
-          if (data.similar === null) return h('p', { class: 'notice' }, 'This author has no writing style vector, so similar writers cannot be found.');
-          return nameList(data.similar.map(row => nameRow(links.author(row.author), row.author, `${percent(row.similarity)} match`)));
-        }, page))),
+    h('div', { class: 'page-title' }, h('h1', {}, name)),
+    h('nav', { class: 'tabs', 'aria-label': 'Sections' }, tabs.map(([other, heading]) => h('a', other === key ? { href: links[kind](name, other), 'aria-current': 'page' } : { href: links[kind](name, other) }, heading))),
+    h('div', { class: 'panel' }, render(page, name)),
   );
 }
 
-function subredditPage(page, raw) {
-  const name = raw.toLowerCase();
-  document.title = `${name} - Explorer`;
-  const facts = h('div', { class: 'facts' });
-  fill(facts, api('subreddit', name, 'activity'), data => [
-    fact('text', data.texts),
-    h('span', {}, `First seen ${day(data.first_seen)}`),
-    h('span', {}, `Last seen ${day(data.last_seen)}`),
-  ], page, inlinePlaceholder);
+function candidates(item) {
+  return item.candidates ? h('ul', { class: 'candidates' }, item.candidates.map(option => h('li', {}, h('span', {}, option.value), h('span', { class: 'num' }, raw(option.probability))))) : '';
+}
+
+function textPrediction(data) {
+  if (data.status === 'empty') return h('p', { class: 'notice' }, 'The text is empty after cleaning, so there is nothing to predict.');
+  return [
+    section('Input', null, table(['Measure', 'Value'], [
+      pair('Tokens', whole.format(data.tokens)),
+      pair('Truncated', data.truncated ? 'Yes' : 'No'),
+      pair('Model months', data.months.join(', ')),
+    ])),
+    section('Attributes', null, table(['Attribute', 'Predicted', 'Probability', 'Lower', 'Upper', 'Interval mass', 'Candidates'],
+      Object.entries(data.attributes).map(([attribute, item]) => h('tr', {},
+        head(label(attribute)),
+        cell(shown(attribute, item.value)),
+        exact(item.probability),
+        cell(shown(attribute, item.lower)),
+        cell(shown(attribute, item.upper)),
+        exact(item.interval_mass),
+        cell(candidates(item)))))),
+  ];
+}
+
+function predictPage(page) {
+  document.title = 'Predict text - Explorer';
+  const input = h('textarea', { class: 'predict-input', rows: '10', 'aria-label': 'Text to predict from', spellcheck: 'false' });
+  const output = h('div', { class: 'panel' });
+  const run = event => {
+    event.preventDefault();
+    fill(output, api('predict'), textPrediction, page, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: input.value }) });
+  };
   main.replaceChildren(
-    h('div', { class: 'page-title' }, h('h1', {}, name), facts),
-    h('div', { class: 'split' },
-      h('div', {}, section('Newest posts', null, feed(api('subreddit', name, 'posts'), 'author', 'This subreddit has no posts.', page))),
-      h('aside', {},
-        loaded('Authors recently active', 'From the newest 1,000 texts here.', api('subreddit', name, 'authors'), data => (
-          data.authors.length
-            ? nameList(data.authors.map(row => nameRow(links.author(row.author), row.author, `${whole.format(row.texts)} ${plural(row.texts, 'text')}`)))
-            : h('p', { class: 'notice' }, 'No named authors in the newest texts.')), page))),
+    h('div', { class: 'page-title' }, h('h1', {}, 'Predict text')),
+    h('form', { class: 'predict', onsubmit: run }, input, h('div', {}, h('button', { type: 'submit' }, 'Predict'))),
+    output,
   );
+  input.focus();
 }
 
 function bodyOf(text) {
@@ -304,7 +342,7 @@ function textMeta(text) {
   return h('div', { class: 'meta' },
     authorLink(text),
     h('a', { href: links.subreddit(text.subreddit) }, text.subreddit),
-    h('span', {}, moment(text.created_utc)),
+    h('span', {}, timestamp(text.created_utc)),
     h('span', {}, text.type));
 }
 
@@ -339,7 +377,7 @@ function textPage(page, id) {
       end && h('p', { class: 'notice small page-title' }, end),
       text.parents.length > 0 && h('ol', { class: 'thread' }, text.parents.map(parentItem)),
       reading,
-    ].filter(Boolean);
+    ];
   }, page);
 }
 
@@ -366,13 +404,17 @@ function route() {
     showMissing(page, 'This address is not valid.');
     return;
   }
-  const [kind, name] = parts;
+  const [kind, name, tab] = parts;
+  for (const link of document.querySelectorAll('.nav a')) {
+    if (link.getAttribute('href') === `#/${kind}`) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
   if (parts.length === 1 && kind === '') {
     home(page);
-  } else if (parts.length === 2 && name && kind === 'author') {
-    authorPage(page, name);
-  } else if (parts.length === 2 && name && kind === 'subreddit') {
-    subredditPage(page, name);
+  } else if (parts.length === 1 && kind === 'predict') {
+    predictPage(page);
+  } else if (parts.length <= 3 && name && Object.hasOwn(TABS, kind)) {
+    entityPage(page, kind, kind === 'subreddit' ? name.toLowerCase() : name, tab);
   } else if (parts.length === 2 && name && kind === 'text') {
     textPage(page, name);
   } else {

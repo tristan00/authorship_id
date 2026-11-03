@@ -5,9 +5,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import psycopg
+from psycopg import sql
 
-from . import DATA, DSN, LOG, LOGS, PG, PORT, bounds, timed
-from .config import INDEX_BUILDS, INDEX_MEMORY, SCAN_WORKERS, SORT_MEMORY, SORT_WORKERS
+from . import DATA, DSN, LOG, LOGS, NO_AUTHOR, PG, PORT, bounds, timed
+from .config import COUNT_WORKERS, INDEX_BUILDS, INDEX_MEMORY, SCAN_WORKERS, SORT_MEMORY, SORT_WORKERS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS records (
@@ -63,6 +64,17 @@ SET lock_timeout = '10s';
 ALTER TABLE records ATTACH PARTITION records_{name} FOR VALUES FROM ({start}) TO ({end});
 ALTER TABLE bodies ATTACH PARTITION bodies_{name} FOR VALUES IN ('{month}');
 DROP TABLE bodies_stage;
+"""
+COUNTS = {
+    "author": sql.SQL("""SELECT author, count(*) AS texts, count(*) FILTER (WHERE record_type = 'post') AS posts, min(created_utc) AS first_seen,
+        max(created_utc) AS last_seen FROM records WHERE author <> ALL({}) GROUP BY author""").format(sql.Literal(NO_AUTHOR)),
+    "subreddit": sql.SQL("SELECT subreddit, count(*) AS texts, min(created_utc) AS first_seen, max(created_utc) AS last_seen FROM records GROUP BY subreddit"),
+}
+SWAP = """
+DROP TABLE IF EXISTS {key}_counts;
+ALTER TABLE {key}_counts_stage RENAME TO {key}_counts;
+ALTER INDEX {key}_counts_stage_pkey RENAME TO {key}_counts_pkey;
+ALTER INDEX {key}_counts_stage_texts RENAME TO {key}_counts_texts;
 """
 
 
@@ -150,6 +162,33 @@ def finish(month):
     with psycopg.connect(DSN, autocommit=True) as conn:
         conn.execute(ATTACH.format(**partition(month)))
         conn.execute("ANALYZE ONLY records, ONLY bodies")
+
+
+@timed
+def count(key):
+    stage = f"{key}_counts_stage"
+    with psycopg.connect(DSN, autocommit=True) as conn:
+        for setting in (f"max_parallel_workers_per_gather = {COUNT_WORKERS}", f"work_mem = '{SORT_MEMORY}'", "enable_partitionwise_aggregate = on", "enable_seqscan = off"):
+            conn.execute(f"SET {setting}")
+        conn.execute(f"DROP TABLE IF EXISTS {stage}")
+        rows = conn.execute(sql.SQL("CREATE TABLE {} AS ").format(sql.Identifier(stage)) + COUNTS[key]).rowcount
+        conn.execute(f"ALTER TABLE {stage} ADD CONSTRAINT {stage}_pkey PRIMARY KEY ({key})")
+        conn.execute(f"CREATE INDEX {stage}_texts ON {stage} (texts DESC, {key})")
+        conn.execute(f"VACUUM (ANALYZE) {stage}")
+        with conn.transaction():
+            conn.execute("SET LOCAL lock_timeout = '10s'")
+            conn.execute(SWAP.format(key=key))
+    LOG.info("%s counts rows=%s", key, rows)
+
+
+@timed
+def counts():
+    with ThreadPoolExecutor(len(COUNTS)) as pool:
+        list(pool.map(count, COUNTS))
+    with psycopg.connect(DSN) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS counted (months text[] NOT NULL)")
+        conn.execute("DELETE FROM counted")
+        conn.execute("INSERT INTO counted SELECT array_agg(month ORDER BY month) FROM months")
 
 
 @timed
