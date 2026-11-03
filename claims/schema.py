@@ -250,6 +250,7 @@ BINARY = tuple(attribute for attribute, values in ATTRIBUTE_VALUES.items() if YE
 FLAIR_ATTRIBUTES = frozenset(attribute for field in FLAIR_ONLY for value in FLAIR_ONLY[field] for attribute, _ in decomposed(field, value))
 FAN_WORDS = re.compile(r"\b(?:fans?|fandom|favou?rites?|favs?|faves?|lov(?:e|ed|es|ing)|adored?|obsessed|supporters?|stan|stans|rooting|die-?hard|lifelong|goat|authors?|writers?|novels?|streamers?|twitch|youtubers?|youtube|podcasts?|comedians?|actors?|actress|mains?|maining)\b", re.I)
 CLUB = re.compile(r"\s+(?:football club|f\.?c\.?|a\.?f\.?c\.?|c\.?f\.?)$")
+BRACKETED = re.compile(r"\s+[(\[][^)\]]*[)\]]?\s*$")
 VAGUE = frozenset("this that the these those my our his her their him them it its he she they one game games movie movies film films show shows book books series song songs album albums character characters team teams player players author authors artist artists band bands music".split())
 NUMBERS = frozenset({"age", "birth_year", "height", "weight", "income"})
 BOUNDS = {"age": (1, 120), "birth_year": (1900, YEAR), "height": (120, 230), "weight": (30, 300), "income": (1000, 100_000_000)}
@@ -491,7 +492,7 @@ def number(attribute, text):
 
 
 def fan_value(attribute, text):
-    text = text.removeprefix("the ")
+    text = BRACKETED.sub("", text).removeprefix("the ")
     if attribute == "sports_team":
         text = CLUB.sub("", text)
     return text if set(text.split()) - VAGUE else None
