@@ -1,5 +1,7 @@
 import json
 
+import torch
+
 from . import LOG, timed
 from .annotate import excerpt, fact_key, generate, next_round, proposals, votes
 from .config import ANNOTATIONS, TEACHER, TRAINING
@@ -49,4 +51,5 @@ def propose(datasets=TRAINING):
             total += written(chunk, predict(model, pad, *windows(tokenizer, body), body), known, prompts, items)
     LOG.info("cotrain round=%s facts=%d", name, total)
     del model
+    torch.cuda.empty_cache()
     generate(TEACHER, records, name, 4)

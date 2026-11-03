@@ -24,9 +24,16 @@ DROP TABLE IF EXISTS consolidation;
 CREATE TABLE consolidation (run_id uuid PRIMARY KEY, months text[] NOT NULL, started_at timestamptz NOT NULL, finished_at timestamptz NOT NULL DEFAULT now(), base uuid, added text[]);
 """
 CLAIMS = """
-DROP TABLE IF EXISTS author_claims;
-CREATE TABLE author_claims (author text NOT NULL, attribute claim_field NOT NULL, value text NOT NULL, support real NOT NULL, share real NOT NULL, candidates jsonb NOT NULL);
+DROP TABLE IF EXISTS author_claims_next;
+CREATE TABLE author_claims_next (author text NOT NULL, attribute claim_field NOT NULL, value text NOT NULL, support real NOT NULL, share real NOT NULL, candidates jsonb NOT NULL);
 """
+SWAP = """
+ALTER TABLE author_claims_next ADD PRIMARY KEY (author, attribute);
+DROP TABLE IF EXISTS author_claims;
+ALTER TABLE author_claims_next RENAME TO author_claims;
+ALTER INDEX author_claims_next_pkey RENAME TO author_claims_pkey;
+"""
+TARGET = {False: "author_claims_next", True: "author_claims"}
 EVIDENCE = """
 SELECT t.author, 'text' AS source, t.record_id AS source_key, t.subreddit, c.field, c.value, c.probability, c.text_sha256
 FROM text_claims c JOIN records t USING (text_sha256) WHERE t.author <> ALL(%(no_author)s) AND {months}
@@ -88,7 +95,7 @@ def work(low, high, touched, required, blocked):
     started = time.perf_counter()
     decided = authors = 0
     with psycopg.connect(DSN) as reader, psycopg.connect(DSN) as conn:
-        with conn.cursor().copy("COPY author_claims FROM STDIN") as copy:
+        with conn.cursor().copy(f"COPY {TARGET[touched]} FROM STDIN") as copy:
             for author, rows in streamed(reader, touched, low, high):
                 authors += 1
                 for attribute, (value, support, share, candidates) in rules(rows, required, blocked).items():
@@ -184,7 +191,7 @@ def consolidate():
         attributes = decide(conn, previous is not None, inspected(conn) if previous is None else blocked_scopes(conn))
         conn.execute("INSERT INTO consolidation (run_id, months, started_at, base, added) VALUES (%s, %s, %s, %s, %s)", [run_id, months, started, previous, added])
         if previous is None:
-            conn.execute("ALTER TABLE author_claims ADD PRIMARY KEY (author, attribute)")
+            conn.execute(SWAP)
         else:
             conn.execute("DROP TABLE claim_evidence_added, claim_authors")
     vacuum("claim_evidence", "author_claims")
@@ -203,6 +210,6 @@ def redecide():
         attributes = decide(conn, False, inspected(conn))
         conn.execute("DELETE FROM consolidation")
         conn.execute("INSERT INTO consolidation (run_id, months, started_at) VALUES (%s, %s, %s)", [run_id, months, started])
-        conn.execute("ALTER TABLE author_claims ADD PRIMARY KEY (author, attribute)")
+        conn.execute(SWAP)
     vacuum("author_claims")
     LOG.info("redecided run=%s attributes=%s", run_id, attributes)

@@ -188,8 +188,7 @@ VERIFY = 'A system read a Reddit text and made a claim about the person who wrot
 OPENING = 'Read this text written by a Reddit user. Report what the writer states about themselves, using only the attributes below.\n\nReport a fact only if the writer states it about themselves, or it necessarily follows from what they state: "my wife" means married, "my kids" means has children, "here in Ohio we" means lives in Ohio. Post tags such as 28F or [M4F] at the start of a post describe the writer. Include a fact only if it is true of them now.\n\nDo not report facts about anyone else, questions, hypotheticals, wishes, plans, jokes, role-play, fiction, words quoted from someone else, or past facts that no longer hold. Do not guess from topic or writing style. Skip an attribute unless the text settles it.\n\nWrite one line per fact in this format:\nattribute | value | the writer\'s exact words, copied from the text\n\nAttributes with a free value:\n'
 SYNONYMS = {"sexual_orientation": {"heterosexual": "straight", "homosexual": "gay", "bi": "bisexual", "hetero": "straight"},
             "gender": {"transgender": "transgender, unspecified", "trans": "transgender, unspecified", "man": "male", "woman": "female"},
-            "ethnicity": {"hispanic": "hispanic or latino", "latina": "hispanic or latino", "latino": "hispanic or latino", "caucasian": "white"},
-            "education": {"student": "college student"}}
+            "ethnicity": {"hispanic": "hispanic or latino", "latina": "hispanic or latino", "latino": "hispanic or latino", "caucasian": "white"}}
 NEURO = frozenset({"adhd", "autism", "both adhd and autism", "neurodivergent, unspecified"})
 DROPPED = frozenset({"drinking"})
 BOT = "automated_account"
