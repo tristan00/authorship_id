@@ -213,8 +213,6 @@ CONDITIONS = {"anxiety": "anxiety", "depression": "depression", "addiction": "ad
               "chronic pain or fibromyalgia": "chronic_pain", "cancer": "cancer", "heart or blood condition": "heart_condition", "digestive condition": "digestive_condition",
               "hormonal or reproductive condition": "hormonal_condition", "skin condition": "skin_condition", "respiratory condition or allergy": "respiratory_condition",
               "vision or hearing impairment": "sensory_impairment", "physical disability": "physical_disability"}
-COMPASS = {"auth-left": ("left", "authoritarian"), "auth-center": ("center", "authoritarian"), "auth-right": ("right", "authoritarian"), "left": ("left", "center"), "centrist": ("center", "center"),
-           "right": ("right", "center"), "lib-left": ("left", "libertarian"), "lib-center": ("center", "libertarian"), "lib-right": ("right", "libertarian")}
 MBTI = (("mbti_ie", {"I": "introvert", "E": "extravert"}), ("mbti_ns", {"N": "intuitive", "S": "sensing"}), ("mbti_tf", {"T": "thinking", "F": "feeling"}), ("mbti_jp", {"J": "judging", "P": "perceiving"}))
 DECOMPOSED = {("gender", "trans woman"): (("gender", "female"), ("transgender", YES)), ("gender", "trans man"): (("gender", "male"), ("transgender", YES)),
               ("gender", "transgender, unspecified"): (("transgender", YES),), ("sexual_orientation", "gay"): (("sexual_orientation", "gay or lesbian"),),
@@ -226,7 +224,6 @@ DECOMPOSED = {("gender", "trans woman"): (("gender", "female"), ("transgender", 
               ("pets", "no pets"): (("pet_dog", NO), ("pet_cat", NO)), ("pets", "other pet"): ()}
 DECOMPOSED |= {(field, value): ((CONDITIONS[value], YES),) if value in CONDITIONS else (("adhd", YES), ("autism", YES)) if value == "both adhd and autism" else ()
                for field in ("physical_condition", "mental_condition", "neurotype") for value in (*CHOICES["physical_condition"], *CHOICES["mental_condition"])}
-DECOMPOSED |= {("political_compass", value): (("compass_economic", economic), ("compass_social", social)) for value, (economic, social) in COMPASS.items()}
 DECOMPOSED |= {("personality_type", value): tuple((name, letters[letter]) for (name, letters), letter in zip(MBTI, value)) for value in FLAIR_ONLY["personality_type"]}
 DECOMPOSED |= {("generation", value): () for value in FLAIR_ONLY["generation"]}
 CLOSED_VALUES = {**CHOICES, **FLAIR_ONLY, "neurotype": sorted(NEURO)}
