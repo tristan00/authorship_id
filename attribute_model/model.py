@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .config import DEFAULTS, QUANTILES, validate
+from .config import DEFAULTS, validate
 
 
 class Block(nn.Module):
@@ -42,7 +42,7 @@ class AttributeModel(nn.Module):
         self.blocks = nn.Sequential(*(Block(width, expand, dropout) for _ in range(depth)))
         self.norm = nn.LayerNorm(width)
         self.numeric, self.categorical, self.embedding = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical", "embedding"))
-        sizes = [len(QUANTILES)] * len(self.numeric) + [len(specifications[index]["values"]) for index in self.categorical]
+        sizes = [1] * len(self.numeric) + [len(specifications[index]["values"]) for index in self.categorical]
         offsets = np.cumsum([0] + sizes)
         self.slices = dict(zip(self.numeric + self.categorical, zip(offsets[:-1].tolist(), offsets[1:].tolist())))
         self.head = nn.Linear(width, int(offsets[-1]))
@@ -53,7 +53,7 @@ class AttributeModel(nn.Module):
             for index in self.numeric:
                 start, end = self.slices[index]
                 self.head.weight[start:end].zero_()
-                self.head.bias[start:end] = torch.tensor(specifications[index]["quantiles"])
+                self.head.bias[start:end] = 0
             for index in self.categorical:
                 self.head.bias[slice(*self.slices[index])] = torch.tensor(specifications[index]["prior"]).log()
             for slot, index in enumerate(self.embedding):
@@ -64,7 +64,6 @@ class AttributeModel(nn.Module):
                    "numeric_columns": torch.tensor([self.slices[index][0] for index in self.numeric], dtype=torch.long), "positions": torch.tensor(positions, dtype=torch.long),
                    "center": torch.tensor([specifications[index]["center"] for index in self.numeric], dtype=torch.float32),
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
-                   "quantiles": torch.tensor(QUANTILES, dtype=torch.float32),
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
                    "weight": (stated := torch.tensor([float(spec["stated_labels"]) for spec in specifications])) / stated.mean(),
                    "shift": torch.tensor(features["center"], dtype=torch.float32),
@@ -101,8 +100,7 @@ class AttributeModel(nn.Module):
         overflow = torch.zeros((), dtype=torch.long, device=flat.device)
         if self.numeric:
             normalized = (filled[:, self.numeric_targets] - self.center) / self.scale
-            error = normalized[..., None] - flat[:, self.numeric_columns[:, None] + torch.arange(len(QUANTILES), device=flat.device)]
-            loss = torch.maximum(self.quantiles * error, (self.quantiles - 1) * error).mean(-1)
+            loss = (normalized - flat[:, self.numeric_columns]).abs()
             sums[self.numeric_targets] = (loss * present[:, self.numeric_targets]).sum(0)
         if self.categorical:
             padded = torch.full((len(flat), len(self.categorical) * self.widest), -math.inf, device=flat.device)
@@ -123,8 +121,7 @@ class AttributeModel(nn.Module):
 
 
 def numeric(output, spec):
-    values = (output.float() * spec["scale"] + spec["center"]).sort(1).values
-    return values[:, 1], values[:, 0], values[:, 2]
+    return output[:, 0].float() * spec["scale"] + spec["center"]
 
 
 def adjusted(probabilities, spec, tau):
@@ -154,10 +151,7 @@ def specifications(targets, catalogs, labels, training):
             scale = float(np.median(np.abs(observed - center)) * 1.4826)
             if scale <= 0:
                 raise ValueError(f"{name}: numeric training labels have no spread")
-            normalized = (observed - center) / scale
-            quantiles = np.quantile(normalized, QUANTILES)
-            baseline = np.mean([np.maximum(q * (normalized - v), (q - 1) * (normalized - v)).mean() for q, v in zip(QUANTILES, quantiles)])
-            spec |= {"center": center, "scale": scale, "quantiles": quantiles.tolist(), "baseline": float(baseline)}
+            spec |= {"center": center, "scale": scale, "baseline": float(np.abs((observed - center) / scale).mean())}
         else:
             values = catalogs[name]
             if len(values) < 2:

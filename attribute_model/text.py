@@ -55,7 +55,7 @@ def prepare(directory, targets):
     manifest, arrays = load(DATA, targets)
     author_buckets = np.asarray(arrays["splits"])
     staging.mkdir(parents=True)
-    rows = np.load(DATA / "clean_rows.npy")[np.searchsorted(np.load(DATA / "clean_owners.npy"), np.arange(manifest["authors"]))]
+    rows = np.load(DATA / "rows.npy")
     owners = np.argsort(rows)
     rows = rows[owners]
     with index_lock(TEXT_STORE):

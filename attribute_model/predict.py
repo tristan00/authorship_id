@@ -22,7 +22,7 @@ from author_encoder.lock import index_lock
 from database import DSN
 
 from . import LOG, timed
-from .config import ENCODERS, GPU_MEMORY, PREDICTIONS, SEGMENT_BYTES, THREADS, check_targets, columns, validate
+from .config import ENCODERS, GPU_MEMORY, PREDICTIONS, SEGMENT_BYTES, THREADS, check_targets, validate
 from .model import AttributeModel, decide, numeric
 
 SIGNATURE = b"PGCOPY\n\xff\r\n\x00" + bytes(8)
@@ -34,15 +34,13 @@ ALTER TABLE author_predictions_next RENAME TO author_predictions;
 ALTER INDEX author_predictions_next_pkey RENAME TO author_predictions_pkey;
 ANALYZE author_predictions;
 DROP TABLE IF EXISTS prediction;
-CREATE TABLE prediction (model_id uuid PRIMARY KEY, source jsonb NOT NULL, targets jsonb NOT NULL, interval_mass real NOT NULL, users bigint NOT NULL, finished_at timestamptz NOT NULL DEFAULT clock_timestamp());
+CREATE TABLE prediction (model_id uuid PRIMARY KEY, source jsonb NOT NULL, targets jsonb NOT NULL, users bigint NOT NULL, finished_at timestamptz NOT NULL DEFAULT clock_timestamp());
 """
+KIND = {"numeric": "real", "categorical": "text", "embedding": "text"}
 
 
 def schema(targets):
-    result = [("account", "text")]
-    for name, kind in targets.items():
-        result += zip(columns(name, kind), ("real",) * 3 if kind == "numeric" else ("text", "real"))
-    return result
+    return [("account", "text"), *((name, KIND[kind]) for name, kind in targets.items())]
 
 
 def build(artifact):
@@ -64,17 +62,13 @@ def load_model(path, targets):
     return cached(str(path), path.stat().st_mtime_ns, tuple(validate(targets).items()))
 
 
-def calibrated(artifact, outputs):
+def decided(artifact, outputs):
     for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
-        if spec["type"] == "numeric":
-            value, lower, upper = numeric(output, spec)
-            yield spec, fitted, (value, lower - fitted["radius"], upper + fitted["radius"])
-        else:
-            yield spec, fitted, (output / fitted["temperature"]).softmax(1)
+        yield spec, numeric(output, spec) if spec["type"] == "numeric" else decide((output / fitted["temperature"]).softmax(1), spec, fitted)
 
 
 @timed
-def predict(loaded, vectors, candidates=5):
+def predict(loaded, vectors):
     model, artifact = loaded
     values = np.asarray(vectors, dtype=np.float32)
     if values.ndim != 2 or values.shape[1] != model.input.in_features or not np.isfinite(values).all():
@@ -82,40 +76,19 @@ def predict(loaded, vectors, candidates=5):
     result = [{} for _ in values]
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
-            for spec, fitted, scored in calibrated(artifact, model.outputs(model(torch.from_numpy(values[start:start + 1024])))):
-                name = spec["name"]
-                if spec["type"] == "numeric":
-                    for row, (value, lower, upper) in enumerate(zip(*(column.tolist() for column in scored)), start):
-                        result[row][name] = {"type": "numeric", "value": value, "lower": lower, "upper": upper, "interval_mass": fitted["mass"]}
-                else:
-                    chosen = decide(scored, spec, fitted)
-                    probabilities, indices = scored.topk(min(candidates, scored.shape[1]), 1)
-                    for row, (pick, chance, labels, scores) in enumerate(zip(chosen.tolist(), scored.gather(1, chosen[:, None]).squeeze(1).tolist(), indices.tolist(), probabilities.tolist()), start):
-                        options = [{"value": spec["values"][label], "probability": probability} for label, probability in zip(labels, scores)]
-                        result[row][name] = {"type": spec["type"], "value": spec["values"][pick], "probability": chance, "candidates": options}
+            for spec, chosen in decided(artifact, model.outputs(model(torch.from_numpy(values[start:start + 1024])))):
+                for row, value in enumerate(chosen.tolist(), start):
+                    result[row][spec["name"]] = {"value": value if spec["type"] == "numeric" else spec["values"][value]}
     return result
 
 
 @torch.inference_mode()
 def infer(model, artifact, catalogs, chunk, device):
     vectors = torch.from_numpy(chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()).to(device)
-    numbers, indices = [], []
-    for spec, fitted, scored in calibrated(artifact, model.outputs(model(vectors))):
-        if spec["type"] == "numeric":
-            numbers += scored
-        else:
-            index = decide(scored, spec, fitted)
-            numbers.append(scored.gather(1, index[:, None]).squeeze(1))
-            indices.append(index)
-    numbers, indices = torch.stack(numbers, 1).cpu().numpy(), torch.stack(indices, 1).cpu().numpy()
-    result, number, category = [chunk["author"]], 0, 0
-    for spec in artifact["specifications"]:
-        if spec["type"] == "numeric":
-            result += [numbers[:, number + offset] for offset in range(3)]
-            number += 3
-        else:
-            result += [catalogs[spec["name"]].take(indices[:, category]), numbers[:, number]]
-            number, category = number + 1, category + 1
+    result = [chunk["author"]]
+    for spec, chosen in decided(artifact, model.outputs(model(vectors))):
+        chosen = chosen.cpu().numpy()
+        result.append(chosen if spec["type"] == "numeric" else catalogs[spec["name"]].take(chosen))
     return result
 
 
@@ -194,8 +167,7 @@ def load_segments(fields, artifact, segments):
             raise RuntimeError("Prediction segments are incomplete; nothing was published")
         started = time.perf_counter()
         conn.execute(PUBLISH)
-        conn.execute("INSERT INTO prediction (model_id, source, targets, interval_mass, users) VALUES (%s, %s, %s, %s, %s)",
-                     [artifact["model_id"], Jsonb(artifact["source"]), Jsonb(artifact["targets"]), artifact["parameters"]["interval_mass"], item])
+        conn.execute("INSERT INTO prediction (model_id, source, targets, users) VALUES (%s, %s, %s, %s)", [artifact["model_id"], Jsonb(artifact["source"]), Jsonb(artifact["targets"]), item])
         LOG.info("attribute predictions keyed and published users=%d seconds=%.1f", item, time.perf_counter() - started)
     return item
 

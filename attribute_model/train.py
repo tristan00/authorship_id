@@ -111,19 +111,10 @@ def categorical(model, vectors, labels, column, spec):
 
 
 @timed
-def calibrate(model, vectors, labels, specs, mass):
+def calibrate(model, vectors, labels, specs):
     result = []
     for column, spec in enumerate(specs):
-        if spec["type"] == "numeric":
-            output, target = collect(model, vectors, labels, column)
-            _, lower, upper = numeric(output, spec)
-            residuals = torch.sort(torch.maximum(lower - target, target - upper)).values.cpu().numpy()
-            rank = math.ceil((len(residuals) + 1) * mass)
-            if rank > len(residuals):
-                raise ValueError(f"{spec['name']}: too few calibration labels for a {mass:.0%} interval")
-            result.append({"n": len(residuals), "mass": mass, "radius": float(residuals[rank - 1])})
-        else:
-            result.append(categorical(model, vectors, labels, column, spec))
+        result.append({} if spec["type"] == "numeric" else categorical(model, vectors, labels, column, spec))
         LOG.info("attribute model calibrated %s %s", spec["name"], json.dumps(result[-1]))
     return result
 
@@ -162,13 +153,9 @@ def report(model, vectors, labels, specs, calibration):
         if spec["type"] == "numeric":
             with torch.inference_mode():
                 output, target = collect(model, vectors, labels, column)
-                predicted, lower, upper = numeric(output, spec)
-                lower, upper = lower - fitted["radius"], upper + fitted["radius"]
-                error = (predicted - target).cpu().numpy()
+                error = (numeric(output, spec) - target).cpu().numpy()
                 base = (target - spec["center"]).abs().mean()
-                result[spec["name"]] = {"n": len(error), "mae": float(np.abs(error).mean()), "median_baseline_mae": float(base), "rmse": float(np.sqrt(np.mean(error ** 2))),
-                                        "interval_coverage": float(((target >= lower) & (target <= upper)).float().mean()), "interval_width": float((upper - lower).mean()),
-                                        "interval_width_median": float((upper - lower).median())}
+                result[spec["name"]] = {"n": len(error), "mae": float(np.abs(error).mean()), "median_baseline_mae": float(base), "rmse": float(np.sqrt(np.mean(error ** 2)))}
         else:
             with torch.inference_mode():
                 result[spec["name"]] = categorical_report(model, vectors, labels, column, spec, fitted)
@@ -286,7 +273,7 @@ def train(directory, output, targets, parameters=PARAMETERS, loader=load_data):
     best, history = fit(model, specs, data, parameters)
     authors = {name: len(labels) for name, (_, labels) in data.items()}
     del data["train"]
-    calibration = calibrate(model, *data["calibration"], specs, parameters["interval_mass"])
+    calibration = calibrate(model, *data["calibration"], specs)
     evaluation = report(model, *data["test"], specs, calibration)
     for name, fields in evaluation.items():
         LOG.info("attribute model test %s %s", name, json.dumps(fields))

@@ -1,8 +1,6 @@
-import hashlib
 import json
 import shutil
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import lance
@@ -13,23 +11,19 @@ import pyarrow.compute as pc
 from psycopg.rows import dict_row
 from pyarrow import csv
 
-from author_encoder.config import DIMENSIONS, TEXT_STORE, VECTOR_STORE, VECTOR_WORK
-from author_encoder.index import FEATURES, PROTOCOL, Spill, head, read, vectors_at
+from author_encoder.config import DIMENSIONS, VECTOR_STORE
+from author_encoder.index import PROTOCOL
 from author_encoder.lock import index_lock
-from author_encoder.model import load_model
-from author_encoder.texts import raw, scales
-from claims.config import NAMES_FILE, NUMERIC
-from claims.schema import BOT, FLAIR_ATTRIBUTES
+from claims.config import NUMERIC
+from claims.schema import FLAIR_ATTRIBUTES
 from database import DSN
 
 from . import LOG, timed, write_json
-from .config import BEARING_MASK, BEARING_STAMP, CLEAN_BUCKETS, CLEAN_TEXTS, DEFAULTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, VECTOR_CHUNK, check_targets, partition, validate
+from .config import DEFAULTS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, check_targets, partition, validate
 
 CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s::claim_field[])) TO STDOUT (FORMAT CSV)"
-BEARING = "COPY (SELECT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
 ARRAYS = ("users", "labels", "splits")
 SPREAD_ROWS = 1 << 20
-FETCHED = pa.schema([pa.field("slot", pa.uint64()), pa.field("vector", pa.list_(pa.int8(), FEATURES))])
 
 
 def source(conn):
@@ -65,147 +59,29 @@ def encode(values, name, kind):
 
 
 @timed
-def bearing_rows(conn, texts):
-    fragments = sorted(texts.get_fragments(), key=lambda fragment: fragment.fragment_id)
-    counts = np.array([fragment.count_rows() for fragment in fragments], dtype=np.int64)
-    starts = np.zeros(fragments[-1].fragment_id + 1, dtype=np.int64)
-    starts[[fragment.fragment_id for fragment in fragments]] = np.cumsum(counts) - counts
-    stamp = json.dumps([texts.version, str(conn.execute("SELECT max(extracted_at) FROM months").fetchone()[0]), hashlib.sha256(NAMES_FILE.read_bytes()).hexdigest()])
-    if BEARING_STAMP.exists() and BEARING_STAMP.read_text(encoding="utf-8") == stamp:
-        LOG.info("fact bearing rows reused")
-        return np.unpackbits(np.load(BEARING_MASK), count=int(counts.sum())).astype(bool), starts
-    data = bytearray()
-    with conn.cursor().copy(BEARING, [BOT]) as copy:
-        for chunk in copy:
-            data += chunk
-    LOG.info("fact bearing copied bytes=%d", len(data))
-    known = np.unique(np.frombuffer(bytes.fromhex(np.frombuffer(data, dtype=np.uint8).reshape(-1, 19)[:, 2:18].tobytes().decode("ascii")), dtype=">u8").astype(np.uint64))
-    del data
-    LOG.info("fact bearing digests=%d", len(known))
-    mask = np.zeros(int(counts.sum()), dtype=bool)
-
-    def mark(fragment):
-        digests = raw(fragment.to_table(columns=["text_sha256"]).column(0).combine_chunks()).reshape(-1, 32)
-        keys = np.ascontiguousarray(digests[:, :8]).view(">u8").ravel().astype(np.uint64)
-        places = np.minimum(np.searchsorted(known, keys), len(known) - 1)
-        mask[starts[fragment.fragment_id]:starts[fragment.fragment_id] + len(keys)] = known[places] == keys
-
-    with ThreadPoolExecutor(ENCODERS) as pool:
-        list(pool.map(mark, fragments))
-    LOG.info("fact bearing rows=%d of %d", int(mask.sum()), len(mask))
-    np.save(BEARING_MASK, np.packbits(mask))
-    BEARING_STAMP.write_text(stamp, encoding="utf-8")
-    return mask, starts
-
-
-@timed
-def clean_rows(users, labeled, mask, starts):
+def served(users, labeled, path):
     names = users.to_table(columns=["author"], scan_in_order=True)["author"]
-    labels = pc.fill_null(pc.index_in(names, value_set=labeled), -1).to_numpy()
-    rows_of, owners_of, places, position = [], [], [], np.full(len(labeled), -1, dtype=np.int64)
+    found = pc.fill_null(pc.index_in(names, value_set=labeled), -1).to_numpy()
+    places = np.flatnonzero(found >= 0)
+    position = np.full(len(labeled), -1, dtype=np.int64)
+    position[found[places]] = np.arange(len(places))
+    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(len(places), DIMENSIONS))
+    rows = np.empty(len(places), dtype=np.uint64)
     scanned = kept = 0
-    for batch in users.to_batches(columns=["sample_rows"], batch_size=65536, scan_in_order=True):
-        who = labels[scanned:scanned + batch.num_rows]
-        chosen = np.flatnonzero(who >= 0)
+    started = time.perf_counter()
+    for batch in users.to_batches(columns=["vector", "sample_rows"], batch_size=65536, scan_in_order=True):
+        chosen = pa.array(np.flatnonzero(found[scanned:scanned + batch.num_rows] >= 0))
         if len(chosen):
-            column = batch["sample_rows"].take(pa.array(chosen))
-            sizes = column.value_lengths().to_numpy(zero_copy_only=False).astype(np.int64)
-            flat = column.flatten().to_numpy()
-            owner = np.repeat(np.arange(len(chosen)), sizes)
-            clean = ~mask[starts[(flat >> np.uint64(32)).astype(np.int64)] + (flat & np.uint64(0xFFFFFFFF)).astype(np.int64)]
-            owner, flat = owner[clean], flat[clean]
-            limit = np.arange(len(owner)) - np.searchsorted(owner, np.arange(len(chosen)))[owner] < CLEAN_TEXTS
-            owner, flat = owner[limit], flat[limit]
-            present = np.bincount(owner, minlength=len(chosen)) > 0
-            rows_of.append(flat)
-            owners_of.append((np.cumsum(present) - 1)[owner] + kept)
-            places.append(chosen[present] + scanned)
-            position[who[chosen[present]]] = np.arange(kept, kept + int(present.sum()))
-            kept += int(present.sum())
+            vectors[kept:kept + len(chosen)] = batch["vector"].take(chosen).flatten().to_numpy().reshape(-1, DIMENSIONS)
+            rows[kept:kept + len(chosen)] = pc.list_element(batch["sample_rows"].take(chosen), 0).to_numpy()
+            kept += len(chosen)
         scanned += batch.num_rows
         if scanned % (64 * 65536) < batch.num_rows:
-            LOG.info("clean rows scanned=%d kept_authors=%d", scanned, kept)
-    if scanned != len(names):
-        raise ValueError("User store rows changed between the author and sample scans")
-    return np.concatenate(rows_of), np.concatenate(owners_of), position, np.concatenate(places)
-
-
-@timed
-def reusable(directory, authors, rows, owners, expected):
-    missing = np.full(len(authors), -1, dtype=np.int64)
-    if not (directory / "clean_rows.npy").exists():
-        return missing
-    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
-    if manifest["source"]["months"] != expected["months"] or manifest["source"]["protocol"] != expected["protocol"]:
-        return missing
-    known = pa.array(json.loads((directory / "authors.json").read_text(encoding="utf-8")))
-    earlier = pc.fill_null(pc.index_in(pa.array(authors), value_set=known), -1).to_numpy().astype(np.int64)
-    old_rows, old_owners = np.load(directory / "clean_rows.npy"), np.load(directory / "clean_owners.npy")
-    old_sizes, sizes = np.bincount(old_owners, minlength=len(known)), np.bincount(owners, minlength=len(authors))
-    old_starts, starts = np.cumsum(old_sizes) - old_sizes, np.cumsum(sizes) - sizes
-    candidates = np.flatnonzero((earlier >= 0) & (sizes == old_sizes[earlier]))
-    lengths = sizes[candidates]
-    slot = np.repeat(np.arange(len(candidates)), lengths)
-    offset = np.arange(len(slot)) - (np.cumsum(lengths) - lengths)[slot]
-    differs = rows[starts[candidates][slot] + offset] != old_rows[old_starts[earlier[candidates]][slot] + offset]
-    keep = np.full(len(authors), -1, dtype=np.int64)
-    same = candidates[np.bincount(slot, weights=differs, minlength=len(candidates)) == 0]
-    keep[same] = earlier[same]
-    LOG.info("clean vectors reusable=%d of %d", len(same), len(authors))
-    return keep
-
-
-@timed
-def clean_vectors(texts, rows, owners, count, path, previous, earlier):
-    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(count, DIMENSIONS))
-    reused = np.flatnonzero(earlier >= 0)
-    if len(reused):
-        stored = np.load(previous / "users.npy", mmap_mode="r")
-        for start in range(0, len(reused), VECTOR_CHUNK):
-            chosen = reused[start:start + VECTOR_CHUNK]
-            vectors[chosen] = stored[earlier[chosen], :DIMENSIONS]
-        del stored
-    changed = earlier[owners] < 0
-    if not changed.any():
-        return vectors
-    rows, owners = rows[changed], owners[changed]
-    work = VECTOR_WORK / "clean"
-    shutil.rmtree(work, ignore_errors=True)
-    work.mkdir(parents=True)
-    order = np.argsort(rows)
-    rows_sorted = rows[order]
-    fragments, begins = np.unique(rows_sorted >> np.uint64(32), return_index=True)
-    ends = np.append(begins[1:], len(rows_sorted))
-    bucket = owners % CLEAN_BUCKETS
-    spill = Spill(work, "codes", FETCHED)
-    started = time.perf_counter()
-
-    def fetch(index):
-        return index, vectors_at(texts, fragments[index], (rows_sorted[begins[index]:ends[index]] & np.uint64(0xFFFFFFFF)).astype(np.int64))
-
-    with ThreadPoolExecutor(ENCODERS) as pool:
-        for done, (index, codes) in enumerate(pool.map(fetch, range(len(fragments))), 1):
-            slots = order[begins[index]:ends[index]]
-            spill.write(bucket[slots], pa.record_batch([pa.array(slots.astype(np.uint64)), pa.FixedSizeListArray.from_arrays(pa.array(codes.ravel()), FEATURES)], schema=FETCHED))
-            if done % 256 == 0:
-                LOG.info("clean codes fragments=%d/%d seconds=%.1f", done, len(fragments), time.perf_counter() - started)
-    spill.close()
-    model, scale = load_model("cuda"), scales(texts)
-    for part in range(CLEAN_BUCKETS):
-        file = work / f"codes_{part}.arrow"
-        table = read(file, FETCHED)
-        slots = table.column("slot").to_numpy()
-        codes = table.column("vector").combine_chunks().flatten().to_numpy().reshape(-1, FEATURES)
-        arrangement = np.argsort(owners[slots], kind="stable")
-        people, first, sizes = np.unique(owners[slots][arrangement], return_index=True, return_counts=True)
-        vectors[people] = head(model, codes[arrangement], scale, first, sizes).astype(np.float16)
-        del table, codes
-        file.unlink()
-        if part % 8 == 7:
-            LOG.info("clean vectors buckets=%d/%d seconds=%.1f", part + 1, CLEAN_BUCKETS, time.perf_counter() - started)
+            LOG.info("served vectors scanned=%d kept_authors=%d seconds=%.1f", scanned, kept, time.perf_counter() - started)
+    if scanned != len(names) or kept != len(places):
+        raise ValueError("User store rows changed between the author and vector scans")
     vectors.flush()
-    shutil.rmtree(work)
-    return vectors
+    return vectors, rows, position, names.take(pa.array(places)).to_pylist()
 
 
 @timed
@@ -217,8 +93,8 @@ def prepare(directory, targets):
         shutil.rmtree(staging)
     with psycopg.connect(DSN, row_factory=dict_row) as conn:
         expected = source(conn)
-    with index_lock(TEXT_STORE), index_lock(VECTOR_STORE), psycopg.connect(DSN) as conn:
-        users, texts = lance.dataset(VECTOR_STORE), lance.dataset(TEXT_STORE)
+    with index_lock(VECTOR_STORE), psycopg.connect(DSN) as conn:
+        users = lance.dataset(VECTOR_STORE)
         metadata = users.schema.metadata
         if metadata.get(b"protocol") != PROTOCOL.encode() or json.loads(metadata[b"source"])["months"] != expected["months"]:
             raise ValueError("User vectors do not match the completed source months")
@@ -241,12 +117,8 @@ def prepare(directory, targets):
         owner = remap[owner]
         stated = {name: remap[found][remap[found] >= 0] for name, found in stated.items()}
         LOG.info("labeled authors=%d rows=%d", len(labeled), claims.num_rows)
-        mask, starts = bearing_rows(conn, texts)
-        rows, row_owners, position, places = clean_rows(users, labeled, mask, starts)
-        authors = users.to_table(columns=["author"], scan_in_order=True)["author"].take(pa.array(places)).to_pylist()
-        del mask, starts
         staging.mkdir(parents=True)
-        vectors = clean_vectors(texts, rows, row_owners, len(authors), staging / "users.npy", directory, reusable(directory, authors, rows, row_owners, expected))
+        vectors, rows, position, authors = served(users, labeled, staging / "users.npy")
     placed = position[owner]
     present = placed >= 0
     labels = np.full((len(authors), len(targets)), np.nan, dtype=np.float32)
@@ -271,8 +143,7 @@ def prepare(directory, targets):
     features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
     np.save(staging / "labels.npy", labels)
     np.save(staging / "splits.npy", splits)
-    np.save(staging / "clean_rows.npy", rows)
-    np.save(staging / "clean_owners.npy", row_owners)
+    np.save(staging / "rows.npy", rows)
     write_json(staging / "authors.json", authors)
     counts = np.isfinite(labels).sum(0)
     manifest = {"targets": targets, "catalogs": catalogs, "authors": len(authors), "source": expected, "features": features, "target_counts": {name: int(count) for name, count in zip(targets, counts)},
