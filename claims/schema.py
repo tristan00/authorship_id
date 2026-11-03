@@ -207,7 +207,51 @@ FANDOM = {"sports_team": "the real sports team they support, full club or franch
           "celebrity": "the actor, comedian or other famous person they are a fan of"}
 FAN_PREFIX = "fan_"
 FAN_FIELDS = tuple(FAN_PREFIX + name for name in FANDOM)
-ALL_FIELDS = tuple(name for name in (*FREE, *CHOICES) if name not in DROPPED | {BOT, "birth_year"}) + ("neurotype", *FLAIR_ONLY, *FAN_FIELDS)
+EVIDENCE_FIELDS = tuple(name for name in (*FREE, *CHOICES) if name not in DROPPED | {BOT, "birth_year"}) + ("neurotype", *FLAIR_ONLY, *FAN_FIELDS)
+YES, NO = "yes", "no"
+CONDITIONS = {"anxiety": "anxiety", "depression": "depression", "addiction": "addiction", "ocd": "ocd", "ptsd": "ptsd", "eating disorder": "eating_disorder", "bipolar disorder": "bipolar_disorder",
+              "schizophrenia or psychosis": "psychosis", "personality disorder": "personality_disorder", "adhd": "adhd", "autism": "autism", "diabetes": "diabetes", "autoimmune disease": "autoimmune_disease",
+              "chronic pain or fibromyalgia": "chronic_pain", "cancer": "cancer", "heart or blood condition": "heart_condition", "digestive condition": "digestive_condition",
+              "hormonal or reproductive condition": "hormonal_condition", "skin condition": "skin_condition", "respiratory condition or allergy": "respiratory_condition",
+              "vision or hearing impairment": "sensory_impairment", "physical disability": "physical_disability"}
+COMPASS = {"auth-left": ("left", "authoritarian"), "auth-center": ("center", "authoritarian"), "auth-right": ("right", "authoritarian"), "left": ("left", "center"), "centrist": ("center", "center"),
+           "right": ("right", "center"), "lib-left": ("left", "libertarian"), "lib-center": ("center", "libertarian"), "lib-right": ("right", "libertarian")}
+MBTI = (("mbti_ie", {"I": "introvert", "E": "extravert"}), ("mbti_ns", {"N": "intuitive", "S": "sensing"}), ("mbti_tf", {"T": "thinking", "F": "feeling"}), ("mbti_jp", {"J": "judging", "P": "perceiving"}))
+DECOMPOSED = {("gender", "trans woman"): (("gender", "female"), ("transgender", YES)), ("gender", "trans man"): (("gender", "male"), ("transgender", YES)),
+              ("gender", "transgender, unspecified"): (("transgender", YES),), ("sexual_orientation", "gay"): (("sexual_orientation", "gay or lesbian"),),
+              ("sexual_orientation", "lesbian"): (("sexual_orientation", "gay or lesbian"),), ("sexual_orientation", "queer, unspecified"): (("sexual_orientation", "queer"),),
+              ("education", "high school student"): (("education", "no high school diploma"),), ("education", "college student"): (("education", "some college, no degree"),),
+              ("education", "graduate student"): (("education", "bachelor's degree"),), ("education", "professional degree such as law or medicine"): (("education", "professional degree"),),
+              ("hair_color", "bald"): (("bald", YES),), ("diet", "eats everything"): (("diet", "eats meat"),), ("diet", "keto or low carb"): (), ("diet", "halal or kosher"): (), ("diet", "gluten free"): (),
+              ("pets", "dog"): (("pet_dog", YES),), ("pets", "cat"): (("pet_cat", YES),), ("pets", "dog and cat"): (("pet_dog", YES), ("pet_cat", YES)),
+              ("pets", "no pets"): (("pet_dog", NO), ("pet_cat", NO)), ("pets", "other pet"): ()}
+DECOMPOSED |= {(field, value): ((CONDITIONS[value], YES),) if value in CONDITIONS else (("adhd", YES), ("autism", YES)) if value == "both adhd and autism" else ()
+               for field in ("physical_condition", "mental_condition", "neurotype") for value in (*CHOICES["physical_condition"], *CHOICES["mental_condition"])}
+DECOMPOSED |= {("political_compass", value): (("compass_economic", economic), ("compass_social", social)) for value, (economic, social) in COMPASS.items()}
+DECOMPOSED |= {("personality_type", value): tuple((name, letters[letter]) for (name, letters), letter in zip(MBTI, value)) for value in FLAIR_ONLY["personality_type"]}
+DECOMPOSED |= {("generation", value): () for value in FLAIR_ONLY["generation"]}
+CLOSED_VALUES = {**CHOICES, **FLAIR_ONLY, "neurotype": sorted(NEURO)}
+
+
+def decomposed(field, value):
+    return DECOMPOSED.get((field, value), ((field, value),))
+
+
+def attribute_values():
+    found = {}
+    for field in EVIDENCE_FIELDS:
+        for value in CLOSED_VALUES.get(field, (None,)):
+            for attribute, result in decomposed(field, value):
+                values = found.setdefault(attribute, [])
+                if result is not None and result not in values:
+                    values.append(result)
+    return {attribute: values + [NO] if YES in values and NO not in values else values for attribute, values in found.items()}
+
+
+ATTRIBUTE_VALUES = attribute_values()
+ALL_FIELDS = tuple(ATTRIBUTE_VALUES)
+BINARY = tuple(attribute for attribute, values in ATTRIBUTE_VALUES.items() if YES in values)
+FLAIR_ATTRIBUTES = frozenset(attribute for field in FLAIR_ONLY for value in FLAIR_ONLY[field] for attribute, _ in decomposed(field, value))
 FAN_WORDS = re.compile(r"\b(?:fans?|fandom|favou?rites?|favs?|faves?|lov(?:e|ed|es|ing)|adored?|obsessed|supporters?|stan|stans|rooting|die-?hard|lifelong|goat|authors?|writers?|novels?|streamers?|twitch|youtubers?|youtube|podcasts?|comedians?|actors?|actress|mains?|maining)\b", re.I)
 CLUB = re.compile(r"\s+(?:football club|f\.?c\.?|a\.?f\.?c\.?|c\.?f\.?)$")
 VAGUE = frozenset("this that the these those my our his her their him them it its he she they one game games movie movies film films show shows book books series song songs album albums character characters team teams player players author authors artist artists band bands music".split())
@@ -221,7 +265,8 @@ KINDS = {**dict.fromkeys(COUNTRY_FIELDS, "country"), **dict.fromkeys(REGION_FIEL
          "franchise": "show, film series, anime, manga, comic or book series", "video_game": "video game", "creator": "online creator", "celebrity": "famous person"}
 KINDS |= {FAN_PREFIX + name: KINDS[name] for name in FANDOM}
 STORED_KINDS = {field: kind for field, kind in KINDS.items() if field not in FANDOM}
-FIELD_TYPE = "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'claim_field') THEN CREATE TYPE claim_field AS ENUM (" + ", ".join(f"'{name}'" for name in (*ALL_FIELDS, BOT)) + "); END IF; END $$;\n"
+FIELD_TYPE = "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'claim_field') THEN CREATE TYPE claim_field AS ENUM ('" + BOT + "'); END IF; END $$;\n" + "".join(
+    f"ALTER TYPE claim_field ADD VALUE IF NOT EXISTS '{name}';\n" for name in dict.fromkeys((*EVIDENCE_FIELDS, *ALL_FIELDS, BOT)))
 NAMES = json.loads(NAMES_FILE.read_text(encoding="utf-8"))
 EMPTY = frozenset({"unknown", "none", "n/a", "unspecified", "other"})
 LOWERED = {name: {value.lower(): value for value in values} for name, values in {**CHOICES, **FLAIR_ONLY}.items()}

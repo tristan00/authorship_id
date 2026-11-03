@@ -13,19 +13,24 @@ from .config import ANNOTATIONS, EXTRACTOR, GOLD_AUTHORS, GOLD_BUCKET, GOLD_PER_
 from .extractor import load_extractor, predict, splitter, windows
 from .rules import CHAINED, agree, chain, decide, flair_strength, needs, place_paths, strength
 from .sample import MINOR, safety
-from .schema import ALL_FIELDS, BOT, canonical, renamed
+from .schema import ALL_FIELDS, ATTRIBUTE_VALUES, BOT, CONDITIONS, canonical, decomposed, renamed
 
 CUTS = (.2, .5, .8, .9, .95)
 LETTERS = "ABCDEFGH"
 BEFORE, AFTER = 170, 120
 DESCRIPTIONS = {"age": "their age now", "height": "their height in centimeters", "weight": "their body weight now in kilograms", "income": "their yearly income in US dollars", "nationality": "the country they are a citizen or national of",
                 "residence_country": "the country they live in now", "residence_region": "the state or region they live in now", "residence_city": "the city or town they live in now", "origin_country": "the country they were born or raised in",
-                "origin_region": "the state or region they were born or raised in", "origin_city": "the city or town they were born or raised in", "native_language": "their first language", "gender": "their gender", "sexual_orientation": "their sexual orientation",
-                "ethnicity": "their race or ethnicity", "religion": "their religion or belief", "political_identity": "their political identity", "relationship_status": "their relationship status now", "parental_status": "whether they have children",
-                "education": "their education, highest reached or current level", "field_of_study": "the subject they study or studied", "employment_status": "their main activity now", "occupation": "the field of their current job", "body_type": "their body type",
-                "hair_color": "their hair color", "physical_condition": "a physical condition they have now", "mental_condition": "a mental condition they have now", "neurotype": "a neurodevelopmental condition they have", "diet": "their diet", "smoking": "whether they smoke",
-                "living_with": "who they live with", "housing": "their housing", "pets": "their pets", "military_status": "their military status", "political_compass": "their position on the political compass",
-                "personality_type": "their personality type", "generation": "the generation they belong to", "fan_sports_team": "the sports team they support", "fan_athlete": "the athlete they are most a fan of", "fan_artist": "the musician, band or artist they are most a fan of",
+                "origin_region": "the state or region they were born or raised in", "origin_city": "the city or town they were born or raised in", "native_language": "their first language", "gender": "their gender, whether or not they are transgender",
+                "transgender": "whether they are transgender", "sexual_orientation": "their sexual orientation", "ethnicity": "their race or ethnicity", "religion": "their religion or belief", "political_identity": "their political identity",
+                "relationship_status": "their relationship status now", "parental_status": "whether they have children",
+                "education": "their highest education level reached, where a current high school student has no high school diploma, a current college student has some college and no degree, and a current graduate student has a bachelor's degree",
+                "field_of_study": "the subject they study or studied", "employment_status": "their main activity now", "occupation": "the field of their current job", "body_type": "their body type", "hair_color": "their hair color",
+                "bald": "whether they are bald", "diet": "whether they eat meat, fish or neither", "smoking": "whether they smoke", "living_with": "who they live with", "housing": "their housing", "pet_dog": "whether they have a dog now",
+                "pet_cat": "whether they have a cat now", "military_status": "their military status", "compass_economic": "their economic position on the political compass, left, center or right",
+                "compass_social": "their social position on the political compass, authoritarian, center or libertarian", "mbti_ie": "whether their MBTI personality type is introverted or extraverted",
+                "mbti_ns": "whether their MBTI personality type is intuitive or sensing", "mbti_tf": "whether their MBTI personality type is thinking or feeling", "mbti_jp": "whether their MBTI personality type is judging or perceiving",
+                **{attribute: f"whether they have {name} now" for name, attribute in CONDITIONS.items()},
+                "fan_sports_team": "the sports team they support", "fan_athlete": "the athlete they are most a fan of", "fan_artist": "the musician, band or artist they are most a fan of",
                 "fan_author": "the book author they are most a fan of", "fan_character": "the fictional character they are most a fan of", "fan_franchise": "the show, film series, anime, comic or book series they are most a fan of",
                 "fan_video_game": "the video game they are most a fan of", "fan_creator": "the streamer or online creator they are most a fan of", "fan_celebrity": "the famous person they are most a fan of"}
 AUTHOR_PROMPT = """Below are excerpts written by one Reddit author in different posts and comments. An automatic system read them and found possible values for one thing about this author. Words between [[ and ]] are what the system used, and the system is often wrong. A flair is a label the author chose to show next to their name.
@@ -120,25 +125,38 @@ def cohort_evidence():
     return table
 
 
-def expanded(fields):
+def attributed(fields):
     found = defaultdict(list)
     for field, entries in fields.items():
-        if field not in CHAINED:
-            found[field] += [{**entry, "field": field, "origin": entry["value"], "weight": 1.} for entry in entries]
+        for entry in entries:
+            for attribute, value in decomposed(field, entry["value"]):
+                found[attribute].append({**entry, "field": field, "origin": entry["value"], "value": value})
+    return found
+
+
+def expanded(fields):
+    found = defaultdict(list)
+    for attribute, entries in fields.items():
+        if attribute not in CHAINED:
+            found[attribute] += [{**entry, "weight": 1.} for entry in entries]
     for places in PLACE_CHAINS:
         for depth, field in enumerate(places):
             for entry in fields.get(field, ()):
                 for weight, path in place_paths(depth, entry["value"]):
                     for upper, target in enumerate(places):
                         if path[upper] is not None:
-                            found[target].append({**entry, "field": field, "origin": entry["value"], "value": path[upper], "weight": weight})
+                            found[target].append({**entry, "value": path[upper], "weight": weight})
     return found
+
+
+def current(item):
+    return item["attribute"] in ALL_FIELDS and all(value in ATTRIBUTE_VALUES[item["attribute"]] for value in item["values"] if ATTRIBUTE_VALUES[item["attribute"]])
 
 
 @timed
 def author_gold():
-    table = {author: expanded(fields) for author, fields in cohort_evidence().items()}
-    judged = {f"{row['author']}|{row['attribute']}" for row in rows(ANNOTATIONS / "author_gold.jsonl")}
+    table = {author: expanded(attributed(fields)) for author, fields in cohort_evidence().items()}
+    judged = {row["id"] for row in rows(ANNOTATIONS / "author_gold.jsonl") if current(row)}
     pools = defaultdict(lambda: ([], []))
     for author in sorted(table):
         for field, entries in table[author].items():
@@ -205,7 +223,7 @@ def gold_choice(answer, values):
 def author_truth():
     ballots = {model: votes("author_gold", model) for model in VERIFIERS}
     truth = {}
-    for item in rows(ANNOTATIONS / "author_gold.jsonl"):
+    for item in filter(current, rows(ANNOTATIONS / "author_gold.jsonl")):
         picks = [gold_choice(ballots[model].get(item["id"]), item["values"]) for model in VERIFIERS]
         if picks[0] is not None and picks[0] in picks[1:]:
             truth[item["author"], item["attribute"]] = picks[0]
@@ -257,7 +275,7 @@ def score_need(members, attribute, need, base):
 @timed
 def thresholds():
     truth = author_truth()
-    table = cohort_evidence()
+    table = {author: attributed(fields) for author, fields in cohort_evidence().items()}
     shown = {author: expanded(fields) for author, fields in table.items()}
     population = Counter((field, len({entry["value"] for entry in entries}) > 1) for fields in shown.values() for field, entries in fields.items())
     sampled = Counter((attribute, len({entry["value"] for entry in shown[author][attribute]}) > 1) for author, attribute in truth)

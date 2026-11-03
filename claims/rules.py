@@ -3,7 +3,7 @@ import math
 from collections import defaultdict
 
 from .config import BOT_PROBABILITY, BOT_SHARE, BOT_TEXTS, CHILD_AGE, FLAIR_STRENGTH, NOT_A_CHILD, NUMERIC, PLACE_CHAINS, PLACE_LEVELS, PLACE_WEIGHTS, PLACES_FILE, SHARE, THRESHOLDS, TOLERANCE
-from .schema import BOT
+from .schema import BOT, decomposed
 
 PLACES = json.loads(PLACES_FILE.read_text(encoding="utf-8"))
 CHAINED = frozenset(field for fields in PLACE_CHAINS for field in fields)
@@ -93,9 +93,10 @@ def distinct(rows):
     seen = set()
     for source, key, subreddit, field, value, probability, digest in rows:
         identity = digest or key
-        if (identity, field, value) not in seen:
-            seen.add((identity, field, value))
-            yield source, key, subreddit, field, value, probability, identity
+        for attribute, stated in decomposed(field, value):
+            if (identity, attribute, stated) not in seen:
+                seen.add((identity, attribute, stated))
+                yield source, key, subreddit, attribute, stated, probability, identity
 
 
 def consolidate(rows, required, blocked):

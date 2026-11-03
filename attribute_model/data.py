@@ -19,11 +19,11 @@ from author_encoder.lock import index_lock
 from author_encoder.model import load_model
 from author_encoder.texts import raw, scales
 from claims.config import NAMES_FILE, NUMERIC
-from claims.schema import BOT, FLAIR_ONLY
+from claims.schema import BOT, FLAIR_ATTRIBUTES
 from database import DSN
 
 from . import LOG, timed, write_json
-from .config import BEARING_MASK, BEARING_STAMP, CLEAN_BUCKETS, CLEAN_TEXTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, VECTOR_CHUNK, check_targets, partition, validate
+from .config import BEARING_MASK, BEARING_STAMP, CLEAN_BUCKETS, CLEAN_TEXTS, DEFAULTS, ENCODERS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, VECTOR_CHUNK, check_targets, partition, validate
 
 CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s::claim_field[])) TO STDOUT (FORMAT CSV)"
 BEARING = "COPY (SELECT substring(text_sha256 for 8) FROM text_claims WHERE field <> %s) TO STDOUT (FORMAT CSV)"
@@ -59,6 +59,8 @@ def encode(values, name, kind):
         return np.where((numbers >= low) & (numbers <= high), numbers, np.nan), None
     counts = pc.value_counts(values).to_pylist()
     catalog = [item["values"] for item in sorted(counts, key=lambda item: (-item["counts"], item["values"])) if kind != "embedding" or item["counts"] >= VALUE_AUTHORS]
+    if name in DEFAULTS and DEFAULTS[name] not in catalog:
+        catalog.append(DEFAULTS[name])
     return pc.index_in(values, value_set=pa.array(catalog)).to_numpy().astype(np.float64), catalog
 
 
@@ -226,8 +228,9 @@ def prepare(directory, targets):
         owner = pc.index_in(claims["author"], value_set=names).to_numpy()
         evaluated = np.isin(buckets[owner], [bucket for name in ("validation", "calibration", "test") for bucket in SPLITS[name]])
         judged = pc.and_(pc.greater_equal(claims["support"], STRICT_SUPPORT), pc.greater_equal(claims["share"], STRICT_SHARE))
-        strict = pc.or_(judged, pc.is_in(claims["attribute"], value_set=pa.array(list(FLAIR_ONLY)))).to_numpy(zero_copy_only=False)
+        strict = pc.or_(judged, pc.is_in(claims["attribute"], value_set=pa.array(list(FLAIR_ATTRIBUTES)))).to_numpy(zero_copy_only=False)
         keep = ~evaluated | strict
+        stated = {name: owner[pc.equal(claims["attribute"], name).to_numpy(zero_copy_only=False)] for name in targets if name in DEFAULTS}
         claims = claims.filter(pa.array(keep))
         owner = owner[keep]
         chosen = np.flatnonzero(np.bincount(owner, minlength=len(names)) > 0)
@@ -236,6 +239,7 @@ def prepare(directory, targets):
         remap = np.full(len(buckets), -1, dtype=np.int64)
         remap[chosen] = np.arange(len(chosen))
         owner = remap[owner]
+        stated = {name: remap[found][remap[found] >= 0] for name, found in stated.items()}
         LOG.info("labeled authors=%d rows=%d", len(labeled), claims.num_rows)
         mask, starts = bearing_rows(conn, texts)
         rows, row_owners, position, places = clean_rows(users, labeled, mask, starts)
@@ -256,6 +260,11 @@ def prepare(directory, targets):
         excluded[name] = int(len(selected) - np.isfinite(labels[placed[selected], column]).sum())
         if catalog is not None:
             catalogs[name] = catalog
+        if name in DEFAULTS:
+            silent = np.ones(len(authors), dtype=bool)
+            spoken = position[stated[name]]
+            silent[spoken[spoken >= 0]] = False
+            labels[silent, column] = catalog.index(DEFAULTS[name])
     splits = np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors))
     training = np.flatnonzero(np.isin(splits, SPLITS["train"]))
     sample = np.asarray(vectors[training[::max(1, len(training) // SPREAD_ROWS)]], dtype=np.float32)

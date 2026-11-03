@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .config import QUANTILES, validate
+from .config import DEFAULTS, QUANTILES, validate
 
 
 class Block(nn.Module):
@@ -85,6 +85,12 @@ class AttributeModel(nn.Module):
             result[index] = self.embeddings[slot](hidden)
         return result
 
+    def output(self, hidden, index):
+        if index in self.slices:
+            start, end = self.slices[index]
+            return F.linear(hidden, self.head.weight[start:end], self.head.bias[start:end])
+        return self.embeddings[self.embedding.index(index)](hidden)
+
     def terms(self, hidden, labels, capacity=None):
         flat = self.head(hidden).float()
         sums = torch.zeros(len(self.specifications), device=flat.device)
@@ -120,6 +126,20 @@ def numeric(output, spec):
     return values[:, 1], values[:, 0], values[:, 2]
 
 
+def adjusted(probabilities, spec, tau):
+    scores = probabilities.clamp_min(1e-12).log() - tau * torch.as_tensor(spec["prior"], device=probabilities.device).log()
+    if spec["default"] is not None:
+        scores[:, spec["default"]] = -math.inf
+    return scores.argmax(1)
+
+
+def decide(probabilities, spec, fitted):
+    picks = adjusted(probabilities, spec, fitted["tau"])
+    if spec["default"] is None:
+        return picks
+    return torch.where(probabilities[:, spec["default"]] <= 1 - fitted["threshold"], picks, spec["default"])
+
+
 def specifications(targets, catalogs, labels, training):
     result = []
     for column, (name, kind) in enumerate(validate(targets).items()):
@@ -143,6 +163,7 @@ def specifications(targets, catalogs, labels, training):
                 raise ValueError(f"{name}: at least two categorical values are required")
             counts = np.bincount(observed.astype(np.int64), minlength=len(values))
             prior = (counts + .5) / (counts.sum() + .5 * len(values))
-            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "baseline": float(-np.log(prior[observed.astype(np.int64)]).mean())}
+            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "baseline": float(-np.log(prior[observed.astype(np.int64)]).mean()),
+                     "default": values.index(DEFAULTS[name]) if name in DEFAULTS else None}
         result.append(spec)
     return result

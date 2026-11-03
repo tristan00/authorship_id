@@ -10,22 +10,29 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import GPU_MEMORY, PARAMETERS, SEED, SPLITS, validate
+from .config import GPU_MEMORY, PARAMETERS, SEED, SPLITS, TAUS, TEMPERATURE_ROWS, validate
 from .data import load
-from .model import AttributeModel, numeric, specifications
+from .model import AttributeModel, adjusted, decide, numeric, specifications
 
 DEVICE = "cuda"
 
 
-def collect(model, vectors, labels, column, batch=8192):
+def streamed(model, vectors, labels, column, limit=None, batch=8192):
     model.eval()
-    outputs, targets = [], []
-    with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
-        for start in range(0, len(vectors), batch):
-            target = labels[start:start + batch, column]
-            present = torch.isfinite(target)
-            outputs.append(model.outputs(model(vectors[start:start + batch][present].float()))[column].float())
-            targets.append(target[present])
+    taken = 0
+    for start in range(0, len(vectors), batch):
+        if limit is not None and taken >= limit:
+            return
+        target = labels[start:start + batch, column].to(DEVICE)
+        present = torch.isfinite(target)
+        with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
+            output = model.output(model(vectors[start:start + batch].to(DEVICE)[present].float()), column).float()
+        taken += len(output)
+        yield output, target[present]
+
+
+def collect(model, vectors, labels, column, limit=None):
+    outputs, targets = zip(*streamed(model, vectors, labels, column, limit))
     return torch.cat(outputs), torch.cat(targets)
 
 
@@ -34,7 +41,7 @@ def score(model, vectors, labels, specs, batch=8192):
     sums = counts = 0
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
         for start in range(0, len(vectors), batch):
-            batch_sums, batch_counts, _ = model.terms(model(vectors[start:start + batch].float()), labels[start:start + batch])
+            batch_sums, batch_counts, _ = model.terms(model(vectors[start:start + batch].to(DEVICE).float()), labels[start:start + batch].to(DEVICE))
             sums, counts = sums + batch_sums, counts + batch_counts
     ratios = (sums / counts / model.baseline).tolist()
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
@@ -56,12 +63,61 @@ def temperature(logits, target, batch=16384):
     return float(log_t.detach().exp())
 
 
+def macro_f1(predicted, target, classes):
+    hits = torch.bincount(target[predicted == target], minlength=classes).float()
+    sizes = (torch.bincount(predicted, minlength=classes) + torch.bincount(target, minlength=classes)).float()
+    return float((2 * hits / sizes.clamp_min(1))[sizes > 0].mean())
+
+
+def macro_recall(predicted, target, classes):
+    sizes = torch.bincount(target, minlength=classes).float()
+    return float((torch.bincount(target[predicted == target], minlength=classes).float() / sizes.clamp_min(1))[sizes > 0].mean())
+
+
+def threshold(spread, positive):
+    order = torch.argsort(spread, descending=True)
+    hits = positive[order].double().cumsum(0)
+    best = int((hits.square() / torch.arange(1, len(spread) + 1, device=spread.device)).argmax())
+    return float(spread[order[best]])
+
+
+def area(spread, positive):
+    ranks = torch.argsort(torch.argsort(spread)).double() + 1
+    count = positive.sum().double()
+    return float(((ranks * positive).sum() - count * (count + 1) / 2) / (count * (len(spread) - count)))
+
+
+def probabilities(model, vectors, labels, column, fitted):
+    for output, target in streamed(model, vectors, labels, column):
+        yield (output / fitted["temperature"]).softmax(1), target.long()
+
+
+def categorical(model, vectors, labels, column, spec):
+    sample, target = collect(model, vectors, labels, column, TEMPERATURE_ROWS)
+    fitted = {"temperature": temperature(sample, target.long())}
+    del sample
+    picks, targets, spreads = [], [], []
+    for scored, target in probabilities(model, vectors, labels, column, fitted):
+        picks.append(torch.stack([adjusted(scored, spec, tau) for tau in TAUS], 1))
+        targets.append(target)
+        if spec["default"] is not None:
+            spreads.append(1 - scored[:, spec["default"]])
+    picks, targets = torch.cat(picks), torch.cat(targets)
+    fitted["n"] = len(targets)
+    rows = targets != spec["default"] if spec["default"] is not None else torch.ones_like(targets, dtype=torch.bool)
+    scores = [macro_f1(picks[rows, place], targets[rows], len(spec["values"])) for place in range(len(TAUS))]
+    fitted["tau"] = TAUS[int(np.argmax(scores))]
+    if spec["default"] is not None:
+        fitted["threshold"] = threshold(torch.cat(spreads), rows)
+    return fitted
+
+
 @timed
 def calibrate(model, vectors, labels, specs, mass):
     result = []
     for column, spec in enumerate(specs):
-        output, target = collect(model, vectors, labels, column)
         if spec["type"] == "numeric":
+            output, target = collect(model, vectors, labels, column)
             _, lower, upper = numeric(output, spec)
             residuals = torch.sort(torch.maximum(lower - target, target - upper)).values.cpu().numpy()
             rank = math.ceil((len(residuals) + 1) * mass)
@@ -69,53 +125,61 @@ def calibrate(model, vectors, labels, specs, mass):
                 raise ValueError(f"{spec['name']}: too few calibration labels for a {mass:.0%} interval")
             result.append({"n": len(residuals), "mass": mass, "radius": float(residuals[rank - 1])})
         else:
-            result.append({"n": len(target), "temperature": temperature(output, target.long())})
+            result.append(categorical(model, vectors, labels, column, spec))
+        LOG.info("attribute model calibrated %s %s", spec["name"], json.dumps(result[-1]))
     return result
 
 
-def expected_calibration(confidence, correct, bins=15):
-    edges = np.linspace(0, 1, bins + 1)[1:-1]
-    which = np.digitize(confidence, edges)
-    return float(sum(abs(confidence[which == b].mean() - correct[which == b].mean()) * np.mean(which == b) for b in np.unique(which)))
+def categorical_report(model, vectors, labels, column, spec, fitted):
+    chosen, targets, losses, tops, spreads = [], [], [], [], []
+    prior = torch.as_tensor(spec["prior"], device=DEVICE)
+    for scored, target in probabilities(model, vectors, labels, column, fitted):
+        chosen.append(decide(scored, spec, fitted))
+        targets.append(target)
+        losses.append(-scored.gather(1, target[:, None]).squeeze(1).clamp_min(1e-12).log())
+        tops.append((scored.topk(min(5, scored.shape[1]), 1).indices == target[:, None]).any(1))
+        if spec["default"] is not None:
+            spreads.append(1 - scored[:, spec["default"]])
+    chosen, target, losses, tops = torch.cat(chosen), torch.cat(targets), torch.cat(losses), torch.cat(tops)
+    classes = len(spec["values"])
+    common = int(torch.bincount(chosen, minlength=classes).argmax())
+    result = {"n": len(target), "accuracy": float((chosen == target).float().mean()), "majority_baseline_accuracy": float((target == int(np.argmax(spec["counts"]))).float().mean()),
+              "macro_f1": macro_f1(chosen, target, classes), "macro_recall": macro_recall(chosen, target, classes), "top5_accuracy": float(tops.float().mean()),
+              "most_predicted": spec["values"][common], "most_predicted_share": float((chosen == common).float().mean()),
+              "log_loss": float(losses.mean()), "prior_log_loss": float(-prior[target].log().mean())}
+    if spec["default"] is not None:
+        positive, called = target != spec["default"], chosen != spec["default"]
+        result |= {"stated_share": float(positive.float().mean()), "called_share": float(called.float().mean()), "stated_recall": float(called[positive].float().mean()),
+                   "stated_precision": float(positive[called].float().mean()) if called.any() else 0., "auc": area(torch.cat(spreads), positive),
+                   "positive_value_accuracy": float((chosen[positive & called] == target[positive & called]).float().mean()) if (positive & called).any() else 0.}
+    return result
 
 
 @timed
-@torch.inference_mode()
 def report(model, vectors, labels, specs, calibration):
     result = {}
     for column, (spec, fitted) in enumerate(zip(specs, calibration)):
-        output, target = collect(model, vectors, labels, column)
         if spec["type"] == "numeric":
-            predicted, lower, upper = numeric(output, spec)
-            lower, upper = lower - fitted["radius"], upper + fitted["radius"]
-            error = (predicted - target).cpu().numpy()
-            base = (target - spec["center"]).abs().mean()
-            result[spec["name"]] = {"n": len(error), "mae": float(np.abs(error).mean()), "median_baseline_mae": float(base), "rmse": float(np.sqrt(np.mean(error ** 2))),
-                                    "interval_coverage": float(((target >= lower) & (target <= upper)).float().mean()), "interval_width": float((upper - lower).mean()),
-                                    "interval_width_median": float((upper - lower).median())}
+            with torch.inference_mode():
+                output, target = collect(model, vectors, labels, column)
+                predicted, lower, upper = numeric(output, spec)
+                lower, upper = lower - fitted["radius"], upper + fitted["radius"]
+                error = (predicted - target).cpu().numpy()
+                base = (target - spec["center"]).abs().mean()
+                result[spec["name"]] = {"n": len(error), "mae": float(np.abs(error).mean()), "median_baseline_mae": float(base), "rmse": float(np.sqrt(np.mean(error ** 2))),
+                                        "interval_coverage": float(((target >= lower) & (target <= upper)).float().mean()), "interval_width": float((upper - lower).mean()),
+                                        "interval_width_median": float((upper - lower).median())}
         else:
-            target = target.long()
-            logged = output.div_(fitted["temperature"]).log_softmax(1)
-            del output
-            confidence, predicted = logged.max(1)
-            confidence = confidence.exp()
-            correct = (predicted == target).cpu().numpy()
-            counts = np.bincount(target.cpu().numpy(), minlength=len(spec["values"]))
-            wins = np.bincount(target.cpu().numpy(), weights=correct, minlength=len(spec["values"]))
-            prior = torch.as_tensor(spec["prior"], device=DEVICE)
-            top5 = float((logged.topk(min(5, logged.shape[1]), 1).indices == target[:, None]).any(1).float().mean())
-            result[spec["name"]] = {"n": len(correct), "accuracy": float(correct.mean()), "majority_baseline_accuracy": float((target == int(np.argmax(spec["counts"]))).float().mean()),
-                                    "top5_accuracy": top5, "macro_recall": float(np.mean(wins[counts > 0] / counts[counts > 0])),
-                                    "log_loss": float(F.nll_loss(logged.clamp_min_(math.log(1e-12)), target)), "prior_log_loss": float(-prior[target].log().mean()),
-                                    "calibration_error": expected_calibration(confidence.cpu().numpy(), correct)}
+            with torch.inference_mode():
+                result[spec["name"]] = categorical_report(model, vectors, labels, column, spec, fitted)
     return result
 
 
-def gpu(inputs, labels, selected):
-    vectors = torch.empty((len(selected), inputs.shape[1]), dtype=torch.from_numpy(inputs[:1].copy()).dtype, device=DEVICE)
+def placed(inputs, labels, selected, device):
+    vectors = torch.empty((len(selected), inputs.shape[1]), dtype=torch.from_numpy(inputs[:1].copy()).dtype, device=device)
     for start in range(0, len(selected), 1 << 20):
         vectors[start:start + (1 << 20)] = torch.from_numpy(np.asarray(inputs[selected[start:start + (1 << 20)]]))
-    return vectors, torch.as_tensor(np.asarray(labels[selected]), dtype=torch.float32, device=DEVICE)
+    return vectors, torch.as_tensor(np.asarray(labels[selected]), dtype=torch.float32, device=device)
 
 
 def load_splits(manifest, targets, inputs, labels, splits):
@@ -126,7 +190,7 @@ def load_splits(manifest, targets, inputs, labels, splits):
         if (counts < 100).any():
             raise ValueError(f"Fewer than 100 {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < 100)}")
     LOG.info("attribute model rows=%s", {name: len(indices) for name, indices in selected.items()})
-    return specs, {name: gpu(inputs, labels, indices) for name, indices in selected.items()}
+    return specs, {name: placed(inputs, labels, indices, DEVICE if name in ("train", "validation") else "cpu") for name, indices in selected.items()}
 
 
 @timed

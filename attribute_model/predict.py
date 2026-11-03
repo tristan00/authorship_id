@@ -23,7 +23,7 @@ from database import DSN
 
 from . import LOG, timed
 from .config import ENCODERS, GPU_MEMORY, PREDICTIONS, SEGMENT_BYTES, THREADS, check_targets, columns, validate
-from .model import AttributeModel, numeric
+from .model import AttributeModel, decide, numeric
 
 SIGNATURE = b"PGCOPY\n\xff\r\n\x00" + bytes(8)
 TRAILER = b"\xff\xff"
@@ -88,10 +88,11 @@ def predict(loaded, vectors, candidates=5):
                     for row, (value, lower, upper) in enumerate(zip(*(column.tolist() for column in scored)), start):
                         result[row][name] = {"type": "numeric", "value": value, "lower": lower, "upper": upper, "interval_mass": fitted["mass"]}
                 else:
+                    chosen = decide(scored, spec, fitted)
                     probabilities, indices = scored.topk(min(candidates, scored.shape[1]), 1)
-                    for row, (labels, scores) in enumerate(zip(indices.tolist(), probabilities.tolist()), start):
+                    for row, (pick, chance, labels, scores) in enumerate(zip(chosen.tolist(), scored.gather(1, chosen[:, None]).squeeze(1).tolist(), indices.tolist(), probabilities.tolist()), start):
                         options = [{"value": spec["values"][label], "probability": probability} for label, probability in zip(labels, scores)]
-                        result[row][name] = {"type": spec["type"], "value": options[0]["value"], "probability": options[0]["probability"], "candidates": options}
+                        result[row][name] = {"type": spec["type"], "value": spec["values"][pick], "probability": chance, "candidates": options}
     return result
 
 
@@ -99,12 +100,12 @@ def predict(loaded, vectors, candidates=5):
 def infer(model, artifact, catalogs, chunk, device):
     vectors = torch.from_numpy(chunk["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()).to(device)
     numbers, indices = [], []
-    for spec, _, scored in calibrated(artifact, model.outputs(model(vectors))):
+    for spec, fitted, scored in calibrated(artifact, model.outputs(model(vectors))):
         if spec["type"] == "numeric":
             numbers += scored
         else:
-            probability, index = scored.max(1)
-            numbers.append(probability)
+            index = decide(scored, spec, fitted)
+            numbers.append(scored.gather(1, index[:, None]).squeeze(1))
             indices.append(index)
     numbers, indices = torch.stack(numbers, 1).cpu().numpy(), torch.stack(indices, 1).cpu().numpy()
     result, number, category = [chunk["author"]], 0, 0
