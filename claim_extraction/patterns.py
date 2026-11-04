@@ -4,6 +4,7 @@ from .schema import canonical
 
 SINGLE = frozenset({"age", "gender"})
 RULES = [*demographics.RULES, *location.RULES, *life.RULES, *work.RULES, *health.RULES, *fandom.RULES]
+DEMOGRAPHIC = frozenset(attribute for attribute, *_ in demographics.RULES) | {"automated_account"}
 
 
 @timed
@@ -16,7 +17,7 @@ def extract(texts):
         automatic = bool(BOT_TEXT.search(lowered))
         demographics.tags(text, lowered, found)
         for attribute, pattern, value, hedge in RULES:
-            if automatic and attribute != "automated_account":
+            if automatic and attribute not in DEMOGRAPHIC:
                 continue
             for match in pattern.finditer(lowered):
                 if (stated := value(match)) is not None and not hedged(lowered, match.start(), match.end(), hedge):
@@ -27,8 +28,7 @@ def extract(texts):
         if not automatic:
             health.ailments(lowered, found)
         location.places(text, lowered, found)
-        stated = {attribute for attribute, _ in found}
-        if ("relationship_status", "married") in found and "living_with" not in stated:
+        if ("relationship_status", "married") in found and not any(attribute == "living_with" for attribute, _ in found):
             found[("living_with", "partner or family")] = found[("relationship_status", "married")]
         earliest = {}
         for (attribute, value), position in sorted(found.items(), key=lambda item: item[1]):

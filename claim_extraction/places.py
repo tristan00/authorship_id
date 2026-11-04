@@ -1,22 +1,19 @@
-COUNTRIES = {
-    "united states": ("usa", "u.s.", "u.s.a.", "u.s", "america", "the states", "the us", "the usa", "united states of america", "the u.s.", "the u.s.a."),
-    "united kingdom": ("uk", "u.k.", "britain", "great britain", "the uk", "the u.k."), "canada": (), "australia": (), "new zealand": ("nz", "aotearoa"),
-    "ireland": ("eire", "republic of ireland"), "germany": ("deutschland",), "france": (), "spain": ("españa", "espana"), "italy": ("italia",), "portugal": (),
-    "netherlands": ("the netherlands", "holland"), "belgium": (), "switzerland": ("schweiz", "suisse"), "austria": ("österreich",), "sweden": ("sverige",),
-    "norway": ("norge",), "denmark": ("danmark",), "finland": ("suomi",), "iceland": (), "poland": ("polska",), "czech republic": ("czechia",), "slovakia": (),
-    "hungary": (), "romania": (), "bulgaria": (), "greece": (), "croatia": (), "serbia": (), "slovenia": (), "bosnia and herzegovina": ("bosnia",), "albania": (),
-    "north macedonia": ("macedonia",), "montenegro": (), "ukraine": (), "russia": (), "belarus": (), "lithuania": (), "latvia": (), "estonia": (), "moldova": (),
-    "armenia": (), "azerbaijan": (), "turkey": ("türkiye", "turkiye"), "cyprus": (), "malta": (), "luxembourg": (), "israel": (), "palestine": (), "lebanon": (),
-    "jordan": (), "syria": (), "iraq": (), "iran": (), "saudi arabia": ("ksa",), "united arab emirates": ("uae", "the uae", "emirates"), "qatar": (), "kuwait": (),
-    "bahrain": (), "oman": (), "yemen": (), "egypt": (), "morocco": (), "algeria": (), "tunisia": (), "libya": (), "nigeria": (), "ghana": (), "kenya": (),
-    "ethiopia": (), "south africa": (), "uganda": (), "tanzania": (), "zimbabwe": (), "zambia": (), "cameroon": (), "senegal": (), "rwanda": (), "sudan": (),
-    "somalia": (), "india": (), "pakistan": (), "bangladesh": (), "sri lanka": (), "nepal": (), "afghanistan": (), "china": ("mainland china",), "hong kong": (),
-    "taiwan": (), "japan": (), "south korea": ("korea", "s. korea"), "north korea": (), "mongolia": (), "vietnam": ("viet nam",), "thailand": (), "cambodia": (),
-    "laos": (), "myanmar": ("burma",), "malaysia": (), "singapore": (), "indonesia": (), "philippines": ("the philippines", "pinas"), "kazakhstan": (), "uzbekistan": (),
-    "mexico": ("méxico",), "guatemala": (), "honduras": (), "el salvador": (), "nicaragua": (), "costa rica": (), "panama": (), "cuba": (), "jamaica": (),
-    "dominican republic": (), "haiti": (), "puerto rico": (), "trinidad and tobago": ("trinidad",), "bahamas": ("the bahamas",), "barbados": (), "colombia": (),
-    "venezuela": (), "ecuador": (), "peru": (), "bolivia": (), "chile": (), "argentina": (), "uruguay": (), "paraguay": (), "brazil": ("brasil",),
+from pathlib import Path
+import re
+
+TOKEN = re.compile(r"[^\W_]+")
+
+COUNTRY_ALIASES = {
+    "united states": ("usa", "u.s.", "u.s.a.", "america", "the states", "united states of america", "estados unidos", "eeuu", "ee.uu."),
+    "united kingdom": ("uk", "u.k.", "britain", "great britain"), "new zealand": ("nz", "aotearoa"), "ireland": ("eire", "republic of ireland"),
+    "netherlands": ("holland",), "czech republic": ("czechia",), "bosnia and herzegovina": ("bosnia",), "north macedonia": ("macedonia",),
+    "turkey": ("türkiye", "turkiye"), "saudi arabia": ("ksa",), "united arab emirates": ("uae", "emirates"), "china": ("mainland china",),
+    "south korea": ("korea", "s. korea"), "vietnam": ("viet nam",), "myanmar": ("burma",), "philippines": ("pinas",), "trinidad and tobago": ("trinidad",),
+    "ivory coast": ("côte d'ivoire", "cote d'ivoire"), "democratic republic of the congo": ("drc", "dr congo"), "republic of the congo": ("congo",),
+    "germany": ("deutschland",), "spain": ("españa", "espana"), "italy": ("italia",), "switzerland": ("schweiz", "suisse", "svizzera"), "austria": ("österreich", "osterreich"),
+    "sweden": ("sverige",), "norway": ("norge",), "denmark": ("danmark",), "finland": ("suomi",), "poland": ("polska",), "mexico": ("méxico",), "brazil": ("brasil",),
 }
+
 DEMONYMS = {
     "american": "united states", "canadian": "canada", "british": "united kingdom", "brit": "united kingdom", "english": "united kingdom", "scottish": "united kingdom",
     "welsh": "united kingdom", "irish": "ireland", "australian": "australia", "aussie": "australia", "kiwi": "new zealand", "new zealander": "new zealand",
@@ -35,123 +32,7 @@ DEMONYMS = {
     "jamaican": "jamaica", "dominican": "dominican republic", "haitian": "haiti", "puerto rican": "puerto rico", "colombian": "colombia", "venezuelan": "venezuela",
     "ecuadorian": "ecuador", "peruvian": "peru", "bolivian": "bolivia", "chilean": "chile", "argentinian": "argentina", "argentine": "argentina", "uruguayan": "uruguay",
     "brazilian": "brazil",
-}
-US_STATES = {
-    "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar", "california": "ca", "colorado": "co", "connecticut": "ct", "delaware": "de", "florida": "fl",
-    "georgia": "ga", "hawaii": "hi", "idaho": "id", "illinois": "il", "indiana": "in", "iowa": "ia", "kansas": "ks", "kentucky": "ky", "louisiana": "la", "maine": "me",
-    "maryland": "md", "massachusetts": "ma", "michigan": "mi", "minnesota": "mn", "mississippi": "ms", "missouri": "mo", "montana": "mt", "nebraska": "ne", "nevada": "nv",
-    "new hampshire": "nh", "new jersey": "nj", "new mexico": "nm", "new york": "ny", "north carolina": "nc", "north dakota": "nd", "ohio": "oh", "oklahoma": "ok",
-    "oregon": "or", "pennsylvania": "pa", "rhode island": "ri", "south carolina": "sc", "south dakota": "sd", "tennessee": "tn", "texas": "tx", "utah": "ut",
-    "vermont": "vt", "virginia": "va", "washington": "wa", "west virginia": "wv", "wisconsin": "wi", "wyoming": "wy",
-}
-REGIONS = {
-    "united states": {**{name: () for name in US_STATES}, "california": ("cali", "socal", "norcal", "southern california", "northern california"), "new jersey": ("jersey",),
-                      "georgia": (), "washington": ("washington state",)},
-    "canada": {"ontario": (), "quebec": ("québec",), "british columbia": (), "alberta": (), "manitoba": (), "saskatchewan": (), "nova scotia": (), "new brunswick": (),
-               "newfoundland and labrador": ("newfoundland",), "prince edward island": ()},
-    "australia": {"new south wales": ("nsw",), "victoria": (), "queensland": ("qld",), "western australia": (), "south australia": (), "tasmania": (),
-                  "australian capital territory": (), "northern territory": ()},
-    "united kingdom": {"england": (), "scotland": (), "wales": (), "northern ireland": ()},
-    "india": {"maharashtra": (), "karnataka": (), "tamil nadu": (), "kerala": (), "telangana": (), "andhra pradesh": (), "west bengal": (), "gujarat": (), "rajasthan": (),
-              "uttar pradesh": (), "madhya pradesh": (), "punjab": (), "haryana": (), "bihar": (), "odisha": (), "assam": (), "goa": ()},
-    "germany": {"bavaria": ("bayern",), "north rhine-westphalia": ("nrw",), "baden-württemberg": (), "saxony": ("sachsen",), "hesse": ("hessen",), "lower saxony": ()},
-    "mexico": {"jalisco": (), "nuevo león": ("nuevo leon",), "yucatán": ("yucatan",), "baja california": ()},
-    "brazil": {"são paulo": ("sao paulo",), "minas gerais": (), "bahia": ()},
-}
-CITIES = {
-    ("united states", "new york"): ("new york city", "brooklyn", "queens", "manhattan", "the bronx", "staten island", "buffalo", "rochester", "albany", "syracuse", "long island"),
-    ("united states", "california"): ("los angeles", "san francisco", "san diego", "san jose", "sacramento", "oakland", "fresno", "long beach", "irvine", "anaheim",
-                                      "santa ana", "riverside", "bakersfield", "berkeley", "pasadena", "santa monica", "santa barbara", "santa cruz", "palo alto",
-                                      "stockton", "modesto", "san bernardino", "burbank", "torrance", "oxnard", "fremont", "hayward", "sunnyvale"),
-    ("united states", "texas"): ("houston", "dallas", "austin", "san antonio", "fort worth", "el paso", "plano", "lubbock", "corpus christi", "laredo", "irving",
-                                 "frisco", "mckinney", "waco", "amarillo", "denton", "katy", "the woodlands"),
-    ("united states", "florida"): ("miami", "orlando", "tampa", "jacksonville", "st. petersburg", "tallahassee", "fort lauderdale", "gainesville", "sarasota",
-                                   "pensacola", "boca raton", "west palm beach", "fort myers", "daytona beach", "clearwater", "cape coral"),
-    ("united states", "illinois"): ("chicago", "naperville", "peoria", "rockford", "evanston"),
-    ("united states", "pennsylvania"): ("philadelphia", "pittsburgh", "allentown", "harrisburg", "scranton", "state college"),
-    ("united states", "ohio"): ("columbus", "cleveland", "cincinnati", "toledo", "akron", "dayton", "youngstown"),
-    ("united states", "georgia"): ("atlanta", "savannah", "macon"),
-    ("united states", "north carolina"): ("charlotte", "raleigh", "durham", "greensboro", "winston-salem", "asheville", "chapel hill"),
-    ("united states", "michigan"): ("detroit", "grand rapids", "ann arbor", "lansing", "flint", "kalamazoo"),
-    ("united states", "washington"): ("seattle", "spokane", "tacoma", "bellevue", "olympia"),
-    ("united states", "arizona"): ("phoenix", "tucson", "mesa", "scottsdale", "tempe", "chandler", "flagstaff"),
-    ("united states", "massachusetts"): ("boston", "worcester", "lowell"),
-    ("united states", "tennessee"): ("nashville", "memphis", "knoxville", "chattanooga"),
-    ("united states", "colorado"): ("denver", "colorado springs", "boulder", "fort collins"),
-    ("united states", "maryland"): ("baltimore", "annapolis", "bethesda", "silver spring"),
-    ("united states", ""): ("washington dc",),
-    ("united states", "virginia"): ("virginia beach", "richmond", "norfolk", "alexandria", "chesapeake", "roanoke"),
-    ("united states", "oregon"): ("portland", "eugene"),
-    ("united states", "nevada"): ("las vegas", "reno", "henderson"),
-    ("united states", "minnesota"): ("minneapolis", "st. paul", "duluth"),
-    ("united states", "wisconsin"): ("milwaukee", "madison", "green bay"),
-    ("united states", "missouri"): ("kansas city", "st. louis"),
-    ("united states", "indiana"): ("indianapolis", "fort wayne", "south bend"),
-    ("united states", "louisiana"): ("new orleans", "baton rouge", "shreveport"),
-    ("united states", "kentucky"): ("louisville",),
-    ("united states", "oklahoma"): ("oklahoma city", "tulsa"),
-    ("united states", "utah"): ("salt lake city", "provo", "ogden"),
-    ("united states", "new mexico"): ("albuquerque", "santa fe", "las cruces"),
-    ("united states", "alabama"): ("huntsville", "montgomery"),
-    ("united states", "south carolina"): ("charleston",),
-    ("united states", "new jersey"): ("newark", "jersey city", "hoboken", "trenton", "paterson"),
-    ("united states", "connecticut"): ("hartford", "new haven", "stamford", "bridgeport"),
-    ("united states", "iowa"): ("des moines", "cedar rapids", "iowa city"),
-    ("united states", "nebraska"): ("omaha",),
-    ("united states", "kansas"): ("wichita", "topeka", "overland park"),
-    ("united states", "arkansas"): ("little rock",),
-    ("united states", "hawaii"): ("honolulu",),
-    ("united states", "alaska"): ("anchorage", "fairbanks", "juneau"),
-    ("united states", "idaho"): ("boise",),
-    ("united states", "rhode island"): ("providence",),
-    ("united states", "montana"): ("billings", "missoula", "bozeman"),
-    ("canada", "ontario"): ("toronto", "ottawa", "mississauga", "brampton", "kitchener", "waterloo", "windsor", "kingston", "barrie", "oakville"),
-    ("canada", "quebec"): ("montreal", "quebec city", "laval", "gatineau"),
-    ("canada", "british columbia"): ("vancouver", "surrey", "burnaby", "kelowna"),
-    ("canada", "alberta"): ("calgary", "edmonton", "red deer"),
-    ("canada", "manitoba"): ("winnipeg",), ("canada", "saskatchewan"): ("saskatoon",), ("canada", "nova scotia"): ("halifax",),
-    ("united kingdom", "england"): ("london", "manchester", "birmingham", "liverpool", "leeds", "sheffield", "bristol", "newcastle", "nottingham", "leicester", "coventry",
-                                    "brighton", "oxford", "southampton", "portsmouth", "norwich", "plymouth"),
-    ("united kingdom", "scotland"): ("glasgow", "edinburgh", "aberdeen", "dundee"), ("united kingdom", "wales"): ("cardiff", "swansea"),
-    ("united kingdom", "northern ireland"): ("belfast",),
-    ("australia", "new south wales"): ("sydney", "wollongong"), ("australia", "victoria"): ("melbourne", "geelong"), ("australia", "queensland"): ("brisbane", "gold coast", "cairns"),
-    ("australia", "western australia"): ("perth",), ("australia", "south australia"): ("adelaide",), ("australia", "australian capital territory"): ("canberra",),
-    ("australia", "tasmania"): ("hobart",),
-    ("india", "maharashtra"): ("mumbai", "pune", "nagpur"), ("india", "karnataka"): ("bangalore", "mysore"), ("india", "telangana"): ("hyderabad",),
-    ("india", "tamil nadu"): ("chennai", "coimbatore"), ("india", "west bengal"): ("kolkata",), ("india", "gujarat"): ("ahmedabad", "surat"), ("india", ""): ("delhi", "new delhi"),
-    ("india", "kerala"): ("kochi",), ("india", "rajasthan"): ("jaipur",), ("india", "uttar pradesh"): ("lucknow", "noida"),
-    ("germany", ""): ("berlin", "hamburg"), ("germany", "bavaria"): ("munich", "nuremberg"), ("germany", "north rhine-westphalia"): ("cologne", "düsseldorf", "dortmund"),
-    ("germany", "hesse"): ("frankfurt",), ("germany", "baden-württemberg"): ("stuttgart",),
-    ("france", ""): ("paris", "lyon", "marseille", "toulouse", "bordeaux", "lille", "strasbourg", "nantes"),
-    ("spain", ""): ("madrid", "barcelona", "seville", "malaga", "bilbao"), ("italy", ""): ("rome", "milan", "naples", "turin", "florence", "venice", "bologna"),
-    ("netherlands", ""): ("amsterdam", "rotterdam", "the hague", "utrecht", "eindhoven"), ("ireland", ""): ("dublin", "cork", "galway", "limerick"),
-    ("japan", ""): ("tokyo", "osaka", "kyoto", "yokohama", "nagoya", "sapporo", "fukuoka"), ("south korea", ""): ("seoul", "busan"),
-    ("china", ""): ("beijing", "shanghai", "shenzhen", "guangzhou", "chengdu"), ("philippines", ""): ("manila", "quezon city", "makati", "cebu", "davao"),
-    ("united arab emirates", ""): ("dubai", "abu dhabi"), ("mexico", ""): ("mexico city", "guadalajara", "monterrey", "tijuana", "cancun"),
-    ("brazil", ""): ("rio de janeiro", "brasilia"), ("argentina", ""): ("buenos aires",), ("ukraine", ""): ("odesa", "kyiv", "kharkiv", "lviv"),
-    ("russia", ""): ("moscow", "saint petersburg"), ("poland", ""): ("warsaw", "krakow", "wroclaw", "gdansk"), ("sweden", ""): ("stockholm", "gothenburg", "malmo"),
-    ("norway", ""): ("oslo", "bergen"), ("denmark", ""): ("copenhagen",), ("finland", ""): ("helsinki",), ("austria", ""): ("vienna",),
-    ("switzerland", ""): ("zurich", "geneva", "basel"), ("belgium", ""): ("brussels", "antwerp"), ("portugal", ""): ("lisbon", "porto"), ("turkey", ""): ("istanbul", "ankara", "izmir"),
-    ("israel", ""): ("tel aviv", "jerusalem", "haifa"), ("egypt", ""): ("cairo",), ("south africa", ""): ("johannesburg", "cape town", "durban", "pretoria"),
-    ("nigeria", ""): ("lagos", "abuja"), ("kenya", ""): ("nairobi",), ("thailand", ""): ("bangkok", "chiang mai", "phuket"), ("vietnam", ""): ("hanoi", "ho chi minh city"),
-    ("indonesia", ""): ("jakarta",), ("malaysia", ""): ("kuala lumpur",), ("pakistan", ""): ("karachi", "lahore", "islamabad"), ("bangladesh", ""): ("dhaka",),
-    ("new zealand", ""): ("auckland", "wellington", "christchurch"), ("czech republic", ""): ("prague",), ("hungary", ""): ("budapest",), ("romania", ""): ("bucharest",),
-    ("colombia", ""): ("bogota", "medellin"), ("peru", ""): ("lima",), ("chile", ""): ("santiago",),
-}
-CITY_ALIASES = {"nyc": "new york city", "la": "los angeles", "l.a.": "los angeles", "sf": "san francisco", "philly": "philadelphia", "st pete": "st. petersburg",
-                "vegas": "las vegas", "okc": "oklahoma city", "slc": "salt lake city", "bombay": "mumbai", "bengaluru": "bangalore",
-                "calcutta": "kolkata", "cdmx": "mexico city", "kl": "kuala lumpur", "saigon": "ho chi minh city", "kiev": "kyiv", "odessa": "odesa", "dc": "washington dc",
-                "d.c.": "washington dc", "washington d.c.": "washington dc", "st louis": "st. louis", "saint louis": "st. louis", "saint paul": "st. paul", "münchen": "munich",
-                "köln": "cologne", "roma": "rome", "milano": "milan", "sevilla": "seville", "wien": "vienna", "lisboa": "lisbon", "montréal": "montreal", "zürich": "zurich",
-                "malmö": "malmo", "kraków": "krakow", "bogotá": "bogota", "medellín": "medellin", "brasília": "brasilia", "st petersburg": "saint petersburg",
-                "rio": "rio de janeiro", "atl": "atlanta", "chi": "chicago", "nola": "new orleans", "pdx": "portland", "htx": "houston", "kc": "kansas city"}
-MORE_COUNTRIES = {
-    "angola": (), "mozambique": (), "madagascar": (), "botswana": (), "namibia": (), "malawi": (), "ivory coast": ("côte d'ivoire", "cote d'ivoire"), "mali": (),
-    "burkina faso": (), "sierra leone": (), "liberia": (), "gambia": ("the gambia",), "eritrea": (), "mauritius": (), "democratic republic of the congo": ("drc", "dr congo"),
-    "republic of the congo": ("congo",), "fiji": (), "papua new guinea": (), "samoa": (), "bhutan": (), "maldives": (), "brunei": (), "kyrgyzstan": (), "tajikistan": (),
-    "turkmenistan": (), "kosovo": (), "liechtenstein": (), "monaco": (), "andorra": (), "belize": (), "guyana": (), "suriname": (),
-}
-MORE_DEMONYMS = {
+
     "scot": "united kingdom", "northern irish": "united kingdom", "kazakh": "kazakhstan", "uzbek": "uzbekistan", "mongolian": "mongolia", "burmese": "myanmar",
     "laotian": "laos", "maltese": "malta", "cypriot": "cyprus", "luxembourgish": "luxembourg", "montenegrin": "montenegro", "macedonian": "north macedonia",
     "moldovan": "moldova", "azerbaijani": "azerbaijan", "azeri": "azerbaijan", "qatari": "qatar", "kuwaiti": "kuwait", "bahraini": "bahrain", "omani": "oman",
@@ -162,153 +43,83 @@ MORE_DEMONYMS = {
     "malagasy": "madagascar", "namibian": "namibia", "malawian": "malawi", "ivorian": "ivory coast", "malian": "mali", "liberian": "liberia", "eritrean": "eritrea",
     "mauritian": "mauritius", "fijian": "fiji", "bhutanese": "bhutan", "maldivian": "maldives", "kyrgyz": "kyrgyzstan", "tajik": "tajikistan", "turkmen": "turkmenistan",
     "kosovar": "kosovo", "belizean": "belize", "guyanese": "guyana", "surinamese": "suriname", "salvadorean": "el salvador",
+
 }
-MORE_REGIONS = {
-    "canada": {"yukon": (), "northwest territories": (), "nunavut": ()},
-    "mexico": {"sonora": (), "coahuila": (), "tamaulipas": (), "sinaloa": (), "durango": (), "zacatecas": (), "guanajuato": (), "michoacán": ("michoacan",),
-               "chiapas": (), "veracruz": (), "quintana roo": (), "baja california sur": (), "estado de méxico": ("estado de mexico",)},
-    "brazil": {"rio grande do sul": (), "paraná": ("parana",), "santa catarina": (), "pernambuco": (), "ceará": ("ceara",), "goiás": ("goias",), "amazonas": ()},
-    "germany": {"brandenburg": (), "thuringia": ("thüringen",), "schleswig-holstein": (), "rhineland-palatinate": (), "saxony-anhalt": (), "mecklenburg-vorpommern": ()},
-    "india": {"jharkhand": (), "chhattisgarh": (), "uttarakhand": (), "himachal pradesh": (), "jammu and kashmir": ("kashmir",), "manipur": (), "meghalaya": (), "tripura": (),
-              "nagaland": (), "mizoram": (), "sikkim": (), "arunachal pradesh": ()},
-    "philippines": {"luzon": (), "visayas": (), "mindanao": (), "metro manila": ()},
-    "spain": {"catalonia": ("catalunya",), "andalusia": ("andalucía", "andalucia"), "galicia": (), "basque country": ("país vasco",), "canary islands": ("canarias",)},
-    "italy": {"sicily": ("sicilia",), "sardinia": ("sardegna",), "tuscany": ("toscana",), "lombardy": ("lombardia",), "lazio": (), "campania": (), "puglia": ("apulia",)},
-    "china": {"guangdong": (), "sichuan": (), "fujian": (), "zhejiang": (), "jiangsu": (), "shandong": (), "yunnan": (), "hubei": (), "hunan": (), "henan": ()},
+
+US_STATES = {
+    "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar", "california": "ca", "colorado": "co", "connecticut": "ct", "delaware": "de", "florida": "fl",
+    "georgia": "ga", "hawaii": "hi", "idaho": "id", "illinois": "il", "indiana": "in", "iowa": "ia", "kansas": "ks", "kentucky": "ky", "louisiana": "la", "maine": "me",
+    "maryland": "md", "massachusetts": "ma", "michigan": "mi", "minnesota": "mn", "mississippi": "ms", "missouri": "mo", "montana": "mt", "nebraska": "ne", "nevada": "nv",
+    "new hampshire": "nh", "new jersey": "nj", "new mexico": "nm", "new york": "ny", "north carolina": "nc", "north dakota": "nd", "ohio": "oh", "oklahoma": "ok",
+    "oregon": "or", "pennsylvania": "pa", "rhode island": "ri", "south carolina": "sc", "south dakota": "sd", "tennessee": "tn", "texas": "tx", "utah": "ut",
+    "vermont": "vt", "virginia": "va", "washington": "wa", "west virginia": "wv", "wisconsin": "wi", "wyoming": "wy",
 }
-MORE_CITIES = {
-    ("united states", "alabama"): ("tuscaloosa", "dothan"),
-    ("united states", "arizona"): ("glendale", "yuma", "goodyear", "buckeye", "prescott", "avondale"),
-    ("united states", "arkansas"): ("fayetteville", "fort smith", "springdale", "jonesboro", "bentonville"),
-    ("united states", "california"): ("chula vista", "fontana", "moreno valley", "santa clarita", "huntington beach", "rancho cucamonga", "oceanside", "elk grove",
-                                      "garden grove", "lancaster", "palmdale", "salinas", "pomona", "escondido", "roseville", "fullerton", "visalia",
-                                      "thousand oaks", "simi valley", "santa clara", "victorville", "vallejo", "el monte", "costa mesa", "inglewood",
-                                      "carlsbad", "ventura", "west covina", "murrieta", "norwalk", "antioch", "temecula", "daly city", "rialto", "el cajon", "san mateo",
-                                      "clovis", "compton", "jurupa valley", "south gate", "mission viejo", "vacaville", "hesperia", "santa maria",
-                                      "redding", "san marcos", "livermore", "newport beach", "menifee", "citrus heights",
-                                      "indio", "alhambra", "buena park", "merced", "hemet", "lake forest", "redwood city", "mountain view", "napa", "san leandro"),
-    ("united states", "colorado"): ("thornton", "arvada", "pueblo", "greeley", "centennial", "longmont", "westminster"),
-    ("united states", "connecticut"): ("waterbury",),
-    ("united states", "delaware"): ("wilmington", "dover"),
-    ("united states", "florida"): ("hialeah", "port st. lucie", "pembroke pines", "miramar", "coral springs", "palm bay", "lakeland", "pompano beach", "miami gardens",
-                                   "davie", "deltona", "ocala", "palm coast", "boynton beach", "miami beach"),
-    ("united states", "georgia"): ("augusta", "sandy springs", "south fulton", "roswell", "johns creek", "macon"),
-    ("united states", "idaho"): ("nampa",),
-    ("united states", "illinois"): ("joliet", "elgin", "champaign"),
-    ("united states", "indiana"): ("evansville",),
-    ("united states", "iowa"): ("davenport",),
-    ("united states", "kansas"): ("olathe",),
-    ("united states", "kentucky"): ("lexington",),
-    ("united states", "louisiana"): ("lake charles",),
-    ("united states", "massachusetts"): ("brockton", "new bedford"),
-    ("united states", "michigan"): ("sterling heights", "dearborn", "livonia"),
-    ("united states", "minnesota"): ("rochester mn",),
-    ("united states", "mississippi"): ("gulfport", "biloxi"),
-    ("united states", "missouri"): ("lee's summit",),
-    ("united states", "nebraska"): (),
-    ("united states", "nevada"): ("north las vegas",),
-    ("united states", "new hampshire"): ("manchester nh", "nashua", "concord nh"),
-    ("united states", "new jersey"): ("woodbridge", "lakewood", "toms river", "camden", "atlantic city", "princeton", "new brunswick"),
-    ("united states", "new york"): ("yonkers", "new rochelle", "mount vernon", "schenectady", "utica", "binghamton", "ithaca", "poughkeepsie", "white plains"),
-    ("united states", "north carolina"): ("fayetteville nc", "cary", "wilmington nc", "high point", "concord nc", "greenville nc", "jacksonville nc"),
-    ("united states", "north dakota"): ("fargo", "bismarck"),
-    ("united states", "ohio"): ("parma",),
-    ("united states", "oklahoma"): ("broken arrow",),
-    ("united states", "oregon"): ("salem", "gresham", "hillsboro", "beaverton", "medford"),
-    ("united states", "pennsylvania"): ("erie", "lancaster pa"),
-    ("united states", "rhode island"): ("warwick", "cranston"),
-    ("united states", "south carolina"): ("columbia sc", "north charleston", "mount pleasant", "rock hill", "greenville", "myrtle beach"),
-    ("united states", "south dakota"): ("sioux falls", "rapid city"),
-    ("united states", "tennessee"): ("clarksville", "murfreesboro"),
-    ("united states", "texas"): ("arlington", "grand prairie", "brownsville", "mcallen", "killeen", "carrollton", "midland", "abilene", "beaumont",
-                                 "round rock", "pearland", "college station", "league city", "sugar land", "edinburg", "conroe", "new braunfels", "tyler",
-                                 "wichita falls", "lewisville"),
-    ("united states", "utah"): ("west valley city", "west jordan", "orem", "st. george"),
-    ("united states", "vermont"): ("burlington",),
-    ("united states", "virginia"): ("newport news", "hampton", "suffolk", "portsmouth va", "lynchburg", "charlottesville"),
-    ("united states", "washington"): ("vancouver wa", "renton", "spokane valley", "federal way", "yakima", "bellingham"),
-    ("united states", "wisconsin"): ("kenosha", "racine", "appleton", "waukesha"),
-    ("united states", "wyoming"): ("cheyenne",),
-    ("canada", "ontario"): ("markham", "vaughan", "richmond hill", "oshawa", "guelph", "sudbury", "thunder bay", "st. catharines", "scarborough", "etobicoke"),
-    ("canada", "quebec"): ("sherbrooke", "trois-rivières", "longueuil", "saguenay"),
-    ("canada", "british columbia"): ("north vancouver", "abbotsford", "coquitlam", "nanaimo", "kamloops"),
-    ("canada", "alberta"): ("lethbridge",), ("canada", "saskatchewan"): (), ("canada", "new brunswick"): ("moncton", "fredericton", "saint john"),
-    ("canada", "newfoundland and labrador"): ("st. john's",), ("canada", "prince edward island"): ("charlottetown",),
-    ("canada", "yukon"): ("whitehorse",), ("canada", "northwest territories"): ("yellowknife",), ("canada", "nunavut"): ("iqaluit",),
-    ("united kingdom", "england"): ("york", "cambridge", "milton keynes", "stoke-on-trent", "wolverhampton", "sunderland", "bradford", "exeter", "swindon", "luton",
-                                    "bournemouth", "ipswich", "blackpool", "middlesbrough", "huddersfield", "canterbury", "gloucester",
-                                    "cheltenham", "colchester", "northampton", "watford", "stockport", "salford", "doncaster", "wakefield", "carlisle",
-                                    "peterborough", "lancaster", "durham", "salisbury", "lichfield", "chichester", "truro"),
-    ("united kingdom", "scotland"): ("inverness", "stirling", "perth uk", "st andrews"),
-    ("united kingdom", "wales"): ("newport", "wrexham", "st davids"),
-    ("united kingdom", "northern ireland"): ("derry", "londonderry", "lisburn", "newry", "armagh"),
-    ("ireland", ""): ("waterford", "kilkenny"),
-    ("australia", "new south wales"): ("central coast", "parramatta"), ("australia", "victoria"): ("ballarat", "bendigo"),
-    ("australia", "queensland"): ("sunshine coast", "townsville", "toowoomba"), ("australia", "tasmania"): ("launceston",), ("australia", "northern territory"): (),
-    ("new zealand", ""): ("dunedin", "tauranga", "palmerston north"),
-    ("india", "maharashtra"): ("nashik", "thane", "navi mumbai", "aurangabad"), ("india", "uttar pradesh"): ("kanpur", "agra", "varanasi", "ghaziabad", "meerut", "prayagraj"),
-    ("india", "madhya pradesh"): ("indore", "bhopal", "gwalior", "jabalpur"), ("india", "bihar"): ("patna",), ("india", "gujarat"): ("vadodara", "rajkot"),
-    ("india", "punjab"): ("ludhiana", "amritsar"), ("india", "haryana"): ("gurgaon", "gurugram", "faridabad"), ("india", ""): ("chandigarh",),
-    ("india", "andhra pradesh"): ("visakhapatnam", "vijayawada"), ("india", "kerala"): ("thiruvananthapuram", "kozhikode"),
-    ("india", "karnataka"): ("mangalore", "hubli"), ("india", "tamil nadu"): ("madurai",), ("india", "rajasthan"): ("jodhpur", "kota"),
-    ("india", "odisha"): ("bhubaneswar",), ("india", "assam"): ("guwahati",), ("india", "jharkhand"): ("ranchi", "jamshedpur"),
-    ("pakistan", ""): ("faisalabad", "rawalpindi", "peshawar", "multan", "quetta"), ("bangladesh", ""): ("chittagong",),
-    ("china", ""): ("chongqing", "tianjin", "wuhan", "xi'an", "hangzhou", "nanjing", "shenyang", "harbin", "suzhou", "qingdao", "dalian", "xiamen", "kunming", "changsha"),
-    ("taiwan", ""): ("taipei", "kaohsiung", "taichung", "tainan"), ("south korea", ""): ("incheon", "daegu", "daejeon", "gwangju", "suwon", "ulsan"),
-    ("japan", ""): ("kobe", "hiroshima", "sendai", "chiba", "saitama"), ("indonesia", ""): ("surabaya", "bandung", "medan", "semarang"),
-    ("philippines", ""): ("taguig", "pasig", "caloocan", "zamboanga", "antipolo"),
-    ("vietnam", ""): ("da nang", "hai phong"), ("malaysia", ""): ("johor bahru", "ipoh"),
-    ("turkey", ""): ("bursa", "antalya", "adana"), ("iran", ""): ("tehran", "mashhad", "isfahan", "shiraz", "tabriz"), ("iraq", ""): ("baghdad", "basra", "erbil", "mosul"),
-    ("saudi arabia", ""): ("riyadh", "jeddah", "mecca", "dammam"), ("united arab emirates", ""): ("sharjah",), ("qatar", ""): ("doha",),
-    ("kuwait", ""): ("kuwait city",), ("lebanon", ""): ("beirut",), ("jordan", ""): ("amman",), ("syria", ""): ("damascus", "aleppo"),
-    ("egypt", ""): ("giza",), ("morocco", ""): ("casablanca", "rabat", "marrakesh", "tangier"), ("algeria", ""): ("algiers", "oran"), ("tunisia", ""): ("tunis",),
-    ("nigeria", ""): ("kano", "ibadan", "port harcourt"), ("ghana", ""): ("accra", "kumasi"), ("kenya", ""): ("mombasa",),
-    ("ethiopia", ""): ("addis ababa",), ("tanzania", ""): ("dar es salaam",), ("uganda", ""): ("kampala",), ("zimbabwe", ""): ("harare",),
-    ("senegal", ""): ("dakar",), ("rwanda", ""): ("kigali",), ("zambia", ""): ("lusaka",),
-    ("mexico", ""): ("puebla", "ciudad juárez", "león", "mérida", "querétaro", "toluca", "hermosillo", "culiacán", "aguascalientes", "morelia", "mexicali", "chihuahua"),
-    ("guatemala", ""): ("guatemala city",), ("el salvador", ""): ("san salvador",), ("honduras", ""): ("tegucigalpa", "san pedro sula"), ("nicaragua", ""): ("managua",),
-    ("cuba", ""): ("havana",), ("dominican republic", ""): ("santo domingo",), ("haiti", ""): ("port-au-prince",), ("puerto rico", ""): ("san juan",),
-    ("colombia", ""): ("barranquilla", "cartagena"), ("venezuela", ""): ("caracas", "maracaibo"),
-    ("ecuador", ""): ("quito", "guayaquil"), ("bolivia", ""): ("la paz", "santa cruz de la sierra"), ("chile", ""): ("valparaíso",),
-    ("argentina", ""): ("córdoba", "rosario", "mendoza", "la plata", "mar del plata"), ("uruguay", ""): ("montevideo",), ("paraguay", ""): ("asunción",),
-    ("peru", ""): ("arequipa",),
-    ("brazil", ""): ("fortaleza", "belo horizonte", "manaus", "curitiba", "recife", "porto alegre", "belém", "goiânia", "campinas"),
-    ("germany", ""): ("leipzig", "dresden", "hanover", "bremen", "essen", "duisburg", "bochum", "bonn", "münster", "karlsruhe", "mannheim", "augsburg", "wiesbaden"),
-    ("france", ""): ("montpellier", "rennes", "reims", "grenoble", "dijon", "angers", "le havre", "toulon"),
-    ("spain", ""): ("valencia", "zaragoza", "palma", "las palmas", "alicante", "valladolid", "vigo", "gijón", "murcia"),
-    ("italy", ""): ("genoa", "palermo", "bari", "catania", "verona", "padua", "trieste"),
-    ("netherlands", ""): ("groningen", "tilburg", "almere", "breda", "nijmegen"), ("belgium", ""): ("ghent", "liège", "bruges", "charleroi"),
-    ("switzerland", ""): ("bern", "lausanne"), ("austria", ""): ("graz", "linz", "salzburg", "innsbruck"),
-    ("poland", ""): ("łódź", "poznań", "szczecin", "bydgoszcz", "lublin", "katowice"), ("czech republic", ""): ("brno", "ostrava"), ("slovakia", ""): ("bratislava",),
-    ("hungary", ""): ("debrecen",), ("romania", ""): ("cluj-napoca", "timișoara", "iași", "constanța"), ("bulgaria", ""): ("plovdiv", "varna"),
-    ("greece", ""): ("thessaloniki",), ("serbia", ""): ("belgrade", "novi sad"), ("croatia", ""): ("zagreb",), ("slovenia", ""): ("ljubljana",),
-    ("bosnia and herzegovina", ""): ("sarajevo",), ("albania", ""): ("tirana",), ("north macedonia", ""): ("skopje",), ("ukraine", ""): ("dnipro", "zaporizhzhia"),
-    ("russia", ""): ("novosibirsk", "yekaterinburg", "kazan", "nizhny novgorod", "chelyabinsk", "samara", "omsk", "rostov-on-don", "ufa", "krasnoyarsk", "vladivostok"),
-    ("belarus", ""): ("minsk",), ("lithuania", ""): ("vilnius", "kaunas"), ("latvia", ""): ("riga",), ("estonia", ""): ("tallinn",),
-    ("finland", ""): ("espoo", "tampere", "vantaa", "turku", "oulu"), ("sweden", ""): ("uppsala",), ("norway", ""): ("trondheim", "stavanger"),
-    ("denmark", ""): ("aarhus", "odense"), ("iceland", ""): ("reykjavik",), ("cyprus", ""): ("nicosia", "limassol"), ("armenia", ""): ("yerevan",),
-    ("azerbaijan", ""): ("baku",), ("kazakhstan", ""): ("almaty", "astana"), ("uzbekistan", ""): ("tashkent",), ("mongolia", ""): ("ulaanbaatar",),
-    ("nepal", ""): ("kathmandu",), ("sri lanka", ""): ("colombo",), ("afghanistan", ""): ("kabul",), ("myanmar", ""): ("yangon", "mandalay"),
-    ("cambodia", ""): ("phnom penh",),
+US_STATE_DEMONYMS = {
+    "alabamian": "alabama", "alaskan": "alaska", "arizonan": "arizona", "arkansan": "arkansas", "californian": "california", "coloradan": "colorado", "connecticuter": "connecticut",
+    "delawarean": "delaware", "floridian": "florida", "hawaiian": "hawaii", "idahoan": "idaho", "illinoisan": "illinois", "hoosier": "indiana", "iowan": "iowa", "kansan": "kansas",
+    "kentuckian": "kentucky", "louisianian": "louisiana", "mainer": "maine", "marylander": "maryland", "bay stater": "massachusetts", "michigander": "michigan",
+    "minnesotan": "minnesota", "mississippian": "mississippi", "missourian": "missouri", "montanan": "montana", "nebraskan": "nebraska", "nevadan": "nevada",
+    "new hampshirite": "new hampshire", "new jerseyan": "new jersey", "new mexican": "new mexico", "new yorker": "new york", "north carolinian": "north carolina",
+    "north dakotan": "north dakota", "ohioan": "ohio", "oklahoman": "oklahoma", "oregonian": "oregon", "pennsylvanian": "pennsylvania", "rhode islander": "rhode island",
+    "south carolinian": "south carolina", "south dakotan": "south dakota", "tennessean": "tennessee", "texan": "texas", "utahn": "utah", "vermonter": "vermont",
+    "virginian": "virginia", "washingtonian": "washington", "west virginian": "west virginia", "wisconsinite": "wisconsin", "wyomingite": "wyoming",
 }
+CA_PROVINCE_DEMONYMS = {
+    "albertan": "alberta", "british columbian": "british columbia", "manitoban": "manitoba", "new brunswicker": "new brunswick", "newfoundlander": "newfoundland and labrador",
+    "nova scotian": "nova scotia", "ontarian": "ontario", "quebecer": "quebec", "quebecker": "quebec", "québécois": "quebec", "saskatchewanian": "saskatchewan",
+}
+
+REGION_ALIASES = {
+    "california": ("cali", "socal", "norcal", "southern california", "northern california"), "new jersey": ("jersey",), "washington": ("washington state",),
+    "district of columbia": ("dc", "d.c.", "washington dc", "washington d.c."), "quebec": ("québec",), "newfoundland and labrador": ("newfoundland",),
+    "new south wales": ("nsw",), "queensland": ("qld",), "bavaria": ("bayern",), "north rhine-westphalia": ("nrw",), "saxony": ("sachsen",), "hesse": ("hessen",),
+    "thuringia": ("thüringen",), "jammu and kashmir": ("kashmir",), "catalonia": ("catalunya",), "andalusia": ("andalucía", "andalucia"),
+    "basque country": ("país vasco",), "canary islands": ("canarias",), "sicily": ("sicilia",), "sardinia": ("sardegna",), "tuscany": ("toscana",),
+    "lombardy": ("lombardia",),
+}
+
+CITY_ALIASES = {"nyc": "new york city", "la": "los angeles", "l.a.": "los angeles", "sf": "san francisco", "philly": "philadelphia", "vegas": "las vegas",
+                "okc": "oklahoma city", "slc": "salt lake city", "bombay": "mumbai", "bangalore": "bengaluru", "calcutta": "kolkata", "cdmx": "mexico city",
+                "kl": "kuala lumpur", "saigon": "ho chi minh city", "kiev": "kyiv", "odessa": "odesa", "münchen": "munich", "cologne": "köln", "roma": "rome",
+                "milano": "milan", "seville": "sevilla", "wien": "vienna", "lisboa": "lisbon", "rio": "rio de janeiro", "atl": "atlanta", "chi": "chicago",
+                "nola": "new orleans", "pdx": "portland", "htx": "houston", "kc": "kansas city"}
+COUNTRY_CODES = {"us": "united states"}
+US_CENSUS_REGIONS = ("northeast", "midwest", "south", "west", "new england", "mid-atlantic", "east north central", "west north central", "south atlantic", "east south central",
+                     "west south central", "mountain", "pacific")
+REGION_CODES = {"canada": {"ab": "alberta", "bc": "british columbia", "mb": "manitoba", "nb": "new brunswick", "nl": "newfoundland and labrador", "ns": "nova scotia",
+                           "nt": "northwest territories", "nu": "nunavut", "on": "ontario", "pe": "prince edward island", "qc": "quebec", "sk": "saskatchewan", "yt": "yukon"},
+                "australia": {"nsw": "new south wales", "vic": "victoria", "qld": "queensland", "sa": "south australia", "tas": "tasmania", "nt": "northern territory",
+                              "act": "australian capital territory"},
+                "united states": {code: name for name, code in US_STATES.items()}}
+
+
+def key(name):
+    return " ".join(TOKEN.findall(name.lower()))
+
+
+def gazetteer():
+    with open(Path(__file__).with_name("gazetteer.tsv"), encoding="utf-8") as rows:
+        next(rows)
+        return {name: tuple(entry) for name, *entry in (line.rstrip("\n").split("\t") for line in rows)}
 
 
 def table():
-    found = {}
-    for country, aliases in (*COUNTRIES.items(), *MORE_COUNTRIES.items()):
-        for name in (country, *aliases):
-            found.setdefault(name, ("country", country, "", country))
-    for country, regions in (*REGIONS.items(), *MORE_REGIONS.items()):
-        for region, aliases in regions.items():
-            for name in (region, *aliases):
-                found.setdefault(name, ("region", region, region, country))
-    for (country, region), names in (*CITIES.items(), *MORE_CITIES.items()):
-        for name in names:
-            found.setdefault(name, ("city", name, region, country))
-    for alias, city in CITY_ALIASES.items():
-        found.setdefault(alias, (*found[city][:1], city, *found[city][2:]))
-    return found
+    loaded = gazetteer()
+    found = {key(name): ("region", name, name, "united states", "") for name in US_STATES}
+    for country, aliases in COUNTRY_ALIASES.items():
+        found |= {key(name): ("country", country, "", country, "") for name in aliases}
+    for region, aliases in REGION_ALIASES.items():
+        found |= {key(name): (*loaded[key(region)][:4], "") for name in aliases}
+    found |= {key(alias): (*loaded[key(city)][:4], "code" if len(alias) <= 2 else "") for alias, city in CITY_ALIASES.items()}
+    for country, codes in REGION_CODES.items():
+        for code, name in codes.items():
+            found.setdefault(code, ("region", name, name, country, "code"))
+    found |= {code: ("country", country, "", country, "code") for code, country in COUNTRY_CODES.items()}
+    found |= {key(name): ("region", name, name, "united states", "1") for name in US_CENSUS_REGIONS}
+    return {**loaded, **found}
 
 
 PLACES = table()
-CODES = {code.upper(): name for name, code in US_STATES.items()}
+NATIONS = {key(name): country for name, country in DEMONYMS.items()}
+PEOPLES = {**{key(name): ("people", region, region, "united states", "") for name, region in US_STATE_DEMONYMS.items()},
+           **{key(name): ("people", region, region, "canada", "") for name, region in CA_PROVINCE_DEMONYMS.items()}}

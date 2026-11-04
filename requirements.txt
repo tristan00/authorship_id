@@ -4,6 +4,8 @@ orjson==3.13.0
 psycopg[binary]==3.2.10
 psycopg-pool==3.2.8
 clickhouse-connect==1.12.0
+babel==2.18.0
+nltk==3.10.3
 --extra-index-url https://download.pytorch.org/whl/cu128
 torch==2.11.0+cu128
 transformers==4.57.3
