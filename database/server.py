@@ -1,209 +1,107 @@
-import shutil
 import subprocess
 import time
-from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
-import psycopg
-from psycopg import sql
+from . import DATABASE, LOG, NO_AUTHOR, client, timed
+from .config import DISTRO, SERVER_MEMORY
 
-from . import DATA, DSN, LOG, LOGS, NO_AUTHOR, PG, PORT, bounds, timed
-from .config import COUNT_WORKERS, INDEX_BUILDS, INDEX_MEMORY, SCAN_WORKERS, SORT_MEMORY, SORT_WORKERS
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS records (
-    created_utc bigint NOT NULL,
-    is_submitter boolean,
-    over_18 boolean,
-    is_self boolean,
-    record_id text NOT NULL,
-    subreddit text NOT NULL,
-    record_type text NOT NULL,
-    author text NOT NULL,
-    author_fullname text,
-    link_id text NOT NULL,
-    parent_id text,
-    author_flair_text text,
-    link_flair_text text,
-    post_hint text,
-    crosspost_parent text,
-    text_status text NOT NULL,
-    text_sha256 bytea NOT NULL
-) PARTITION BY RANGE (created_utc);
-CREATE TABLE IF NOT EXISTS bodies (
-    text_sha256 bytea NOT NULL,
-    text text NOT NULL,
-    words integer NOT NULL,
-    month text NOT NULL
-) PARTITION BY LIST (month);
-CREATE TABLE IF NOT EXISTS months (
-    month text PRIMARY KEY,
-    records bigint NOT NULL,
-    loaded_at timestamptz NOT NULL DEFAULT now(),
-    extracted_at timestamptz
-);
-CREATE TABLE IF NOT EXISTS empty_bodies (
-    month text NOT NULL,
-    text_sha256 bytea NOT NULL
-);
+WSL = ("wsl.exe", "-d", DISTRO, "-u", "root", "--", "bash", "-lc")
+INSTALL = """
+set -e
+if ! command -v clickhouse-server >/dev/null; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y -qq apt-transport-https ca-certificates curl gnupg
+  curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key | gpg --dearmor --yes -o /usr/share/keyrings/clickhouse-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg] https://packages.clickhouse.com/deb stable main" > /etc/apt/sources.list.d/clickhouse.list
+  apt-get update -qq
+  apt-get install -y -qq clickhouse-server clickhouse-client
+fi
+cat > /etc/clickhouse-server/config.d/authorship.xml <<EOF
+<clickhouse>
+  <listen_host>0.0.0.0</listen_host>
+  <max_server_memory_usage>{memory}</max_server_memory_usage>
+</clickhouse>
+EOF
+systemctl enable clickhouse-server
+systemctl restart clickhouse-server
 """
-STORAGE = f"autovacuum_enabled = false, parallel_workers = {SCAN_WORKERS}"
-PARTITION = """
-DROP TABLE IF EXISTS records_{name}, bodies_{name}, bodies_stage;
-CREATE TABLE records_{name} (LIKE records, CHECK (created_utc >= {start} AND created_utc < {end})) WITH ({storage});
-CREATE UNLOGGED TABLE bodies_stage (text_sha256 bytea NOT NULL, text text NOT NULL, words integer NOT NULL, month text NOT NULL);
-"""
-INDEXES = ("ALTER TABLE records_{name} ADD PRIMARY KEY (record_id)", "CREATE INDEX records_{name}_subreddit ON records_{name} (subreddit, created_utc)",
-           "CREATE INDEX records_{name}_author ON records_{name} (author, created_utc) INCLUDE (record_type, record_id)")
-NEW_BODIES = """
-COPY (SELECT DISTINCT ON (text_sha256) text_sha256, text, words, month FROM bodies_stage s
-      WHERE NOT EXISTS (SELECT FROM bodies b WHERE b.text_sha256 = s.text_sha256) ORDER BY text_sha256) TO STDOUT (FORMAT binary)
-"""
-ATTACH = """
-SET lock_timeout = '10s';
-ALTER TABLE records ATTACH PARTITION records_{name} FOR VALUES FROM ({start}) TO ({end});
-ALTER TABLE bodies ATTACH PARTITION bodies_{name} FOR VALUES IN ('{month}');
-DROP TABLE bodies_stage;
-"""
+TABLES = [
+    f"CREATE DATABASE IF NOT EXISTS {DATABASE}",
+    """CREATE TABLE IF NOT EXISTS records (
+        created_utc DateTime('UTC') CODEC(Delta, ZSTD(1)),
+        record_id String CODEC(ZSTD(1)),
+        record_type LowCardinality(String),
+        author String CODEC(ZSTD(1)),
+        subreddit String CODEC(ZSTD(1)),
+        author_fullname Nullable(String) CODEC(ZSTD(1)),
+        link_id String CODEC(ZSTD(1)),
+        parent_id Nullable(String) CODEC(ZSTD(1)),
+        author_flair_text Nullable(String) CODEC(ZSTD(1)),
+        link_flair_text Nullable(String) CODEC(ZSTD(1)),
+        post_hint LowCardinality(Nullable(String)),
+        crosspost_parent Nullable(String) CODEC(ZSTD(1)),
+        is_submitter Nullable(Bool),
+        over_18 Nullable(Bool),
+        is_self Nullable(Bool),
+        text_status LowCardinality(String),
+        text_sha256 FixedString(32)
+    ) ENGINE = MergeTree ORDER BY (author, created_utc)""",
+    """CREATE TABLE IF NOT EXISTS records_by_subreddit (
+        subreddit String CODEC(ZSTD(1)),
+        created_utc DateTime('UTC') CODEC(Delta, ZSTD(1)),
+        record_type LowCardinality(String)
+    ) ENGINE = MergeTree ORDER BY (subreddit, created_utc)""",
+    "CREATE MATERIALIZED VIEW IF NOT EXISTS records_by_subreddit_feed TO records_by_subreddit AS SELECT subreddit, created_utc, record_type FROM records",
+    """CREATE TABLE IF NOT EXISTS bodies (
+        text_sha256 FixedString(32),
+        text String CODEC(ZSTD(3)),
+        words UInt32
+    ) ENGINE = MergeTree ORDER BY text_sha256 SETTINGS index_granularity = 1024""",
+    "CREATE TABLE IF NOT EXISTS months (month String, records UInt64, loaded_at DateTime('UTC') DEFAULT now()) ENGINE = MergeTree ORDER BY month",
+    "CREATE TABLE IF NOT EXISTS author_counts (author String, texts UInt64, posts UInt64, first_seen DateTime('UTC'), last_seen DateTime('UTC')) ENGINE = MergeTree ORDER BY author",
+    "CREATE TABLE IF NOT EXISTS subreddit_counts (subreddit String, texts UInt64, posts UInt64, first_seen DateTime('UTC'), last_seen DateTime('UTC')) ENGINE = MergeTree ORDER BY subreddit",
+]
 COUNTS = {
-    "author": sql.SQL("""SELECT author, count(*) AS texts, count(*) FILTER (WHERE record_type = 'post') AS posts, min(created_utc) AS first_seen,
-        max(created_utc) AS last_seen FROM records WHERE author <> ALL({}) GROUP BY author""").format(sql.Literal(NO_AUTHOR)),
-    "subreddit": sql.SQL("""SELECT subreddit, count(*) AS texts, count(*) FILTER (WHERE record_type = 'post') AS posts, min(created_utc) AS first_seen,
-        max(created_utc) AS last_seen FROM records GROUP BY subreddit"""),
+    "author": f"SELECT author, count() AS texts, countIf(record_type = 'post') AS posts, min(created_utc) AS first_seen, max(created_utc) AS last_seen "
+              f"FROM records WHERE author NOT IN {NO_AUTHOR} GROUP BY author",
+    "subreddit": "SELECT subreddit, count() AS texts, countIf(record_type = 'post') AS posts, min(created_utc) AS first_seen, max(created_utc) AS last_seen "
+                 "FROM records_by_subreddit GROUP BY subreddit",
 }
-SEQSCAN = {"author": "off", "subreddit": "on"}
-SWAP = """
-DROP TABLE IF EXISTS {key}_counts;
-ALTER TABLE {key}_counts_stage RENAME TO {key}_counts;
-ALTER INDEX {key}_counts_stage_pkey RENAME TO {key}_counts_pkey;
-ALTER INDEX {key}_counts_stage_texts RENAME TO {key}_counts_texts;
-"""
-
-
-def partition(month):
-    start, end = bounds(month)
-    return {"name": month.replace("-", "_"), "month": month, "start": start, "end": end, "storage": STORAGE}
 
 
 @timed
-def init():
-    subprocess.run([PG / "initdb.exe", "-D", DATA, "-U", "postgres", "-A", "trust", "-E", "UTF8", "--locale=C"], check=True)
-    start()
-    with psycopg.connect(f"host=localhost port={PORT} dbname=postgres user=postgres", autocommit=True) as conn:
-        conn.execute("CREATE DATABASE reddit")
-    with psycopg.connect(DSN) as conn:
-        schema(conn)
-    LOG.info("initialized %s", DATA)
-
-
-@timed
-def schema(conn):
-    conn.execute(SCHEMA)
-
-
-@timed
-def create(month):
-    with psycopg.connect(DSN) as conn:
-        conn.execute("SET lock_timeout = '10s'")
-        conn.execute(PARTITION.format(**partition(month)))
-
-
-@timed
-def bodies(month):
-    names = partition(month)
-    with psycopg.connect(DSN) as source, psycopg.connect(DSN) as target, target.cursor() as cursor:
-        source.execute(f"SET work_mem = '{SORT_MEMORY}'")
-        source.execute(f"SET max_parallel_workers_per_gather = {SORT_WORKERS}")
-        source.execute("SET enable_hashjoin = off")
-        source.execute("SET enable_nestloop = off")
-        target.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
-        cursor.execute("CREATE TABLE bodies_{name} (LIKE bodies, CHECK (month = '{month}')) WITH ({storage})".format(**names))
-        with source.cursor().copy(NEW_BODIES) as out, cursor.copy(f"COPY bodies_{names['name']} FROM STDIN (FORMAT binary, FREEZE)") as into:
-            for block in out:
-                into.write(block)
-        rows = cursor.rowcount
-        cursor.execute(f"ALTER TABLE bodies_{names['name']} ADD PRIMARY KEY (text_sha256)")
-    analyze(f"bodies_{names['name']}")
-    LOG.info("%s new bodies rows=%s", month, rows)
-
-
-@timed
-def records(month):
-    name = partition(month)["name"]
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute(f"VACUUM (FREEZE, ANALYZE) records_{name}")
-    with ThreadPoolExecutor(INDEX_BUILDS) as pool:
-        list(pool.map(build_index, [statement.format(name=name) for statement in INDEXES]))
-
-
-@timed
-def analyze(table):
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute(f"ANALYZE {table}")
-
-
-@timed
-def build_index(statement):
+def setup():
+    subprocess.run([*WSL, INSTALL.replace("{memory}", str(SERVER_MEMORY))], check=True)
     started = time.perf_counter()
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute(f"SET maintenance_work_mem = '{INDEX_MEMORY}'")
-        conn.execute(statement)
-    LOG.info("built %s in %.0fs", statement, time.perf_counter() - started)
+    while True:
+        try:
+            LOG.info("clickhouse %s is up", client(database="default").command("SELECT version()"))
+            break
+        except Exception:
+            if time.perf_counter() - started > 120:
+                raise
+            time.sleep(1)
+    schema()
 
 
 @timed
-def finish(month):
-    with ThreadPoolExecutor(2) as pool:
-        list(pool.map(lambda step: step(month), (bodies, records)))
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute(ATTACH.format(**partition(month)))
-        conn.execute("ANALYZE ONLY records, ONLY bodies")
-
-
-@timed
-def count(key):
-    stage = f"{key}_counts_stage"
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        for setting in (f"max_parallel_workers_per_gather = {COUNT_WORKERS}", f"work_mem = '{SORT_MEMORY}'", "enable_partitionwise_aggregate = on", f"enable_seqscan = {SEQSCAN[key]}"):
-            conn.execute(f"SET {setting}")
-        conn.execute(f"DROP TABLE IF EXISTS {stage}")
-        rows = conn.execute(sql.SQL("CREATE TABLE {} AS ").format(sql.Identifier(stage)) + COUNTS[key]).rowcount
-        conn.execute(f"ALTER TABLE {stage} ADD CONSTRAINT {stage}_pkey PRIMARY KEY ({key})")
-        conn.execute(f"CREATE INDEX {stage}_texts ON {stage} (texts DESC, {key})")
-        conn.execute(f"VACUUM (ANALYZE) {stage}")
-        with conn.transaction():
-            conn.execute("SET LOCAL lock_timeout = '10s'")
-            conn.execute(SWAP.format(key=key))
-    LOG.info("%s counts rows=%s", key, rows)
+def schema():
+    client(database="default").command(TABLES[0])
+    db = client()
+    for statement in TABLES[1:]:
+        db.command(statement)
+    for (name,) in db.query(f"SELECT name FROM system.tables WHERE database = '{DATABASE}' AND startsWith(name, '_tmp_replace_')").result_rows:
+        db.command(f"DROP TABLE {name}")
+        LOG.info("dropped leftover %s", name)
 
 
 @timed
 def counts():
-    with ThreadPoolExecutor(len(COUNTS)) as pool:
-        list(pool.map(count, COUNTS))
-    with psycopg.connect(DSN) as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS counted (months text[] NOT NULL)")
-        conn.execute("DELETE FROM counted")
-        conn.execute("INSERT INTO counted SELECT array_agg(month ORDER BY month) FROM months")
-
-
-@timed
-def start():
-    shutil.copy(Path(__file__).with_name("postgresql.conf"), DATA / "postgresql.conf")
-    subprocess.run([PG / "pg_ctl.exe", "-D", DATA, "-l", LOGS / "postgres.log", "-w", "start"], check=True, stdin=subprocess.DEVNULL,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
-
-
-@timed
-def stop():
-    subprocess.run([PG / "pg_ctl.exe", "-D", DATA, "-w", "stop", "-m", "fast"], check=True)
-
-
-if __name__ == "__main__":
-    import sys
-
-    from reddit_dumps import setup_logging
-
-    from . import LOGS
-    setup_logging(LOGS / "database.log")
-    {"start": start, "stop": stop}[sys.argv[1]]()
+    db = client()
+    for key, query in COUNTS.items():
+        db.command(f"DROP TABLE IF EXISTS {key}_counts_next")
+        db.command(f"CREATE TABLE {key}_counts_next AS {key}_counts")
+        db.command(f"INSERT INTO {key}_counts_next {query}")
+        db.command(f"EXCHANGE TABLES {key}_counts_next AND {key}_counts")
+        db.command(f"DROP TABLE {key}_counts_next")
+        LOG.info("%s_counts rows=%s", key, db.command(f"SELECT count() FROM {key}_counts"))

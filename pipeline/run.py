@@ -1,106 +1,17 @@
-import multiprocessing
-
-import psycopg
-
-from claim_consolidation.consolidate import consolidate
-from database import DSN, LOGS
-from database.load import add
-from reddit_dumps import setup_logging
-from reddit_dumps.catalog import load_catalog, month_index
+from database.load import load_month
+from database.server import counts, schema
+from reddit_dumps.catalog import month_range
 from reddit_dumps.download import delete, download
 
 from . import LOG, timed
 
-CONSOLIDATED = """SELECT EXISTS (SELECT FROM consolidation WHERE months = (SELECT array_agg(month ORDER BY month) FROM months)
-    AND started_at > (SELECT max(extracted_at) FROM months))"""
-
-
-def loaded(month):
-    with psycopg.connect(DSN) as conn:
-        return conn.execute("SELECT to_regclass('months') IS NOT NULL").fetchone()[0] and \
-            conn.execute("SELECT EXISTS (SELECT FROM months WHERE month = %s)", [month]).fetchone()[0]
-
-
-def current(table, query):
-    with psycopg.connect(DSN) as conn:
-        return conn.execute("SELECT to_regclass(%s)", [table]).fetchone()[0] is not None and conn.execute(query).fetchone()[0]
-
-
-def following(month):
-    index = month_index(month) + 1
-    return f"{index // 12:04d}-{index % 12 + 1:02d}"
-
-
-def background(target, *args):
-    process = multiprocessing.Process(target=target, args=args, name=target.__name__)
-    process.start()
-    return process
-
 
 @timed
-def wait(process):
-    process.join()
-    if process.exitcode:
-        raise RuntimeError(f"{process.name} failed with exit code {process.exitcode}")
-
-
-@timed
-def fetch(month):
-    if loaded(month):
-        LOG.info("%s is loaded, no download", month)
-        return
-    download([month])
-
-
-@timed
-def prefetch(month):
-    setup_logging(LOGS / "download.log")
-    if loaded(month) or not any(start <= month <= end for start, end, _ in load_catalog()):
-        LOG.info("%s is loaded or not published, no download", month)
-        return
-    download([month])
-
-
-@timed
-def load(month):
-    if loaded(month):
-        LOG.info("%s is loaded", month)
-        return
-    add([month])
-
-
-@timed
-def consolidation():
-    if current("consolidation", CONSOLIDATED):
-        LOG.info("consolidation covers every extracted month")
-        return
-    consolidate()
-
-
-@timed
-def vectors():
-    setup_logging(LOGS / "pipeline.log")
-    from author_encoder.update import update, users
-    LOG.info("vectors %s", update())
-    LOG.info("users %s", users())
-
-
-@timed
-def attributes():
-    from attribute_model.config import read_targets
-    from attribute_model.update import update
-    LOG.info("attributes %s", update(read_targets()))
-
-
-@timed
-def run(month):
-    fetch(month)
-    upcoming = background(prefetch, following(month))
-    try:
-        load(month)
+def run(start, end):
+    schema()
+    for month in month_range(start, end):
+        download([month])
+        load_month(month)
         delete(month)
-        wait(background(vectors))
-        consolidation()
-        attributes()
-    finally:
-        wait(upcoming)
+        LOG.info("%s done", month)
+    counts()

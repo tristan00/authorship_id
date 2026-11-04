@@ -1,13 +1,33 @@
+import atexit
+import functools
 import logging
+import subprocess
 from datetime import datetime, timezone
 
-import psycopg
+import clickhouse_connect
 
 from reddit_dumps import timed
 
-from .config import DATA, DSN, DUMPS, INDEX_MEMORY, LOGS, NO_AUTHOR, PG, PORT, SCAN_WORKERS
+from .config import BODY_RANGES, DATABASE, DISTRO, DUMPS, LOGS, NO_AUTHOR, PORT
 
 LOG = logging.getLogger("database")
+
+
+@functools.cache
+def keep_alive():
+    process = subprocess.Popen(["wsl.exe", "-d", DISTRO, "--", "sleep", "infinity"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    atexit.register(process.kill)
+    return process
+
+
+@functools.cache
+def host():
+    keep_alive()
+    return subprocess.run(["wsl.exe", "-d", DISTRO, "--", "hostname", "-I"], capture_output=True, text=True, check=True).stdout.split()[0]
+
+
+def client(database=DATABASE, **settings):
+    return clickhouse_connect.get_client(host=host(), port=PORT, database=database, settings=settings, send_receive_timeout=86400, query_limit=0)
 
 
 def bounds(month):
@@ -16,14 +36,13 @@ def bounds(month):
     return int(start.timestamp()), int(end.timestamp())
 
 
-def within(months, column):
-    return "(" + " OR ".join(f"({column} >= {start} AND {column} < {end})" for start, end in map(bounds, months)) + ")"
+def sha_ranges(parts=BODY_RANGES):
+    edges = [f"unhex('{index * 256 // parts:02x}{'00' * 31}')" for index in range(parts)]
+    return [(edges[index], edges[index + 1] if index + 1 < parts else None) for index in range(parts)]
 
 
-@timed
-def vacuum(*tables):
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute(f"VACUUM (ANALYZE) {', '.join(tables)}")
+def in_range(column, low, high):
+    return f"{column} >= {low}" + (f" AND {column} < {high}" if high else "")
 
 
-__all__ = ["DATA", "DSN", "DUMPS", "INDEX_MEMORY", "LOG", "LOGS", "NO_AUTHOR", "PG", "PORT", "SCAN_WORKERS", "bounds", "timed", "vacuum", "within"]
+__all__ = ["DATABASE", "DUMPS", "LOG", "LOGS", "NO_AUTHOR", "bounds", "client", "host", "in_range", "keep_alive", "sha_ranges", "timed"]
