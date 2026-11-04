@@ -1,20 +1,33 @@
 import re
 
-from .common import FOR, I, SELF_HEDGE, TAG, TAGGED, fixed, group, hedged, rule
-from .places import CODES, DEMONYMS, PLACES
+from .common import FOR, I, SELF_HEDGE, TAG, TAGGED, clause, fixed, hedged, question, rule
+from .places import CODES, DEMONYMS, MORE_DEMONYMS, PLACES
 
+NATIONS = {**DEMONYMS, **MORE_DEMONYMS}
+STATES = {code.lower(): name for code, name in CODES.items()}
+LOOKUP = {**{code: PLACES[name] for code, name in STATES.items()}, **PLACES}
 LANGUAGES = frozenset("english spanish french german italian portuguese dutch swedish norwegian danish finnish polish czech slovak hungarian romanian bulgarian greek croatian serbian "
                       "russian ukrainian turkish arabic hebrew persian farsi hindi urdu bengali punjabi tamil telugu marathi gujarati malayalam kannada chinese mandarin cantonese japanese "
                       "korean vietnamese thai tagalog filipino indonesian malay swahili afrikaans catalan basque welsh irish icelandic estonian latvian lithuanian albanian".split())
 LANGUAGE_NAMES = {"farsi": "persian", "mandarin": "chinese", "filipino": "tagalog"}
-PLACE_NAMES = "|".join(sorted(map(re.escape, PLACES), key=len, reverse=True))
-PLACE = rf"(?:the )?({PLACE_NAMES})(?![\w-])"
-RESIDE = rf"(?:i live|i've lived|i'?ve been living|i'm living|im living|living|i'm currently living|i reside|i'm based|im based|i am based|based|i'm located|located|i'm currently|i'm|im|i am|we live|we're|we are|i moved|i've moved|i just moved|i relocated|here)\s+(?:currently\s+|now\s+|still\s+|also\s+|just\s+|right\s+)?(?:in|near|outside(?: of)?|around|to)\s+{PLACE}"
-ORIGIN = rf"(?:i grew up|i was raised|i was born|born and raised|born|raised|i'm originally from|im originally from|i am originally from|originally from)\s+(?:in\s+)?{PLACE}"
-FROM = rf"(?:i'm|im|i am|we're|we are)\s+(?:also\s+)?from\s+{PLACE}"
+NAMES = "|".join(sorted(map(re.escape, LOOKUP), key=len, reverse=True))
+PLACE = rf"(?:the )?({NAMES})(?![\w-])"
+NATION = "|".join(sorted(map(re.escape, NATIONS), key=len, reverse=True))
+HEDGE = re.compile(r"\b(?:if|would|wish|hope|imagine|pretend|unless|whether|wanna|want to|wants to|trying to|going to|gonna|might|maybe|should|could|plan to|planning to|"
+                   r"thinking (?:about|of)|considering|used to|not|never|no longer|anymore|when i was|back when|before)\b|n't\b")
+ADVERB = r"(?:(?:currently|now|still|also|just|actually|already|really|basically|technically|originally|both|all)\s+)*"
+LIVE = rf"\b(?:i|we|and|but|me and my \w+|my (?:wife|husband|partner|family|girlfriend|boyfriend|fiance|fiancee) and i)\s+{ADVERB}(?:live|reside|stay|'m living|am living|'re living|are living|'ve been living|have been living|'ve lived|have lived|'m based|am based|'re based|'m located|am located|moved|relocated|just moved|recently moved)\s+{ADVERB}(?:here\s+)?(?:in|near|outside(?: of)?|around|to)\s+{PLACE}"
+BEING = rf"\b(?:i'm|im|i am|we're|we are|i\s+{ADVERB}(?:am|'m)|(?:currently|now) living)\s+{ADVERB}(?:in|near|outside(?: of)?|based in|located in|living in|here in)\s+{PLACE}(?!\s+(?:for|on|until|till|next|this|last|right now)\b)"
+HERE = rf"\bhere in {PLACE}|\b(?:live|living|lives|life) (?:here )?in {PLACE}(?= too| as well)|(?:^|[\n.!?] *)(?:also |fellow )?{PLACE},? here\b"
+NATIVE = rf"\b(?:i'm|im|i am|as)\s+an?\s+{ADVERB}(?:{PLACE}) (?:native|local|resident)\b|\b(?:i'm|im|i am) {ADVERB}(?:a )?native (?:of|to) {PLACE}"
+FROM = rf"\b(?:i'm|im|i am|we're|we are|i come|we come|i'm originally|im originally|i am originally|originally)\s+{ADVERB}from\s+{PLACE}"
+ORIGIN = rf"\b(?:i|we|who)\s+{ADVERB}(?:grew up|was raised|were raised|was born|were born|got raised)\s+(?:and raised\s+)?(?:in|on|near|outside(?: of)?)\s+{PLACE}|\bborn and raised (?:in|on) {PLACE}|(?:^|[\n.!?] *)(?:grew up|born|raised) in {PLACE}|\b{PLACE}[- ]born\b|\bmy (?:hometown|home town|home country|homeland) (?:is|was) {PLACE}"
+TITLE = rf"(?<![\w-])(?:{FOR}|{TAG}|\[\d{{2}}\]\s*\[[mf]\]|\b[mft]4[mfatr]\w*)"
+
+
 RULES = [
-    rule("nationality", rf"\b{I} (?:a |an |also |half |proudly |a proud )?({'|'.join(map(re.escape, DEMONYMS))})(?: citizen| national)?(?=$|[\s.,!;:)])(?! (?:food|people|culture|company|government|accent|friend|girlfriend|boyfriend|wife|husband|music|movies?|guy|girl|man|woman|stuff|style|tv|teacher|class|course|school|version|player)\b)", group(DEMONYMS)),
-    rule("nationality", rf"\bas an? ({'|'.join(map(re.escape, DEMONYMS))})(?: citizen| person| myself| national)?\b(?! (?:company|government|food|man|woman|guy|girl|accent)\b)", group(DEMONYMS)),
+    rule("nationality", rf"\b{I} (?:an? |also |proudly |a proud |a born and raised )?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|too|myself|citizen|national|here|living|who|born|by|from|in|as|lol|haha|though|btw)\b)[a-z])", lambda match: NATIONS.get(match.group(1))),
+    rule("nationality", rf"\bas (?:an?|another|a fellow) ({NATION})(?:[- ]born)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|myself|citizen|national|person|man|woman|guy|girl|dude|male|female|living|who|born|raised|here|in|from|i|we|it|there|that|by|expat|immigrant|veteran|mom|mother|dad|father|parent|voter|taxpayer|kid|child|adult|student|resident|native|lol)\b)[a-z])", lambda match: NATIONS.get(match.group(1))),
     rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:language|tongue) is (\w+)\b|\b(\w+) is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) an? native (\w+) speaker\b|\bnative (\w+) speaker here\b",
          lambda match: (lambda word: LANGUAGE_NAMES.get(word, word) if word in LANGUAGES else None)(next(filter(None, match.groups())))),
     rule("native_language", r"\benglish (?:is not|isn't|is no|ain't|isnt) my (?:native|first|mother|main) (?:language|tongue)\b|\b(?:i'm|im|i am) not (?:a )?native (?:english )?speaker\b|\bnon[- ]native (?:english )?speaker\b|\bmy english (?:is|isn't) (?:not )?(?:bad|good|great|perfect)\b(?=.{0,40}(?:sorry|excuse|forgive|native))", fixed("not english"), TAGGED),
@@ -22,54 +35,82 @@ RULES = [
 ]
 
 
+def doubtful(lowered, start, end):
+    return bool(HEDGE.search(lowered, max(clause(lowered, start), start - 30), start)) or question(lowered, end)
+
+
 def places(text, lowered, found):
-    for pattern, prefixes in ((RESIDE, ("residence",)), (FROM, ("residence", "origin")), (ORIGIN, ("origin",))):
+    stated = {}
+    for pattern in (LIVE, BEING, NATIVE):
         for match in re.finditer(pattern, lowered):
-            if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
-                for prefix in prefixes:
-                    placed(prefix, match.group(1), lowered, match.end(), text, found)
-                if pattern is FROM and PLACES[match.group(1)][0] == "country":
-                    found.setdefault(("nationality", PLACES[match.group(1)][3]), match.start())
-    for match in re.finditer(rf"(?:^|[.!?,;(] *)({'|'.join(map(re.escape, DEMONYMS))}) here\b", lowered):
-        found.setdefault(("nationality", DEMONYMS[match.group(1)]), match.start())
-    for match in re.finditer(rf"#({PLACE_NAMES})(?![\w-])", lowered):
-        placed("residence", match.group(1), lowered, match.end(), text, found)
+            name = next(filter(None, match.groups()))
+            if not doubtful(lowered, match.start(), match.end()) and genuine(name, match, text):
+                stated.setdefault(name, match.end())
+    for match in re.finditer(HERE, lowered):
+        name = next(filter(None, match.groups()))
+        if not question(lowered, match.end()) and genuine(name, match, text):
+            stated.setdefault(name, match.end())
+    for match in re.finditer(FROM, lowered):
+        name = match.group(1)
+        if not doubtful(lowered, match.start(), match.end()) and genuine(name, match, text):
+            placed("origin", name, lowered, match.end(), text, found)
+            if LOOKUP[name][0] == "country":
+                found.setdefault(("nationality", LOOKUP[name][3]), match.start())
+            if not stated:
+                stated.setdefault(name, match.end())
+    for match in re.finditer(ORIGIN, lowered):
+        name = next(filter(None, match.groups()))
+        if not doubtful(lowered, match.start(), match.end()) and genuine(name, match, text):
+            placed("origin", name, lowered, match.end(), text, found)
+    for match in re.finditer(rf"\b({NATION})[- ]born\b", lowered):
+        found.setdefault(("origin_country", NATIONS[match.group(1)]), match.start())
+        found.setdefault(("nationality", NATIONS[match.group(1)]), match.start())
+    for match in re.finditer(rf"(?:^|[.!?,;(] *)({NATION}) here\b", lowered):
+        found.setdefault(("nationality", NATIONS[match.group(1)]), match.start())
+        found.setdefault(("residence_country", NATIONS[match.group(1)]), match.start())
+    for match in re.finditer(rf"(?<!far )(?<!away )(?<!different )(?<!apart )(?<!miles )(?<!flight )(?<!flights )(?<!imported )(?<!shipped )\bfrom {PLACE}", lowered):
+        if LOOKUP[match.group(1)][0] == "country" and re.search(r"\b(?:i|i'm|im|me|my|we|we're|us|our)\b", lowered[clause(lowered, match.start()):match.start()]) and not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
+            found.setdefault(("origin_country", LOOKUP[match.group(1)][3]), match.end())
+            found.setdefault(("nationality", LOOKUP[match.group(1)][3]), match.end())
+    for match in re.finditer(rf"{PLACE}[ -]based\b|{PLACE} (?:area|resident|local)\b|\b(?:my city|my town|my hometown)[\s.,:(-]+(?:is |of )?{PLACE}", lowered):
+        kind, value, region, _ = LOOKUP[name := next(filter(None, match.groups()))]
+        if kind == "city" and genuine(name, match, text):
+            found.setdefault(("residence_city", value), match.end())
+            if region:
+                found.setdefault(("residence_region", region), match.end())
+    titled(text, lowered, stated)
+    for match in re.finditer(rf"#({NAMES})(?![\w-])", lowered):
+        if genuine(match.group(1), match, text):
+            stated.setdefault(match.group(1), match.end())
+    for name, end in stated.items():
+        placed("residence", name, lowered, end, text, found)
+
+
+def titled(text, lowered, stated):
     first = lowered.split("\n", 1)[0]
-    if re.search(FOR, first) or re.search(TAG, first):
+    if re.search(TITLE, first):
         for match in re.finditer(rf"(?<![\w-]){PLACE}", first):
-            if text[match.start(1)].isupper() or match.group(1) in ("uk", "usa", "nyc"):
-                placed("residence", match.group(1), lowered, match.end(), text, found)
-    for match in re.finditer(rf"\b(?:as an? |i'm an? |im an? )({'|'.join(map(re.escape, DEMONYMS))}) living in {PLACE}", lowered):
-        placed("residence", match.group(2), lowered, match.end(), text, found)
-    for match in re.finditer(rf"(?<!far )(?<!away )(?<!different )(?<!apart )(?<!miles )(?<!flight )(?<!flights )(?<!imported )(?<!shipped )\bfrom (?:the )?{PLACE}", lowered):
-        if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
-            placed("residence", match.group(1), lowered, match.end(), text, found)
-            if PLACES[match.group(1)][0] == "country":
-                placed("origin", match.group(1), lowered, match.end(), text, found)
-    for match in re.finditer(rf"{PLACE}[ -]based\b|{PLACE} (?:area|resident|local)\b|\b(?:my city|my town|my country|my state|my hometown)[\s.,:(-]+(?:is |of )?{PLACE}", lowered):
-        name = match.group(1) or match.group(2) or match.group(3)
-        placed("residence", name, lowered, match.end(), text, found)
-    for match in re.finditer(r"\bwe(?:'re| are)? (?:all )?(americans|brits|canadians|aussies|australians|kiwis|germans|irish|indians|filipinos|mexicans)\b|\bwe (americans|brits|canadians|aussies|australians|germans|indians|filipinos)\b", lowered):
-        country = DEMONYMS[(match.group(1) or match.group(2)).rstrip("s").replace("filipino", "filipino")] if (match.group(1) or match.group(2)).rstrip("s") in DEMONYMS else DEMONYMS.get((match.group(1) or match.group(2))[:-1])
-        if country:
-            found.setdefault(("residence_country", country), match.start())
-            found.setdefault(("nationality", country), match.start())
-    if len(text.strip()) <= 80 and re.fullmatch(r"\W*[^\W\d][\w .'()-]*,\s*[^\W\d][\w .'()-]*\W*", text.strip()):
-        for match in re.finditer(rf"(?<![\w-]){PLACE}", lowered):
-            if text[match.start(1)].isupper() or match.group(1) in ("uk", "usa", "nyc"):
-                placed("residence", match.group(1), lowered, match.end(), text, found)
-    for match in re.finditer(r"\b[A-Z][a-z]+(?:[ -][A-Z][a-z]+)*,\s*([A-Z]{2})\b(?![a-z])", text):
-        if match.group(1) in CODES and (len(text) <= 200 or match.start() < 80):
-            found.setdefault(("residence_region", CODES[match.group(1)]), match.start())
-            found.setdefault(("residence_country", "united states"), match.start())
+            name = match.group(1)
+            if text[match.start(1)].isupper() and name in PLACES or name in ("uk", "usa", "nyc"):
+                stated.setdefault(name, match.end())
+    for match in re.finditer(rf"(?<![\w-])(?:\d{{2}}\s?[mf]|[mf]\s?\d{{2}}|[mft]4[mfatr]\w*)\s+(?:in|from|near|around)\s+{PLACE}", lowered):
+        if genuine(match.group(1), match, text):
+            stated.setdefault(match.group(1), match.end())
+
+
+def genuine(name, match, text):
+    if name in STATES and name not in PLACES:
+        start = next(match.start(index) for index, value in enumerate(match.groups(), 1) if value == name)
+        return text[start:start + len(name)].isupper()
+    return True
 
 
 def placed(prefix, name, lowered, end, text, found):
-    kind, value, region, country = PLACES[name]
+    kind, value, region, country = LOOKUP[name]
     if kind == "city":
         found.setdefault((f"{prefix}_city", value), end)
         if not region and (code := re.match(r",?\s*([A-Z]{2})\b", text[end:end + 5])) and code.group(1) in CODES:
             region = CODES[code.group(1)]
-    if kind in ("city", "region") and region:
+    if kind in ("city", "region") and region and country != "united kingdom":
         found.setdefault((f"{prefix}_region", region), end)
     found.setdefault((f"{prefix}_country", country), end)
