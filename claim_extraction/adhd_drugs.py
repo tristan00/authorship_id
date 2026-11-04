@@ -11,7 +11,8 @@ from . import timed
 ENDPOINT = "https://query.wikidata.org/sparql"
 HEADERS = {"User-Agent": "authorship-id-lexicon/1.0", "Accept": "text/csv"}
 TARGET = Path(__file__).with_name("adhd_drugs.txt")
-QUERY = 'SELECT DISTINCT ?name WHERE { ?item wdt:P2175 wd:Q181923 ; rdfs:label ?name . FILTER(LANG(?name) = "en") }'
+QUERY = ('SELECT DISTINCT ?name WHERE { ?item wdt:P2175 wd:Q181923 ; rdfs:label ?name . FILTER(LANG(?name) = "en") '
+         'FILTER NOT EXISTS { ?item wdt:P31 ?brand . VALUES ?brand { wd:Q167270 wd:Q28885102 } } }')
 PLAIN = re.compile(r"[a-z][a-z0-9 -]*[a-z0-9]")
 MARKS = re.compile(r"®|™|&reg;?")
 

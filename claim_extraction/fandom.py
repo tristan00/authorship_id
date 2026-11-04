@@ -136,6 +136,7 @@ PRAISED = re.compile(rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:is|was|are|were|has 
                      rf"(?:peak|goated|amazing|incredible|underrated|phenomenal|a masterpiece|a banger|fire|elite|god ?tier|top tier|the goat|the best\b|one of the best)\b)")
 FAVORITE_PLAIN = re.compile(rf"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav) ({KIND_WORDS})s? (?:is|has to be|would be|was|are)\s+"
                             r"((?:the )?[\w'&:!+-]+(?: [\w'&:!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|lol|too|tbh|honestly|by far|hands down|of all time|ever|for sure)\b)")
+CHOICE = re.compile(r"\^\((?:My choice|Me|Chose|My pick): ([^)|\n]{2,60}?)\s*[)|]")
 SPLIT = re.compile(r"\s*(?:,|/|&|\band\b)\s*")
 POSSESSIVE = re.compile(r"'s\b.*$")
 STOP = re.compile(r"[.!?:;]\s")
@@ -226,6 +227,9 @@ def favorites(text, found):
             for piece in parts(name):
                 if hit := classified(text, match.start(), piece, PEOPLE):
                     named(*hit, found, match.start())
+    for match in CHOICE.finditer(text):
+        if " " in (name := match.group(1).strip()) and (hit := lexical(name)):
+            named(*hit, found, match.start())
     for pattern in (CREATED, WATCHED, TITLED):
         for match in pattern.finditer(text):
             sentence = text[clause(text, match.start()):match.end() + 80]
@@ -250,44 +254,44 @@ def named(attribute, name, found, position):
 
 
 NFL_TEAMS_2025 = """arizona cardinals;atlanta falcons|Falcons;baltimore ravens|Ravens;buffalo bills|Bills;carolina panthers;chicago bears|Bears;cincinnati bengals|Bengals;cleveland browns|Browns;
-dallas cowboys|Cowboys;denver broncos|Broncos;detroit lions|Lions;green bay packers|Packers;houston texans|Texans;indianapolis colts|Colts;jacksonville jaguars|Jaguars|Jags;
+dallas cowboys|Cowboys;denver broncos|Broncos;detroit lions|Lions;green bay packers|Packers;houston texans|Texans;indianapolis colts|Colts;jacksonville jaguars|Jaguars;
 kansas city chiefs|Chiefs;las vegas raiders|oakland raiders|Raiders;los angeles chargers|Chargers;los angeles rams|Rams;miami dolphins|Dolphins;minnesota vikings|Vikings;
-new england patriots|Patriots|Pats;new orleans saints|Saints;new york giants|Giants;new york jets|Jets;philadelphia eagles|Eagles;pittsburgh steelers|Steelers;
-san francisco 49ers|49ers|Niners;seattle seahawks|Seahawks;tampa bay buccaneers|Buccaneers|Bucs;tennessee titans|Titans;washington commanders|Commanders"""
-NBA_TEAMS_2025 = """atlanta hawks|Hawks;boston celtics|Celtics;brooklyn nets|Nets;charlotte hornets|Hornets;chicago bulls|Bulls;cleveland cavaliers|Cavaliers|Cavs;dallas mavericks|Mavericks|Mavs;
+new england patriots|Patriots;new orleans saints|Saints;new york giants|Giants;new york jets|Jets;philadelphia eagles|Eagles;pittsburgh steelers|Steelers;
+san francisco 49ers|49ers;seattle seahawks|Seahawks;tampa bay buccaneers|Buccaneers;tennessee titans|Titans;washington commanders|Commanders"""
+NBA_TEAMS_2025 = """atlanta hawks|Hawks;boston celtics|Celtics;brooklyn nets|Nets;charlotte hornets|Hornets;chicago bulls|Bulls;cleveland cavaliers|Cavaliers;dallas mavericks|Mavericks;
 denver nuggets|Nuggets;detroit pistons|Pistons;golden state warriors|Warriors;houston rockets|Rockets;indiana pacers|Pacers;la clippers|los angeles clippers|Clippers;
-los angeles lakers|Lakers;memphis grizzlies|Grizzlies;miami heat;milwaukee bucks|Bucks;minnesota timberwolves|Timberwolves|Wolves;new orleans pelicans|Pelicans;new york knicks|Knicks;
-oklahoma city thunder|OKC;orlando magic;philadelphia 76ers|76ers|Sixers;phoenix suns|Suns;portland trail blazers|trail blazers|Blazers;sacramento kings|Kings;san antonio spurs|Spurs;
+los angeles lakers|Lakers;memphis grizzlies|Grizzlies;miami heat;milwaukee bucks|Bucks;minnesota timberwolves|Timberwolves;new orleans pelicans|Pelicans;new york knicks|Knicks;
+oklahoma city thunder;orlando magic;philadelphia 76ers|76ers;phoenix suns|Suns;portland trail blazers|trail blazers|Blazers;sacramento kings|Kings;san antonio spurs|Spurs;
 toronto raptors|Raptors;utah jazz;washington wizards|Wizards"""
-MLB_TEAMS_2025 = """arizona diamondbacks|Diamondbacks|D-backs;atlanta braves|Braves;baltimore orioles|Orioles;boston red sox|red sox;chicago cubs|Cubs;chicago white sox|white sox;
+MLB_TEAMS_2025 = """arizona diamondbacks|Diamondbacks;atlanta braves|Braves;baltimore orioles|Orioles;boston red sox|red sox;chicago cubs|Cubs;chicago white sox|white sox;
 cincinnati reds|Reds;cleveland guardians|Guardians;colorado rockies|Rockies;detroit tigers|Tigers;houston astros|Astros;kansas city royals|Royals;los angeles angels|Angels;
-los angeles dodgers|Dodgers;miami marlins|Marlins;milwaukee brewers|Brewers;minnesota twins|Twins;new york mets|Mets;new york yankees|Yankees;athletics|oakland athletics|A's;
+los angeles dodgers|Dodgers;miami marlins|Marlins;milwaukee brewers|Brewers;minnesota twins|Twins;new york mets|Mets;new york yankees|Yankees;athletics|oakland athletics;
 philadelphia phillies|Phillies;pittsburgh pirates|Pirates;san diego padres|Padres;san francisco giants|Giants;seattle mariners|Mariners;st. louis cardinals|Cardinals;
-tampa bay rays|Rays;texas rangers|Rangers;toronto blue jays|blue jays|Jays;washington nationals|Nationals|Nats"""
-NHL_TEAMS_2025 = """anaheim ducks|Ducks;boston bruins|Bruins;buffalo sabres|Sabres;calgary flames|Flames;carolina hurricanes|Hurricanes|Canes;chicago blackhawks|Blackhawks;
-colorado avalanche|Avalanche|Avs;columbus blue jackets|blue jackets;dallas stars|Stars;detroit red wings|red wings;edmonton oilers|Oilers;florida panthers|Panthers;
-los angeles kings|Kings;minnesota wild;montreal canadiens|Canadiens|Habs;nashville predators|Predators|Preds;new jersey devils|Devils;new york islanders|Islanders|Isles;
-new york rangers|Rangers;ottawa senators|Senators|Sens;philadelphia flyers|Flyers;pittsburgh penguins|Penguins|Pens;san jose sharks|Sharks;seattle kraken|Kraken;
-st. louis blues|Blues;tampa bay lightning|Lightning|Bolts;toronto maple leafs|maple leafs|Leafs;utah mammoth|utah hockey club;vancouver canucks|Canucks;
-vegas golden knights|golden knights;washington capitals|Capitals|Caps;winnipeg jets|Jets"""
+tampa bay rays|Rays;texas rangers|Rangers;toronto blue jays|blue jays|Jays;washington nationals|Nationals"""
+NHL_TEAMS_2025 = """anaheim ducks|Ducks;boston bruins|Bruins;buffalo sabres|Sabres;calgary flames|Flames;carolina hurricanes|Hurricanes;chicago blackhawks|Blackhawks;
+colorado avalanche|Avalanche;columbus blue jackets|blue jackets;dallas stars|Stars;detroit red wings|red wings;edmonton oilers|Oilers;florida panthers|Panthers;
+los angeles kings|Kings;minnesota wild;montreal canadiens|Canadiens;nashville predators|Predators;new jersey devils|Devils;new york islanders|Islanders;
+new york rangers|Rangers;ottawa senators|Senators;philadelphia flyers|Flyers;pittsburgh penguins|Penguins;san jose sharks|Sharks;seattle kraken|Kraken;
+st. louis blues|Blues;tampa bay lightning|Lightning;toronto maple leafs|maple leafs|Leafs;utah mammoth|utah hockey club;vancouver canucks|Canucks;
+vegas golden knights|golden knights;washington capitals|Capitals;winnipeg jets|Jets"""
 MLS_TEAMS_2025 = """atlanta united;austin fc;charlotte fc;chicago fire fc;fc cincinnati;colorado rapids;columbus crew;d.c. united|dc united;fc dallas;houston dynamo;inter miami;la galaxy;
-los angeles fc|LAFC;minnesota united;cf montréal|cf montreal;nashville sc;new england revolution;new york city fc|NYCFC;new york red bulls;orlando city;philadelphia union;
+los angeles fc;minnesota united;cf montréal|cf montreal;nashville sc;new england revolution;new york city fc;new york red bulls;orlando city;philadelphia union;
 portland timbers|Timbers;real salt lake;san diego fc;san jose earthquakes;seattle sounders|Sounders;sporting kansas city;st. louis city sc;toronto fc;vancouver whitecaps|Whitecaps"""
-PREMIER_LEAGUE_TEAMS_2025 = """arsenal|Arsenal|Gunners;aston villa;bournemouth|Bournemouth;brentford|Brentford;brighton & hove albion|brighton and hove albion|Brighton;burnley|Burnley;
-chelsea|Chelsea;crystal palace;everton|Everton;fulham|Fulham;leeds united|Leeds;liverpool|Liverpool;manchester city|man city;manchester united|man united|man utd;
-newcastle united|Newcastle;nottingham forest;sunderland|Sunderland;tottenham hotspur|tottenham|Spurs;west ham united|west ham;wolverhampton wanderers|Wolves"""
-LA_LIGA_TEAMS_2025 = """deportivo alavés|Alavés;athletic bilbao|athletic club;atlético madrid|atletico madrid|Atleti;fc barcelona|Barcelona|Barça|Barca;celta vigo|Celta;elche|Elche;
+PREMIER_LEAGUE_TEAMS_2025 = """arsenal|Arsenal;aston villa;bournemouth|Bournemouth;brentford|Brentford;brighton & hove albion|brighton and hove albion;burnley|Burnley;
+chelsea|Chelsea;crystal palace;everton|Everton;fulham|Fulham;leeds united;liverpool|Liverpool;manchester city;manchester united;
+newcastle united;nottingham forest;sunderland|Sunderland;tottenham hotspur;west ham united;wolverhampton wanderers"""
+LA_LIGA_TEAMS_2025 = """deportivo alavés|Alavés;athletic bilbao|athletic club;atlético madrid|atletico madrid;fc barcelona|Barcelona;celta vigo;elche|Elche;
 espanyol|Espanyol;getafe|Getafe;girona|Girona;levante|Levante;mallorca|Mallorca;osasuna|Osasuna;rayo vallecano;real betis|Betis;real madrid;real oviedo;real sociedad;
 sevilla|Sevilla;valencia|Valencia;villarreal|Villarreal"""
-SERIE_A_TEAMS_2025 = """atalanta|Atalanta;bologna|Bologna;cagliari|Cagliari;como|Como;cremonese|Cremonese;fiorentina|Fiorentina;genoa|Genoa;hellas verona|Verona;inter milan|internazionale|Inter;
-juventus|Juventus|Juve;lazio|Lazio;lecce|Lecce;ac milan|Milan;napoli|Napoli;parma|Parma;pisa|Pisa;as roma|Roma;sassuolo|Sassuolo;torino|Torino;udinese|Udinese"""
-BUNDESLIGA_TEAMS_2025 = """fc augsburg|Augsburg;union berlin;werder bremen|Bremen;borussia dortmund|Dortmund|BVB;eintracht frankfurt;sc freiburg|Freiburg;hamburger sv|HSV;1. fc heidenheim|Heidenheim;
-tsg hoffenheim|Hoffenheim;1. fc köln|fc köln|fc koln;rb leipzig|Leipzig;bayer leverkusen|Leverkusen;mainz 05|Mainz;borussia mönchengladbach|mönchengladbach|Gladbach;
-bayern munich|bayern münchen|Bayern;fc st. pauli|St. Pauli;vfb stuttgart|Stuttgart;vfl wolfsburg|Wolfsburg"""
-LIGUE_1_TEAMS_2025 = """angers|Angers;auxerre|Auxerre;stade brestois|Brest;le havre;rc lens|Lens;lille|Lille|LOSC;lorient|Lorient;olympique lyonnais|Lyon;olympique de marseille|Marseille;
-metz|Metz;as monaco|Monaco;nantes|Nantes;ogc nice;paris fc;paris saint-germain|PSG;stade rennais|Rennes;strasbourg|Strasbourg;toulouse|Toulouse"""
-IPL_TEAMS_2025 = """chennai super kings|CSK;delhi capitals;gujarat titans;kolkata knight riders|KKR;lucknow super giants|LSG;mumbai indians;punjab kings;rajasthan royals;
-royal challengers bengaluru|royal challengers bangalore|RCB;sunrisers hyderabad|SRH"""
+SERIE_A_TEAMS_2025 = """atalanta|Atalanta;bologna|Bologna;cagliari|Cagliari;como|Como;cremonese|Cremonese;fiorentina|Fiorentina;genoa|Genoa;hellas verona|Verona;inter milan|internazionale;
+juventus|Juventus;lazio|Lazio;lecce|Lecce;ac milan|Milan;napoli|Napoli;parma|Parma;pisa|Pisa;as roma|Roma;sassuolo|Sassuolo;torino|Torino;udinese|Udinese"""
+BUNDESLIGA_TEAMS_2025 = """fc augsburg|Augsburg;union berlin;werder bremen|Bremen;borussia dortmund|Dortmund;eintracht frankfurt;sc freiburg|Freiburg;hamburger sv;1. fc heidenheim|Heidenheim;
+tsg hoffenheim|Hoffenheim;1. fc köln|fc köln|fc koln;rb leipzig|Leipzig;bayer leverkusen|Leverkusen;mainz 05;borussia mönchengladbach|mönchengladbach;
+bayern munich|bayern münchen;fc st. pauli|St. Pauli;vfb stuttgart|Stuttgart;vfl wolfsburg|Wolfsburg"""
+LIGUE_1_TEAMS_2025 = """angers|Angers;auxerre|Auxerre;stade brestois;le havre;rc lens|Lens;lille|Lille;lorient|Lorient;olympique lyonnais;olympique de marseille|Marseille;
+metz|Metz;as monaco|Monaco;nantes|Nantes;ogc nice;paris fc;paris saint-germain;stade rennais;strasbourg|Strasbourg;toulouse|Toulouse"""
+IPL_TEAMS_2025 = """chennai super kings;delhi capitals;gujarat titans;kolkata knight riders;lucknow super giants;mumbai indians;punjab kings;rajasthan royals;
+royal challengers bengaluru|royal challengers bangalore;sunrisers hyderabad"""
 TEAMS = (NFL_TEAMS_2025, NBA_TEAMS_2025, MLB_TEAMS_2025, NHL_TEAMS_2025, MLS_TEAMS_2025, PREMIER_LEAGUE_TEAMS_2025, LA_LIGA_TEAMS_2025, SERIE_A_TEAMS_2025, BUNDESLIGA_TEAMS_2025,
          LIGUE_1_TEAMS_2025, IPL_TEAMS_2025)
 KNOWLEDGE = Path(__file__).with_name("knowledge.tsv")
@@ -403,12 +407,14 @@ def opening(text, start):
     return not before or before[-1] in ".!?\n:"
 
 
+LIKED = re.compile(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |totally |genuinely |do |personally |fucking )*(?:love|loved|adore|adored|enjoy|enjoyed|like|liked|dig)|\bi'?m (?:so |really |totally |kinda |completely )?(?:obsessed with|addicted to|into|a (?:huge |big |massive )?fan of|hooked on|in love with)|\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav)(?: \w+)? (?:is|are|was|has to be))(?: the)?\s+$")
 SELF = re.compile(r"(?i:\b(?:i|i'm|im|i've|ive|i'd|i'll|my|me|mine|myself)\b)")
-DONE = {"video_game": re.compile(r"(?i:\b(?:play|playing|played|replay\w*|beat|beaten|finished|finishing|completed|platinumed|grinding|started)\b)"),
+DONE = {"video_game": re.compile(r"(?i:\b(?:play|playing|played|replay\w*|beat|beaten|finished|finishing|completed|platinumed|grinding|started|bought|preordered|pre-ordered|hours|hrs)\b)"),
         "franchise": re.compile(r"(?i:\b(?:watch|watching|watched|rewatch\w*|binge\w*|binging|read|reading|reread\w*|finished|finishing|started)\b)"),
-        "artist": re.compile(r"(?i:\b(?:listen|listening|listened|saw|seen|concerts?|gigs?|vinyl|albums?|discography)\b)")}
+        "artist": re.compile(r"(?i:\b(?:listen|listening|listened|saw|seen|concerts?|gigs?|vinyl|albums?|discography|tickets?|merch|tours?|records?|cds?|cassettes?|bought|preordered)\b)")}
 CHEERED = frozenset({"celebrity", "creator"})
 PLAYED = frozenset({"video_game", "artist"})
+ALSO = {"celebrity": ("artist", "author"), "creator": ("celebrity", "artist")}
 
 
 def sentence(text, start, end):
@@ -456,11 +462,11 @@ def chosen(text, start, options, totals):
         return options
     window = text[max(0, start - 150):start + 150]
     scored = [(3 * len(LEXICON_CONTEXT[option[0]].findall(window)) + totals(option[0]), option) for option in options]
-    return [option for score, option in scored if score or option[0] != "video_game"] or [max(scored)[1]]
+    return [option for score, option in scored if score or option[0] != "video_game"]
 
 
 def known(text, found):
-    grouped, counts, opened, famous, ordinary, bypassed = {}, {}, set(), set(), set(), set()
+    grouped, counts, opened, famous, ordinary, bypassed, readings = {}, {}, set(), set(), set(), set(), {}
 
     def totals(attribute):
         if attribute not in counts:
@@ -472,6 +478,8 @@ def known(text, found):
             if supported(text, start, end):
                 named(attribute, value, found, start)
             continue
+        if attribute in PEOPLE:
+            readings.setdefault((start, end, attribute), value)
         surface = text[start:end]
         key = " ".join(WORD.findall(folded(surface).lower())).removeprefix("the ")
         if (attribute == "character" or (cased and attribute in SPELLED) or (common and links < FAMOUS_SITELINKS and " " not in surface)
@@ -480,7 +488,8 @@ def known(text, found):
                 or (attribute == "franchise" and surface.islower() and any(char.isdigit() for char in surface))):
             continue
         gated = (cased or common or attribute in NAMED_ONLY or attribute in GATED) and not GATES[attribute].search(text, max(0, start - WINDOW), end + WINDOW)
-        if gated and not ((attribute == "franchise" and links >= FAMOUS_SITELINKS and not common or attribute in NAMED_ONLY) and praised(text, start, end)):
+        if gated and not ((attribute == "franchise" and links >= FAMOUS_SITELINKS and not common or attribute in NAMED_ONLY) and praised(text, start, end)
+                          or attribute == "franchise" and LIKED.search(text, max(0, start - 40), start)):
             continue
         if cased and " " not in surface and opening(text, start):
             bounds = sentence(text, start, end)
@@ -510,3 +519,6 @@ def known(text, found):
                 and not (attribute not in PLAYED and hedged(lowered := lowered or text.lower(), start, end, SELF_HEDGE))):
             told.add((attribute, value))
             named(attribute, shown(text[start:end], value), found, start)
+            for other in ALSO.get(attribute, ()):
+                if (start, end, other) in readings:
+                    named(other, shown(text[start:end], readings[start, end, other]), found, start)

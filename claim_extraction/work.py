@@ -32,8 +32,8 @@ JOBS = table({
               "cloud engineer|cloud architect|solutions architect|it technician|it tech|it support|it specialist|it consultant|it manager|it guy|it professional|it administrator|it analyst|"
               "systems analyst|help desk technician|helpdesk technician|help desk analyst|desktop support technician|tech support|technical support specialist|support engineer|"
               "qa engineer|qa tester|qa analyst|software tester|game tester|test engineer|cybersecurity analyst|cyber security analyst|security analyst|security engineer|penetration tester|"
-              "pentester|ethical hacker|ux engineer|embedded engineer|embedded developer|firmware engineer|computer technician|salesforce developer|sap consultant|tech lead|bi developer|"
-              "business intelligence analyst|programmer analyst|computer scientist|blockchain developer|wordpress developer|shopify developer|it worker|software consultant",
+              "pentester|ethical hacker|ux engineer|embedded engineer|embedded developer|firmware engineer|computer technician|tech lead|bi developer|"
+              "business intelligence analyst|programmer analyst|computer scientist|blockchain developer|it worker|software consultant",
     ENGINEERING: "engineer|mechanical engineer|electrical engineer|civil engineer|chemical engineer|aerospace engineer|aeronautical engineer|structural engineer|process engineer|"
                  "manufacturing engineer|industrial engineer|biomedical engineer|environmental engineer|petroleum engineer|mining engineer|nuclear engineer|materials engineer|"
                  "design engineer|project engineer|quality engineer|reliability engineer|field engineer|systems engineer|controls engineer|automation engineer|electronics engineer|"
@@ -101,8 +101,8 @@ JOBS = table({
           "pianist|violinist|cellist|composer|producer|music producer|record producer|sound engineer|audio engineer|recording engineer|mixing engineer|mastering engineer|sound designer|"
           "audio editor|video editor|film editor|actor|actress|voice actor|voice actress|voice over artist|comedian|stand-up comedian|standup comedian|performer|dancer|choreographer|"
           "photographer|videographer|cinematographer|filmmaker|film maker|film director|writer|author|novelist|poet|screenwriter|playwright|illustrator|animator|3d artist|3d modeler|"
-          "concept artist|tattoo artist|tattooist|makeup artist|painter|sculptor|potter|ceramicist|jeweler|jeweller|florist|dj|streamer|twitch streamer|content creator|youtuber|"
-          "influencer|tiktoker|model|fashion model|cosplayer|magician|stage manager|stagehand|set designer|costume designer|architect|landscape architect|art director|creative director|"
+          "concept artist|tattoo artist|tattooist|makeup artist|painter|sculptor|potter|ceramicist|jeweler|jeweller|florist|dj|streamer|content creator|"
+          "influencer|model|fashion model|cosplayer|magician|stage manager|stagehand|set designer|costume designer|architect|landscape architect|art director|creative director|"
           "cartoonist|comic artist|mangaka|game artist|tailor|seamstress|dressmaker|glassblower|woodcarver|luthier|session musician|orchestra musician|opera singer|conductor|"
           "music teacher and performer|stunt performer|stuntman|circus performer|puppeteer|digital artist|freelance artist|freelance illustrator|freelance photographer|"
           "wedding photographer|portrait photographer|art teacher and artist|visual artist|fine artist|muralist|calligrapher|printmaker|textile artist|set decorator|gaffer|grip|"
@@ -134,17 +134,17 @@ JOBS = table({
     WAREHOUSE: "warehouse worker|warehouse associate|factory worker|forklift driver|forklift operator|assembly line worker|assembler|production worker|production operator|machine operator|"
                "line operator|picker|packer|order picker|material handler|shipping clerk|receiving clerk|inventory clerk|inventory specialist|warehouse manager|warehouse supervisor|"
                "fulfillment associate|fulfilment associate|quality inspector|quality control inspector|qc inspector|plant operator|process operator|chemical operator|fabricator|"
-               "metal fabricator|steelworker|steel worker|mill worker|cnc operator|packaging operator|loader|dock worker|longshoreman|stevedore|amazon associate|production supervisor|"
+               "metal fabricator|steelworker|steel worker|mill worker|cnc operator|packaging operator|loader|dock worker|longshoreman|stevedore|production supervisor|"
                "manufacturing technician|production technician|assembly technician|press operator|injection molding operator|sawmill worker|meatpacker|meat packer|cannery worker|"
                "textile worker|seamster|garment worker|printer operator|print technician|shipping and receiving|stock associate|inventory associate|distribution associate",
-    TRANSPORT: "truck driver|trucker|delivery driver|bus driver|uber driver|lyft driver|rideshare driver|taxi driver|cab driver|cabbie|chauffeur|courier|mail carrier|mailman|"
+    TRANSPORT: "truck driver|trucker|delivery driver|bus driver|rideshare driver|taxi driver|cab driver|cabbie|chauffeur|courier|mail carrier|mailman|"
                "postman|postwoman|postal worker|letter carrier|rural carrier|train conductor|train driver|train operator|locomotive engineer|railroad worker|railway worker|conductor on a train|"
                "pilot|airline pilot|commercial pilot|co-pilot|copilot|first officer|flight attendant|air hostess|stewardess|cabin crew|air traffic controller|ship captain|sea captain|"
-               "deckhand|boat captain|ferry operator|delivery person|doordash driver|doordasher|dasher|instacart shopper|amazon driver|amazon delivery driver|ups driver|fedex driver|"
+               "deckhand|boat captain|ferry operator|delivery person|"
                "van driver|hgv driver|lorry driver|cdl driver|owner operator|owner-operator|tow truck driver|ambulance driver|logistics coordinator|freight broker|baggage handler|"
                "ramp agent|airport worker|dispatcher for a trucking company|truck dispatcher|delivery rider|bike courier|bicycle courier|motorcycle courier|tram driver|subway operator|"
                "bus operator|transit operator|school bus driver|limo driver|valet driver|crop duster|helicopter pilot|bush pilot|cargo pilot|merchant mariner|merchant seaman|"
-               "tugboat captain|harbor pilot|ship's officer|logistics driver|freight driver|long haul trucker|otr driver|flatbed driver|tanker driver|grubhub driver|ubereats driver",
+               "tugboat captain|harbor pilot|ship's officer|logistics driver|freight driver|long haul trucker|otr driver|flatbed driver|tanker driver",
     SAFETY: "cop|police officer|policeman|policewoman|police detective|detective|firefighter|fireman|firefighter/emt|security guard|security officer|bouncer|correctional officer|"
             "corrections officer|prison guard|prison officer|jailer|sheriff|deputy sheriff|sheriff's deputy|state trooper|trooper|dispatcher|911 dispatcher|emergency dispatcher|"
             "police dispatcher|game warden|border patrol agent|customs officer|fbi agent|federal agent|special agent|private investigator|loss prevention officer|"
@@ -193,9 +193,9 @@ JOBS = table({
              "greenhouse worker|nursery worker|zookeeper|animal keeper|horse trainer|stable hand|groom at a stable|wrangler|trail guide|mountain guide|river guide|outdoor educator|"
              "wildlife biologist|conservation officer|conservationist|ecologist in the field|tree planter|orchardist|fruit picker|crop farmer|grain farmer|poultry farmer|"
              "pig farmer|sheep farmer|goat farmer|organic farmer|market gardener|groundsman|greenkeeper|golf course superintendent|landscape gardener|lawn care technician",
-    ADULT: "escort|sex worker|cam girl|camgirl|cam model|webcam model|cam boy|camboy|stripper|exotic dancer|onlyfans creator|onlyfans model|of creator|porn star|pornstar|adult performer|"
+    ADULT: "escort|sex worker|cam girl|camgirl|cam model|webcam model|cam boy|camboy|stripper|exotic dancer|porn star|pornstar|adult performer|"
            "adult content creator|adult film actress|adult film actor|porn actress|porn actor|dominatrix|pro domme|prodomme|phone sex operator|sugar baby|nsfw creator|"
-           "fansly creator|content seller|camwhore|call girl|courtesan|sex worker and escort|lingerie model|fetish model|findom",
+           "content seller|camwhore|call girl|courtesan|sex worker and escort|lingerie model|fetish model|findom",
     OTHER: "translator|interpreter|sign language interpreter|courtroom interpreter|gig worker|landlord|auctioneer|appraiser|estate agent assistant|pawnbroker|surveyor of quantities|"
            "quantity surveyor|genealogist|archivist|museum curator|curator|docent|lab animal technician|clockmaker|watchmaker|gunsmith|taxidermist|sommelier trainee|"
            "professional gamer|esports player|pro gamer|professional athlete|athlete|footballer|soccer player|basketball player|baseball player|hockey player|jockey|referee|umpire|"
@@ -395,7 +395,7 @@ BUSINESSES = table({
     SERVICE: "salon|hair salon|nail salon|barbershop|barber shop|spa|cleaning business|cleaning company|grooming business|dog grooming business|pet sitting business|dog walking business|"
              "daycare for dogs|laundromat|car wash|detailing business",
     ARTS: "tattoo shop|tattoo studio|tattoo parlor|tattoo parlour|photography business|photography studio|art studio|recording studio|design studio|design agency|dance studio|"
-          "music studio|production company|record label|etsy shop|pottery studio|gallery",
+          "music studio|production company|record label|pottery studio|gallery",
     OUTDOOR: "farm|ranch|landscaping business|landscaping company|lawn care business|lawn care company|orchard|vineyard|nursery|tree service",
     TRADE: "construction company|construction business|construction firm|plumbing business|plumbing company|electrical business|electrical company|roofing company|roofing business|"
            "hvac company|hvac business|auto shop|repair shop|body shop|mechanic shop|handyman business|painting business|painting company|remodeling company|"
@@ -419,7 +419,7 @@ FIELDS = table({
     CLINICAL: "healthcare|health care|nursing|medicine|the medical field|medical field|dentistry|veterinary medicine|mental health|emergency medicine|pharma|pharmaceuticals",
     TRADE: "construction|the trades|trades|plumbing|electrical|hvac|roofing|welding|oil and gas|oilfield|the oilfield|mining|the mines|the mine",
     SALES: "retail|sales|real estate|car sales",
-    FINANCE: "finance|banking|insurance|accounting|investment banking|private equity|wealth management|asset management|audit|tax|payroll|big four|big 4",
+    FINANCE: "finance|banking|insurance|accounting|investment banking|private equity|wealth management|asset management|audit|tax|payroll",
     MEDIA: "marketing|advertising|media|journalism|public relations|pr|publishing|digital marketing|social media marketing|communications|comms|broadcasting",
     FOOD: "hospitality|food service|the restaurant industry|restaurants|kitchens|fast food|the service industry|service industry|catering|the hotel industry|hotels|tourism",
     GOVERNMENT: "government|the government|local government|public service|the public sector|public sector|civil service|the civil service|politics|policy",
@@ -446,11 +446,11 @@ PLACES = table({
           "steakhouse|sushi restaurant|deli|cafeteria|food truck|cruise ship|country club|golf club|night club|nightclub|club",
     SALES: "store|grocery store|supermarket|gas station|retail store|department store|mall|car dealership|dealership|bookstore|clothing store|shoe store|thrift store|furniture store|jewelry store|pet store|"
            "convenience store|liquor store|shop|boutique|phone store|electronics store|hardware store|big box store|retailer",
-    WAREHOUSE: "warehouse|factory|distribution center|distribution centre|fulfillment center|fulfilment centre|amazon warehouse|plant|manufacturing plant|mill|sawmill|"
+    WAREHOUSE: "warehouse|factory|distribution center|distribution centre|fulfillment center|fulfilment centre|plant|manufacturing plant|mill|sawmill|"
                "processing plant|meat plant|meatpacking plant|cannery|print shop|assembly plant|steel mill|paper mill|refinery",
     TEACHING: "school|elementary school|middle school|high school|primary school|secondary school|preschool|kindergarten|daycare|university|college|community college|"
               "tutoring center|learning center|library|academy|charter school|private school|public school|montessori school|boarding school|language school",
-    FINANCE: "bank|credit union|accounting firm|insurance company|investment bank|hedge fund|brokerage|tax firm|big four firm|financial firm",
+    FINANCE: "bank|credit union|accounting firm|insurance company|investment bank|hedge fund|brokerage|tax firm|financial firm",
     LAW: "law firm|courthouse|court|public defender's office|da's office|prosecutor's office|legal aid office|legal clinic",
     OFFICE: "call center|call centre|front desk|reception desk|office|corporate office|head office",
     TRADE: "construction site|construction company|auto shop|body shop|mechanic shop|garage|machine shop|repair shop|oil rig|mine|coal mine|shipyard|power plant|car shop|tire shop",
@@ -459,24 +459,25 @@ PLACES = table({
     GOVERNMENT: "city hall|government agency|federal agency|state agency|council|dmv|social security office|embassy|consulate|town hall|county office",
     SOCIAL: "church|nonprofit|non-profit|charity|shelter|homeless shelter|women's shelter|food bank|community center|mosque|synagogue|temple|youth center|treatment center|rehab|"
             "detox center|halfway house",
-    SOFTWARE: "tech company|software company|startup|tech startup|it company|game studio|data center|saas company|faang|big tech",
+    SOFTWARE: "tech company|software company|startup|tech startup|it company|game studio|data center|saas company|big tech",
     MEDIA: "newspaper|magazine|news station|tv station|radio station|ad agency|advertising agency|marketing agency|pr firm|publishing house|publisher|media company",
     ARTS: "studio|recording studio|design studio|museum|gallery|theater|theatre|cinema|movie theater|film studio|animation studio|tattoo shop|tattoo studio|photography studio",
     SCIENCE: "lab|laboratory|research lab|research institute|research center|observatory|biotech company|pharma company|pharmaceutical company",
     SERVICE: "salon|hair salon|nail salon|barbershop|barber shop|spa|gym|fitness center|car wash|funeral home|dry cleaners|laundromat|kennel|doggy daycare|grooming salon",
     OUTDOOR: "farm|ranch|nursery|garden center|greenhouse|vineyard|orchard|zoo|aquarium|park|national park|golf course|stable|stables|dairy farm",
-    BUSINESS: "consulting firm|consultancy|staffing agency|recruitment agency|big four",
+    BUSINESS: "consulting firm|consultancy|staffing agency|recruitment agency",
     None: "company|firm|agency|business|corporation|small business|family business|organization|organisation|nonprofit organization|place|"
           "hospital|clinic|medical clinic|dental office|dentist office|dentist's office|doctor's office|vet clinic|vet office|veterinary clinic|animal hospital|er|icu|nicu|"
           "emergency room|urgent care|pharmacy|surgery center|rehab center|psych ward|psychiatric hospital|mental hospital|medical center|health center|optometrist office",
 })
 PLACE_NAMES = alternation(PLACES)
 OCCUPATION = [
-    (rf"\b{I} {ADVERB}(?:an?|the) ", after),
+    (rf"\b(?:{I}|and am) {ADVERB}(?:an?|the) ", after),
     (rf"\b(?:i|i'm|im|i am|i've been|ive been|i have been|currently|now)(?: (?:also|now|currently|still|actually|mostly|mainly|primarily|full[- ]time|part[- ]time|employed))* "
-     rf"(?:work|working|employed|hired|serving|trained|qualified|certified|licensed|practicing|practising|moonlighting|freelancing|contracting) as (?:an? |the )?", after),
+     rf"(?:work|working|employed|hired|serving|trained|qualified|certified|licensed|practicing|practising|moonlighting|freelancing|contracting)"
+     rf"(?: (?:there|here|remotely|full[- ]time|part[- ]time)| (?:at|for|in|with)(?: [^\s.!?,;()]+){{1,5}}?)? as (?:an? |the )?", after),
     (rf"\bi (?:just |recently |finally |eventually )?(?:became|got hired as|was hired as|started (?:work(?:ing)? )?as|got a job as|landed a job as|got promoted to|was promoted to|"
-     rf"got a position as|accepted a (?:job|position|role) as|took a job as|started a (?:new )?job as|now work as) (?:an? |the )?", after),
+     rf"got a position as|accepted a (?:job|position|role) as|took a job as|started a (?:new )?(?:job|role|position) as|now work as) (?:an? |the )?", after),
     (rf"\bmy (?:(?!(?:previous|old|former|last|first|dream|ideal|future|next|dad's|mom's|mum's|husband's|wife's)\b)\w+ )?(?:job|career|work|role|position|title|day job|gig|profession) "
      rf"(?:as|is) (?:an? |the )?", after),
     (r"\b(?<!no )(?<!não )(?<!non )(?<!nie )(?:yo soy|soy|sou|eu sou|ich bin|bin ich|je suis|sono|jestem|ik ben|ben ik)\s+(?:von beruf\s+)?(?:(?:un|una|um|uma|ein|eine|une|een)\s+)?", abroad),
@@ -485,7 +486,7 @@ OCCUPATION = [
 MENTIONS = [
     (r"(?:^|[.!?\n:(,]\s*|\s[-–—]\s+|\b(?:hi|hey|hello|hiya|yo|greetings)\b[ ,!.]*)(?:an? |fellow |another |a fellow |also an? |as an? |just an? )?((?:[\w'&/.+-]+ ){1,6}?)"
      r"(?:by (?:trade|profession|training) )?here\b(?=\s*(?:[^\w\s]|\b(?:and|with|who|so|but|in|from|too|lol|haha|for)\b|$))", here),
-    (r"(?:^|[.!?\n]\s*)as an? ", opener),
+    (r"(?:^|[.!?\n]\s*)(?:as|being|speaking as) an? ", opener),
     (r"\[\s*(?:for hire|hire me)\s*\][\W_]*", hired),
 ]
 LEAD = (r"(?:^|\n)[ \t>*#\\-]*(?:(?:\d{2}\s?(?:yo|y/o|yrs? old|years? old)|\d{2}\s?[mf]?|[mf]\s?\d{2}|[\[(][\w /+-]{1,12}[\])]|#[\w/-]+|[-–—|,]+)[ \t]*)*+(?:(?:also|just|another|fellow|a|an) )*"
@@ -506,7 +507,7 @@ def fragment(match, titles=TITLES):
 
 
 WORKPLACE = [
-    rf"\bi(?:(?:'ve| have) (?:been )?(?:currently |now |also |still |mostly |mainly |actually )?(?:work|working|worked)|(?:'m| am)? (?:currently |now |also |still |mostly |mainly |just started |started |actually )?(?:work|working)) (?:(?:in|for) )?(?:the )?({FIELD_NAMES})"
+    rf"\bi(?:(?:'ve| have) (?:been )?(?:currently |now |also |still |mostly |mainly |actually )?(?:work|working|worked)|(?:'m| am)? (?:currently |now |also |still |mostly |mainly |just started |started |actually )?(?:work|working)) (?:(?:in|for) )?(?:the |an? )?(?:(?!(?:same|this|that|my|your|his|her|their|our|other|different|any|every|no)\b)[\w-]+ ){{0,2}}?({FIELD_NAMES})"
     rf"(?: industry| field| sector| department| dept| business| world| trade)?\b(?! (?:class|classes|school|course|program|degree|student|home|homes|facility|facilities)\b)",
     rf"\bi(?:'ve| have)? (?:been )?(?:currently |now |also |still |mostly |mainly |just started |started |actually )?(?:work|working) (?:at|in|for) (?:a |an |the |my local |our local |this |our |one of the )?"
     rf"(?:(?!(?:same|this|that|my|your|his|her)\b)[\w'-]+ ){{0,2}}?({PLACE_NAMES})s?\b",
@@ -529,8 +530,16 @@ def employed(find):
     return lambda match: None if (value := find(match)) in (None, ARTS) else OWNER if value in (OWNER, FOUNDER) else "employed"
 
 
-def scoped(value, hedge=SELF_HEDGE):
-    return lambda match: value(match) if free(match.string, match.start(), hedge) else None
+ROLEPLAY = re.compile(r"\b(?:rp|roleplay|role play|role-play|roleplaying|role playing)\b")
+
+
+@lru_cache(maxsize=64)
+def roleplay(text):
+    return bool(ROLEPLAY.search(text))
+
+
+def scoped(value, hedge=SELF_HEDGE, played=False):
+    return lambda match: value(match) if free(match.string, match.start(), hedge) and (played or not roleplay(match.string)) else None
 
 
 def said(attribute, pattern, value, hedge=SELF_HEDGE):
@@ -685,6 +694,14 @@ def mine(value):
     return lambda match: value(match) if not OTHERS.search(match.string, max(clause(match.string, match.start()), match.start() - 40), match.start()) else None
 
 
+def near(value, reach):
+    def found(match):
+        text, start = match.string, match.start()
+        left = max(max(text.rfind(mark, 0, start) for mark in ".!?\n") + 1, start - reach)
+        return value(match) if FIRST_NEAR.search(text, left, start) else None
+    return found
+
+
 WORKLIFE = [
     r"\b(?:at|after|before|outside of|outside|during) work\b(?! (?:on|out)\b)",
     r"\b(?:walk|walking|walked|commute|commuting|head|heading|headed|late|ride|riding|bike|biking|leave|leaving|left|ready|got|came|come|coming) "
@@ -695,6 +712,7 @@ WORKLIFE = [
     r"\b(?:i|i'm|im|i've|ive)\b[^.!?\n]{0,25}?\b(?:a|long|night|day|double|late|early|morning|evening|closing|opening|graveyard|overnight|\d+ ?(?:hr|hour)|\d+-hour|twelve[- ]hour) shifts?\b|"
     r"\b(?:got|get|getting|coming|came|home) off (?:a |my |the )?(?:\w+ )?shift\b|\bbusy with work\b|\bworking (?:a|an|my|two|three|\d|multiple) (?:[\w-]+ ){0,2}?(?:jobs?|shifts?|gigs?)\b",
 ]
+SELF_WORK = [(r"\b(?:off|from) work\b", 30), (r"(?=for work)(?<!looking )(?<!look )(?<!searching )(?<!search )(?<!apply )(?<!applying )(?<!ready )(?<!late )(?<!hunting )\bfor work\b(?! (?:to|that|in|at|on|online)\b)", 40),(r"\b(?:work|working) (?:full[- ]time|part[- ]time|\d+ days a week|\d+ hours a week|\d+ ?hrs a week)\b", 60)]
 SELLING = [
     r"\b(?:i'm |im |i am |i )?(?:selling|sell) (?:my )?(?:[\w-]+ ){0,2}?(?:nudes|pics|pictures|videos|vids|content|premades|pre-mades|pre mades|sex tapes|gfe|customs|sexting)\b|"
     r"\boffering (?:[\w-]+,? ){0,3}?(?:sexting|customs?|content|gfe|video calls|facetime)\b",
@@ -724,8 +742,9 @@ RULES = [
     *(rule("employment_status", pattern, scoped(fixed("student")), TAGGED) for pattern in (*STUDENT[1:], *STUDENT_TWINS)),
     rule("employment_status", CAMPUS, scoped(fixed("student")), SELF_HEDGE),
     *(rule("employment_status", pattern, scoped(mine(fixed("employed"))), TAGGED) for pattern in WORKLIFE),
-    *(rule("employment_status", pattern, scoped(fixed(OWNER)), TAGGED) for pattern in SELLING),
-    *(rule("occupation", pattern, scoped(fixed(ADULT)), TAGGED) for pattern in SELLING),
+    *(rule("employment_status", pattern, scoped(mine(near(fixed("employed"), reach))), TAGGED) for pattern, reach in SELF_WORK),
+    *(rule("employment_status", pattern, scoped(fixed(OWNER), played=True), TAGGED) for pattern in SELLING),
+    *(rule("occupation", pattern, scoped(fixed(ADULT), played=True), TAGGED) for pattern in SELLING),
     *(rule("employment_status", pattern, scoped(fixed(OWNER)), TAGGED) for pattern in OWNERS),
 ]
 
@@ -824,12 +843,12 @@ EDUCATION_RULES = [
     said("education", PRO_STUDENT, fixed("graduate student"), SELF_HEDGE),
     said("education", r"\bmy residency\b|\b(?:i'm|im|i am) (?:in|doing|finishing|starting) (?:my )?residency\b", fixed("professional degree such as law or medicine"), SELF_HEDGE),
     said("education", rf"\b(?:i have|i've got|i got|i hold|i earned|i finished|i completed|i've done|i have done|i did|got|just got|have|with) (?:a |an |my |both |two )?(?:({LONG_DEGREE_NAMES})(?: degree| degrees| hons| in| from)?|({SHORT_DEGREE_NAMES}) (?:degree|degrees|in|from))\b(?! (?:student|program|programme|candidate|course|class)\b)|\b({LONG_DEGREE_NAMES}) hons\b",
-         lambda match: DEGREES[next(filter(None, match.groups()))], SELF_HEDGE),
+         lambda match: DEGREES[next(filter(None, match.groups()))] if match.group().startswith("i") or owned(match.string, match.start()) else None, SELF_HEDGE),
     said("education", r"\b(?:i have|i've got|i hold|i earned|i got|i completed|i finished|i do have|i also have) (?:a |an |my |both |two )?"
          r"(?:(?!(?:associate'?s?|masters?|master's|phd|doctoral|online|honorary|useless|worthless|second|new)\b)[\w'-]+ ){0,3}?degrees?\b(?! (?:program|programme|course|apprenticeship)\b)|\b(?:college|university|uni)[- ]educated\b",
          fixed("bachelor's degree"), SELF_HEDGE),
     said("education", r"\b(?:masters?|master's)[- ]educated\b", fixed("master's degree"), SELF_HEDGE),
-    said("education", r"\bi (?:graduated|have graduated|just graduated) (?:from )?(?:college|university|uni|with (?:a|my|honors))\b|\b(?:college|university) graduate\b|\b(?:as an? |i'm an? |im an? |i am an? )(?!(?:\w+ )?high ?school)(?:\w+ ){0,3}?(?:graduate|grad)\b(?! (?:student|program|school)\b)|\b\w+ (?:and \w+ )?grad\b(?= (?:having|here|with|who|and|looking)\b)|\bme formei\b|\bi went back to school for\b|\bmy (?:bachelor'?s|bachelors|undergrad|degree) (?:is|was) in\b",
+    said("education", r"\b(?:i (?:graduated|have graduated|just graduated)|(?:since|after|when|once) (?:i )?graduat(?:ed|ing)) (?:from )?(?:college|university|uni|with (?:a|my|honors))\b|\b(?:college|university) graduate\b|\b(?:as an? |i'm an? |im an? |i am an? )(?!(?:\w+ )?high ?school)(?:\w+ ){0,3}?(?:graduate|grad)\b(?! (?:student|program|school)\b)|\b\w+ (?:and \w+ )?grad\b(?= (?:having|here|with|who|and|looking)\b)|\bme formei\b|\bi went back to school for\b|\bmy (?:bachelor'?s|bachelors|undergrad|degree) (?:is|was) in\b",
          fixed("bachelor's degree"), SELF_HEDGE),
     said("education", r"\b(?:i )?(?:graduated|finished) (?:from )?high ?school\b|\bhigh ?school (?:graduate|diploma)\b|\bcompleted (?:my )?12th\b|\bpassed (?:my )?12th\b|\bi have (?:a|my) ged\b", fixed("high school diploma"), SELF_HEDGE),
     said("education", HIGH_SCHOOL, fixed("high school student"), SELF_HEDGE),
@@ -877,7 +896,7 @@ FIELD_RULES = [
          lambda match: SUBJECTS[match.group(1)] if match.group().startswith("my") or owned(match.string, match.start()) else None, SELF_HEDGE),
     rule("field_of_study", r"\b(?:student|major|grad) here\b", lambda match: subject_before(match.string, match.start()), SELF_HEDGE),
     rule("field_of_study", r"(?m:^)\W*(?:an? )?([\w'-]+(?: [\w'-]+){0,3}?) (?:student|major)\b", lambda match: SUBJECTS.get(match.group(1)), SELF_HEDGE),
-    rule("field_of_study", rf"\b(?:degree|degrees|bachelors?|bachelor's|masters?|master's|phd|bsc|ba|bs|ms|msc|ma|major|majoring|majored|graduate|student|year|diploma|course|studies|studying|study|studied|background(?: is)?) in ({alternation(DEGREE_SUBJECTS)})\b",
+    rule("field_of_study", rf"\b(?:degree|degrees|bachelors?|bachelor's|masters?|master's|phd|bsc|ba|bs|ms|msc|ma|major|majoring|majored|graduate|student|year|diploma|course|studies|studying|study|studied|background(?: is)?) in (?:(?!(?:the|a|an|my|this|that|their|his|her|which|what)b)[a-z]+ )??({alternation(DEGREE_SUBJECTS)})\b",
          group(DEGREE_SUBJECTS), SELF_HEDGE),
     rule("field_of_study", rf"\b(?:as an? |i'm an? |im an? |i am an? )(?:\w+ ){{0,2}}({SUBJECT_NAMES}) (?:graduate|grad|student|major)\b", group(SUBJECTS), SELF_HEDGE),
     rule("field_of_study", r"\b(law|med|medical|pharmacy|nursing|dental|vet|veterinary|engineering|business|art|film|architecture|b) (?:school|college)\b|\b(?:i'm|im|i am|i was|as) (?:a |an )?[123](l)\b|"
@@ -925,3 +944,9 @@ RULES += [
     *FIELD_RULES,
     *(rule("income", pattern, income, SELF_HEDGE) for pattern in INCOME),
 ]
+TERM = r"\b(?:this|next) (?:semester|quarter|sem)\b|\bcurrently (?:studying|pursuing|enrolled|doing (?:my|a|an) (?:degree|bachelor'?s|masters?|master's|bsc|ba|bs|btech|undergrad))\b"
+RULES += [
+    said("employment_status", TERM, near(fixed("student"), 40)),
+    said("education", TERM, near(fixed("college student"), 40)),
+]
+
