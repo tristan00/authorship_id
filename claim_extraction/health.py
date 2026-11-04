@@ -299,20 +299,20 @@ PHYSICAL_TOOL_STRICT = {name: value for name, value in PHYSICAL_TOOLS.items() if
     "hypermobility", "me/cfs", "chronic fatigue", "long covid", "chronic illness", "chronic illnesses", "chronic condition", "chronic conditions", "scoliosis", "spinal fusion",
     "ostomy bag", "catheter", "lyme", "hiv", "herpes", "hsv", "hpv"}}
 PHYSICAL_TOOL_STRICT = {name: value for name, value in PHYSICAL_TOOL_STRICT.items() if name not in {
-    "pump", "port", "scans", "pet scan", "infusions", "infusion", "lymph nodes", "ct scans", "thyroid", "periods", "period", "cycle", "cycles", "hormones", "hormone levels", "estrogen levels",
-    "hrt", "estradiol", "progesterone", "gynecologist", "gyno", "obgyn", "ob-gyn", "ob", "midwife", "mirena", "iud", "birth control", "the pill", "slynd", "spironolactone", "inositol", "ivf",
-    "ivf journey", "ttc journey", "fertility journey", "fertility doctor", "reproductive endocrinologist", "hot flashes", "hot flushes", "night sweats", "testosterone levels", "trt",
-    "testosterone therapy", "headache", "headaches", "aura", "auras", "eeg", "mri results", "ms", "heart", "heart rate", "resting heart rate", "blood pressure", "cholesterol", "iron levels", "ferritin",
-    "stent", "stents", "bypass", "ablation", "b12 shots", "b12 injections", "gi", "uc", "gut", "stomach", "digestion", "digestive system", "bowels", "bowel movements", "colonoscopy", "endoscopy",
-    "liver", "liver enzymes", "flare", "flares", "flare ups", "flare-ups", "trigger foods", "fodmap", "low fodmap", "elimination diet", "pancreas", "gut health", "derm", "skin", "scalp", "dry skin",
-    "sensitive skin", "oily skin", "skin type", "combination skin", "moisture barrier", "skin barrier", "pores", "spots", "scars", "doxycycline", "minocycline", "hydrocortisone", "hs",
-    "breakouts", "hair loss", "glasses", "contacts", "contact lenses", "prescription", "eye doctor", "ophthalmologist", "optometrist", "eyes", "eyesight", "vision", "hearing", "ears", "lasik", "prk",
-    "eye drops", "lenses", "retinas", "retina", "corneas", "cornea", "scooter", "mobility", "carer", "caregiver", "pca", "pip", "ssi", "sci", "cp", "service dog", "pain", "pain levels", "spine",
-    "lower back", "flare", "bad days", "spoons", "pt", "physio", "physiotherapy", "physical therapy", "chiropractor", "chiro", "ra", "as", "ana", "crp", "esr", "inflammation", "inflammation markers",
-    "mri", "lesions", "relapse", "relapses", "steroids", "prednisone", "immune system", "biologic", "sinuses", "endocrinologist", "endo", "a1c", "blood sugar", "blood sugars", "bolus", "glucose levels",
-    "sugar levels", "libre", "remission", "metastasis", "tumor markers", "ostomy", "tramadol", "oxycodone", "hydrocodone", "percocet", "vicodin", "norco", "morphine", "celebrex",
-    "meloxicam", "naproxen", "diclofenac", "voltaren", "gabapentin", "lyrica", "pregabalin", "epidurals", "ablations", "pain meds", "pain medication", "allergy meds", "allergy medication",
-    "allergy pills", "antihistamines", "allergies", "allergy", "allergic reactions", "allergic reaction", "acne", "pots", "hrt"}}
+    "pump", "port", "scans", "pet scan", "infusions", "infusion", "lymph nodes", "ct scans", "headache", "headaches", "aura", "auras", "eeg", "mri results", "ms", "heart", "heart rate",
+    "resting heart rate", "blood pressure", "cholesterol", "iron levels", "ferritin", "stent", "stents", "bypass", "ablation", "b12 shots", "b12 injections", "gut", "stomach", "digestion",
+    "digestive system", "bowels", "bowel movements", "liver", "flare", "flares", "flare ups", "flare-ups", "pancreas", "gut health", "derm", "skin", "scalp", "dry skin", "sensitive skin",
+    "oily skin", "skin type", "combination skin", "moisture barrier", "skin barrier", "pores", "spots", "scars", "doxycycline", "minocycline", "hydrocortisone", "hs", "breakouts", "hair loss",
+    "glasses", "contacts", "contact lenses", "prescription", "eye doctor", "ophthalmologist", "optometrist", "eyes", "eyesight", "vision", "hearing", "ears", "lasik", "prk", "eye drops", "lenses",
+    "retinas", "retina", "corneas", "cornea", "scooter", "mobility", "carer", "caregiver", "pca", "pip", "ssi", "sci", "cp", "service dog", "pain", "pain levels", "spine", "lower back", "flare",
+    "bad days", "spoons", "pt", "physio", "physiotherapy", "physical therapy", "chiropractor", "chiro", "ra", "as", "ana", "crp", "esr", "inflammation", "inflammation markers", "mri", "lesions",
+    "relapse", "relapses", "steroids", "prednisone", "immune system", "biologic", "sinuses", "endocrinologist", "endo", "a1c", "blood sugar", "blood sugars", "bolus", "glucose levels",
+    "sugar levels", "libre", "remission", "metastasis", "tumor markers", "ostomy", "tramadol", "oxycodone", "hydrocodone", "percocet", "vicodin", "norco", "morphine", "celebrex", "meloxicam",
+    "naproxen", "diclofenac", "voltaren", "gabapentin", "lyrica", "pregabalin", "epidurals", "ablations", "pain meds", "pain medication", "allergy meds", "allergy medication", "allergy pills",
+    "antihistamines", "allergies", "allergy", "allergic reactions", "allergic reaction", "acne", "pots"}}
+PHYSICAL_TOOL_STRICT |= dict.fromkeys(("surgery", "surgeries", "operation", "procedure", "recovery", "injury", "injuries", "diagnosis", "diagnoses", "illness", "illnesses", "disease",
+                                      "diseases", "disorder", "condition", "conditions", "health condition", "health conditions", "medical condition", "medical conditions", "health issues",
+                                      "health problems", "medical issues", "symptoms", "symptom", "hospitalization", "hospital stay", "uti", "utis", "bladder", "kidneys", "kidney", "fatigue"), "unspecified")
 INJURED = (r"\b(?:my|i have an?|i've got an?|i got an?|with an?|with my|i had an?) (?:(?:\w+) )?(?:bad|bum|busted|fucked up|fucked|messed up|screwed up|jacked up|injured|broken|fractured|torn|dislocated|"
            r"herniated|bulging|slipped|blown|blown out|dodgy|arthritic|weak|replaced|reconstructed|rebuilt|shattered|crushed|damaged|degenerating|deteriorating|worn out|wonky|trick|gimpy|gammy|"
            r"sore|painful|aching|achy|chronically sore|chronically painful|bad left|bad right|fucked up left|fucked up right) (knee|knees|hip|hips|back|lower back|upper back|shoulder|shoulders|ankle|ankles|"
@@ -330,6 +330,9 @@ RULES = [
     rule("physical_condition", r"\bi'?m (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|\bi (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|\bi (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|\bi (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
          lambda match: "vision or hearing impairment" if re.search(r"deaf|blind|hearing|eye|sight|vision|ear\b", match.group()) else "physical disability", SELF_HEDGE),
     rule("physical_condition", INJURED, fixed("other physical condition"), OTHERS),
+    rule("physical_condition", r"\bmy (?:face|skin|scalp|face skin|facial skin) (?:is|has been|gets|get|keeps|is always|is still|is getting|has gotten|tends to be|is naturally|is super|is very|is so|is really|is extremely|is quite|is pretty|is kinda|is a bit|always gets)* ?"
+         r"(?:so |very |really |super |extremely |quite |pretty |kinda |a bit |naturally )?(?:dry|oily|sensitive|acne[- ]prone|prone to (?:acne|breakouts|redness|irritation)|breaking out|broken out|flaky|flaking|peeling|"
+         r"itchy|irritated|inflamed|congested|dehydrated|reactive|combination)\b", fixed("skin condition"), OWN_HEDGE),
     rule("physical_condition", rf"\bmy (?:left |right |lower |upper |bad |poor |stupid |damn )?({BODY}) (?:has been |is |are |keeps |keep |started |starts |still |always |constantly |randomly |sometimes |often |have been |is still |gets |get )*(?:hurting|hurts|hurt|aching|aches|killing me|going numb|numb|tingling|tingly|swollen|swelling|throbbing|twitching|fluttering|clicking|popping|giving out|gives out|locking up|locks up|acting up|flaring up|flared up|flaring|burning|cramping|spasming|in pain|fucked|messed up|shot|busted|dislocating|dislocates|subluxing|collapsing|ringing|failing|deteriorating|degenerating)\b",
          lambda match: "skin condition" if match.group(1) == "skin" else "vision or hearing impairment" if match.group(1) in ("eyes", "eyesight", "vision", "hearing") else "other physical condition", OWN_HEDGE)]
 
@@ -488,8 +491,10 @@ RULES += [
          fixed("autism"), SELF_HEDGE),
     rule("mental_condition", r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar|insomnia) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
          group({**MENTAL, "bipolar": "bipolar disorder", "insomnia": "other mental health condition"}), SELF_HEDGE),
-    rule("mental_condition", rf"\b(?:recovering|recovered|in recovery) from (?:my |an? )?({names(MENTAL_LOOSE)})\b|\b(?:undiagnosed|unmedicated|untreated|diagnosed|crippling|lifelong|late[- ]diagnosed) (?:but severe )?({names(MENTAL_LOOSE)})\b(?=[^.!?\n]*\b(?:i|my|me)\b)|^\W*(?:yep\W+|yeah\W+|also\W+|same\W+|me too\W+)?({names(MENTAL_LOOSE)})\W*$|(?:^|[.!?\n]\s*)also,? ({names(MENTAL_LOOSE)})\b(?=\W*(?:$|[.!?\n]))",
-         lambda match: MENTAL_LOOSE[next(filter(None, match.groups()))], OWN_HEDGE),
+    *(rule("mental_condition", pattern, group(MENTAL_LOOSE), OWN_HEDGE) for pattern in (
+        rf"\b(?:recovering|recovered|in recovery) from (?:my |an? )?({names(MENTAL_LOOSE)})\b",
+        rf"\b(?:undiagnosed|unmedicated|untreated|diagnosed|crippling|lifelong|late[- ]diagnosed) (?:but severe )?({names(MENTAL_LOOSE)})\b(?=[^.!?\n]*\b(?:i|my|me)\b)",
+        rf"^\W*(?:yep\W+|yeah\W+|also\W+|same\W+|me too\W+)?({names(MENTAL_LOOSE)})\W*$", rf"(?:^|[.!?\n]\s*)also,? ({names(MENTAL_LOOSE)})\b(?=\W*(?:$|[.!?\n]))")),
     rule("mental_condition", r"\b(?:made|makes|making|left|leaving|gave) me (?:really |so |very |super |severely |clinically |chronically )?(depressed|anxious|suicidal|depression|anxiety|ptsd|an eating disorder|agoraphobic)\b(?= *(?:$|[.!\n,;]|and\b|for (?:years|months|a long time)))|\b(?:becoming|became|become) an (alcoholic|addict)\b",
          lambda match: {"depressed": "depression", "anxious": "anxiety", "suicidal": "other mental health condition", "depression": "depression", "anxiety": "anxiety", "ptsd": "ptsd",
                         "an eating disorder": "eating disorder", "agoraphobic": "anxiety", "alcoholic": "addiction", "addict": "addiction"}[next(filter(None, match.groups()))], OWN_HEDGE),
@@ -527,9 +532,9 @@ RULES += [
 
 BOT_SELF = (r"(?:\bi(?:'m| am)[\s^]+a[\s^]+bot\b|\bthis is a bot\b|\bperformed[\s^]+automatically\b|\bsou um bot\b|\bsoy un bot\b|\bbeep boop\b|\bbleep bloop\b|"
             r"\bthis is an? (?:automated|automatic) (?:message|response|reply|comment|process)\b|\bthis message is an automat\w+ response\b)")
-MODERATION = r"removed|remove|approv\w*|karma|title|session id|locked|not allowed|bans?|bannable|banned|comments are disabled|filtered|blocked|block you"
+MODERATION = r"removed|remove|approv\w*|karma|title|session id|locked|not allowed|bans?|bannable|banned|comments are disabled|filtered|blocked|block you|copy of (?:the|this|your) (?:original )?(?:post|submission)|post's original text|copia del post|salvo qui una copia"
 RULES += [
-    rule("automated_account", rf"^(?![\s\S]*\b(?:{MODERATION})\b)(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_SELF}", fixed("bot"), TAGGED)]
+    rule("automated_account", rf"^(?=[\s\S]*?(?:bot|automat|beep|bleep))(?![\s\S]*\b(?:{MODERATION})\b)(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_SELF}", fixed("bot"), TAGGED)]
 
 COMMON = ("diabetes", "type 1 diabetes", "type 2 diabetes", "t1d", "t2d", "diabetic", "hypoglycemic", "lupus", "rheumatoid arthritis", "rheumatoid disease", "multiple sclerosis", "hashimoto's", "hashimotos",
           "an autoimmune disease", "graves disease", "graves' disease", "psoriatic arthritis", "chronic pain", "fibromyalgia", "fibro", "sciatica", "herniated disc", "cancer", "breast cancer", "leukemia",
@@ -548,6 +553,7 @@ MOODS = {"anxiety": "anxiety", "depression": "depression", "ocd": "ocd", "ptsd":
          "body dysmorphia": "other mental health condition", "adhd": "adhd", "autism": "autism", "audhd": "both adhd and autism", "autistic": "autism", "asd": "autism",
          "addiction": "addiction", "an addiction": "addiction", "alcoholism": "addiction"}
 MOOD_NAMES = re.compile(r"\b(" + names(MOODS) + r")\b")
+ASKING = re.compile(r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b")
 FIRST_PERSON = re.compile(r"\b(?:i|i'm|im|i've|my|me|myself)\b")
 
 ORGANS = {"heart": "heart or blood condition", "cardiac": "heart or blood condition", "blood pressure": "heart or blood condition", "circulation": "heart or blood condition",
@@ -580,7 +586,8 @@ def inflected(table):
 MIND_EXTRA = spread({"anxiety": ["panic attacks", "anxiety attacks", "a panic disorder", "separation anxiety", "performance anxiety", "test anxiety"], "depression": ["depressive episodes", "a depressive episode"],
                      "bipolar disorder": ["manic episodes", "a manic episode"], "eating disorder": ["binge eating"],
                      "other mental health condition": ["suicidal thoughts", "intrusive thoughts", "executive dysfunction", "insomnia"]})
-CONDITIONS = inflected({**{f"{organ} {trouble}": value for organ, value in ORGANS.items() for trouble in TROUBLES}, **GENERAL, **PHYSICAL})
+CONDITIONS = inflected({**{f"{organ} {trouble}": value for organ, value in ORGANS.items() for trouble in TROUBLES}, **GENERAL, **PHYSICAL,
+                        **dict.fromkeys(("surgery", "surgeries", "a surgery", "an operation", "an injury", "injuries", "an illness", "illness", "a disease", "an infection", "infection", "infections"), "unspecified")})
 STATES = {name: value for name, value in inflected(PHYSICAL_STATES).items() if name not in CONDITIONS}
 NEURODIVERSE = spread({"neurodivergent, unspecified": ["dyslexia", "dyspraxia", "dyscalculia", "dysgraphia", "dyslexic", "dyspraxic", "dyscalculic"]})
 MIND = inflected({**MIND_EXTRA, **MENTAL_LOOSE, **NEURODIVERSE})
@@ -644,18 +651,21 @@ def mentions(words, nouns, states, suffix, longest):
             index += 1
 
 
+POSSESSIVE_HEDGE = re.compile(r"\b(?:if|whether|unless|imagine|pretend|wish|hope)\b")
+
+
 def unhedged(lowered, start):
     window = lowered[max(0, start - 40):start]
     cut = max((match.end() for match in SCOPE.finditer(window)), default=0)
-    return not OWN_HEDGE.search(window, cut)
+    return not (POSSESSIVE_HEDGE if lowered.startswith("my", start) else OWN_HEDGE).search(window, cut)
 
 
-def owned(lowered, sentence, found):
+def owned(lowered, sentence, found, families):
     part = sentence.group()
     if not CANDIDATE.search(part):
         return
     words = [(match.start(), match.end(), match.group()) for match in WORD.finditer(part)]
-    for attribute, nouns, states, noun_cue, suffix, longest in FAMILIES:
+    for attribute, nouns, states, noun_cue, suffix, longest in families:
         previous = None
         for start, end, name in mentions(words, nouns, states, suffix, longest):
             noun = name not in states
@@ -675,16 +685,27 @@ def owned(lowered, sentence, found):
 def ailments(lowered, found):
     for sentence in re.finditer(r"[^.!?\n]+", lowered):
         part = sentence.group()
-        if lowered[sentence.end():sentence.end() + 1] == "?":
+        asked = lowered[sentence.end():sentence.end() + 1] == "?"
+        if not asked or not ASKING.search(part):
+            owned(lowered, sentence, found, FAMILIES[1:] if asked else FAMILIES)
+        if asked:
             continue
-        owned(lowered, sentence, found)
-        if not FIRST_PERSON.search(part) or OTHER_PEOPLE.search(part) or HEDGE.search(part):
+        if not FIRST_PERSON.search(part) or OTHER_PEOPLE.search(part):
             continue
+        hedge = HEDGE.search(part)
         for match in AILMENT_NAMES.finditer(part):
+            if hedge and hedge.end() <= match.start():
+                break
             found.setdefault(("physical_condition", AILMENTS[match.group(1)]), sentence.start() + match.start())
+        if hedge:
+            continue
         for match in MOOD_NAMES.finditer(part):
             found.setdefault(("mental_condition", MOODS[match.group(1)]), sentence.start() + match.start())
     if ASTROLOGY.search(lowered):
         found.pop(("physical_condition", "cancer"), None)
     if (key := ("physical_condition", "neurological condition")) in found:
         found.setdefault(("physical_condition", "other physical condition"), found.pop(key))
+    if (key := ("physical_condition", "unspecified")) in found:
+        position = found.pop(key)
+        if not any(attribute == "physical_condition" for attribute, _ in found):
+            found[("physical_condition", "other physical condition")] = position
