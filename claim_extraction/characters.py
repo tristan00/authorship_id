@@ -14,15 +14,16 @@ LEXICON = Path(__file__).with_name("character_names.tsv")
 
 
 def lexicon():
-    plain, cased = set(), set()
+    plain, cased = {}, {}
     with open(LEXICON, encoding="utf-8") as rows:
         next(rows)
         for line in rows:
-            key, _, _, _, surfaces, _ = line.rstrip("\n").split("\t")
+            key, _, _, links, surfaces, _ = line.rstrip("\n").split("\t")
             if surfaces:
-                cased.update(surfaces.split("|"))
+                for surface in surfaces.split("|"):
+                    cased[surface] = max(cased.get(surface, 0), int(links))
             else:
-                plain.add(key)
+                plain[key] = int(links)
     return plain, cased
 
 
@@ -48,12 +49,12 @@ ASPECT = re.compile(r"\s*(?i:character|design|personality|arc|voice|story|storyl
 DEAR = r"(?:king|queen|baby|babygirl|wife|husband|man|boy|girl|everything|beloved|goat|son|daughter|husbando|waifu|bae|crush|princess|prince|goddess|pookie|precious|love|one true love|comfort character)"
 
 
-def known(name):
-    return name.lower() in CHARACTERS or name in SURFACES
+def known(name, least=1):
+    return max(CHARACTERS.get(name.lower(), -1), SURFACES.get(name, -1)) >= least
 
 
 def foreign(name):
-    return name.lower() in OTHERS and not known(name)
+    return name.lower() in OTHERS and not known(name, 0)
 
 
 def pieces(name, last=False):
@@ -74,7 +75,9 @@ def sentence(text, position):
 
 def emit(name, found, text, position, gate, last=False):
     for piece in pieces(name, last):
-        if gate != "any" and not known(piece) and (gate == "known" or foreign(piece) or not STRONG.search(text, *sentence(text, position))):
+        if gate == "known" and (piece.lower() in OTHERS or not known(piece)):
+            continue
+        if gate == "medium" and not known(piece, 0) and (foreign(piece) or not STRONG.search(text, *sentence(text, position))):
             continue
         if value := fan_value("character", piece.lower()):
             found.setdefault(("character", value), position)
@@ -96,7 +99,7 @@ RULES = (
     ("best_girl", re.compile(rf"(?i:\bbest (?:girl|boy|waifu|husbando)s?,? (?:is |goes to |= |: |)){NAME}|{NAME}(?i:,? (?:is |= )?(?:the |my |)best (?:girl|boy|waifu|husbando)\b)"), "any", ("best ",)),
     ("beloved", re.compile(rf"{NAME},? (?i:my (?:beloved|one true love|comfort character|precious)\b)|(?i:\bmy (?:beloved|precious|glorious|queen|king|goddess|husbando|waifu|princess|prince|pookie) ){NAME}"), "any", ("my ",)),
     ("is_my", re.compile(rf"{NAME}(?i: (?:is|are|will always be|has always been) (?:still |literally |honestly |forever |always |)my {DEAR}\b)"), "any", ("my ",)),
-    ("loved", re.compile(rf"(?i:\bi(?:'m| am)? {ADVERB}(?:love|adore|like|loved|adored|liked|stan|simp for|prefer|am obsessed with|'m obsessed with|obsessed with|'m a sucker for|am a sucker for|'m all for|have a soft spot for|have a thing for) ){NAME}(?! {MEDIA}\b)"), "medium", ("love", "ador", "like", "stan", "simp", "prefer", "obsess", "sucker", "all for", "soft spot", "thing for")),
+    ("loved", re.compile(rf"(?i:\bi(?:'m| am)? {ADVERB}(?:love|adore|like|loved|adored|liked|stan|simp for|prefer|obsessed with|am a sucker for|have a soft spot for|have a thing for) ){NAME}(?! {MEDIA}\b)"), "medium", ("love", "ador", "like", "stan", "simp", "prefer", "obsess", "sucker", "soft spot", "thing for")),
     ("loved_how", re.compile(rf"(?i:\bi {ADVERB}(?:love|adore|like|loved|liked|adored) (?:how|that|when|the way) ){NAME}"), "medium", ("love", "like", "ador")),
     ("as_character", re.compile(rf"{NAME}(?i:(?:'s| is| was|,)? (?:such |so |soo+ |a |an |the |one of the |my |honestly |really |genuinely |easily |still |also |very |pretty |fucking |most |)*{POSITIVE}(?:(?:,| and|, and) (?:most |very |so |)\w+)? (?:characters?|char|protagonist|villain|antagonist|hero|heroine|girl|boy|design)\b| as a character\b)"), "medium", ("char", "protagonist", "antagonist", "villain", "hero", "girl", "boy", "design")),
     ("fan", re.compile(rf"(?i:\b(?:i'?m|im|i am|as|been|being|i've been|from) (?:an? |the )?(?:huge |big |massive |die[- ]?hard |long ?time |proud |true |real |giant |hardcore |super |casual |)*){NAME}(?i: (?:fan|stan|fanboy|fangirl|simp|lover|enjoyer)s?\b)"), "known", ("fan", "stan", "simp", "lover", "enjoyer")),
@@ -146,8 +149,8 @@ def liked(text, found, lowered):
         for match in CANDIDATE.finditer(words):
             if match.group(1) and min(abs(cue - match.start()) for cue in cues) < NEAR:
                 for piece in pieces(match.group(1)):
-                    if " " in piece and known(piece):
-                        emit(piece, found, text, part.start() + match.start(), "any")
+                    if " " in piece:
+                        emit(piece, found, text, part.start() + match.start(), "known")
 
 
 STAGES = tuple((label, rule(pattern, gate, keys)) for label, pattern, gate, keys in RULES) + (("referred", referred), ("liked", liked))

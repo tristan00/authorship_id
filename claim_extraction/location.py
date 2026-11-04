@@ -1,6 +1,6 @@
 import re
 
-from .common import BOT_TEXT, FOR, I, SELF_HEDGE, TAG, clause, rule
+from .common import FOR, I, SELF_HEDGE, TAG, clause, rule
 from .places import NATIONS, PEOPLES, PLACES, TOKEN
 
 DIRECTIONS = "north south east west northern southern eastern western central upstate downstate rural coastal middle sw se nw ne northeast northwest southeast southwest downtown uptown metro inner outer far deep".split()
@@ -20,9 +20,9 @@ ADVERB = r"(?:(?:currently|now|still|also|just|actually|already|really|basically
 WAY = r"(?:(?:just|right|somewhere|up|down|out|over|back|here|there|mostly)\s+)*(?:(?:north|south|east|west|northeast|northwest|southeast|southwest|outside|close to|next to|near)\s+(?:of\s+)?)?"
 PREP = r"(?:in|near|outside(?: of)?|around|by|at|out of)\s+"
 SUBJECT = r"(?:\bi|\bwe|\bme and my \w+|\bmy (?:wife|husband|partner|family|girlfriend|boyfriend|fiance|fiancee|kids|parents) and i)"
-LIVE = re.compile(rf"{SUBJECT}(?:\s+(?:currently|now|still|also|just|actually|already|really|recently|both|all|happily|finally))*(?:\s+(?:live|reside|stay|moved|relocated|settled)|(?:'ve|\s+have)\s+(?:been\s+)?(?:lived|living|based|settled|stayed))\s+{ADVERB}{WAY}(?:{PREP}|to\s+|on\s+)?(?:(?!(?:a|an|the|my|our|with|and|but|for|of|to|in|by|near|at|from|this|that|fear|hope|peace|sin|denial)\b)[a-z]+\s+){{0,2}}?{END}")
-BEING = re.compile(rf"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\biam|\bi (?:now|currently|still|also) am)(?:\s+(?:currently|now|still|also|just|actually|already|really|basically|technically|both|all|living|based|located|residing|staying|settled|here|out|over|down|up|back|happily|permanently|right|somewhere))*\s+(?:{WAY}{PREP}|(?:(?:just|right)\s+)?(?:north|south|east|west|northeast|northwest|southeast|southwest|outside)\s+of\s+){END}")
-BARE = re.compile(rf"(?:^|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside|staying)\s+(?:here\s+)?{PREP}{END}")
+LIVE = re.compile(rf"{SUBJECT}(?:\s+(?:currently|now|still|also|just|actually|already|really|recently|both|all|happily|finally))*(?:\s+(?:live|reside|moved|relocated|settled)|(?:'ve|\s+have)\s+(?:been\s+)?(?:lived|living|based|settled))\s+{ADVERB}{WAY}(?:{PREP}|to\s+|on\s+)?(?:(?!(?:a|an|the|my|our|with|and|but|for|of|to|in|by|near|at|from|this|that|fear|hope|peace|sin|denial)\b)[a-z]+\s+){{0,2}}?{END}")
+BEING = re.compile(rf"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\biam|\bi (?:now|currently|still|also) am)(?:\s+(?:currently|now|still|also|just|actually|already|really|basically|technically|both|all|living|based|located|residing|settled|here|out|over|down|up|back|happily|permanently|right|somewhere))*\s+(?:{WAY}{PREP}|(?:(?:just|right)\s+)?(?:north|south|east|west|northeast|northwest|southeast|southwest|outside)\s+of\s+){END}")
+BARE = re.compile(rf"(?:^|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside)\s+(?:here\s+)?{PREP}{END}")
 HERE = re.compile(rf"\b(?:here|over here|out here|down here|up here)\s+in\s+{END}|(?:^|[\n.!?,;:(]\s*|\b(?:for|of|to|with|among)\s+)(?:we|us)\s+(?:here\s+)?in\s+{END}|\b(?:greetings|hello|hi|hey|love|cheers|regards|blessings|hugs|howdy|saludos|grüße|grüsse)\s+from\s+{END}"
                   rf"|\b(?:my|our) (?:city|town|country|state|province|county|neighborhood|neighbourhood|island|village|area|house|building|apartment|flat)(?:\s*(?:of residence|of|,|:|-|\(|\.|is in|in))*\s*{END}")
 MOVED = re.compile(rf"(?:(?:^|[\n.!?;:(]\s*|\bthen\s+|\b\d{{2}}\s?[mf]\s+)(?:just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)|\bdecided to (?:move|relocate))\s+(?:back\s+)?(?:over\s+)?(?:here\s+)?to\s+{END}")
@@ -49,32 +49,39 @@ SELF = re.compile(r"(?:\b(?:i'm|im|i am|we're|we are|am)\s+(?:an?\s+)?|^|[\n.!?,
 BORN = re.compile(r"(?:\b(?:i'm|im|i am|we're|we are|am|my|i was)\s+(?:an?\s+)?|^|[\n.!?,;(]\s*)\Z")
 PEOPLE = re.compile(r"\b(?:i'm|im|i am|iam|as|am|we're|we are|being)\s+(?:an?\s+)?(?:(?!not\b|never\b|half\b|part\b|quarter\b|mixed\b)\w+\s+)?\Z|\b(?:native|fellow)\s+\Z")
 CITIZEN = re.compile(r"\b(?:i'm|im|i am|as|am|we're|we are|being|dual)\s+(?:an?\s+)?(?:\w+\s+)?\Z|\(\Z")
-TITLE = re.compile(rf"(?<![\w-])(?:{FOR}|{TAG}|\b\d{{2}},\s*[mf]\b|\[\d{{2}}\]|\(\d{{2}}\)|\b[mft]4[mfatr]\w*|\bage:?\s*\d{{2}}\b)|^\s*\d{{2}}(?=\s+[a-z])", re.M)
+TITLE = re.compile(rf"(?<![\w-])(?:{FOR}|{TAG}|\b\d{{2}},\s*[mf]\b|\[\d{{2}}\]|\(\d{{2}}\)|\b[mft]4[mfatr]\w*|\bage:?\s*\d{{2}}\b|\b\d{{2}}\s*/\s*[mf]\b|\b[mf]\s*/\s*\d{{2}}\b)|^\s*\d{{2}}(?=\s+(?!(?:years?|days?|weeks?|months?|hours?|minutes?|seconds?|times?|percent|people|of)\b(?!\s+old))[a-z])", re.M)
 LEAD = re.compile(rf"(?:{FOR}|{TAG}|[\[\](){{}}#/|,:;!.–-]|\b(?:in|from|near|around|aus|de|em|en|di|loc|male|female)|^\s*\(?\d{{2}}\)?|^)\s*(?:(?:{'|'.join(DIRECTIONS)})\s+)?\Z", re.M)
 TAG_LEAD = re.compile(rf"(?:{FOR}|{TAG})\s*\Z")
 LAST = re.compile(r"[\W_]*\Z")
 NEAR = re.compile(r"\b(?:in|from|near|around|aus)\s+\Z")
-ASKING = re.compile(r"\b(?:for|looking|seeking|searching|want|wants|need|needs|into|with|like|likes|love|loves|any|anyone)\b")
+ASKING = re.compile(r"\b(?:for|looking|seeking|searching|want|wants|need|needs|into|with|like|likes|love|loves|any|anyone|you|you're|youre|your|if)\b")
 ADMINISTRATIVE = re.compile(r"\b(?:region|city|province|district|county|governorate|prefecture|department|municipality|oblast|division|capital)\b")
 FEDERAL = frozenset({"united states", "canada", "australia", "india"})
-LOOSE = re.compile(rf"\b(?:and|but|so)\s+(?:then\s+|just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)\s+(?:back\s+)?(?:here\s+)?to\s+{END}|(?<!be )(?<!it's )(?<!its )(?<!it )(?<!is )(?<!are )(?<!was )(?<!were )(?<!they're )\b(?:living|based|located|residing|staying)\s+(?:here\s+)?{PREP}{END}|\b(?:currently|now)\s+(?:living\s+|based\s+)?in\s+{END}")
+TITLE_REGIONS = FEDERAL | {"united kingdom"}
+LOOSE = re.compile(rf"\b(?:and|but|so)\s+(?:then\s+|just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)\s+(?:back\s+)?(?:here\s+)?to\s+{END}|(?<!be )(?<!it's )(?<!its )(?<!it )(?<!is )(?<!are )(?<!was )(?<!were )(?<!they're )\b(?:living|based|located|residing)\s+(?:here\s+)?{PREP}{END}|\b(?:currently|now)\s+(?:living\s+|based\s+)?in\s+{END}")
 SELF_FROM = re.compile(rf"\b(?:i'm|im|i am)\s+(?:(?!(?:with|to|for|about|of|in|on|at|and|or|but|that|who|my|his|her|their|our|your|the|this|it|is|was|not|never|from|\w+ing)\b)[\w'/-]+,?\s+){{0,6}}?{PERSON}\s+from\s+{END}")
 TAG_FROM = re.compile(rf"(?:^|[\s(\[\]/|,-])(?:\d{{2}}|{PERSON})\s+from\s+{END}")
 ROLE = re.compile(rf"\b(?:i'm|im|i am)\s+an?\s+(?:(?!not\b|never\b)[\w-]+\s+){{1,4}}in\s+{END}")
 STOP = re.compile(r"[.!?\n]")
 OPENING = re.compile(r"(?:^|[.!?\n])[\s\"'*]*\Z")
 AREA = re.compile(r"\s+(?:area|county)\b", re.I)
+HOSTING = re.compile(rf"\b(?:hosting|can host|new)\s+(?:in|to)\s+{END}")
+HAILS = re.compile(rf"(?:\bhere|\bthis side|\b\d{{2}} years|(?:^|[\n.!?]\s*)am|\bcpl|\bcouple)\s+from\s+{END}")
+LOCATION = re.compile(r"(?:^|\n)[\W_]*(?:location|loc|based)[\W_]*[:=-][\W_]*\Z")
 HOMETOWN = re.compile(r"\s*[,.(-]?\s*(?:(?:it's|its|it is|is|was)\s+)?my\s+(?:hometown|home town|birthplace)\b")
 LIFE = re.compile(r"(?:,?\s+[a-z]+){0,2}?,?\s+(?:my|all my|for my) (?:entire |whole )?life\b")
+AUTOMATED = re.compile(r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:make sure|include)\b|\bpost (?:has been |was )?removed\b|\bmust (?:include|contain)\b")
 REPOST = re.compile(r"(?:original (?:post|text)|copy of (?:your|the) post|backup of your post|post body)[^\n:]{0,30}:[*\s]*")
 SUBJECTIVE = re.compile(r"\b(?:i|i'm|im|we|we're|me|as an?)\b")
 CHAIN = re.compile(r"[\s,(:–—-]*(?:(?:more\s+)?specifically|namely|in|near|around|outside(?: of)?|just outside(?: of)?|close to)?[\s,(:–—-]*(?:the\s+)?")
 
 
 BLOCK = r"(?!(?:not|never|no|half|part|partly|quarter|mixed|fan|big|huge|of|in|to|from|with|the|for|into|like|than|fluent|native|married|probably|maybe|ex|former|formerly|called)\b)(?!\w+ing\b)[\w'-]+ "
+BRIEF = r"(?!(?:sorry|sure|pretty|glad|afraid|aware|against|about|any|some|every|on|at|over|so|very|not|never|no|half|part|partly|quarter|mixed|fan|big|huge|of|in|to|from|with|the|for|into|like|than|fluent|native|married|probably|maybe|ex|former|formerly|called)\b)(?!\w+ing\b)[\w'-]+ "
 BELIEF = r"christian|muslim|jew|jewish|catholic|atheist|conservative|liberal|i|we|\w+ly"
 SELF_NATION = rf"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BLOCK}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|too|myself|citizen|national|here|living|who|born|by|from|in|as|lol|haha|though|btw|with|not|or|mate|bro|guy|girl|man|woman|dude|male|female|person|boy|lady|kid|teen|teenager|student|mom|mum|dad|father|mother|wife|husband|couple|family|redditor|resident|immigrant|expat|that|{BELIEF})\b)[a-z])"
 AS_NATION = rf"(?:\bas (?:an?|another|a fellow) |(?:^|[.!?\n,]\s*|\bme )as (?=\w+,?\s+(?:i|i'm|im|we|myself)\b))({NATION})(?:[- ]born)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|myself|citizen|national|person|man|woman|guy|girl|dude|male|female|living|who|born|raised|here|in|from|it|there|that|by|expat|immigrant|veteran|mom|mother|dad|father|parent|voter|taxpayer|kid|child|adult|student|resident|native|lol|{BELIEF})\b)[a-z])"
+LOOSE_NATION = rf"\b{I} {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent)\b)"
 SPOKEN = (rf"\b{I} {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|too|myself|citizen|national|here|living|who|born|by|from|in|as|lol|haha|though|btw|with|not|or|mate|bro|guy|girl|man|woman|dude|male|female|person)\b)[a-z])"
           rf"|\bas (?:an?|another|a fellow) ({NATION})(?:[- ]born)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|myself|citizen|national|person|man|woman|guy|girl|dude|male|female|living|who|born|raised|here|in|from|i|we|it|there|that|by|expat|immigrant|veteran|mom|mother|dad|father|parent|voter|taxpayer|kid|child|adult|student|resident|native|lol)\b)[a-z])")
 
@@ -84,10 +91,10 @@ def spoken(word):
 
 
 RULES = [
-    rule("nationality", SELF_NATION, lambda match: NATIONS.get(match.group(1))),
+    rule("nationality", rf"{LOOSE_NATION}|{SELF_NATION}", lambda match: NATIONS.get(match.group(1) or match.group(2))),
     rule("nationality", AS_NATION, lambda match: NATIONS.get(match.group(1))),
     rule("native_language", SPOKEN, lambda match: spoken(match.group(1) or match.group(2))),
-    rule("origin_country", SELF_NATION, lambda match: NATIONS.get(match.group(1))),
+    rule("origin_country", rf"{LOOSE_NATION}|{SELF_NATION}", lambda match: NATIONS.get(match.group(1) or match.group(2))),
     rule("origin_country", AS_NATION, lambda match: NATIONS.get(match.group(1))),
     rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:language|tongue) is \**(\w+)\b|\b(\w+)\** is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) (?:also |actually )?(?:an? )?native \**(\w+)\** speaker\b|\bnative \**(\w+)\** speaker here\b|\b(?:i'm|im|i am|as) an? native speaker of \**(\w+)\b|\b(\w+)\**\s*\(native\)|\bnative(?: language)?\s*[:=-]\s*\**(\w+)\b",
          lambda match: spoken(next(filter(None, match.groups())))),
@@ -137,7 +144,7 @@ def mentions(text, lowered):
 def within(head, container):
     kind, value, region, country, flag = head
     if container[0] == "region" and kind == "city":
-        return kind, value, container[1], container[3], flag
+        return kind, value, container[1], container[3], "joined"
     if container[0] == "country":
         return head if country == container[3] else (kind, value, region if kind == "region" else "", container[3], flag)
     return None
@@ -155,7 +162,7 @@ def hedged(lowered, opening, start, end):
 def stance(lowered, start, end, entry):
     opening = max(clause(lowered, start) - 1, start - 90, 0)
     for pattern, kind in ((LIVE, "residence"), (BARE, "residence"), (HERE, "local"), (ABROAD, "local"), (GERMAN, "aus"), (BEING, "being"), (FROM, "from"), (LEFT, "from"), (ORIGIN, "origin"), (ROLE, "being"), (SELF_FROM, "from"), (MOVED, "residence")):
-        if match := pattern.search(lowered, opening, start):
+        if match := pattern.search(lowered, max(start - 60, 0) if pattern is HERE else opening, start):
             if hedged(lowered, match.start(), start, end):
                 return None
             if kind == "being":
@@ -201,10 +208,10 @@ def titled(text, lowered, start, end, entry):
 
 
 def places(text, lowered, found):
-    if BOT_TEXT.search(lowered):
+    if AUTOMATED.search(lowered):
         if not (copy := REPOST.search(lowered)):
             return
-        stop = BOT_TEXT.search(lowered, copy.end())
+        stop = AUTOMATED.search(lowered, copy.end())
         cut = slice(copy.end(), stop.start() if stop else None)
         text, lowered = text[cut], lowered[cut]
     spots = mentions(text, lowered)
@@ -228,17 +235,32 @@ def places(text, lowered, found):
         if kind == "aus" and entry[0] == "country":
             found.setdefault(("origin_country", entry[3]), start)
         title = kind is None and titled(text, lowered, start, end, entry)
+        foreign = entry[3] not in TITLE_REGIONS
+        if foreign and entry[0] == "city" and not text[start].isupper():
+            continue
+        if foreign and (entry[0] == "region" or title == "loose"):
+            title = False
         if kind is None and residence and residence[-1][0][3] == entry[3] and CHAIN.fullmatch(lowered, residence[-1][1], start):
             kind = "residence"
+        if kind is None and not title and entry[0] == "city" and (host := HOSTING.search(lowered, max(0, start - 20), start)) and not hedged(lowered, host.start(), start, end) and not LATER.match(lowered, end):
+            kind = "here"
+        if kind is None and not title and entry[0] == "region" and LOCATION.search(lowered, max(0, start - 30), start):
+            kind = "residence"
+        if kind is None and entry[0] == "city" and (other := HAILS.search(lowered, max(0, start - 30), start)) and not hedged(lowered, other.start(), start, end) and not LATER.match(lowered, end):
+            found.setdefault(("origin_city", entry[1]), end)
         if kind == "residence" and LIFE.match(lowered, end):
             placed("origin", entry, end, found)
+        if foreign and entry[0] == "region" and kind in ("residence", "local"):
+            continue
+        if kind == "here" and entry[0] == "city":
+            entry = (*entry[:2], "", *entry[3:])
         if kind in ("residence", "aus", "local") or kind == "here" and entry[4] != "1" or kind is None and title:
-            residence.append((entry, end, entry[0] == "country" or title != "loose" and kind not in ("local", "here", "aus")))
+            residence.append((entry, end, entry[0] == "country" or title != "loose" and kind not in ("local", "here", "aus") and not (title and foreign)))
         elif kind == "from":
-            placed("origin", entry, end, found, entry[0] == "country" or entry[3] != "united states")
+            placed("origin", (*entry[:2], "", *entry[3:]) if entry[0] == "city" and entry[3] == "united states" and entry[4] != "joined" else entry, end, found, entry[0] == "country" or not foreign and entry[3] != "united states")
             if entry[0] == "country":
                 found.setdefault(("nationality", entry[3]), start)
-            fallback.append((entry, end, True))
+            fallback.append((entry, end, entry[0] == "country" or not foreign))
         elif kind in ("origin", "born"):
             placed("origin", entry, end, found)
             if kind == "born" and entry[0] == "country":

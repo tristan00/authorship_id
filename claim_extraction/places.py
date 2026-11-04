@@ -80,10 +80,11 @@ REGION_ALIASES = {
 }
 
 CITY_ALIASES = {"nyc": "new york city", "la": "los angeles", "l.a.": "los angeles", "sf": "san francisco", "philly": "philadelphia", "vegas": "las vegas",
-                "okc": "oklahoma city", "slc": "salt lake city", "bombay": "mumbai", "bangalore": "bengaluru", "calcutta": "kolkata", "cdmx": "mexico city",
-                "kl": "kuala lumpur", "saigon": "ho chi minh city", "kiev": "kyiv", "odessa": "odesa", "münchen": "munich", "cologne": "köln", "roma": "rome",
-                "milano": "milan", "seville": "sevilla", "wien": "vienna", "lisboa": "lisbon", "rio": "rio de janeiro", "atl": "atlanta", "chi": "chicago",
+                "okc": "oklahoma city", "slc": "salt lake city", "bombay": "mumbai", "calcutta": "kolkata", "cdmx": "mexico city",
+                "kl": "kuala lumpur", "saigon": "ho chi minh city", "kiev": "kyiv", "odessa": "odesa", "münchen": "munich", "roma": "rome",
+                "milano": "milan", "wien": "vienna", "lisboa": "lisbon", "rio": "rio de janeiro", "atl": "atlanta", "chi": "chicago",
                 "nola": "new orleans", "pdx": "portland", "htx": "houston", "kc": "kansas city"}
+ENGLISH_NAMES = {"bangalore": "bengaluru", "cologne": "köln", "seville": "sevilla"}
 COUNTRY_CODES = {"us": "united states"}
 US_CENSUS_REGIONS = ("northeast", "midwest", "south", "west", "new england", "mid-atlantic", "east north central", "west north central", "south atlantic", "east south central",
                      "west south central", "mountain", "pacific")
@@ -116,6 +117,7 @@ def table():
     for region, aliases in REGION_ALIASES.items():
         found |= {key(name): (*loaded[key(region)][:4], "") for name in aliases}
     found |= {key(alias): (*loaded[key(city)][:4], "code" if len(alias) <= 2 else "") for alias, city in CITY_ALIASES.items()}
+    found |= {key(name): (loaded[key(local)][0], name, *loaded[key(local)][2:4], "") for name, local in ENGLISH_NAMES.items()}
     for country, codes in REGION_CODES.items():
         for code, name in codes.items():
             found.setdefault(code, ("region", name, name, country, "code"))

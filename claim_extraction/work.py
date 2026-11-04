@@ -88,7 +88,7 @@ JOBS = table({
               "strategist|procurement specialist|procurement manager|purchasing agent|purchasing manager|buyer|supply chain manager|supply chain analyst|logistics manager|"
               "event planner|event coordinator|events manager|wedding planner|project coordinator|program coordinator|executive director|nonprofit director|chief of staff|"
               "operations analyst|operations coordinator|management trainee|middle manager|department manager|area manager|regional manager|district manager|plant manager|"
-              "facilities manager|property manager|office administrator|business manager|program director|managing partner|partner at a firm|corporate trainer|change manager",
+              "facilities manager|property manager|business manager|program director|managing partner|partner at a firm|corporate trainer|change manager",
     MEDIA: "marketer|marketing manager|marketing specialist|marketing coordinator|marketing director|marketing executive|marketing assistant|digital marketer|seo specialist|seo consultant|"
            "journalist|editor|copy editor|copywriter|reporter|news reporter|correspondent|columnist|broadcaster|news anchor|radio host|radio presenter|tv presenter|presenter|"
            "social media manager|social media specialist|social media coordinator|community manager|pr specialist|pr manager|pr executive|publicist|communications manager|"
@@ -380,9 +380,6 @@ BUSINESSES = table({
     ARTS: "tattoo shop|tattoo studio|tattoo parlor|tattoo parlour|photography business|photography studio|art studio|recording studio|design studio|design agency|dance studio|"
           "music studio|production company|record label|etsy shop|pottery studio|gallery",
     OUTDOOR: "farm|ranch|landscaping business|landscaping company|lawn care business|lawn care company|orchard|vineyard|nursery|tree service",
-    SALES: "boutique|gas station|dealership|bookstore|book shop|bookshop|convenience store|liquor store|grocery store|corner shop|flower shop|gift shop|thrift store|thrift shop|"
-           "clothing store|clothing brand|clothing line|pawn shop|vape shop|smoke shop|bike shop|record store|game store|comic shop|online store|online shop|ecommerce store|"
-           "e-commerce store|shopify store|retail store|retail business|furniture store|jewelry store|pet store",
     TRADE: "construction company|construction business|construction firm|plumbing business|plumbing company|electrical business|electrical company|roofing company|roofing business|"
            "hvac company|hvac business|auto shop|repair shop|body shop|mechanic shop|handyman business|painting business|painting company|remodeling company|"
            "renovation business|carpentry business|welding shop|machine shop|fabrication shop|woodworking shop",
@@ -391,7 +388,6 @@ BUSINESSES = table({
     LAW: "law firm|law practice|legal practice",
     CLINICAL: "dental practice|medical practice|vet practice|veterinary practice|veterinary clinic|clinic|private practice|therapy practice|chiropractic practice|physiotherapy clinic|pharmacy",
     TEACHING: "daycare|tutoring business|tutoring company|preschool|music school|dance school|driving school|language school",
-    BUSINESS: "consulting firm|consulting business|consulting company|consultancy|staffing agency|recruitment agency|recruiting firm",
     MEDIA: "marketing agency|ad agency|advertising agency|digital agency|pr firm|pr agency|seo agency|media company|publishing company",
     SOFTWARE: "software company|software business|tech company|tech startup|saas company|web development agency|web design business|it company|it business|dev shop|game studio",
     BUSINESS: "business|company|startup|small business|firm|agency|llc|own business|own company|online business|franchise",
@@ -399,7 +395,7 @@ BUSINESSES = table({
     None: "practice|side business",
 })
 BUSINESS_NAMES = alternation(BUSINESSES)
-MY_BUSINESS_NAMES = alternation(name for name in BUSINESSES if " " in name or name in {"business", "startup", "bakery", "boutique", "pizzeria", "brewery", "restaurant", "cafe", "café", "llc", "consultancy"})
+MY_BUSINESS_NAMES = alternation(name for name in BUSINESSES if " " in name or name in {"business", "startup", "bakery", "pizzeria", "brewery", "restaurant", "cafe", "café", "llc"})
 BMOD = r"(?:(?!(?:local|favorite|favourite|usual|nearest|go-to|regular|closest|neighborhood|neighbourhood|nearby|preferred|dad's|mom's|mum's|parents'|family's|friend's|old)\b)[\w'&-]+ ){0,2}?"
 FIELDS = table({
     SOFTWARE: "tech|software|cybersecurity|cyber security|data science|web development|game development|gamedev|game dev|saas|fintech|devops|it industry|it field|information technology",
@@ -435,7 +431,7 @@ PLACES = table({
            "convenience store|liquor store|shop|boutique|phone store|electronics store|hardware store|big box store|retailer",
     WAREHOUSE: "warehouse|factory|distribution center|distribution centre|fulfillment center|fulfilment centre|amazon warehouse|plant|manufacturing plant|mill|sawmill|"
                "processing plant|meat plant|meatpacking plant|cannery|print shop|assembly plant|steel mill|paper mill|refinery",
-    TEACHING: "school|elementary school|middle school|high school|primary school|secondary school|preschool|kindergarten|daycare|nursery|university|college|community college|"
+    TEACHING: "school|elementary school|middle school|high school|primary school|secondary school|preschool|kindergarten|daycare|university|college|community college|"
               "tutoring center|learning center|library|academy|charter school|private school|public school|montessori school|boarding school|language school",
     FINANCE: "bank|credit union|accounting firm|insurance company|investment bank|hedge fund|brokerage|tax firm|big four firm|financial firm",
     LAW: "law firm|courthouse|court|public defender's office|da's office|prosecutor's office|legal aid office|legal clinic",
@@ -513,7 +509,7 @@ def occupied(find):
 
 
 def employed(find):
-    return lambda match: None if (value := find(match)) is None else OWNER if value in (OWNER, FOUNDER) else "employed"
+    return lambda match: None if (value := find(match)) in (None, ARTS) else OWNER if value in (OWNER, FOUNDER) else "employed"
 
 
 def scoped(value, hedge=SELF_HEDGE):
@@ -526,7 +522,9 @@ def said(attribute, pattern, value, hedge=SELF_HEDGE):
 
 TEACH = (r"\bi(?:'ve| have)? (?:currently |now |also |still |actually )?(?:teach|taught) (?:both )?(?:high school|middle school|elementary|kindergarten|preschool|pre-k|\w+ grade|\d+(?:st|nd|rd|th) grade|grade \d+|year \d+|"
          r"math|maths|english|science|history|art|music|pe|biology|chemistry|physics|special ed|sped|esl|efl|college|university|uni|at|in|for|classes|courses|a class|students|"
-         r"undergrads|freshmen|ap|french|spanish|german|reading|kids|children|teens)\b|\bi(?:'ve| have) been teaching (?:for|since|\d|at|in)\b|\bmy (?:students|pupils|classroom|"
+         r"undergrads|freshmen|ap|french|spanish|german|reading|kids|children|teens)\b|\bi(?:'ve| have) been teaching (?:for|since|\d|at|in)\b|"
+         r"\bi(?:'m| am|'ve been| have been)? (?:currently |now |also |still |actually |mostly |mainly )?(?:teach|teaching) (?!(?:me|you|him|her|them|myself|yourself|themselves|it|that|this|us|"
+         r"my (?:\w+ )*?(?:kids?|son|daughter|children|baby|girl|boy|dog|cat|puppy|wife|husband|partner|friends?))\b)[a-z]|\bmy (?:students|pupils|classroom|"
          r"lesson plans?|class of|kindergarteners|kinders|first graders|second graders|third graders|fourth graders|fifth graders|\d+(?:st|nd|rd|th) graders|homeroom)\b")
 CARE_TERMS = r"\bmy (?:patients|patient load|caseload|case load|charge nurse|unit manager|nurse manager)\b"
 DOING = {"teaching": TEACHING, "tutoring": TEACHING, "nursing": CLINICAL, "accounting": FINANCE, "bookkeeping": FINANCE, "bartending": FOOD, "serving": FOOD, "waitressing": FOOD,
@@ -672,6 +670,7 @@ ANY_STUDENT = (r"\b(?:i'm|im|i am)(?: currently| still| just| also| now)? (?:an?
               r"(?:^|[.!?\n,]\s*)(?:a |an )?(?:college |uni |university )?student here\b|\b(?:already|still) a student\b|\bmy tuition\b|"
               r"\bas an? (?:(?!(?:former|ex|old|past|of|the|my|high|school|grad|graduate|phd|masters?|doctoral|level)\b)[\w'-]+ ){0,3}?student\b(?=[^.!?\n]{0,60}\b(?:i|my|me)\b)")
 STUDENT_TWINS = [STUDYING, PRO_STUDENT, ANY_STUDENT]
+LEVELLESS = re.compile(r"\b(?:international|foreign|exchange|overseas)\b")
 RULES = [
     *(rule("occupation", pattern, occupied(find), TAGGED) for pattern, find in (*OCCUPATION, *MENTIONS, (LEAD, fragment))),
     *(rule("employment_status", pattern, employed(find), TAGGED) for pattern, find in (*OCCUPATION[:4], MENTIONS[0])),
@@ -781,7 +780,7 @@ EDUCATION_RULES = [
          fixed("master's degree")),
     said("education", r"\b(?:i'm|im|i am) (?:still |currently |now )?(?:finishing|in|attending) (?:high ?school|class 1[012](?:th)?|1[012]th class|class (?:xi|xii))\b|\ban? a[- ]levels? student\b",
          fixed("high school student")),
-    said("education", ANY_STUDENT, fixed("college student"), SELF_HEDGE),
+    said("education", ANY_STUDENT, lambda match: None if LEVELLESS.search(match.group()) else "college student", SELF_HEDGE),
     said("education", r"\b(?:i'm|im|i am|as|just finished|finished|i was|during|after|since) (?:an? |my )?[123]l\b", fixed("professional degree such as law or medicine"), SELF_HEDGE),
     said("education", GRADUATE, fixed("graduate student"), SELF_HEDGE),
     said("education", PRO_STUDENT, fixed("graduate student"), SELF_HEDGE),
@@ -817,6 +816,8 @@ FOREIGN_SUBJECTS = table({
     "education": "pedagogia|pedagogía|pédagogie|pädagogik|lehramt|magisterio",
     "humanities": "história|historia|geschichte|letras|filosofia|filosofía|philosophie|literatura|germanistik|anglistik",
 })
+DEGREE_SUBJECTS = SUBJECTS | {"it management": "computer science or IT", "accountancy": "business or finance", "ultrasound": "medicine or health", "electronics": "engineering",
+                              "electronics and communication": "engineering", "electronics and communication engineering": "engineering"}
 FIELD_RULES = [
     rule("field_of_study", rf"\bmy (?:\w+ )?({SUBJECT_NAMES}) (?:class|classes|course|courses|module|modules|lab|labs|lecture|lectures|lecturer|professor|professors|prof|exam|exams|"
          rf"final|finals|midterm|midterms|coursework|assignment|assignments|thesis|dissertation|program|programme|department|dept|cohort|classmates|seminar|studies)\b|"
@@ -828,9 +829,8 @@ FIELD_RULES = [
     rule("field_of_study", rf"\b{I} (?:a |an )?({SUBJECT_NAMES}) (?:major|student|graduate|grad)\b|\bmy ({SUBJECT_NAMES}) (?:degree|major)\b", lambda match: SUBJECTS[match.group(1) or match.group(2)]),
     rule("field_of_study", rf"\b(?:a|an|my) ({SUBJECT_NAMES}) (?:degree|diploma|bachelor'?s|bachelors|masters?|master's|phd)\b|\b({SUBJECT_NAMES}) (?:student|major|grad) here\b|(?:^|\n)\W*(?:an? )?({SUBJECT_NAMES}) (?:student|major)\b",
          lambda match: SUBJECTS[next(filter(None, match.groups()))] if match.group(1) is None or match.group().startswith("my") or owned(match.string, match.start()) else None, SELF_HEDGE),
-    rule("field_of_study", rf"\b(?:degree|degrees|bachelors?|bachelor's|masters?|master's|phd|bsc|ba|bs|ms|msc|ma|major|majoring|majored|graduate|student|year|diploma|course|studies|studying|study|studied|background(?: is)?) in ({SUBJECT_NAMES}|electronics(?: and communication)?(?: engineering)?|data analytics|it management|physical therapy|accountancy|ultrasound|nursing|chem)\b",
-         lambda match: {**SUBJECTS, "it management": "computer science or IT", "accountancy": "business or finance", "ultrasound": "medicine or health", "electronics": "engineering",
-                        "electronics engineering": "engineering", "electronics and communication": "engineering", "electronics and communication engineering": "engineering"}[match.group(1)], SELF_HEDGE),
+    rule("field_of_study", rf"\b(?:degree|degrees|bachelors?|bachelor's|masters?|master's|phd|bsc|ba|bs|ms|msc|ma|major|majoring|majored|graduate|student|year|diploma|course|studies|studying|study|studied|background(?: is)?) in ({alternation(DEGREE_SUBJECTS)})\b",
+         group(DEGREE_SUBJECTS), SELF_HEDGE),
     rule("field_of_study", rf"\b(?:as an? |i'm an? |im an? |i am an? )(?:\w+ ){{0,2}}({SUBJECT_NAMES}) (?:graduate|grad|student|major)\b", group(SUBJECTS), SELF_HEDGE),
     rule("field_of_study", r"\b(law|med|medical|pharmacy|nursing|dental|vet|veterinary|engineering|business|art|film|architecture|b) (?:school|college)\b|\b(?:i'm|im|i am|i was|as) (?:a |an )?[123](l)\b|"
          r"\b(?:my|in|doing|finishing|starting|out of) (?:my )?(residency)\b", lambda match: SCHOOLS[next(filter(None, match.groups()))] if owned(match.string, match.start(), 60) else None, SELF_HEDGE),
@@ -854,8 +854,8 @@ AMOUNT = (r"(?:about |around |roughly |over |like |~|almost |just under |just ov
           r"\s*(?:(?:usd|cad|aud|eur|gbp|dollars|pounds|euros)\s*)?(?:(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b|(annually|yearly|monthly|hourly|weekly)\b|"
           r"(?=\s*(?:$|[.,!;)+]|before|after|pre|post|gross|net|base|salary|total|tc|as|currently|now|right now|working|plus|and|but|so|with|which)))")
 INCOME = [
-    rf"(?:\b(?:i|me) (?:currently |now |only |just |still )?(?:make|made|earn|earned|bring in|bring home|gross|grossed|net|netted|take home|clear|cleared|pull|pulled|pull in|am making|'m making|m making|"
-    rf"am earning|'m earning|m earning|get paid|got paid|am paid|'m paid|am on|'m on|am at|'m at|m at|passed|hit|crossed|topped)|\bmy (?:salary|income|pay|base|base salary|base pay|tc|total comp|total compensation|"
+    rf"(?:\b(?:i|me) (?:currently |now |only |just |still )?(?:make|made|earn|earned|bring in|bring home|gross|grossed|net|netted|take home|clear|cleared|pull|pulled|pull in|get paid|got paid|passed|hit|crossed|topped)|"
+    rf"\b(?:i'm|im|i am) (?:currently |now |only |just |still )?(?:making|earning|paid|getting paid|bringing in|bringing home|pulling in|clearing|netting|grossing|taking home|(?:on|at)(?=\s+(?:about |around |like |~)?\$|\s+\d[\d,.]*\s*k\b))|\bmy (?:salary|income|pay|base|base salary|base pay|tc|total comp|total compensation|"
     rf"take home|take-home|take home pay|comp|annual salary|gross income|net income|household income|paycheck|wage|hourly rate|rate) (?:is|was|went up to|of|:|=|is now|just hit|is around|is about|is like)|"
     rf"(?:^|[.!?\n]\s*)(?:passed|cleared|hit|crossed|made|make|earn|earning|making|grossed|netted|took home|take home))\s+{AMOUNT}",
 ]

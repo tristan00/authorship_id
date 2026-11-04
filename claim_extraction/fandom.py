@@ -75,7 +75,7 @@ def fandom(text, found):
             if kinds[kind]:
                 names.append((abs(match.start() - cue.start()), kind, name))
         for _, kind, name in sorted(names)[:2]:
-            if kind not in NAMED_ONLY and not junk(name) and (kind != "video_game" or " " in name.strip()):
+            if kind not in NAMED_ONLY and not junk(name) and (kind == "artist" or 1 < len(TRAILING.sub("", name).split()) < 4):
                 named(kind, name, found, sentence.start())
 
 
@@ -108,7 +108,7 @@ def adjacent(text, found):
         part = text[max(0, match.start() - 150):match.end() + 150]
         kinds = {kind: 3 * len(pattern.findall(part)) + len(pattern.findall(text)) for kind, pattern in CONTEXTS.items()}
         kind = max(kinds, key=kinds.get)
-        if kinds[kind] and kind not in NAMED_ONLY and not junk(name) and (kind == "franchise" and len(words) < 3 or re.search(r"[A-Z0-9]", text[match.start(1):match.end(1)])):
+        if kinds[kind] and kind not in NAMED_ONLY and not junk(name) and (len(words) < 3 or kind == "franchise" and len(words) < 4) and (kind == "franchise" and len(words) < 3 or re.search(r"[A-Z0-9]", text[match.start(1):match.end(1)])):
             named(kind, name, found, match.start())
 
 
@@ -159,8 +159,16 @@ def parts(name):
 
 
 def lexical(name):
-    hits = [(links, attribute, value) for attribute, start, end, value, _, _, links in mentions(name) if start == 0 and end == len(name.rstrip(" .,!:"))]
-    return max(hits)[1:] if hits else None
+    surface = name.rstrip(" .,!:")
+    hits = [(links, attribute, value) for attribute, start, end, value, _, _, links in mentions(name) if start == 0 and end == len(surface)]
+    if not hits:
+        return None
+    _, attribute, value = max(hits)
+    return attribute, shown(surface, value)
+
+
+def shown(surface, value):
+    return surface if len(surface) > SHORT_KEY and " ".join(WORD.findall(surface.lower())) != " ".join(WORD.findall(value)) else value
 
 
 def classified(text, start, name, options):
@@ -289,6 +297,7 @@ royal challengers bengaluru|royal challengers bangalore|RCB;sunrisers hyderabad|
 TEAMS = (NFL_TEAMS_2025, NBA_TEAMS_2025, MLB_TEAMS_2025, NHL_TEAMS_2025, MLS_TEAMS_2025, PREMIER_LEAGUE_TEAMS_2025, LA_LIGA_TEAMS_2025, SERIE_A_TEAMS_2025, BUNDESLIGA_TEAMS_2025,
          LIGUE_1_TEAMS_2025, IPL_TEAMS_2025)
 KNOWLEDGE = Path(__file__).with_name("knowledge.tsv")
+PLACES = frozenset(line.split("\t", 1)[0] for line in Path(__file__).with_name("gazetteer.tsv").read_text(encoding="utf-8").splitlines()[1:])
 SHORT_KEY = 3
 LOOSE = frozenset({"video_game"})
 WINDOW = 150
@@ -410,7 +419,7 @@ def engaged(text, start, end, attribute, popular, plain):
         return False
     if plain and attribute == "franchise":
         return bool(POSITIVE.search(text, *narrow))
-    if attribute in DONE:
+    if attribute in DONE and (" " in text[start:end] or attribute == "artist" or attribute == "video_game" and not popular):
         left, right = max(0, left - 100), right + 100
     if POSITIVE.search(text, left, right):
         return True
@@ -455,12 +464,19 @@ def known(text, found):
             if supported(text, start, end):
                 named(attribute, value, found, start)
             continue
-        if (attribute == "character" or (cased and attribute in SPELLED) or (common and links < FAMOUS_SITELINKS and " " not in text[start:end])
+        surface = text[start:end]
+        key = " ".join(WORD.findall(folded(surface).lower())).removeprefix("the ")
+        if (attribute == "character" or (cased and attribute in SPELLED) or (common and links < FAMOUS_SITELINKS and " " not in surface)
+                or (attribute in TITLES and (key in COMMON or key in PLACES) and surface.removeprefix("the ").removeprefix("The ") in (key, key.capitalize(), key.title()))
+                or (attribute in LOOSE and not cased and common and links < FAMOUS_SITELINKS and surface.islower())
+                or (attribute == "franchise" and surface.islower() and any(char.isdigit() for char in surface))
                 or ((cased or common or attribute in NAMED_ONLY or attribute in GATED) and not GATES[attribute].search(text, max(0, start - WINDOW), end + WINDOW)
                     and not (attribute == "franchise" and links >= FAMOUS_SITELINKS and not common and praised(text, start, end)))):
             continue
-        if cased and " " not in text[start:end] and opening(text, start):
-            opened.add((start, end))
+        if cased and " " not in surface and opening(text, start):
+            bounds = sentence(text, start, end)
+            if not (attribute in TITLES and POSITIVE.search(text, *bounds) or attribute == "video_game" and SELF.search(text, *bounds)):
+                opened.add((start, end, attribute))
         if links >= FAMOUS_SITELINKS and attribute in TITLES:
             famous.add((start, end, attribute))
         if common and links < FAMOUS_SITELINKS:
@@ -479,7 +495,6 @@ def known(text, found):
     told = set()
     for span in spans:
         start, end, attribute, value = span
-        if (attribute, value) not in told and (span in listed or ((start, end) not in opened and engaged(text, start, end, attribute, (start, end, attribute) in famous, (start, end, attribute) in ordinary))):
+        if (attribute, value) not in told and (span in listed or ((start, end, attribute) not in opened and engaged(text, start, end, attribute, (start, end, attribute) in famous, (start, end, attribute) in ordinary))):
             told.add((attribute, value))
-            surface = text[start:end]
-            named(attribute, surface if len(surface) > SHORT_KEY and " ".join(WORD.findall(surface.lower())) != " ".join(WORD.findall(value)) else value, found, start)
+            named(attribute, shown(text[start:end], value), found, start)

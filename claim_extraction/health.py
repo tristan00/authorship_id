@@ -26,7 +26,7 @@ HAVE_NOW = (rf"{SUBJECT}(?:have|got|get|suffer from|struggle with|deal with|live
             r"been suffering from|been treated for|been recovering from|developed|struggled with|dealt with|suffered from|lived with|battled|fought|survived|beaten)"
             r"|\b(?:i'm|im|i am) (?:also |currently |still |now |actually |officially |finally )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|being treated for|recovering from|"
             r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)"
-            r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as )?(?:someone|a person|a guy|a girl|a woman|a man|an adult|a lady) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
+            r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as |i'm |im |i am )(?:someone|a person|a guy|a girl|a woman|a man|an adult|a lady) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
             r"|\bmy (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|\bdiagnosed me (?:with|as)")
 HAVE = HAVE_NOW + rf"|{SUBJECT}(?:had|suffered from|struggled with|dealt with|lived with|battled|fought|beat|survived|overcame|was treated for|was dealing with|went through|got treated for)"
 BARE = r"(?:^|[.!?\n|]\s*)(?:recently |newly |just |finally |officially |formally |also |and |got |was |been )*(?:diagnosed|dx'?d) (?:with|w/)"
@@ -319,9 +319,14 @@ INJURED = (r"\b(?:my|i have an?|i've got an?|i got an?|with an?|with my|i had an
            r"wrist|wrists|elbow|elbows|neck|spine|disc|discs|acl|mcl|meniscus|rotator cuff|achilles|leg|legs|foot|feet|hand|hands|arm|arms|knee cap|kneecap|pelvis|tailbone|coccyx|hamstring|groin|"
            r"jaw|sacrum|si joint|vertebrae|ribs|rib|collarbone|thumb|toe|toes|finger|fingers)\b")
 
+def physical_tool(match):
+    mental = MENTAL_TAIL.search(match.string, match.start(), match.end())
+    return None if mental and mental.start() < match.start(1) else PHYSICAL_TOOL_STRICT.get(match.group(1))
+
+
 RULES = [
     rule("physical_condition", rf"\bmy (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |"
-         rf"\w+ (?:and )?)?({names(PHYSICAL_TOOL_STRICT)})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad)s?\b)", group(PHYSICAL_TOOL_STRICT), OWN_HEDGE),
+         rf"\w+ (?:and )?)?({names(PHYSICAL_TOOL_STRICT)})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad)s?\b)", physical_tool, OWN_HEDGE),
     rule("physical_condition", rf"\b(?:i (?:also |still |now |have to |had to |need to |always |usually |currently |sometimes |must )?(?:wear|need|use|carry|have|got|take|took|started|start|am on|was on|was put on|got put on|was prescribed|got prescribed|inject|do|did|go to|see|saw|visit)|i'm (?:also |still |now |currently )?(?:on|taking|using)|i've (?:been on|been taking|been using|started)) (?:a |an |my |the |two |both |prescription |daily )?({names({name for name in PHYSICAL_TOOL_STRICT if name not in {'cancer', 'diabetes', 'asthma', 'hypertension', 'migraines', 'migraine', 'seizures', 'seizure', 'heart condition', 'eczema', 'psoriasis', 'rosacea', 'dermatitis', 'hives', 'tinnitus', 'glaucoma', 'ibs', 'gerd', 'reflux', 'acid reflux', 'colitis', 'celiac', 'celiac disease', 'endometriosis', 'pcos', 'fibroids', 'adenomyosis', 'menopause', 'perimenopause', 'hypothyroidism', 'hyperthyroidism', 'arthritis', 'osteoarthritis', 'gout', 'lupus', 'autoimmune disease'}})})\b",
          group(PHYSICAL_TOOL_STRICT), OWN_HEDGE),
     rule("physical_condition", r"\bi'?m (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|\bi (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|\bi (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|\bi (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
@@ -397,8 +402,8 @@ MENTAL = spread({
                   "a shopping addiction", "an alcohol addiction", "a drinking addiction", "a vaping addiction", "vape addiction", "phone addiction", "social media addiction", "a phone addiction",
                   "an adderall addiction", "a xanax addiction", "a fentanyl addiction", "fentanyl addiction", "pain pill addiction", "a pain pill addiction", "a caffeine addiction", "caffeine addiction",
                   "a sugar addiction", "sugar addiction", "dependency", "a dependency", "chemical dependency", "alcohol dependence", "alcohol dependency", "drug dependency", "codependency"],
-    "neurodivergent, unspecified": ["neurodivergent", "neurodivergence", "neurodivergency", "neurodiversity"],
-    "other mental health condition": ["dyslexia", "dyspraxia", "dyscalculia", "dysgraphia", "tourette's", "tourettes", "tourette syndrome", "tourette's syndrome", "tourettes syndrome", "dissociative identity disorder",
+    "neurodivergent, unspecified": ["neurodivergent", "neurodivergence", "neurodivergency", "neurodiversity", "dyslexia", "dyspraxia", "dyscalculia", "dysgraphia", "dyslexic tendencies"],
+    "other mental health condition": ["tourette's", "tourettes", "tourette syndrome", "tourette's syndrome", "tourettes syndrome", "dissociative identity disorder",
                                       "osdd", "a dissociative disorder", "dissociative disorder", "dpdr", "depersonalization", "derealization", "depersonalisation", "derealisation", "depersonalization disorder",
                                       "depersonalization-derealization disorder", "insomnia", "chronic insomnia", "severe insomnia", "body dysmorphia", "body dysmorphic disorder", "bdd", "trichotillomania", "trich",
                                       "dermatillomania", "skin picking disorder", "excoriation disorder", "misophonia", "a tic disorder", "tic disorder", "tics", "motor tics", "vocal tics", "selective mutism",
@@ -408,7 +413,7 @@ MENTAL = spread({
                                       "learning disabilities", "an intellectual disability", "intellectual disability", "sensory processing disorder", "sensory processing issues", "sensory issues",
                                       "rejection sensitive dysphoria", "hoarding disorder", "kleptomania", "pyromania", "conversion disorder", "somatic symptom disorder", "sleep paralysis", "night terrors",
                                       "nightmare disorder", "dissociation", "dissociative episodes", "emotional dysregulation", "executive dysfunction", "a processing disorder", "a nonverbal learning disability",
-                                      "nvld", "dyslexic tendencies", "a stutter", "stuttering", "a speech impediment", "speech impediment", "a lisp", "apraxia", "complex trauma", "trauma", "religious trauma",
+                                      "nvld", "a stutter", "stuttering", "a speech impediment", "speech impediment", "a lisp", "apraxia", "complex trauma", "trauma", "religious trauma",
                                       "childhood trauma", "attachment issues", "an attachment disorder", "attachment disorder", "reactive attachment disorder", "abandonment issues", "trust issues", "anger issues",
                                       "anger problems", "an anger problem", "impulse control disorder", "intermittent explosive disorder", "ied", "odd", "oppositional defiant disorder", "conduct disorder",
                                       "burnout", "autistic burnout", "chronic stress", "grief", "complicated grief", "prolonged grief disorder", "maladaptive daydreaming", "pmdd", "gender dysphoria", "body image issues",
@@ -443,10 +448,10 @@ MENTAL_STATES = spread({
                   "an ex-alcoholic", "a functioning alcoholic", "a high functioning alcoholic", "a recovering heroin addict", "a pill addict", "an opiate addict", "an opioid addict", "a junkie",
                   "a recovering junkie", "an addict in recovery", "an alcoholic in recovery", "in recovery", "in recovery from", "sober", "clean and sober", "a sober", "x days sober", "years sober",
                   "months sober", "days sober", "an alcoholic myself", "an addict myself", "a nicotine addict", "a kratom addict", "a benzo addict", "a cocaine addict", "a coke addict"],
-    "neurodivergent, unspecified": ["neurodivergent", "neurodiverse", "nd", "neuro divergent", "neuro-divergent", "a neurodivergent", "neurospicy", "neurodivergent myself"],
+    "neurodivergent, unspecified": ["neurodivergent", "neurodiverse", "nd", "dyslexic", "dyspraxic", "dyscalculic", "neuro divergent", "neuro-divergent", "a neurodivergent", "neurospicy", "neurodivergent myself"],
     "depression": ["clinically depressed", "chronically depressed", "severely depressed", "a depressive", "manic"],
     "anxiety": ["agoraphobic", "an anxious person", "a very anxious person", "an anxious wreck", "chronically anxious", "clinically anxious", "a nervous wreck"],
-    "other mental health condition": ["dyslexic", "dyspraxic", "dyscalculic", "an insomniac", "insomniac", "mentally ill", "a mentally ill", "suicidal", "a hoarder", "a plural system", "a system",
+    "other mental health condition": ["an insomniac", "insomniac", "mentally ill", "a mentally ill", "suicidal", "a hoarder", "a plural system", "a system",
                                       "learning disabled", "intellectually disabled", "an empath", "hypersensitive", "a highly sensitive person", "an hsp", "hsp", "mentally unwell", "a stutterer", "a cutter",
                                       "a self harmer", "a survivor of suicide", "a suicide survivor", "dissociative", "a trauma survivor", "traumatized", "traumatised"]})
 MENTAL_STATE_STRICT = {name: value for name, value in MENTAL_STATES.items() if name not in {"in recovery", "in recovery from", "sober", "a sober", "nd", "manic", "psychotic", "a psychotic", "a system",
@@ -454,6 +459,7 @@ MENTAL_STATE_STRICT = {name: value for name, value in MENTAL_STATES.items() if n
                                                                                          "a trauma survivor", "a hoarder", "suicidal", "dissociative", "mentally unwell", "clean and sober",
                                                                                          "x days sober", "years sober", "months sober", "days sober", "a junkie", "add", "a depressive",
                                                                                          "a nervous wreck", "an anxious wreck", "a cutter"}}
+MENTAL_TAIL = re.compile(rf"\b(?:{names(MENTAL)})$")
 MENTAL_WORDS = {name: value for name, value in MENTAL.items() if name not in {"did", "add", "odd", "bed", "ed"}}
 ADHD_MEDICATIONS = dict.fromkeys(["adderall", "adderall xr", "vyvanse", "vyvance", "elvanse", "ritalin", "concerta", "methylphenidate", "strattera", "atomoxetine", "focalin", "focalin xr",
                                   "dexmethylphenidate", "dexedrine", "dextroamphetamine", "evekeo", "mydayis", "azstarys", "jornay", "jornay pm", "quillichew", "daytrana", "intuniv", "guanfacine",
@@ -477,7 +483,7 @@ RULES += [
     rule("mental_condition", rf"\b(?:my|i take|i'm on|i am on|i've been on|i started|i'm taking|i am taking|i've been taking|i was put on|i got put on|i was prescribed|i got prescribed|i was given|prescribed me|gave me|put me on|i switched to|switched me to|i take my|i forgot my|i forgot to take my|i ran out of|i'm out of) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_MEDICATIONS)})\b",
          group(ADHD_MEDICATIONS), SELF_HEDGE),
     rule("mental_condition", r"\b(audhd|au/dhd)\b", fixed("both adhd and autism"), SELF_HEDGE),
-    rule("mental_condition", r"\b(?:i'm|im|i am|i m) (?:literally |also |very |severely |pretty )?(dyslexic|dyspraxic|neurodivergent|neurodiverse|nd|on the spectrum)\b", lambda match: "autism" if "spectrum" in match.group() else "neurodivergent, unspecified", SELF_HEDGE),
+    rule("mental_condition", r"\b(?:i'm|im|i am|i m) (?:literally |also |very |severely |pretty )?nd\b", fixed("neurodivergent, unspecified"), SELF_HEDGE),
     rule("mental_condition", r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar|insomnia) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
          group({**MENTAL, "bipolar": "bipolar disorder", "insomnia": "other mental health condition"}), SELF_HEDGE),
     *(rule("mental_condition", pattern, group(MENTAL_LOOSE), OWN_HEDGE) for pattern in (
@@ -522,6 +528,17 @@ MODERATION = r"removed|remove|approv\w*|karma|locked|not allowed|bans?|bannable|
 RULES += [
     rule("automated_account", rf"^(?=[\s\S]*?(?:bot|automat|beep|bleep))(?![\s\S]*\b(?:{MODERATION})\b)(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_SELF}", fixed("bot"), TAGGED)]
 
+def quoted(text, start):
+    line = text[text.rfind("\n", 0, start) + 1:start]
+    return line.count('"') % 2 == 1 or line.count("“") > line.count("”")
+
+
+def unquoted(value):
+    return lambda match: None if quoted(match.string, match.start()) else value(match)
+
+
+RULES = [(attribute, pattern, value if attribute == "automated_account" else unquoted(value), hedge) for attribute, pattern, value, hedge in RULES]
+
 COMMON = ("diabetes", "type 1 diabetes", "type 2 diabetes", "t1d", "t2d", "diabetic", "hypoglycemic", "lupus", "rheumatoid arthritis", "rheumatoid disease", "multiple sclerosis", "hashimoto's",
           "hashimotos", "an autoimmune disease", "graves disease", "graves' disease", "psoriatic arthritis", "chronic pain", "fibromyalgia", "fibro", "sciatica", "herniated disc", "breast cancer",
           "leukemia", "lymphoma", "a heart condition", "heart disease", "high blood pressure", "hypertension", "afib", "anemia", "ibs", "crohn's", "crohns", "crohn's disease", "ulcerative colitis",
@@ -544,6 +561,10 @@ MOODS = {"anxiety": "anxiety", "depression": "depression", "ocd": "ocd", "ptsd":
          "addiction": "addiction", "an addiction": "addiction", "alcoholism": "addiction"}
 MOOD_NAMES = re.compile(r"\b(" + names(MOODS) + r")\b")
 ASSESSED = re.compile(r"\s*(?:assessments?|evaluations?|diagnosis|diagnoses|traits|testing|tests?)\b")
+POSSESSOR = re.compile(rf"\b(?:{PEOPLE}|someone|anyone|somebody|anybody) (?:has|have|had|having|with|gets|got)(?: \w+){{0,2}} $")
+ADDRESSED = re.compile(r"\b(?:you|your|you're|u|ur)\b")
+GENERIC = re.compile(r"\s+(?:is|are|isn't|aren't|makes|make|causes|cause|can|could|does|doesn't|means|affects|tends|presents|manifests)\b")
+ATTRIBUTIVE = re.compile(r" +(?!(?:and|or|af|asf|myself|too|as|but|so|lol)\b)[a-z]")
 ASKING = re.compile(r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b")
 FIRST_PERSON = re.compile(r"\b(?:i|i'm|im|i've|my|me|myself)\b")
 
@@ -580,9 +601,8 @@ MIND_EXTRA = spread({"anxiety": ["panic attacks", "anxiety attacks", "a panic di
 CONDITIONS = inflected({**{f"{organ} {trouble}": value for organ, value in ORGANS.items() for trouble in TROUBLES}, **GENERAL, **PHYSICAL,
                         **dict.fromkeys(("surgery", "surgeries", "a surgery", "an operation", "an injury", "injuries", "an illness", "illness", "a disease", "an infection", "infection", "infections"), "unspecified")})
 STATES = {name: value for name, value in inflected(PHYSICAL_STATES).items() if name not in CONDITIONS}
-NEURODIVERSE = spread({"neurodivergent, unspecified": ["dyslexia", "dyspraxia", "dyscalculia", "dysgraphia", "dyslexic", "dyspraxic", "dyscalculic"]})
-MIND = inflected({**MIND_EXTRA, **MENTAL_LOOSE, **NEURODIVERSE})
-MIND_STATES = {name: value for name, value in inflected({**MENTAL_STATE_STRICT, **NEURODIVERSE, "an autist": "autism"}).items() if name not in MIND}
+MIND = inflected({**MIND_EXTRA, **MENTAL_LOOSE})
+MIND_STATES = {name: value for name, value in inflected(MENTAL_STATE_STRICT).items() if name not in MIND}
 WORD = re.compile(r"[\w'/+-]+(?:\.\d+)?")
 STOP = rf"{PEOPLE}|not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|why|how|whether|than|to|in|on|about|like|for|from|at|by|into|of|with|without|is|was|are|were|be|it|this"
 FREE = rf"(?:(?!(?:{STOP})\b)(?![\w'-]*(?:ed|en)\b)[\w'/-]+,?\s+)"
@@ -668,13 +688,16 @@ def owned(lowered, sentence, found, families):
         previous = None
         for start, end, name in mentions(words, nouns, states, suffix, longest):
             noun = name not in states
+            if attribute == "physical_condition" and (mental := MENTAL_TAIL.search(part, max(0, start - 40), end)) and mental.start() < start:
+                previous = None
+                continue
             left = part[max(0, start - 90):start]
             here = HERE_AFTER[attribute].match(part, end) and HERE_BEFORE.search(left)
             cue = (noun_cue if noun else state_cue).search(left) or here
             begin = start - len(cue.group()) if cue else 0 if (DROPPED if noun else DIAGNOSED).fullmatch(part, 0, start) else None
             chained = previous is not None and LINK.fullmatch(part, previous, start)
             if ((begin is not None or chained) and (here or not TRAIL.match(part, end)) and (name != "ms" or MS_NEXT.match(part, end) and MS_PREV.search(part, 0, start))
-                    and (chained or unhedged(lowered, sentence.start() + begin))):
+                    and (chained or unhedged(lowered, sentence.start() + begin)) and not quoted(lowered, sentence.start() + start)):
                 found.setdefault((attribute, nouns.get(name) or states.get(name) or suffix[1]), sentence.start() + start)
                 previous = end
             else:
@@ -692,16 +715,22 @@ def ailments(lowered, found):
         if not FIRST_PERSON.search(part) or OTHER_PEOPLE.search(part):
             continue
         hedge = HEDGE.search(part)
+        addressed = ADDRESSED.search(part)
         for match in AILMENT_NAMES.finditer(part):
-            if hedge and hedge.end() <= match.start():
+            if addressed or hedge and hedge.end() <= match.start():
                 break
+            if quoted(lowered, sentence.start() + match.start()) or POSSESSOR.search(part, max(0, match.start() - 50), match.start()):
+                continue
             found.setdefault(("physical_condition", AILMENTS[match.group(1)]), sentence.start() + match.start())
         if hedge:
             continue
         for match in MOOD_NAMES.finditer(part):
-            if TRAIL.match(part, match.end()) or ASSESSED.match(part, match.end()) or MOODS[match.group(1)] in ("adhd", "autism", "both adhd and autism") and OWN_HEDGE.search(part):
+            value, after = MOODS[match.group(1)], match.end()
+            if quoted(lowered, sentence.start() + match.start()) or POSSESSOR.search(part, max(0, match.start() - 50), match.start()) or TRAIL.match(part, after) or ASSESSED.match(part, after):
                 continue
-            found.setdefault(("mental_condition", MOODS[match.group(1)]), sentence.start() + match.start())
+            if value in ("adhd", "autism", "both adhd and autism") and (OWN_HEDGE.search(part) or GENERIC.match(part, after) or match.group(1) == "autistic" and ATTRIBUTIVE.match(part, after)):
+                continue
+            found.setdefault(("mental_condition", value), sentence.start() + match.start())
     if ASTROLOGY.search(lowered):
         found.pop(("physical_condition", "cancer"), None)
     if (key := ("physical_condition", "neurological condition")) in found:
