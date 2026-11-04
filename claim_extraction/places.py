@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import unicodedata
 
 TOKEN = re.compile(r"[^\W_]+")
 
@@ -97,10 +98,14 @@ def key(name):
     return " ".join(TOKEN.findall(name.lower()))
 
 
+def plain(name):
+    return "".join(letter for letter in unicodedata.normalize("NFKD", name) if not unicodedata.combining(letter))
+
+
 def gazetteer():
     with open(Path(__file__).with_name("gazetteer.tsv"), encoding="utf-8") as rows:
         next(rows)
-        return {name: tuple(entry) for name, *entry in (line.rstrip("\n").split("\t") for line in rows)}
+        return {name: (kind, plain(value), plain(region), country, cased) for name, kind, value, region, country, cased in (line.rstrip("\n").split("\t") for line in rows)}
 
 
 def table():

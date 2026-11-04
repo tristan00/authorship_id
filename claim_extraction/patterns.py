@@ -1,4 +1,4 @@
-from . import demographics, fandom, health, life, location, timed, work
+from . import characters, demographics, fandom, health, life, location, timed, work
 from .common import BOT_TEXT, hedged, prepared
 from .schema import canonical
 
@@ -25,6 +25,8 @@ def extract(texts):
         fandom.favorites(text, found)
         fandom.fandom(text, found)
         fandom.adjacent(text, found)
+        found = {key: position for key, position in found.items() if key[0] != "character"}
+        characters.characters(text, found)
         if not automatic:
             health.ailments(lowered, found)
         location.places(text, lowered, found)

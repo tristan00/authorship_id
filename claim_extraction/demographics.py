@@ -6,7 +6,7 @@ from .config import YEAR
 UNITS = r"(?:years? ago|yrs? ago|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|times|percent|%|lbs?|kgs?|pounds|miles|km|cm|dollars|bucks|k\b|grand|hp|mph|degrees|feet|ft|inches|in\b|seconds|secs?|euros?|points|pts|ounces|oz|inch)"
 OTHERS = re.compile(r"\b(?:my|his|her|their|our|your|he|she|him|boyfriend|girlfriend|bf|gf|husband|wife|hubby|partner|ex|friend|son|daughter|brother|sister|mom|dad|mother|"
                     r"father|dom|sub|guy|girl|man|woman|someone|somebody|with|e\.g|eg|example|like|for|to|and|older|younger|current|new|another|this|that)\W*$")
-SELF = re.compile(r"(?:\b(?:i|me|myself|i'm|im|i am|ich|moi|yo)|^)\W*$")
+SELF = re.compile(r"(?:\b(?:i|me|myself|i'm|im|i am|ich|moi|yo)(?:\s+an?)?|^)\W*$")
 
 GENDERS = {"guy": "male", "man": "male", "dude": "male", "male": "male", "boy": "male", "bloke": "male", "lad": "male", "gentleman": "male", "dad": "male", "father": "male",
            "husband": "male", "hubby": "male", "mum": "female", "mom": "female", "mother": "female", "wife": "female", "woman": "female", "girl": "female", "female": "female",
@@ -49,15 +49,13 @@ PLURALS = {"men": "male", "guys": "male", "dudes": "male", "males": "male", "dad
 COLORS = {"ebony": "black", "wasian": "mixed"}
 OTHER_ETHNIC = "|".join(sorted(map(re.escape, {*ETHNICITIES, *COLORS} - {"white", "black", "mixed"}), key=len, reverse=True))
 PERSON = r"(?:m|f|male|female|guy|girl|man|woman|dude|bro|boy|top|bottom|bull|daddy|dad|mom|milf|wife|hubby|couple|here|stud|twink|bear|femboy|sub|dom|\d{2})\b"
-ETHNIC = re.compile(rf"(?<![\w-])(?:(white|black|mixed)(?=\s*(?:[,.!/|)]|$|{PERSON}))|({OTHER_ETHNIC}))(?![\w-])")
-SEEKING = re.compile(r"\b(?:looking|seeking|seeks|searching|wants?|needs?|craving|into|for|who|with|hmu)\b")
 STATURE = re.compile(r"(?<![\w.$'])([4-7])(?:\s?(?:'|ft|foot|feet)\s?(\d{1,2})?|[\"”](?=\d)(\d{1,2}))\s?(?:\"|”|''|in\b|inches)?(?![\d'\"”])")
-GIRTH = re.compile(r"(?:hung|cock|dick|bbc|bwc|length|inch\w*|\d\s?[\"”+]+)\W*(?:\w+\W+)?$")
+GIRTH = re.compile(r"(?:hung|cock|dick|bbc|bwc|length|inch\w*|uncut|cut|shaved|girthy|veiny|long|\d\s?[\"”+]+)\W*(?:\w+\W+)?$")
 PARTY = re.compile(r"\b(?:my|his|her|their|our|your|you|you're|he|she|him|boyfriend|girlfriend|bf|gf|husband|wife|hubby|partner|for|with|like|seeking|looking|want|wants|someone|be)\W+(?:\w+\W+)?$")
 HAIRED = re.compile(r"(?<![\w-])(?<!\bthe )(?<!\ba )(?<!\ban )(?<!\bperfect )(blonde?|brunette|redhead|ginger|bald)(?![\w-])")
 ORIENTED = re.compile(r"(?<![\w-])(?<!\bbe )(?<!\bfor )(?<!\bsome )(?<!\bwith )(?<!\binto )(?<!\bother )(?<!\bhosting )(?<!\bfrom )(bi|bisexual|straight|str8|gay|lesbian|pansexual|hetero)(?![\w-])(?! (?:men|women|guys|girls|porn|couples?|friendly|curious|or|and|to|up|talk|ahead|away|forward|out|ones)\b)")
 METRIC = re.compile(r"(?<![\w.])(1[4-9]\d|2[01]\d)\s?cm\b")
-SHAPED = re.compile(r"(?<![\w-])(slim|slender|skinny|athletic|muscular|chubby|chub|chunky|curvy|thick|thicc|petite|bbw|stocky|beefy|ripped|toned|dadbod|dad bod|plus[- ]size|obese|overweight|jock|abs|fit(?=\s*(?:[,.!/|)]|$|{PERSON})))(?![\w-])(?! (?:\w+ )?(?:cock|dick|penis|bwc|bbc|shaft|uncut|load|meat)\b)")
+SHAPED = re.compile(r"(?<![\w-])(slim|slender|skinny|athletic|muscular|chubby|chub|chunky|curvy|bbw|stocky|beefy|toned|dadbod|dad bod|plus[- ]size|obese|overweight|jock|fit(?=\s*(?:[,.!/|)]|$|{PERSON})))(?![\w-])(?! (?:\w+ )?(?:cock|dick|penis|bwc|bbc|shaft|uncut|load|meat)\b)")
 MONTHS = "jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december"
 YEARS_OLD = re.compile(r"(?<![\w$])\d{2}\s?(?:yo|y/o)\b")
 THIRD = re.compile(r"\b(?:she|he|her|his|they|their|him|them)\b")
@@ -65,16 +63,20 @@ WANTED = re.compile(r"\b(?:you|your|be|in|for|not|no|if|want|wants|like|love|see
 FOREIGN = re.compile(r"\b(?:looking for|seeking|want|wants|you|your|under|over|than|at least|taller|shorter|between|she|he|her|his|wife|husband|gf|bf)\b")
 CLOSING = re.compile(r"[\(\[](\d{2})[\)\]][^\w\n]*(?:\n|$)")
 START = rf"^\W{{0,3}}(\d{{2}})(?=\s*[\[\(]?\s*[mf]?\s*4\s*[mfatr]|\s*[\[\(]\s*[mf]\s*[\]\)]|\s*,?\s+(?:[mf]|male|female)\b)"
-SHAPES = {"thicc": "curvy", "chub": "chubby or overweight", "chunky": "chubby or overweight", "dadbod": "average", "dad bod": "average", "beefy": "athletic or muscular", "stocky": "chubby or overweight",
-          "hourglass": "curvy", "rellenita": "chubby or overweight", "gordita": "chubby or overweight", "flaca": "very thin", "tiny": "very thin", "ripped": "athletic or muscular", "toned": "athletic or muscular", "jock": "athletic or muscular", "abs": "athletic or muscular"}
-DESCRIBED = re.compile(r"(?:^|[\s,.!/(|+-])(thick|thicc|curvy|chubby|chub|chunky|bbw|slim|slender|skinny|athletic|fit|muscular|fat|overweight|obese|petite|tiny|average|dadbod|dad bod|stocky|beefy|ripped|toned|hourglass|rellenita|gordita|flaca|plus[- ]size)(?! (?:\w+ )?(?:cock|dick|penis|bwc|bbc|shaft|uncut|load|meat)\b)"
-                       r"(?= (?:build|built|body|frame|figure|shape|and |but |af\b|asf\b|girl|guy|woman|man|boy|bro|bull|stud|jock|twink|femboy|sub|dom|cub|otter|bottom|top|bear|daddy|milf|hotwife|wife|husband|hubby|mom|dad|f\b|m\b|here|latina|latino|black|white|asian|blonde|brunette|\d)|[\s,.!/)|]*$|\s*[,/|.!])")
+SHAPES = {"muscled": "athletic or muscular", "shredded": "athletic or muscular", "thicc": "curvy", "chub": "chubby or overweight", "chunky": "chubby or overweight", "dadbod": "average", "dad bod": "average", "beefy": "athletic or muscular", "stocky": "chubby or overweight",
+          "hourglass": "curvy", "rellenita": "chubby or overweight", "gordita": "chubby or overweight", "flaca": "very thin", "tiny": "very thin", "ripped": "athletic or muscular", "toned": "athletic or muscular", "jock": "athletic or muscular"}
+BODY_NOUNS = r"(?:build|built|body|bod|frame|figure|shape|girl|guy|woman|man|boy|boi|bro|bull|stud|jock|twink|femboy|sub|dom|cub|otter|bottom|top|vers|bear|daddy|milf|hotwife|wife|husband|hubby|mom|mum|dad|grandpa|grandma|lady|gal|chick|dude|male|female|married|single|f|m|here|latina|latino|black|white|asian|blonde|brunette)\b"
+CROWD = r"(?:guys|girls|women|men|ladies|tops|bottoms|bulls|bros|dudes|couples|people|queens|wives|moms|milfs|daddies|bears|twinks|chicks|females|males|chasers)\b"
+DESIRED = re.compile(r"\b(?:looking|look for|seeking|thing for|searching for|prefer\w*|pref|into|love|loves|like|likes|interested in|any|bonus|must|not|isn't|no|if|you|your|you're|ur)\b")
+DESCRIBED = re.compile(r"(?:^|[\s,.!/(|+-])(curvy|chubby|chub|chunky|bbw|slim|slender|skinny|thin|lean|athletic|fit|muscular|muscled|shredded|jacked|buff|fat|overweight|obese|tiny|average|dadbod|dad bod|stocky|beefy|ripped|toned|hourglass|rellenita|gordita|flaca|plus[- ]size)(?! (?:\w+ )?(?:cock|dick|penis|bwc|bbc|shaft|uncut|load|meat|wood|ropes|creamy|cumming|girth)\b)"
+                       rf"(?! (?:\w+ ){{0,2}}{CROWD})(?= (?:\w+ ){{0,2}}?{BODY_NOUNS}| (?:and |but |af\b|asf\b|\d)|[\s,.!/)|]*$|\s*[,/|.!&+])")
+ETHNIC = re.compile(rf"(?<![\w-])(?:(white|black|mixed)(?=\s*(?:[,.!/|)&+]|$|\d)| (?:\w+ ){{0,2}}?{BODY_NOUNS}|\s*{PERSON})|({OTHER_ETHNIC}))(?![\w-])(?! (?:\w+ ){{0,2}}{CROWD})")
 
 
 POSTERS = {"m": "male", "f": "female", "w": "female", "fb": "female", "fu": "female", "futa": "female", "tf": "trans woman", "mtf": "trans woman", "tm": "trans man",
            "ftm": "trans man", "nb": "non-binary", "wm": "male", "mwm": "male", "swm": "male", "dwm": "male", "bm": "male", "wf": "female"}
-LOOKING = re.compile(r"(?<![a-z0-9])(?:(\d{2})\s*)?[\[\(]?\s*(nb|mtf|ftm|tf|tm|futa|fb|fu|[mf])((?:[mf]|/\w+)*)\s*4\s*((?:[mfatr]|me|nb)\w*)\s*[\]\)]?(?:\s*[-–|:#]?\s*(\d{2})(?!\d))?")
-AGED = re.compile(r"(?<![\w$#.,'/:+-])(?:(\d{2})\s?((?:[smd]?w|b)m|wf|mtf|ftm|tf|tm|fb|[mf])|((?:[smd]?w|b)m|tf|tm|[mfw])\s?(\d{2}))(?![\w'%]|[-/]\d)")
+LOOKING = re.compile(r"(?<![a-z0-9])(?:[\[\(]?(\d{2})(?:\s*/\s*\d{2})?[\]\)]?\s*)?[\[\(]?\s*(nb|mtf|ftm|tf|tm|futa|fb|fu|[mf])((?:[mf]|/\w+)*)\s*4\s*((?:[mfatr]|me|nb)[a-z/]*)\s*[\]\)]?(?:\s*[-–|:#]?\s*[\[\(]?(\d{2})(?!\d))?")
+AGED = re.compile(r"(?<![\w$£€#.'/:+-])(?<!\d,)(?:(\d{2})\s?[/-]?\s?((?:[smd]?w|b)m|wf|mtf|ftm|tf|tm|fb|[mf])|((?:[smd]?w|b)m|tf|tm|[mfw])\s?[/-]?\s?(\d{2}))(?![\w'%]|[-/]\d)")
 SENTENCE = re.compile(r"[.!?\n]")
 SPEAKER = re.compile(r"\b(?:i|i'm|im|i am|me|my name is)\b")
 WORDED = re.compile(r"(?<![\w$#.,'/:+-])(?:(\d{2})\s?(?:yo|y/o|yrs?|years?(?: old)?)?[\s,]*\(?(male|female)\)?|(male|female)[\s,]*(\d{2}))(?![\w'%])")
@@ -88,6 +90,10 @@ def owned(lowered, start):
     return bool(SELF.search(before)) or (start < 60 and not OTHERS.search(before)) or not re.search(r"\w", before)
 
 
+def desired(lowered, start):
+    return DESIRED.search(SENTENCE.split(lowered[max(0, start - 80):start])[-1])
+
+
 def tags(text, lowered, found):
     automatic = BOT_TEXT.search(lowered)
     for match in LOOKING.finditer(lowered):
@@ -98,11 +104,11 @@ def tags(text, lowered, found):
             if not automatic and match.group(2) == "m" and not match.group(3) and match.group(4) == "m":
                 found.setdefault(("sexual_orientation", "gay"), match.start())
     for match in AGED.finditer(lowered):
-        if match.group(2) == "m" and (re.match(rf"\s*{UNITS}", lowered[match.end():])):
+        if match.group(2) == "m" and (re.match(rf"\s*(?!in\b){UNITS}", lowered[match.end():])):
             continue
         age, letter = (match.group(1), match.group(2)) if match.group(1) else (match.group(4), match.group(3))
         bracketed = lowered[match.start() - 1:match.start()] in ("(", "[")
-        if not (owned(lowered, match.start() - bracketed) or (bracketed and not OTHERS.search(lowered[max(0, match.start() - 25):match.start() - 1]) and (match.start() < 60 or SPEAKER.search(SENTENCE.split(lowered[max(0, match.start() - 80):match.start()])[-1]))) or re.search(r"\bmy\s?[\(\[]$", lowered[:match.start()])):
+        if not (owned(lowered, match.start() - bracketed) or re.match(r"\W{0,2}here\b", lowered[match.end():]) or (bracketed and not OTHERS.search(lowered[max(0, match.start() - 25):match.start() - 1]) and (match.start() < 60 or SPEAKER.search(SENTENCE.split(lowered[max(0, match.start() - 80):match.start()])[-1]))) or re.search(r"\bmy\s?[\(\[]$", lowered[:match.start()])):
             continue
         found.setdefault(("gender", POSTERS[letter]), match.start())
         found.setdefault(("age", age), match.start())
@@ -121,22 +127,25 @@ def tags(text, lowered, found):
             found.setdefault(("age", match.group(1)), match.start())
     if match := re.match(START, lowered):
         found.setdefault(("age", match.group(1)), 0)
-    tagged = LOOKING.search(lowered, 0, 300) or AGED.search(lowered, 0, 120) or WORDED.search(lowered, 0, 120) or re.match(r"\W*\d{2},?\s", lowered) or YEARS_OLD.search(lowered, 0, 80)
+    window = lowered[:1500]
+    tagged = LOOKING.search(lowered, 0, 300) or AGED.search(lowered, 0, 120) or WORDED.search(lowered, 0, 120) or BRACKETED.search(lowered, 0, 120) or re.match(r"\W*\d{2},?\s", lowered) or YEARS_OLD.search(lowered, 0, 80)
     if tagged or re.match(r"\W*(?:i'm|im|i am)\b", lowered):
-        for match in DESCRIBED.finditer(lowered[:400]):
-            if not PARTY.search(lowered[max(0, match.start(1) - 24):match.start(1)]) and not GIRTH.search(lowered[max(0, match.start(1) - 24):match.start(1)]):
+        for match in DESCRIBED.finditer(window):
+            before = lowered[max(0, match.start(1) - 24):match.start(1)]
+            if not PARTY.search(before) and not GIRTH.search(before) and not desired(lowered, match.start(1)):
                 found.setdefault(("body_type", BODIES.get(match.group(1)) or SHAPES[match.group(1)]), match.start())
-        own = SEEKING.split(lowered[:200], 1)[0]
         if tagged and not automatic:
-            for match in ORIENTED.finditer(own):
-                found.setdefault(("sexual_orientation", ORIENTATIONS[match.group(1)]), match.start())
-        for match in SHAPED.finditer(own):
-            if not WANTED.search(lowered, max(0, match.start() - 20), match.start()):
+            for match in ORIENTED.finditer(window):
+                if not desired(lowered, match.start()) and not re.match(rf" (?:\w+ ){{0,2}}{CROWD}", lowered[match.end():]):
+                    found.setdefault(("sexual_orientation", ORIENTATIONS[match.group(1)]), match.start())
+        for match in SHAPED.finditer(window):
+            if not WANTED.search(lowered, max(0, match.start() - 20), match.start()) and not GIRTH.search(lowered[max(0, match.start(1) - 24):match.start(1)]) and not desired(lowered, match.start(1)):
                 found.setdefault(("body_type", BODIES.get(match.group(1)) or SHAPES[match.group(1)]), match.start())
-        for match in ETHNIC.finditer(own if tagged else ""):
-            found.setdefault(("ethnicity", ETHNICITIES.get(match.group(1) or match.group(2)) or COLORS[match.group(2)]), match.start())
-        for match in HAIRED.finditer(lowered, 0, 300):
-            if not FOREIGN.search(SENTENCE.split(lowered[max(0, match.start() - 25):match.start()])[-1]):
+        for match in ETHNIC.finditer(window if tagged else ""):
+            if not PARTY.search(lowered[max(0, match.start() - 24):match.start()]) and not desired(lowered, match.start()):
+                found.setdefault(("ethnicity", ETHNICITIES.get(match.group(1) or match.group(2)) or COLORS[match.group(2)]), match.start())
+        for match in HAIRED.finditer(window):
+            if not FOREIGN.search(SENTENCE.split(lowered[max(0, match.start() - 25):match.start()])[-1]) and not desired(lowered, match.start()):
                 found.setdefault(("hair_color", HAIRS[match.group(1)]), match.start())
         for match in METRIC.finditer(lowered):
             if not FOREIGN.search(SENTENCE.split(lowered[max(0, match.start() - 25):match.start()])[-1]):
@@ -192,17 +201,17 @@ def ages(value):
 LISTED = rf"\b{I} [^.!?\n;]{{0,40}}?"
 ASIDE = re.compile(r"\b(?:looking|seeking|want|wants|than|taller|shorter|you|he|she|his|her|my|like|into|for)\b")
 AGE = [
-    said("age", rf"\b{I} (?:only |almost |nearly |just |now |about |turning |currently |a |an )?(\d{{2}})(?:\s?(?:years? old|yo|y/o|yrs? old|yrs))?(?![\w%'/+-]|[.,:]\d)(?!\s*{UNITS}|\s*(?:and|or|-)\s*\d)", lambda match: ages(match.group(1))),
+    said("age", rf"\b{I} (?:(?:only|just|now|turning|currently|also|still|already|literally|actually|finally|officially|technically|basically|a|an) )*(\d{{2}})(?:\s?(?:years? old|yo|y/o|yrs? old|yrs))?(?![\w%'/+-]|[.,:]\d)(?!\s*{UNITS}|\s*(?:and|or|-)\s*\d)", lambda match: ages(match.group(1))),
     said("age", r"\bas an? (\d{2})[- ]?(?:years?|yr)[- ]?old\b", lambda match: ages(match.group(1))),
     said("age", r"(?:\bi(?:'ve| have)? |^|[.!?] )(?:just |recently |finally )?turned (\d{2})\b(?! (?:years|minutes|weeks|percent|%))", lambda match: ages(match.group(1))),
     said("age", r"\bi'?m (?:a |an )?(\d{2})[\s-]?(?:yo|y/o|y\.o\.?|years? old|yr old|year-old)\b", lambda match: ages(match.group(1))),
     said("age", r"(?:^|[.!?\n] *)(\d{2}) (?:years? old|yo|y/o) (?:here|male|female|guy|girl|man|woman|m|f)\b", lambda match: ages(match.group(1))),
     said("age", r"(?:^|[.!?\n] *)at (\d{2}),? (?:i|i'm|im)\b|\bfreshly (\d{2})\b", lambda match: ages(match.group(1) or match.group(2))),
-    said("age", r"\bmy age is (\d{2})\b|\bage\s*[:=]\s*(\d{2})\b|(?=age )(?<!\bof )(?<!\bover )(?<!\bunder )(?<!\blegal )(?<!\bsame )(?<!\bthe )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\btheir )\bage \(?(\d{2})\)?\b(?!\s*(?:and|or|to|-|\+|/)\s*\d|\+|\s*(?:and|or) (?:up|older|over|above|under|below)\b)", lambda match: ages(match.group(1) or match.group(2) or match.group(3))),
+    said("age", r"\bmy age is (\d{2})\b|\bage\s*[:=]\s*(\d{2})\b|(?=age )(?<!\bof )(?<!\bat )(?<!\bby )(?<!\buntil )(?<!\btill )(?<!\bsince )(?<!\bfrom )(?<!\bbefore )(?<!\bafter )(?<!\bto )(?<!@)(?<!\bover )(?<!\bunder )(?<!\blegal )(?<!\bsame )(?<!\bthe )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\btheir )\bage \(?(\d{2})\)?\b(?!\s*(?:and|or|to|-|\+|/)\s*\d|\+|\s*(?:and|or) (?:up|older|over|above|under|below)\b)", lambda match: ages(match.group(1) or match.group(2) or match.group(3))),
     said("age", r"\bi was born in ((?:19[3-9]\d)|(?:200\d)|(?:201[0-3]))\b", lambda match: str(YEAR - int(match.group(1)))),
     said("age", rf"^(?:(?![$#+£€])\W){{0,2}}[\[\(]?(\d{{2}})[\]\)]?(?=[\s,.!\]…]|$)(?!\s+(?!yrs?\b|years?\b)[a-z]{{2,}}s\b|\s*{UNITS}|[.,:/]\d|\s*[-–/x+]\s*\d|\s*(?:and|or|to|-)\s+\d|\.\s*\d|\s+(?:of|out|times|people|years? (?:ago|of)|is|was|isn't|wasn't|would|will|more|minutes|seconds|percent|k|point|points|roll|eur|euros?|usd|tl|rs|kr|pln|kilo|кило|лет|{MONTHS})\b)", lambda match: ages(match.group(1)), TAGGED),
     said("age", r"\b(?:i|me|i'm|im|i am|myself|ich)\b[^.!?\n()]{0,25}\((\d{2})\)", lambda match: ages(match.group(1)), SELF_HEDGE),
-    said("age", r"(?=\d\d)(?<!\bis )(?<!\bwas )(?<!\bare )(?<!\bwere )(?<!\bof )(?<!\bthan )(?<!\bunder )(?<!\bover )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\bour )(?<!\btheir )(?<!\bthe )(?<!\ba )(?<!\ban )(?:^|(?<=[\s(\[,]))(\d{2})\s?(?:yo|y/o|y\.o\.?|yr old|year old|years old|yrs old)\b(?! (?:son|daughter|kid|brother|sister|girl|boy|cousin|nephew|niece|dog|cat|car|house|man|woman|guy|male|female|friend|wife|husband)\b)", spoken(lambda match: ages(match.group(1))), SELF_HEDGE),
+    said("age", r"(?=\d\d)(?<!\bis )(?<!\bwas )(?<!\bare )(?<!\bwere )(?<!\bof )(?<!\bthan )(?<!\bunder )(?<!\bover )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\bour )(?<!\btheir )(?<!\bthe )(?<!\ba )(?<!\ban )(?:^|(?<=[\s(\[,]))(\d{2})\s?(?:yo|y/o|y\.o\.?|yr old|year old|years old|yrs old)\b(?! (?:son|daughter|kid|brother|sister|girl|boy|cousin|nephew|niece|dog|cat|car|house|man|woman|guy|male|female|friend|wife|husband|girls|boys|guys|men|women|kids|people|and (?:above|up|over|older|under|below)|or (?:older|younger|above|over|under))\b)", spoken(lambda match: ages(match.group(1))), SELF_HEDGE),
     said("age", r"(?:^|\n|\bme\s*[:=-])[^\S\n]*[>*•\\-]{0,2}[^\S\n]*(\d{2})\s*,\s*(?:[mf]\b|male\b|female\b|[4-7]\s?['’]\s?\d|\d{2,3}\s?(?:lbs?|kg|cm)\b)|\bme\s*[-:=]\s*(\d{2})\b(?!\s*(?:%|[-/:.]\d))|^\W*(\d{2})[- ]?(?:jährige[rn]?|jähriger)\b|\bmit (\d{2}) jahren\b|\b(\d{2}) éves (?:vagyok|leszek)\b|\ba mis (\d{2}) años\b",
          lambda match: ages(next(filter(None, match.groups()))), SELF_HEDGE),
     said("age", r"\b(?:tengo|tenho|j'ai) (\d{2})(?: (?:años|anos|ans))?\b|\bya[sş] ?:? ?(\d{2})\b|\b(\d{2}) jahre alt\b|\bich bin (\d{2})\b", lambda match: ages(next(filter(None, match.groups()))), SELF_HEDGE),
@@ -213,6 +222,7 @@ AGE = [
 ]
 
 GENDER = [
+    said("gender", rf"\b(?:{I}|as|being|just) (?:an? )?(?:{FREE}){{0,2}}?(?:trans|transgender) (woman|girl|female|lady|man|guy|boy|male|dude)\b", lambda match: "trans woman" if match.group(1) in ("woman", "girl", "female", "lady") else "trans man"),
     said("gender", r"(?:^\W*|\b(?:i|me|ich|myself|moi|yo)\s*)(?:[\[\(]\s*([mfw])\s*[,/]\s*\d{2}\s*[\]\)]|[\[\(]\s*\d{2}\s*[,/]\s*([mfw])\s*[\]\)])", lambda match: {"m": "male", "f": "female", "w": "female"}[match.group(1) or match.group(2)], TAGGED),
     said("gender", rf"\b{I} (?:(?:also|just|only|still|actually|literally|already|genuinely|honestly|proudly|really|definitely|obviously|basically|simply) )?(?:an? |the )?{ADJECTIVES}{GENDER_WORDS}\b(?! (?:friend|friends|of|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff|dad|mom|mother|father|parent)\b)(?!'s)", group(GENDERS)),
     said("gender", rf"\b{I} (?:just |only |also |still |actually |literally |really |definitely |obviously |simply |basically )?(?:an? |the |one ){FREE}{{0,3}}?{GENDER_WORDS}\b(?! (?:friend|friends|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff|dad|mom|mother|father|parent|energy|moment|problem)\b)(?!'s)", group(GENDERS)),
@@ -227,8 +237,6 @@ GENDER = [
     said("gender", rf"(?:^|[.!?,;] *)(?:an? )?{FREE}{{0,2}}?{GENDER_WORDS} here\b", group(GENDERS)),
     said("gender", rf"\b{I} (?:a |an )?(non-binary|nonbinary|enby|genderfluid|agender|genderqueer|trans woman|transwoman|trans girl|trans man|transman|trans guy|mtf|ftm)\b(?! (?:people|rights|friend|kids))", group(GENDERS)),
     said("gender", r"(?:^|(?<=[\s,(\]]))[\(\[]\s*([mf])\s*[\)\]]", group(GENDERS), TAGGED),
-    said("gender", r"\b(?:makes|made|got|gets|getting) me (?:so )?(hard|wet)\b|\b(?:i'm|im|i am) (?:so |already |rock )?(hard|wet|dripping) (?:for|thinking|right now)\b|\bi'?m your (girl|boy|man|woman|princess|slut|goddess)\b",
-         lambda match: {"hard": "male", "wet": "female", "dripping": "female", "girl": "female", "princess": "female", "slut": "female", "goddess": "female", "boy": "male", "man": "male", "woman": "female"}[next(filter(None, match.groups()))], SELF_HEDGE),
     said("gender", r"(?<![\w'])[\(\[]?(female|male|guy|girl|woman|man|dude|lady|f|m)(?: in(?:my |her |his )?(?:early |mid |late )?\d0'?s)? here\b|\bfellow (?:\w+ )?(dude|guy|woman|man|lady|girl|mom|dad) here\b",
          lambda match: GENDERS[match.group(1) or match.group(2)], TAGGED),
     said("gender", rf"^\W*\d{{2}}\s*,?\s+(?:(?:single|married|white|black|asian|latino|latina|hispanic|indian|tall|short|fit|chubby|bi|straight|gay|hung|older|young|discreet|horny|local|cute|shy|sexy|thick|petite|curvy|clean|ddf|attractive|handsome|hot) )*(male|female|guy|girl|man|woman|dude|lady|queen|king|bbw|milf|stud|bull|twink|femboy|daddy)\b",
@@ -242,8 +250,7 @@ GENDER = [
 ]
 
 SEXUAL_ORIENTATION = [
-    said("sexual_orientation", r"\b(gay|lesbian|bi|bisexual|pansexual|asexual|aroace|aro-ace|ace|straight|str8|queer)(?: (?:guy|girl|man|woman|male|female|dude|bro|boy|couple|bottom|top|bear|twink|femboy|wife|husband|dad|mom))? here\b|\b(?:i'm|im|i am) (?:a |an )?(?:\w+ )?bi[- ]?curious\b|\bcurious(?<!\bfor curious)(?<!\bfor a curious)(?<!\bseeking curious)(?<!\bseeking a curious)(?<!\bany curious) (?:guy|male|man|dude|bro|boy|here)\b",
-         lambda match: ORIENTATIONS.get(match.group(1)) or "queer, unspecified", SELF_HEDGE),
+    said("sexual_orientation", r"\b(gay|lesbian|bi|bisexual|pansexual|asexual|aroace|aro-ace|ace|straight|str8|queer)(?: (?:guy|girl|man|woman|male|female|dude|bro|boy|couple|bottom|top|bear|twink|femboy|wife|husband|dad|mom))? here\b", group(ORIENTATIONS), SELF_HEDGE),
     said("sexual_orientation", rf"\b{I} (?:a |an )?(?:(?:\d{{2}}[- ]?(?:years?|yr)[- ]old|cis|single|married|black|white|asian|trans|young|old|older|proud|openly|also|both|totally|fully) )*(gay|lesbian|bisexual|bi|pansexual|asexual|queer|straight|heterosexual|homosexual)\b(?![-'])(?! (?:up|out|forward|away|from|to|edge|talking|with|couple|bar|club|friend|men|women|guys|people|porn|marriage|ally|rights|shooter|a)\b)", group(ORIENTATIONS)),
     said("sexual_orientation", rf"\b{I} (?:an? )?(?:(?!\w+ing\b|gonna\b|be\b|go\b|get\b|setting\b){FREE}){{0,3}}?(gay|lesbian|bisexual|bi|pansexual|asexual|aroace|aro-ace|queer|straight|heterosexual|homosexual)\b(?![-'])(?! (?:up|out|forward|away|from|to|edge|talking|with|couple|bar|club|friend|friends|men|women|guys|girls|people|porn|marriage|ally|rights|shooter|a|content|stuff|scene|community|culture|sex)\b)", group(ORIENTATIONS)),
     said("sexual_orientation", r"^\W*(?:[a-z]+ ){0,2}?(gay|bi|bisexual|straight|str8|lesbian|pansexual) (?:[a-z]+ ){0,2}?(?:girl|guy|wife|husband|dad|daddy|bear|bro|boy|woman|man|male|female|twink|femboy|bottom|top|chub|stud|dude|couple)\b(?! (?:friend|friends|porn)\b)", group(ORIENTATIONS), TAGGED),
@@ -259,8 +266,6 @@ ETHNICITY = [
     said("ethnicity", rf"(?=as )(?<!\bsuch )(?<!\bsame )(?<!\bdressed )(?<!\btreated )(?<!\bseen )\bas an? ({'|'.join(map(re.escape, ETHNICITIES))})\b(?! (?:people|folks|community|communities|culture|food|neighborhood|area|country|family|friend|friends|men|women|guys|girls|kids|person's)\b)(?!'s)", group(ETHNICITIES)),
     said("ethnicity", rf"(?:^|[\s,(\]])(?<!\ba )(?<!\ban )(?<!\bthe )(?<!\bevery )(?<!\bany )(?<!\ball )(?<!\bseeking )(?<!\bfor )(?<!\bwant )(?<!\bwants )(?<!\blike )(?<!\bof )({'|'.join(map(re.escape, ETHNICITIES))}) (?:guy|girl|male|female|man|woman|dude|queen|king|couple|bottom|top|daddy|milf|bbw|twink|stud|bull|wife|hubby|baddie|boy|lady|mom|dad|chick|babe|beauty|femboy|sub|dom)\b(?= (?:here|looking|seeking|for|with|in|4|from|wants|needs|who|ready)\b)", mine(group(ETHNICITIES)), SELF_HEDGE),
     said("ethnicity", rf"\b(?:i'm|im|i am|as) (?:just |also |only )?(?:a |an )?(?:(?!\w+ing\b){FREE}|an? ){{0,4}}?({'|'.join(map(re.escape, ETHNICITIES))}) (?:man|woman|guy|girl|person|male|female|dude|american|lady|mom|dad|mother|father|kid|teen|boy|bro|immigrant|canadian|british|australian|bottom|top|chub|bear|daddy|stud|bull|twink|femboy)\b", group(ETHNICITIES), SELF_HEDGE),
-    said("ethnicity", rf"(?:^|[\s,(\]])(?<!\ba )(?<!\ban )(?<!\bthe )(?<!\bevery )(?<!\bany )(?<!\ball )(?<!\bseeking )(?<!\bfor )(?<!\bwant )(?<!\bwants )(?<!\blike )(?<!\bof )((?:spicy |hot |sexy |thick |young |cute |mature |shy )?(?:latina|latino|black|white|asian|indian|desi|arab|ebony|mixed)) (?:mami|papi|queen|king|domme|dom|sub|bottom|top|bull|stud|baddie|goddess|princess|daddy|milf|bbw|twink|boy|girl|guy|man|woman|male|female|couple|wife|hubby)\b",
-         mine(alone(lambda match: ETHNICITIES.get(match.group(1).split()[-1]) or ("black" if match.group(1).split()[-1] == "ebony" else None))), SELF_HEDGE),
     said("ethnicity", rf"\b(?:i'm|im|i am|as an?|a)? ?half[- ]({'|'.join(map(re.escape, ETHNICITIES))})[,/ ]+(?:and )?half[- ]({'|'.join(map(re.escape, ETHNICITIES))})\b|\bethnically (?:{'|'.join(map(re.escape, ETHNICITIES))}) ?(?:/|and|&) ?(?:{'|'.join(map(re.escape, ETHNICITIES))})\b", lambda match: "mixed"),
     said("ethnicity", r"\bwe (black|white|asian|latina|latino|hispanic|indian|desi|arab|indigenous|native) (?:women|men|people|folks|girls|guys)\b|\bsoy (latino|latina|mexicano|mexicana|negro|negra|blanco|blanca)\b|\bwhite ?boi\b|\b(?:i'm|im|i am|i m) (black|white|asian|latina|latino|hispanic|mixed|biracial|desi)(?=$|[\s.,!;:)])(?! (?:people|folks|neighborhood|area|community|friends|culture|food|music|history|kids|family|and \w+ing)\b)",
          lambda match: (lambda word: {"mexicano": "hispanic or latino", "mexicana": "hispanic or latino", "negro": "black", "negra": "black", "blanco": "white", "blanca": "white", "native": "indigenous"}.get(word) or ETHNICITIES.get(word) or "white")(next(filter(None, match.groups()), "white")), SELF_HEDGE),
@@ -277,12 +282,12 @@ HEIGHT = [
     said("height", r"(?=(?:^|[\s,|/(])[4-7])(?<!\bhe's)(?<!\bshe's)(?<!\bhe is)(?<!\bshe is)(?<!\bwho's)(?<!\bwho is)(?<!\bthey're)(?<!\bis)(?<!\bwas)(?<!\bare)(?<!\bbe)(?<!\bover)(?<!\bunder)(?<!\bthan)(?<!\ba)(?<!\ban)(?<!\bthe)(?:^|[\s,|/(])([4-7])\s?(?:'|’|ft)(?!s\b)\s?(\d{1,2})?\s?(?:\"|”|''|in\b)?(?=\s*[,|/]?\s*(?:\d{2,3}\s?(?:lbs?|kg|pounds)|tall|and\b|[,|/]|$|(?:man|woman|guy|girl|male|female|m|f)\b))", lambda match: str(round((int(match.group(1)) * 12 + int(match.group(2) or 0)) * 2.54)) if int(match.group(2) or 0) < 12 else None, SELF_HEDGE),
 ]
 
-LOAD = re.compile(r"(?:\b(?:under|over|than|lose|losing|lost|gain|gained|gaining|by|of|an?|the|another|extra|to|from|bench|squat|lift|lifting|carry|carrying)\s*|[-–/\d]\s*)\W?$")
+LOAD = re.compile(r"(?:\b(?:under|over|than|lose|losing|lost|gain|gained|gaining|by|of|an?|the|another|extra|to|from|bench|squat|lift|lifting|carry|carrying)\s*|(?<!['’\"”])(?<!['’\"”]\d)[-–/\d]\s*)\W?$")
 
 WEIGHT = [
     said("weight", rf"\bi (?:weigh|weight|'m at|am at|'m currently at|'m currently)\s+(?:about |around |roughly |almost |like |just under |over |under )?(\d{{2,3}}(?:\.\d)?)\s*(lbs?|pounds|kg|kgs|kilos)\b|\b{I} (\d{{2,3}})\s*(lbs?|pounds|kg|kgs)\b",
          lambda match: (lambda amount, unit: str(round(amount * (1 if unit.startswith("k") else .4536))))(float(match.group(1) or match.group(3)), match.group(2) or match.group(4))),
-    said("weight", r"(?:^|[\s,|/(])(\d{2,3})(?:ish)?\s?(lbs?|pounds|kg|kgs)\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain|gained|more|less|bag|bags|box|dumbbells?|plates?|bench|squat|deadlift))", lambda match: None if LOAD.search(match.string, max(0, match.start() - 16), match.start() + 1) or re.match(r"\s*-+>", match.string[match.end():]) else (lambda amount, unit: str(round(amount * (1 if unit.startswith("k") else .4536))) if 35 <= amount * (1 if unit.startswith("k") else .4536) <= 250 else None)(float(match.group(1)), match.group(2)), SELF_HEDGE),
+    said("weight", r"(?:^|[\s,|/(])(\d{2,3})(?:ish)?\s?(lbs?|pounds|kg|kgs)\b(?! (?:of|lost|down|weight|heavier|lighter|ago|gain|gained|more|less|bag|bags|box|dumbbells?|plates?|bench|squat|deadlift|worth))", alone(lambda match: None if LOAD.search(match.string, max(0, match.start() - 16), match.start() + 1) or re.match(r"\s*(?:-+>|/)", match.string[match.end():]) else (lambda amount, unit: str(round(amount * (1 if unit.startswith("k") else .4536))) if 35 <= amount * (1 if unit.startswith("k") else .4536) <= 250 else None)(float(match.group(1)), match.group(2))), SELF_HEDGE),
 ]
 
 BODY_TYPE = [
@@ -291,11 +296,12 @@ BODY_TYPE = [
     said("body_type", r"\b(?:an? )?(slim|slender|skinny|athletic|muscular|fit|chubby|chub|chunky|curvy|thick|thicc|petite|bbw|ssbbw|stocky|beefy|ripped|toned|fat|tiny|average|obese|overweight) (?:\w+ )?(?:girl|guy|woman|man|lady|boy|dude|bro|wife|mom|milf|dad|daddy|bear|hotwife|chick|gal)(?: like me\b| here\b)", lambda match: BODIES.get(match.group(1)) or SHAPES.get(match.group(1)) or "chubby or overweight", TAGGED),
     said("body_type", r"\b(?:\d{2}\s?[mf]|i'm|im|i am|i'?ve been|i keep) (?:myself )?in (?:good|great|decent|excellent|amazing|top|pretty good|really good) shape\b", lambda match: "athletic or muscular"),
     said("body_type", r"\bmy (?:\w+ )?curves\b", lambda match: "curvy", SELF_HEDGE),
-    said("body_type", rf"\b{I} (?:very |really |pretty |quite |a bit |kinda |kind of |super |too |so |a little |slightly |a |an )?({'|'.join(map(re.escape, BODIES))})\b(?! (?:fan|deal|part|news|on|in|for|with|of|to|time|enough|guy|girl|man|woman)\b)", group(BODIES)),
+    said("body_type", rf"\b{I} (?:(?:very|really|pretty|quite|a bit|kinda|kind of|super|too|so|a little|slightly|fairly|relatively|somewhat|reasonably|naturally|extremely|rather|extra|also|still|now|currently|a|an) )*(?:(?!average\b)({'|'.join(map(re.escape, BODIES))})|(average)(?= (?:build|body|bod|size|weight|frame|shape)\b|\s*[,.!;)]|$| and\b))\b(?! (?:fan|deal|part|news|on|in|for|with|of|to|time|enough|mood|chance|mess|game|difference|problem|issue|plus|day|week|month|year|joe|student|height|person|amount|number)\b)", lambda match: BODIES[match.group(1) or match.group(2)]),
     said("body_type", r"(?:^|[\s,|/])(bbw|curvy|petite|chubby|athletic|muscular|slim)\s*(?:f|female|woman|girl|m|male|guy|here)\b", group(BODIES), SELF_HEDGE),
-    said("body_type", rf"\b{I} (?:a |an |very |really |pretty |quite |a bit |kinda |kind of |super |too |so |a little |slightly |naturally |extra |also )*({'|'.join(map(re.escape, BODIES))})\b(?! (?:fan|deal|part|news|on|in|for|with|of|to|time|enough|guy|girl|man|woman|mood|chance|mess|game|difference|problem|issue|plus|day|week|month|year)\b)", group(BODIES), SELF_HEDGE),
+    said("body_type", rf"\b(?:{I}|bod|body|build|frame) (?:\w+ )?on the (slim|slimmer|thin|thinner|skinny|skinnier|lean|leaner|heavy|heavier|big|bigger|large|larger|chubby|chubbier|curvy|curvier|thick|thicker) side\b", lambda match: {"slim": "slim", "slimmer": "slim", "thin": "slim", "thinner": "slim", "skinny": "slim", "skinnier": "slim", "lean": "slim", "leaner": "slim", "curvy": "curvy", "curvier": "curvy", "thick": "curvy", "thicker": "curvy"}.get(match.group(1), "chubby or overweight")),
     said("body_type", r"\b(?:my|this|with a|with my) (?:\w+ )?(curvy|chubby|thick|thicc|petite|fat|skinny|slim|athletic|muscular|fit|tiny|bbw|plus[- ]size|average|toned|slender|dad) (?:body|build|frame|figure|bod|self)\b|\b(slim|athletic|average|slender|muscular|stocky|heavy|thin|fit|curvy|chubby|thick|thicc|petite|tiny)(?: and (?:fit|toned|athletic|slim))? build\b|\bbuilt like an hourglass\b|\bextra (thicc|thick)\b",
          lambda match: (lambda word: "curvy" if word in ("thicc", "thick", None) else {"tiny": "very thin", "dad": "average", "stocky": "chubby or overweight", "heavy": "chubby or overweight"}.get(word, BODIES.get(word)))(match.group(1) or match.group(2) or match.group(3)), TAGGED),
+    said("body_type", r"\b(?:my|this|these) (?:\w+ ){0,2}?(chubby|chunky|fat|curvy|thick|thicc|skinny|slim|petite|muscular|toned|athletic) (?:\w+ )?(?:ass|booty|butt|belly|tummy|thighs|tits|boobs|bod|body|self|curves|figure|frame)\b", lambda match: {"chunky": "chubby or overweight", "fat": "chubby or overweight", "thick": "curvy", "thicc": "curvy", "skinny": "very thin", "toned": "athletic or muscular"}.get(match.group(1)) or BODIES[match.group(1)], SELF_HEDGE),
 ]
 
 HAIR_COLOR = [
@@ -307,6 +313,7 @@ HAIR_COLOR = [
          alone(lambda match: HAIRS[match.group(1) or match.group(2)]), SELF_HEDGE),
     said("hair_color", r"\b(?:i'm|im|i am|i m) (?:still |also |just |actually |really |naturally )?(?:a |an )?(?:(?!not\b|never\b|no\b)\w+ ){0,2}?(red ?head|redhead|ginger|blonde|blond|brunette)\b|(?:^|[\s,|/(])(red ?head|redhead|brunette)\b(?= (?:\w+ )?(?:here|bitch|boy|girl|guy|babe|milf|wife|mom|looking|f\b|m\b))|\b(?:i (?:actually |also |still |now )?have|i've got|my|with) (?:long |short |thick |thin |curly |straight |wavy |natural |graying |greying |dark |light |bright )*(blonde?|brown|black|red|ginger|auburn|grey|gray|white|silver|pink|blue|purple|green)(?: buzz cut| curly| wavy)? hair\b",
          alone(lambda match: HAIRS.get((match.group(1) or match.group(2) or match.group(3)).replace(" ", "")) or "red"), SELF_HEDGE),
+    said("hair_color", r"(?:^|[,:;/|(&•*+-]|\band\b|\bwith\b)\s*(?:(?:long|short|thick|thin|curly|straight|wavy|natural|naturally|graying|greying|dark|light|bright|messy|medium|cut|shaggy|buzzed|shoulder[- ]length)\s+)*(blonde?|brown|black|red|ginger|auburn|grey|gray|white|silver|pink|blue|purple|green)(?:ish)?\s+hairs?\b", spoken(lambda match: HAIRS[match.group(1)]), SELF_HEDGE),
 ]
 
 RULES = [*AGE, *GENDER, *SEXUAL_ORIENTATION, *ETHNICITY, *HEIGHT, *WEIGHT, *BODY_TYPE, *HAIR_COLOR]

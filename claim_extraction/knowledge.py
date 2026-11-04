@@ -99,7 +99,7 @@ def forms(name, surnamed):
 
 
 @timed
-def generate(target=TARGET):
+def generate(target=TARGET, sources=SOURCES):
     nltk.download("brown", quiet=True)
     nltk.download("stopwords", quiet=True)
     nltk.download("names", quiet=True)
@@ -111,7 +111,7 @@ def generate(target=TARGET):
     places = {line.split("\t", 1)[0] for line in GAZETTEER.read_text(encoding="utf-8").splitlines()[1:]}
     given = frozenset(name.lower() for name in nltk.corpus.names.words())
     items = {}
-    for source in SOURCES:
+    for source in sources:
         classes = subclasses(source.root) if source.subclasses else [source.root]
         for start in range(0, len(classes), CHUNK):
             for item, links, name, alias, language in members(source, classes[start:start + CHUNK]):

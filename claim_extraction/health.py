@@ -15,19 +15,20 @@ PEOPLE = (r"mom|mother|mum|mommy|dad|father|daddy|wife|husband|son|daughter|kid|
           r"grandmother|grandfather|granny|nana|aunt|auntie|uncle|cousin|niece|nephew|boyfriend|girlfriend|bf|gf|partner|spouse|fiance|fiancee|fiancé|ex|roommate|coworker|boss|"
           r"he|she|his|her|him|they|their|them|dog|cat|puppy|kitten|pet|patient|client|patients|clients|student|students|parent|parents|family|people|everyone|nobody|someone's|"
           r"guy|girl|lady|man|woman|men|women|teacher|doctor|neighbor|neighbour|grandson|granddaughter|stepdad|stepmom|in-law|sil|bil|mil|fil|dh|dw|ds|dd|op|op's|u|you|your|you're|ur")
-OWN_HEDGE = re.compile(SELF_HEDGE.pattern + r"|\b(?:suspect|suspected|probably|possibly|wonder|wondering|could be|could have|do i have|self[- ]diagnosed|test(?:ed)? for|screen(?:ed)? for|rule out|ruled out)\b")
+OWN_HEDGE = re.compile(SELF_HEDGE.pattern + r"|\b(?:suspect|suspected|probably|possibly|wonder|wondering|could be|could have|do i have|self[- ]diagnosed|test(?:ed)? for|screen(?:ed)? for|rule out|ruled out|i think|i thought|i guess|i feel like|pretty sure|i believe)\b")
 OTHERS = re.compile(OWN_HEDGE.pattern + rf"|\b(?:{PEOPLE})\b")
 GAP = rf"(?:(?!(?:{PEOPLE}|not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|than|to)\b)[\w'/-]+,?\s+){{0,3}}?"
-HAVE = (r"\bi (?:also |still |do |actually |now |already |too |even |definitely |literally |personally |unfortunately |both )*(?:have|had|got|get|suffer from|suffered from|struggle with|struggled with|"
-        r"deal with|dealt with|live with|lived with|battle|battled|fight|fought|manage|was born with|developed|contracted|beat|survived|overcame|have been diagnosed with|was diagnosed with|got diagnosed with|"
-        r"was recently diagnosed with|was officially diagnosed with|was formally diagnosed with|was finally diagnosed with|was just diagnosed with|have had|have got|am diagnosed with|am being treated for|"
-        r"was treated for|am recovering from|am dealing with|am struggling with|am living with|am suffering from|am battling|am fighting|was dealing with|went through|got treated for)"
-        r"|\bi've (?:also |always |recently |just |finally |officially |since |now |personally )*(?:had|got|been diagnosed with|been dealing with|been struggling with|been battling|been fighting|been living with|"
-        r"been suffering from|been treated for|been recovering from|developed|struggled with|dealt with|suffered from|lived with|battled|fought|survived|beaten)"
-        r"|\b(?:i'm|im|i am) (?:also |currently |still |now |actually |officially |finally )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|being treated for|recovering from|"
-        r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)"
-        r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as )?(?:someone|a person|a guy|a girl|a woman|a man|an adult|a lady) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
-        r"|\bmy (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|\bdiagnosed me (?:with|as)")
+SUBJECT = r"\bi (?:also |still |do |actually |now |already |too |even |definitely |literally |personally |unfortunately |both )*"
+HAVE_NOW = (rf"{SUBJECT}(?:have|got|get|suffer from|struggle with|deal with|live with|battle|fight|manage|was born with|developed|contracted|have been diagnosed with|was diagnosed with|got diagnosed with|"
+            r"was recently diagnosed with|was officially diagnosed with|was formally diagnosed with|was finally diagnosed with|was just diagnosed with|have had|have got|am diagnosed with|am being treated for|"
+            r"am recovering from|am dealing with|am struggling with|am living with|am suffering from|am battling|am fighting)"
+            r"|\b(?:i've|ive) (?:also |always |recently |just |finally |officially |since |now |personally )*(?:had|got|been diagnosed with|been dealing with|been struggling with|been battling|been fighting|been living with|"
+            r"been suffering from|been treated for|been recovering from|developed|struggled with|dealt with|suffered from|lived with|battled|fought|survived|beaten)"
+            r"|\b(?:i'm|im|i am) (?:also |currently |still |now |actually |officially |finally )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|being treated for|recovering from|"
+            r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)"
+            r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as )?(?:someone|a person|a guy|a girl|a woman|a man|an adult|a lady) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
+            r"|\bmy (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|\bdiagnosed me (?:with|as)")
+HAVE = HAVE_NOW + rf"|{SUBJECT}(?:had|suffered from|struggled with|dealt with|lived with|battled|fought|beat|survived|overcame|was treated for|was dealing with|went through|got treated for)"
 BARE = r"(?:^|[.!?\n|]\s*)(?:recently |newly |just |finally |officially |formally |also |and |got |was |been )*(?:diagnosed|dx'?d) (?:with|w/)"
 MODIFIERS = (r"own|severe|mild|moderate|chronic|acute|stupid|damn|damned|fucking|freaking|bloody|bad|untreated|undiagnosed|diagnosed|recent|current|constant|occasional|lifelong|genetic|congenital|"
              r"hereditary|early|late|new|old|primary|secondary|crippling|debilitating|terrible|horrible|awful|pretty bad|really bad|annoying|lovely|wonderful|recurring|recurrent|persistent|ongoing|"
@@ -68,7 +69,7 @@ PHYSICAL = spread({
                "a malignant tumor", "malignancy", "a malignancy", "a rare cancer", "terminal cancer", "hpv positive cancer", "seminoma", "a seminoma",
                "myelodysplastic syndrome", "thymoma", "medulloblastoma", "retinoblastoma", "wilms tumor", "kaposi sarcoma", "a cancer diagnosis"],
     "heart or blood condition": ["a heart condition", "heart condition", "heart disease", "heart problems", "heart issues", "heart failure", "congestive heart failure", "chf", "arrhythmia", "an arrhythmia",
-                                 "arrhythmias", "afib", "a-fib", "atrial fibrillation", "atrial flutter", "tachycardia", "svt", "pots", "postural orthostatic tachycardia syndrome", "bradycardia", "long qt",
+                                 "arrhythmias", "afib", "a-fib", "atrial fibrillation", "atrial flutter", "tachycardia", "svt", "bradycardia", "long qt",
                                  "long qt syndrome", "wpw", "wolff-parkinson-white", "hypertension", "high blood pressure", "low blood pressure", "hypotension", "orthostatic hypotension", "high cholesterol",
                                  "hyperlipidemia", "familial hypercholesterolemia", "a heart murmur", "heart murmur", "mitral valve prolapse", "cardiomyopathy", "hypertrophic cardiomyopathy", "hcm",
                                  "coronary artery disease", "a heart attack", "heart attack", "heart attacks", "angina", "anemia", "anaemia", "iron deficiency anemia", "iron deficiency anaemia", "iron deficiency",
@@ -120,7 +121,7 @@ PHYSICAL = spread({
                                "chiari malformation", "dementia", "alzheimer's", "alzheimers", "early onset alzheimer's", "early onset dementia", "fnd", "functional neurological disorder", "neuralgia",
                                "occipital neuralgia", "iih", "idiopathic intracranial hypertension", "intracranial hypertension", "pseudotumor cerebri", "a neurological disorder", "neurological disorder",
                                "a neurological condition", "neurological condition", "neurological issues", "neurological problems", "ataxia", "charcot-marie-tooth", "myoclonus", "nerve damage",
-                               "transverse myelitis", "syringomyelia", "a brain aneurysm", "tethered cord", "tethered cord syndrome", "migraine headaches", "tension headaches", "dysautonomia",
+                               "transverse myelitis", "syringomyelia", "a brain aneurysm", "tethered cord", "tethered cord syndrome", "migraine headaches", "tension headaches", "dysautonomia", "pots", "postural orthostatic tachycardia syndrome",
                                "absence seizures", "grand mal seizures", "tonic clonic seizures", "focal seizures", "temporal lobe epilepsy", "juvenile myoclonic epilepsy", "a brain bleed",
                                "brain lesions", "a brain lesion", "white matter lesions", "a cavernoma", "moyamoya", "neurofibromatosis", "nf1", "tuberous sclerosis", "carpal tunnel syndrome",
                                "cubital tunnel", "cubital tunnel syndrome", "a pinched nerve", "pinched nerve", "ulnar neuropathy", "spasticity", "a movement disorder", "movement disorder", "headaches",
@@ -214,10 +215,9 @@ PHYSICAL_STATES = spread({
     "heart or blood condition": ["anemic", "anaemic", "hypertensive", "a heart patient", "a heart attack survivor", "a hemophiliac"],
     "hormonal or reproductive condition": ["hypothyroid", "hyperthyroid", "menopausal", "perimenopausal", "post menopausal", "postmenopausal", "post-menopausal", "infertile", "sterile",
                                            "in menopause", "in perimenopause", "going through menopause", "going through perimenopause"],
-    "cancer": ["a cancer survivor", "a breast cancer survivor", "a cancer patient", "in remission", "cancer free", "cancer-free", "a survivor of cancer", "a two time cancer survivor", "a leukemia survivor",
-               "a lymphoma survivor", "terminal", "terminally ill"],
-    "autoimmune disease": ["immunocompromised", "immunosuppressed", "immuno-compromised"],
-    "other physical condition": ["hypermobile", "chronically ill", "a spoonie", "hiv positive", "hsv positive", "herpes positive", "obese", "morbidly obese", "a transplant recipient",
+    "cancer": ["a cancer survivor", "a breast cancer survivor", "a cancer patient", "a survivor of cancer", "a two time cancer survivor", "a leukemia survivor",
+               "a lymphoma survivor"],
+    "other physical condition": ["immunocompromised", "immunosuppressed", "immuno-compromised", "hypermobile", "chronically ill", "a spoonie", "hiv positive", "hsv positive", "herpes positive", "obese", "morbidly obese", "a transplant recipient",
                                  "a kidney transplant recipient", "on dialysis", "a dwarf", "arthritic", "chronically sick"]})
 PHYSICAL_TOOLS = spread({
     "respiratory condition or allergy": ["inhaler", "inhalers", "rescue inhaler", "epipen", "epipens", "epi pen", "epi-pen", "nebulizer", "allergist", "pulmonologist", "allergy meds", "allergy medication",
@@ -309,18 +309,15 @@ PHYSICAL_TOOL_STRICT = {name: value for name, value in PHYSICAL_TOOL_STRICT.item
     "relapse", "relapses", "steroids", "prednisone", "immune system", "biologic", "sinuses", "endocrinologist", "endo", "a1c", "blood sugar", "blood sugars", "bolus", "glucose levels",
     "sugar levels", "libre", "remission", "metastasis", "tumor markers", "ostomy", "tramadol", "oxycodone", "hydrocodone", "percocet", "vicodin", "norco", "morphine", "celebrex", "meloxicam",
     "naproxen", "diclofenac", "voltaren", "gabapentin", "lyrica", "pregabalin", "epidurals", "ablations", "pain meds", "pain medication", "allergy meds", "allergy medication", "allergy pills",
-    "antihistamines", "allergies", "allergy", "allergic reactions", "allergic reaction", "acne", "pots"}}
-PHYSICAL_TOOL_STRICT |= dict.fromkeys(("surgery", "surgeries", "operation", "procedure", "recovery", "injury", "injuries", "diagnosis", "diagnoses", "illness", "illnesses", "disease",
+    "antihistamines", "allergies", "allergy", "allergic reactions", "allergic reaction", "acne", "pots", "birth control", "the pill", "iud", "mirena", "slynd", "hrt", "uc", "discs", "ob", "period", "periods", "cycle", "cycles", "gynecologist", "gyno", "obgyn", "ob-gyn", "midwife"}}
+PHYSICAL_TOOL_STRICT |= dict.fromkeys(("surgery", "surgeries", "operation", "injury", "injuries", "diagnosis", "diagnoses", "illness", "illnesses", "disease",
                                       "diseases", "disorder", "condition", "conditions", "health condition", "health conditions", "medical condition", "medical conditions", "health issues",
-                                      "health problems", "medical issues", "symptoms", "symptom", "hospitalization", "hospital stay", "uti", "utis", "bladder", "kidneys", "kidney", "fatigue"), "unspecified")
+                                      "health problems", "medical issues", "hospitalization", "hospital stay", "uti", "utis", "bladder", "kidneys", "kidney", "fatigue"), "unspecified")
 INJURED = (r"\b(?:my|i have an?|i've got an?|i got an?|with an?|with my|i had an?) (?:(?:\w+) )?(?:bad|bum|busted|fucked up|fucked|messed up|screwed up|jacked up|injured|broken|fractured|torn|dislocated|"
            r"herniated|bulging|slipped|blown|blown out|dodgy|arthritic|weak|replaced|reconstructed|rebuilt|shattered|crushed|damaged|degenerating|deteriorating|worn out|wonky|trick|gimpy|gammy|"
            r"sore|painful|aching|achy|chronically sore|chronically painful|bad left|bad right|fucked up left|fucked up right) (knee|knees|hip|hips|back|lower back|upper back|shoulder|shoulders|ankle|ankles|"
            r"wrist|wrists|elbow|elbows|neck|spine|disc|discs|acl|mcl|meniscus|rotator cuff|achilles|leg|legs|foot|feet|hand|hands|arm|arms|knee cap|kneecap|pelvis|tailbone|coccyx|hamstring|groin|"
            r"jaw|sacrum|si joint|vertebrae|ribs|rib|collarbone|thumb|toe|toes|finger|fingers)\b")
-BODY = (r"knee|knees|hip|hips|back|lower back|upper back|shoulder|shoulders|ankle|ankles|wrist|wrists|elbow|elbows|neck|spine|joints|joint|hand|hands|arm|arms|leg|legs|foot|feet|toes|fingers|"
-        r"jaw|ear|ears|eye|eyes|eyesight|vision|hearing|skin|stomach|gut|bladder|kidneys|kidney|liver|heart|lungs|chest|pelvis|tailbone|sciatic nerve|nerves|muscles|tendons|achilles|"
-        r"hamstring|rotator cuff|acl|meniscus|disc|discs|vertebrae|ribs|thyroid|bowels")
 
 RULES = [
     rule("physical_condition", rf"\bmy (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |"
@@ -332,9 +329,7 @@ RULES = [
     rule("physical_condition", INJURED, fixed("other physical condition"), OTHERS),
     rule("physical_condition", r"\bmy (?:face|skin|scalp|face skin|facial skin) (?:is|has been|gets|get|keeps|is always|is still|is getting|has gotten|tends to be|is naturally|is super|is very|is so|is really|is extremely|is quite|is pretty|is kinda|is a bit|always gets)* ?"
          r"(?:so |very |really |super |extremely |quite |pretty |kinda |a bit |naturally )?(?:dry|oily|sensitive|acne[- ]prone|prone to (?:acne|breakouts|redness|irritation)|breaking out|broken out|flaky|flaking|peeling|"
-         r"itchy|irritated|inflamed|congested|dehydrated|reactive|combination)\b", fixed("skin condition"), OWN_HEDGE),
-    rule("physical_condition", rf"\bmy (?:left |right |lower |upper |bad |poor |stupid |damn )?({BODY}) (?:has been |is |are |keeps |keep |started |starts |still |always |constantly |randomly |sometimes |often |have been |is still |gets |get )*(?:hurting|hurts|hurt|aching|aches|killing me|going numb|numb|tingling|tingly|swollen|swelling|throbbing|twitching|fluttering|clicking|popping|giving out|gives out|locking up|locks up|acting up|flaring up|flared up|flaring|burning|cramping|spasming|in pain|fucked|messed up|shot|busted|dislocating|dislocates|subluxing|collapsing|ringing|failing|deteriorating|degenerating)\b",
-         lambda match: "skin condition" if match.group(1) == "skin" else "vision or hearing impairment" if match.group(1) in ("eyes", "eyesight", "vision", "hearing") else "other physical condition", OWN_HEDGE)]
+         r"itchy|irritated|inflamed|congested|dehydrated|reactive|combination)\b", fixed("skin condition"), OWN_HEDGE)]
 
 FOREIGN_HAVE = (r"(?<![\w'])(?:tengo|tenho|padezco|sufro de|sofro de|j'ai|je souffre d[e']|ich habe|ich leide an|ich leide unter|ho|soffro di|mam|choruję na|cierpię na|ik heb|ik lijd aan|"
                 r"me diagnosticaron|fui diagnosticad[oa] co[nm]|on m'a diagnostiqué|mi hanno diagnosticato|zdiagnozowano u mnie)\s+(?:(?:un|una|uma|um|une|le|la|l'|de|del|du|des|d'|eine|einen|ein|il|lo|i|gli|een|"
@@ -370,11 +365,11 @@ MENTAL = spread({
     "depression": ["depression", "major depressive disorder", "mdd", "clinical depression", "major depression", "severe depression", "chronic depression", "persistent depressive disorder", "dysthymia",
                    "postpartum depression", "post-partum depression", "post partum depression", "postnatal depression", "seasonal affective disorder", "seasonal depression", "treatment resistant depression",
                    "treatment-resistant depression", "trd", "depressive disorder", "a depressive disorder", "perinatal depression", "atypical depression", "depressive episodes", "a depressive episode",
-                   "psychotic depression", "recurrent depression", "melancholic depression", "double depression", "high functioning depression", "depression and anxiety", "depression/anxiety"],
+                   "psychotic depression", "recurrent depression", "melancholic depression", "double depression", "high functioning depression"],
     "anxiety": ["anxiety", "an anxiety disorder", "anxiety disorder", "anxiety disorders", "generalized anxiety disorder", "generalised anxiety disorder", "gad", "panic disorder", "panic attacks",
                 "a panic disorder", "social anxiety", "social anxiety disorder", "agoraphobia", "health anxiety", "severe anxiety", "anxiety attacks", "emetophobia", "separation anxiety",
                 "illness anxiety disorder", "anxiety issues", "anxiety problems", "chronic anxiety", "crippling anxiety", "generalized anxiety", "generalised anxiety", "social phobia", "claustrophobia",
-                "a phobia of", "driving anxiety", "performance anxiety", "anxiety and depression", "anxiety/depression", "panic attack disorder", "an anxiety problem", "nervous breakdowns"],
+                "a phobia of", "driving anxiety", "performance anxiety", "panic attack disorder", "an anxiety problem", "nervous breakdowns"],
     "bipolar disorder": ["bipolar", "bipolar disorder", "bipolar 1", "bipolar 2", "bipolar i", "bipolar ii", "bipolar type 1", "bipolar type 2", "bipolar one", "bipolar two", "bp1", "bp2", "bpd2", "bp ii",
                          "cyclothymia", "cyclothymic disorder", "manic depression", "bipolar affective disorder", "bipolar 1 disorder", "bipolar 2 disorder", "manic episodes", "a manic episode",
                          "hypomanic episodes", "hypomania", "mania"],
@@ -464,7 +459,6 @@ ADHD_MEDICATIONS = dict.fromkeys(["adderall", "adderall xr", "vyvanse", "vyvance
                                   "dexmethylphenidate", "dexedrine", "dextroamphetamine", "evekeo", "mydayis", "azstarys", "jornay", "jornay pm", "quillichew", "daytrana", "intuniv", "guanfacine",
                                   "qelbree", "viloxazine", "kapvay", "lisdexamfetamine", "medikinet", "equasym", "zenzedi", "dyanavel", "adzenys", "cotempla", "relexxii", "stimulants", "stimulant",
                                   "a stimulant", "stimulant meds", "stimulant medication", "adhd meds", "adhd medication", "adhd medications", "non-stimulants", "a non-stimulant", "non stimulants"], "adhd")
-MENTAL_FEELINGS ={"anxious": "anxiety", "depressed": "depression", "suicidal": "depression", "manic": "bipolar disorder", "psychotic": "schizophrenia or psychosis", "paranoid": "anxiety"}
 
 RULES += [
     rule("mental_condition", rf"(?:{HAVE})\s+{MOD}(?:an? )?{GAP}({names(MENTAL_LOOSE)})\b{FOLLOWERS}", group(MENTAL_LOOSE), OWN_HEDGE),
@@ -480,15 +474,10 @@ RULES += [
          group({**MENTAL_LOOSE, **MENTAL_STATE_STRICT}), SELF_HEDGE),
     rule("mental_condition", rf"\b(?:i'm|im|i am|i m|i've been|ive been|i was|i became|i'm now|i'm also|i'm actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({names(MENTAL_STATE_STRICT)})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for|from|by|over|with)\b)",
          group(MENTAL_STATE_STRICT), OWN_HEDGE),
-    rule("mental_condition", r"\b(?:i'm|im|i am|i get|i got|i feel|i've been) (?:so |really |very |pretty |super |kinda |chronically |clinically |severely |a (?:rather |very |really )?)?(anxious|depressed|suicidal|manic|psychotic|paranoid)(?: person)?\b(?! (?:by|about|over|that|because|after|when|watching|reading|seeing|hearing|thinking|for|of|at|with|as|lol|now|today|tonight|rn|right now|lately|again)\b)(?!\s*(?:lol|lmao|haha))",
-         group(MENTAL_FEELINGS), OWN_HEDGE),
-    rule("mental_condition", rf"\b(?:my|i take|i took|i'm on|i am on|i was on|i've been on|i started|i'm taking|i am taking|i've been taking|i was put on|i got put on|i was prescribed|i got prescribed|i was given|prescribed me|gave me|put me on|i need|i switched to|switched me to|i tried|i've tried|i stopped|i quit|i went off|i came off|i'm off|i'm weaning off|tapering off|i've taken|i take my|i forgot my|i forgot to take my|i ran out of|i'm out of) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_MEDICATIONS)})\b",
+    rule("mental_condition", rf"\b(?:my|i take|i'm on|i am on|i've been on|i started|i'm taking|i am taking|i've been taking|i was put on|i got put on|i was prescribed|i got prescribed|i was given|prescribed me|gave me|put me on|i switched to|switched me to|i take my|i forgot my|i forgot to take my|i ran out of|i'm out of) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_MEDICATIONS)})\b",
          group(ADHD_MEDICATIONS), SELF_HEDGE),
     rule("mental_condition", r"\b(audhd|au/dhd)\b", fixed("both adhd and autism"), SELF_HEDGE),
-    rule("mental_condition", r"\b(audhd|au/dhd)\b", fixed("adhd"), SELF_HEDGE),
     rule("mental_condition", r"\b(?:i'm|im|i am|i m) (?:literally |also |very |severely |pretty )?(dyslexic|dyspraxic|neurodivergent|neurodiverse|nd|on the spectrum)\b", lambda match: "autism" if "spectrum" in match.group() else "neurodivergent, unspecified", SELF_HEDGE),
-    rule("mental_condition", r"\bmy (?:current |latest |newest |biggest |main |big |old |first |longtime |longest |other |many |hyperfixation and |favorite |favourite )?special interests?\b|\bi (?:stim|stimmed|stimming)\b|\bmy (?:\w+ )?stims?\b|\bi'm (?:stimming|masking)\b|\bmy (?:autistic )?(?:meltdowns|shutdowns|sensory overload|sensory issues|sensory sensitivities|masking)\b",
-         fixed("autism"), SELF_HEDGE),
     rule("mental_condition", r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar|insomnia) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
          group({**MENTAL, "bipolar": "bipolar disorder", "insomnia": "other mental health condition"}), SELF_HEDGE),
     *(rule("mental_condition", pattern, group(MENTAL_LOOSE), OWN_HEDGE) for pattern in (
@@ -504,9 +493,6 @@ RULES += [
          group({"depression": "depression", "suicidal thoughts": "depression", "a suicide attempt": "depression", "suicide attempt": "depression", "an overdose": "addiction", "psychosis": "schizophrenia or psychosis",
                 "a psychotic episode": "schizophrenia or psychosis", "mania": "bipolar disorder", "a manic episode": "bipolar disorder", "an eating disorder": "eating disorder", "anorexia": "eating disorder",
                 "bulimia": "eating disorder", "self harm": "other mental health condition", "self-harm": "other mental health condition"}), OWN_HEDGE),
-    rule("mental_condition", r"\bi (?:attempted suicide|tried to kill myself|tried to end my life|attempted to end my life|have suicidal thoughts|have suicidal ideation|self[- ]harm(?:ed)?|used to self harm|cut myself|"
-         r"relapsed|got sober|got clean|have been sober|'ve been sober|have been clean|'ve been clean)\b(?! (?:of|from) (?:caffeine|sugar|soda|social media|reddit)\b)",
-         lambda match: "addiction" if re.search(r"sober|clean|relapsed|drinking", match.group()) else "other mental health condition", OWN_HEDGE),
     rule("mental_condition", r"\b(?:i'm|im|i am|i've been|i have been) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|several|many|over \d+|almost \d+|nearly \d+) (?:days?|weeks?|months?|years?|yrs?) (?:sober|clean|off (?:drugs|alcohol|heroin|meth|opiates|opioids|pills|booze|the booze|the drink|drinking))\b",
          fixed("addiction"), SELF_HEDGE)]
 
@@ -532,19 +518,23 @@ RULES += [
 
 BOT_SELF = (r"(?:\bi(?:'m| am)[\s^]+a[\s^]+bot\b|\bthis is a bot\b|\bperformed[\s^]+automatically\b|\bsou um bot\b|\bsoy un bot\b|\bbeep boop\b|\bbleep bloop\b|"
             r"\bthis is an? (?:automated|automatic) (?:message|response|reply|comment|process)\b|\bthis message is an automat\w+ response\b)")
-MODERATION = r"removed|remove|approv\w*|karma|title|session id|locked|not allowed|bans?|bannable|banned|comments are disabled|filtered|blocked|block you|copy of (?:the|this|your) (?:original )?(?:post|submission)|post's original text|copia del post|salvo qui una copia"
+MODERATION = r"removed|remove|approv\w*|karma|locked|not allowed|bans?|bannable|banned|comments are disabled|filtered|blocked|block you|copy of (?:the|this|your) (?:original )?(?:post|submission)|post's original text|copia del post|salvo qui una copia"
 RULES += [
     rule("automated_account", rf"^(?=[\s\S]*?(?:bot|automat|beep|bleep))(?![\s\S]*\b(?:{MODERATION})\b)(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_SELF}", fixed("bot"), TAGGED)]
 
-COMMON = ("diabetes", "type 1 diabetes", "type 2 diabetes", "t1d", "t2d", "diabetic", "hypoglycemic", "lupus", "rheumatoid arthritis", "rheumatoid disease", "multiple sclerosis", "hashimoto's", "hashimotos",
-          "an autoimmune disease", "graves disease", "graves' disease", "psoriatic arthritis", "chronic pain", "fibromyalgia", "fibro", "sciatica", "herniated disc", "cancer", "breast cancer", "leukemia",
-          "lymphoma", "a heart condition", "heart disease", "high blood pressure", "hypertension", "afib", "anemia", "ibs", "crohn's", "crohns", "crohn's disease", "ulcerative colitis", "colitis",
-          "celiac", "celiac disease", "celiacs", "gastritis", "gerd", "acid reflux", "hiatal hernia", "pcos", "endometriosis", "fibroids", "adenomyosis", "hypothyroidism", "hyperthyroidism", "menopause",
-          "perimenopause", "my hormones", "epilepsy", "migraine", "migraines", "chronic migraines", "parkinson's", "seizures", "eczema", "psoriasis", "acne", "cystic acne", "rosacea", "dermatitis",
-          "dry skin", "sensitive skin", "asthma", "allergies", "copd", "tinnitus", "hearing loss", "hearing aids", "iritis", "dry eye", "eye disease", "cerebral palsy", "eds", "ehlers-danlos", "me/cfs",
-          "chronic fatigue", "long covid", "arthritis", "osteoarthritis", "sleep apnea", "kidney disease", "kidney stones", "dialysis", "colostomy", "scoliosis", "hyperparathyroidism", "broken ankle",
-          "torn acl", "gastroparesis", "ibd", "hidradenitis suppurativa", "ankylosing spondylitis", "sjogren's", "high cholesterol", "diverticulitis", "gout", "plantar fasciitis", "carpal tunnel",
-          "tendonitis", "osteoporosis", "b12 deficiency", "insulin resistance", "prediabetes", "narcolepsy", "lyme disease", "hypermobility", "mcas", "tachycardia", "hypothyroid", "heds", "vertigo")
+COMMON = ("diabetes", "type 1 diabetes", "type 2 diabetes", "t1d", "t2d", "diabetic", "hypoglycemic", "lupus", "rheumatoid arthritis", "rheumatoid disease", "multiple sclerosis", "hashimoto's",
+          "hashimotos", "an autoimmune disease", "graves disease", "graves' disease", "psoriatic arthritis", "chronic pain", "fibromyalgia", "fibro", "sciatica", "herniated disc", "breast cancer",
+          "leukemia", "lymphoma", "a heart condition", "heart disease", "high blood pressure", "hypertension", "afib", "anemia", "ibs", "crohn's", "crohns", "crohn's disease", "ulcerative colitis",
+          "colitis", "celiac", "celiac disease", "celiacs", "gastritis", "gerd", "acid reflux", "hiatal hernia", "pcos", "endometriosis", "fibroids", "adenomyosis", "hypothyroidism", "hyperthyroidism",
+          "menopause", "perimenopause", "my hormones", "epilepsy", "migraine", "migraines", "chronic migraines", "parkinson's", "seizures", "eczema", "psoriasis", "acne", "cystic acne", "rosacea",
+          "dermatitis", "dry skin", "sensitive skin", "asthma", "allergies", "copd", "tinnitus", "hearing loss", "hearing aids", "iritis", "dry eye", "eye disease", "cerebral palsy", "eds",
+          "ehlers-danlos", "me/cfs", "chronic fatigue", "long covid", "arthritis", "osteoarthritis", "sleep apnea", "kidney disease", "kidney stones", "dialysis", "colostomy", "scoliosis",
+          "hyperparathyroidism", "broken ankle", "torn acl", "gastroparesis", "ibd", "hidradenitis suppurativa", "ankylosing spondylitis", "sjogren's", "high cholesterol", "diverticulitis", "gout",
+          "plantar fasciitis", "carpal tunnel", "tendonitis", "osteoporosis", "b12 deficiency", "insulin resistance", "prediabetes", "narcolepsy", "lyme disease", "hypermobility", "mcas",
+          "tachycardia", "hypothyroid", "heds", "vertigo", "neuropathy", "peripheral neuropathy", "gallstones", "herpes", "lymphedema", "lipedema", "vitiligo", "alopecia", "glaucoma", "cataracts",
+          "keratoconus", "chronic sinusitis", "hay fever", "food allergies", "emphysema", "cystic fibrosis", "spina bifida", "muscular dystrophy", "osteopenia", "tmj", "trigeminal neuralgia",
+          "restless leg syndrome", "dysautonomia", "interstitial cystitis", "lichen sclerosus", "polycystic kidney disease", "chronic kidney disease", "degenerative disc disease", "spinal stenosis",
+          "bulging discs", "herniated discs", "costochondritis", "frozen shoulder", "bursitis", "tendinitis")
 AILMENTS = {name: PHYSICAL[name] for name in COMMON}
 AILMENT_NAMES = re.compile(r"\b(" + names(AILMENTS) + r")\b")
 OTHER_PEOPLE = re.compile(r"\b(?:mom|mother|dad|father|wife|husband|son|daughter|friend|brother|sister|grandma|grandpa|grandmother|grandfather|aunt|uncle|cousin|boyfriend|girlfriend|partner|he|she|his|her|him|they|their|dog|cat|patients?|clients?|family|families|relatives)\b")
@@ -553,6 +543,7 @@ MOODS = {"anxiety": "anxiety", "depression": "depression", "ocd": "ocd", "ptsd":
          "body dysmorphia": "other mental health condition", "adhd": "adhd", "autism": "autism", "audhd": "both adhd and autism", "autistic": "autism", "asd": "autism",
          "addiction": "addiction", "an addiction": "addiction", "alcoholism": "addiction"}
 MOOD_NAMES = re.compile(r"\b(" + names(MOODS) + r")\b")
+ASSESSED = re.compile(r"\s*(?:assessments?|evaluations?|diagnosis|diagnoses|traits|testing|tests?)\b")
 ASKING = re.compile(r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b")
 FIRST_PERSON = re.compile(r"\b(?:i|i'm|im|i've|my|me|myself)\b")
 
@@ -596,27 +587,35 @@ WORD = re.compile(r"[\w'/+-]+(?:\.\d+)?")
 STOP = rf"{PEOPLE}|not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|why|how|whether|than|to|in|on|about|like|for|from|at|by|into|of|with|without|is|was|are|were|be|it|this"
 FREE = rf"(?:(?!(?:{STOP})\b)(?![\w'-]*(?:ed|en)\b)[\w'/-]+,?\s+)"
 LEAD = rf"(?:[\s,]+(?:(?:{MODIFIERS})\b|an?\b|the\b))*[\s,]*"
-OWNING = (rf"(?:{HAVE}){LEAD}{FREE}{{0,2}}|\bmy{LEAD}{FREE}?|\b(?:i've|ive|i have got){LEAD}|\b(?:a |as a |from a )?fellow{LEAD}|\b(?:i'm|i am|im) (?:on|taking) [\w-]+ for(?: my| the)?{LEAD}|"
-          rf"\b(?:put|got|have) me on [\w-]+ for(?: my| the)?{LEAD}|\bi (?:take|took|use|need) [\w-]+(?: [\w-]+)? for(?: my| the)?{LEAD}|"
-          rf"\bi (?:talked|spoke|talk|speak|went) to (?:my|a) (?:doctor|therapist|psychiatrist|psych|gp|pcp|counselor|counsellor|specialist|neurologist|doc) (?:about|for)(?: my)?{LEAD}")
-NOUN_CUE = re.compile(rf"(?:{OWNING})$")
-MIND_CUE = re.compile(rf"(?:{OWNING}|\b(?:must|could|might|may|probably|just|it's|its|that's|thats|blame it on|blame)(?: just| probably| definitely)?(?: be)? the{LEAD})$")
-DROPPED = re.compile(rf"\W*(?:also |and |but |still |now |recently |just )?(?:have|got|suffer from|struggling with|dealing with|living with|diagnosed with|dx'?d with){LEAD}{FREE}?")
+def owning(have, mine):
+    return (rf"(?:{have}){LEAD}{FREE}{{0,2}}|{mine}|\b(?:i've|ive|i have got){LEAD}|\b(?:a |as a |from a )?fellow{LEAD}|\b(?:i'm|i am|im) (?:on|taking) [\w-]+ for(?: my| the)?{LEAD}|"
+            rf"\b(?:put|got|have) me on [\w-]+ for(?: my| the)?{LEAD}|\bi (?:take|took|use|need) [\w-]+(?: [\w-]+)? for(?: my| the)?{LEAD}|"
+            rf"\bi (?:talked|spoke|talk|speak|went) to (?:my|a) (?:doctor|therapist|psychiatrist|psych|gp|pcp|counselor|counsellor|specialist|neurologist|doc) (?:about|for)(?: my)?{LEAD}")
+
+
+NOUN_CUE = re.compile(rf"(?:{owning(HAVE_NOW, rf'\bmy{LEAD}{FREE}?')})$")
+MIND_CUE = re.compile(rf"(?:{owning(HAVE, rf'\bmy{LEAD}')}|\b(?:must|could|might|may|probably|just|it's|its|that's|thats|blame it on|blame)(?: just| probably| definitely)?(?: be)? the{LEAD})$")
+DROPPED = re.compile(rf"\W*(?:also |and |but |still |now |recently |just |newly |finally |officially |got |was |been )*(?:have|got|suffer from|struggling with|dealing with|living with|diagnosed with|dx'?d with){LEAD}{FREE}?")
 DIAGNOSED = re.compile(rf"\W*(?:recently |just |also |finally |newly |officially |formally )?(?:got |was |been )?(?:diagnosed|dx'?d)(?: as)?{LEAD}")
 CANDIDATE = re.compile(r"\b(?:i|i'm|im|i've|ive|my|me|fellow|have|got|suffer|struggling|dealing|living|diagnosed|dx'?d|the|here|warrior|gang|squad|life|club|crew|fam)\b")
 HERE_BEFORE = re.compile(r"(?:^|[,;(|]\s*)(?:an? )?(?:fellow |another |also |also an? |proud |former |recovering |recovered )?$")
 HERE_AFTER = {"physical_condition": re.compile(r" (?:here|sufferer here|patient here|survivor here|warrior here|warrior|gang|squad|life|haver here|person here|club|crew|fam)\b"),
               "mental_condition": re.compile(r" (?:here|person here|haver here|sufferer here|survivor here|gal here|guy here|girl here|woman here|man here|mom here|mama here|dad here|adult here|"
                                              r"patient here|warrior|gang|squad|club|crew|fam)\b")}
-STATE_CUE = re.compile(rf"(?:\b(?:i'm|im|i am|i've been|ive been|i was born|i became|as(?: an?)?|being an?|me,?(?: an?)?|(?:a |as a |from a )?fellow)(?: (?:also|now|currently|still|technically|actually|literally|officially|"
-                       rf"basically|completely|totally|profoundly|severely|mostly|partially|fully|medically|legally|kind of|kinda))*{LEAD}{FREE}{{0,2}})$")
+def stating(being):
+    return re.compile(rf"(?:\b(?:i'm|im|i am|i've been|ive been|i was born|i became|as(?: an?)?|{being}|me,?(?: an?)?|(?:a |as a |from a )?fellow)(?: (?:also|now|currently|still|technically|actually|literally|officially|"
+                      rf"basically|completely|totally|profoundly|severely|mostly|partially|fully|medically|legally|kind of|kinda))*{LEAD}{FREE}{{0,2}})$")
+
+
+STATE_CUE = stating("being an?")
+MIND_STATE_CUE = stating("being(?: an?)?|of us")
 LINK = re.compile(rf"\s*(?:,|&|/|\+|\band\b|\bor\b|\bplus\b|\bas well as\b|\balong with\b|\bw/)(?:\s*(?:and|&)\b)?{LEAD}")
 TRAIL = re.compile(rf"\s*(?:{PEOPLE}|community|person|research|awareness|month|day|walk|"
                    r"charity|foundation|society|association|group|subreddit|sub|forum|nurse|doctor|unit|ward|center|centre|clinic|risk|test|testing|screening)s?\b|'s\b")
 MS_PREV = re.compile(r"\b(?:have|had|with|my|i've|ive|got|and|&)\s*$")
 MS_NEXT = re.compile(r"\s*(?:$|[^\w\s]|(?:and|is|was|has|had|diagnosis|symptoms|flare|relapse|meds|medication|fatigue|brain|lesions)\b)")
 SCOPE = re.compile(r"[,;:(.!?\n]|\b(?:and|but|because|cause|cuz|bc|since|so|though|although|while|whereas)\b")
-ASTROLOGY = re.compile(r"\b(?:in|into) cancer\b|\bcancer (?:sun|moon|rising|venus|mars|mercury|jupiter|saturn|placement|season|sign)\b|\b(?:sun|moon|rising|saturn|jupiter|venus|mars|mercury) (?:in|sign)\b")
+ASTROLOGY = re.compile(r"\b(?:aries|taurus|gemini|geminis|leo|leos|virgo|virgos|libra|libras|scorpio|scorpios|sagittarius|capricorn|capricorns|aquarius|pisces|zodiac|horoscope|astrology)\b|\b(?:in|into) cancer\b|\bcancer (?:sun|moon|rising|venus|mars|mercury|jupiter|saturn|placement|season|sign)\b|\b(?:sun|moon|rising|saturn|jupiter|venus|mars|mercury) (?:in|sign)\b")
 
 
 def spans(names):
@@ -627,9 +626,9 @@ def spans(names):
     return longest
 
 
-FAMILIES = tuple((attribute, nouns, states, cue, suffix, spans((*nouns, *states)))
-                 for attribute, nouns, states, cue, suffix in (("physical_condition", CONDITIONS, STATES, NOUN_CUE, ("itis", "other physical condition")),
-                                                               ("mental_condition", MIND, MIND_STATES, MIND_CUE, ("phobia", "other mental health condition"))))
+FAMILIES = tuple((attribute, nouns, states, cue, state_cue, suffix, spans((*nouns, *states)))
+                 for attribute, nouns, states, cue, state_cue, suffix in (("physical_condition", CONDITIONS, STATES, NOUN_CUE, STATE_CUE, ("itis", "other physical condition")),
+                                                                          ("mental_condition", MIND, MIND_STATES, MIND_CUE, MIND_STATE_CUE, ("phobia", "other mental health condition"))))
 
 
 def mentions(words, nouns, states, suffix, longest):
@@ -665,13 +664,13 @@ def owned(lowered, sentence, found, families):
     if not CANDIDATE.search(part):
         return
     words = [(match.start(), match.end(), match.group()) for match in WORD.finditer(part)]
-    for attribute, nouns, states, noun_cue, suffix, longest in families:
+    for attribute, nouns, states, noun_cue, state_cue, suffix, longest in families:
         previous = None
         for start, end, name in mentions(words, nouns, states, suffix, longest):
             noun = name not in states
             left = part[max(0, start - 90):start]
             here = HERE_AFTER[attribute].match(part, end) and HERE_BEFORE.search(left)
-            cue = (noun_cue if noun else STATE_CUE).search(left) or here
+            cue = (noun_cue if noun else state_cue).search(left) or here
             begin = start - len(cue.group()) if cue else 0 if (DROPPED if noun else DIAGNOSED).fullmatch(part, 0, start) else None
             chained = previous is not None and LINK.fullmatch(part, previous, start)
             if ((begin is not None or chained) and (here or not TRAIL.match(part, end)) and (name != "ms" or MS_NEXT.match(part, end) and MS_PREV.search(part, 0, start))
@@ -700,6 +699,8 @@ def ailments(lowered, found):
         if hedge:
             continue
         for match in MOOD_NAMES.finditer(part):
+            if TRAIL.match(part, match.end()) or ASSESSED.match(part, match.end()) or MOODS[match.group(1)] in ("adhd", "autism", "both adhd and autism") and OWN_HEDGE.search(part):
+                continue
             found.setdefault(("mental_condition", MOODS[match.group(1)]), sentence.start() + match.start())
     if ASTROLOGY.search(lowered):
         found.pop(("physical_condition", "cancer"), None)

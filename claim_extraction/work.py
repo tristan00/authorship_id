@@ -306,7 +306,6 @@ FOREIGN = {phrase(word): value for word, value in table({
            "freelancer|freelance|ondernemer|zzp'er|zelfstandige|przedsiębiorcą|przedsiębiorca",
 }).items()}
 FOREIGN_BLOCK = frozenset("kein keine keiner geen pas nie não no non nicht plus ex".split())
-FIRST = re.compile(r"[^.!?\n]{0,80}\b(?:i|i'm|im|i've|ive|my|me|myself)\b")
 SCOPE = re.compile(r"\b(?:because|cause|cuz|since|and|but|so|as|although|though|after|before|while|until)\b")
 FORMER = re.compile(r"\s*\(?\s*(?:retired|ret\.|former|ex)\b")
 PRETEND = re.compile(r"\b(?:like|as if|as though|pretend|pretending|imagine)\s*$")
@@ -352,12 +351,6 @@ def ending(text, start, end):
 def after(match):
     found = free(match.string, match.start()) and title(match.string, match.end())
     return found[0] if found else None
-
-
-def amid(match):
-    text, start = match.string, match.start()
-    found = free(text, start) and title(text, match.end())
-    return found[0] if found and not YOU.match(text, found[1]) and (FIRST.match(text, found[1]) or SELF.search(text, max(clause(text, start), start - 60), start)) else None
 
 
 def opener(match):
@@ -435,8 +428,6 @@ FIELDS = table({
 })
 FIELD_NAMES = alternation(FIELDS)
 PLACES = table({
-    CLINICAL: "hospital|clinic|medical clinic|dental office|dentist office|dentist's office|doctor's office|vet clinic|vet office|veterinary clinic|animal hospital|er|icu|nicu|"
-              "emergency room|urgent care|pharmacy|surgery center|rehab center|psych ward|psychiatric hospital|mental hospital|medical center|health center|optometrist office",
     CARE: "nursing home|care home|assisted living facility|assisted living|group home|hospice|retirement home|memory care facility|home care agency",
     FOOD: "restaurant|bar|pub|hotel|motel|kitchen|cafe|café|coffee shop|bakery|pizza place|pizza shop|fast food restaurant|fast food place|diner|brewery|casino|resort|catering company|"
           "steakhouse|sushi restaurant|deli|cafeteria|food truck|cruise ship|country club|golf club|night club|nightclub|club",
@@ -462,10 +453,11 @@ PLACES = table({
     SERVICE: "salon|hair salon|nail salon|barbershop|barber shop|spa|gym|fitness center|car wash|funeral home|dry cleaners|laundromat|kennel|doggy daycare|grooming salon",
     OUTDOOR: "farm|ranch|nursery|garden center|greenhouse|vineyard|orchard|zoo|aquarium|park|national park|golf course|stable|stables|dairy farm",
     BUSINESS: "consulting firm|consultancy|staffing agency|recruitment agency|big four",
-    None: "company|firm|agency|business|corporation|small business|family business|organization|organisation|nonprofit organization|place",
+    None: "company|firm|agency|business|corporation|small business|family business|organization|organisation|nonprofit organization|place|"
+          "hospital|clinic|medical clinic|dental office|dentist office|dentist's office|doctor's office|vet clinic|vet office|veterinary clinic|animal hospital|er|icu|nicu|"
+          "emergency room|urgent care|pharmacy|surgery center|rehab center|psych ward|psychiatric hospital|mental hospital|medical center|health center|optometrist office",
 })
 PLACE_NAMES = alternation(PLACES)
-SAID = r"(?:(?!\b(?:if|would|wish|never|not|didn't|don't|can't|won't|wouldn't|couldn't|shouldn't|used to|want|wanted|hope|should|could|might|gonna|maybe|probably|when i was)\b)[^.!?\n]){0,40}?"
 OCCUPATION = [
     (rf"\b{I} {ADVERB}(?:an?|the) ", after),
     (rf"\b(?:i|i'm|im|i am|i've been|ive been|i have been|currently|now)(?: (?:also|now|currently|still|actually|mostly|mainly|primarily|full[- ]time|part[- ]time|employed))* "
@@ -481,29 +473,27 @@ MENTIONS = [
     (r"(?:^|[.!?\n:(,]\s*|\s[-–—]\s+|\b(?:hi|hey|hello|hiya|yo|greetings)\b[ ,!.]*)(?:an? |fellow |another |a fellow |also an? |as an? |just an? )?((?:[\w'&/.+-]+ ){1,6}?)"
      r"(?:by (?:trade|profession|training) )?here\b(?=\s*(?:[^\w\s]|\b(?:and|with|who|so|but|in|from|too|lol|haha|for)\b|$))", here),
     (r"(?:^|[.!?\n]\s*)as an? ", opener),
-    (r"(?<!works )(?<!worked )(?<!working )(?<!employed )(?<!such )(?<!same )(?<!well )(?<!him )(?<!her )(?<!them )(?<!someone )(?<!people )(?<!anyone )\bas an? ", amid),
-    (r"\b(?:coming from|as|from) (?:another|a fellow) ", hired),
     (r"\[\s*(?:for hire|hire me)\s*\][\W_]*", hired),
 ]
-LEAD = (r"(?:^|\n|[.!]\s+)[ \t>*#\\-]*(?:(?:\d{2}\s?[mf]?|[\[(][\w /+-]{1,12}[\])]|#[\w/-]+|[-–—|]+)[ \t]*)*+(?:(?:also|just|another|fellow|a|an) )*"
+LEAD = (r"(?:^|\n|[.!]\s+)[ \t>*#\\-]*(?:(?:\d{2}\s?(?:yo|y/o|yrs? old|years? old)|\d{2}\s?[mf]?|[mf]\s?\d{2}|[\[(][\w /+-]{1,12}[\])]|#[\w/-]+|[-–—|,]+)[ \t]*)*+(?:(?:also|just|another|fellow|a|an) )*"
         r"(?:(?:married|professional|licensed|certified|registered|senior|junior|qualified|experienced|freelance|hung|single|divorced|tired|exhausted) )*")
-PERSONA = re.compile(r"\d{2}\s?[mf]\b|\b[mf]4[a-z]+\b")
+PERSONA = re.compile(r"\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\b[mf]4[a-z]+\b|\d{2}\s?(?:yo|y/o|yrs? old|years? old)\b")
 STRICT_END = re.compile(r"[ \t]*(?:$|[.,!;|(\n]|(?:and|by trade|by profession|here)\b)")
 PERSONA_END = re.compile(r"[ \t]*(?:$|[.,!;|(\n-]|(?:and|by trade|by profession|here|who|with|getting|looking|seeking|available|from|in)\b)")
 
 
 def fragment(match):
     text, lead = match.string, match.group()
-    if "hir" in lead or not (found := title(text, match.end(), 0)) or question(text, found[1]):
+    persona = PERSONA.search(lead)
+    if "hir" in lead or not (found := title(text, match.end(), 2 if persona else 0)) or question(text, found[1]):
         return None
-    if PERSONA.search(lead):
+    if persona:
         return found[0] if PERSONA_END.match(text, found[1]) else None
     return found[0] if STRICT_END.match(text, found[1]) and (SELF.search(text, found[1], found[1] + 120) or len(text) < 60) else None
 
 
 WORKPLACE = [
-    rf"\b{I} {ADVERB}in (?:the )?({FIELD_NAMES})(?: industry| field| sector| department| dept| business| world| trade)?\b(?! (?:class|classes|school|course|program|degree|student|game|movie|show)\b)",
-    rf"\bi(?:'ve| have)? (?:been )?(?:currently |now |also |still |mostly |mainly |just started |started |actually )?(?:work|working|worked) (?:(?:in|for) )?(?:the )?({FIELD_NAMES})"
+    rf"\bi(?:(?:'ve| have) (?:been )?(?:currently |now |also |still |mostly |mainly |actually )?(?:work|working|worked)|(?:'m| am)? (?:currently |now |also |still |mostly |mainly |just started |started |actually )?(?:work|working)) (?:(?:in|for) )?(?:the )?({FIELD_NAMES})"
     rf"(?: industry| field| sector| department| dept| business| world| trade)?\b(?! (?:class|classes|school|course|program|degree|student|home|homes|facility|facilities)\b)",
     rf"\bi(?:'ve| have)? (?:been )?(?:currently |now |also |still |mostly |mainly |just started |started |actually )?(?:work|working) (?:at|in|for) (?:a |an |the |my local |our local |this |our |one of the )?"
     rf"(?:(?!(?:same|this|that|my|your|his|her)\b)[\w'-]+ ){{0,2}}?({PLACE_NAMES})s?\b",
@@ -580,50 +570,28 @@ EMPLOYED = [
     r"an? \d+|alone|by myself|nine|forty|40|full|part|till|until|late|early|weekend|on call|12s|10s|three 12s|close|opening|the closing|the opening|closing|opening|retail|"
     r"with (?:kids|children|patients|clients|students|customers|people with|adults with|families|veterans|seniors|the elderly)|under|directly|closely|alongside|next to|"
     r"near|around (?:\d|forty|40|50|60)|about (?:\d|forty|40|50|60)|like (?:\d|forty|40|50|60)|nearly|over (?:\d|forty|40)|more than|less than|so much|too much|a lot)\b",
-    r"(?<!quit )(?<!lost )(?<!left )(?<!leave )(?<!leaving )(?<!quitting )(?<!losing )\bmy (?:boss|bosses|manager|supervisor|coworkers?|co-workers?|colleagues?|employer|company|paycheck|paychecks|pay check|paystub|pay stub|salary|wages?|weekly wage|hourly wage|hourly rate|"
-    r"work hours|working hours|work schedule|work week|workweek|work day|workday|work shift|work shifts|commute|day job|full[- ]time job|part[- ]time job|current job|new job|job|"
-    r"workplace|office|shift|shifts|lunch break|break room|work laptop|work phone|work computer|work email|work uniform|work friends|team lead|line manager|direct reports?|union rep|"
-    r"pto|vacation days|sick days|performance review|annual review|raise|overtime|night shift|day shift|(?:\d+|ten|twelve|eight)[- ]hour (?:shifts?|workdays?|work days?|days?)|"
-    r"team at work|work bestie|cubicle|desk at work|employment contract|work contract|probation period|probationary period|notice period|place of work|line of work|field of work|"
-    r"clients at work|job title|work badge|work truck|work van|shift lead|shift supervisor)\b(?! (?:hunt|hunting|search|application|applications|interview|offer|is to|to|of|from)\b)",
-    rf"\b(?:i|i'm|im|i am|i've|ive|me|my)\b{SAID}\b(?:at|from|after|before|for|leave|leaving|left|skip|miss|missed|late for|home from|"
-    rf"clock in at|clocked in at|busy at|stressed at|tired from|exhausted from|bored at|break at) work\b(?! (?:out|on|it)\b)",
+    r"(?<!quit )(?<!lost )(?<!left )(?<!leave )(?<!leaving )(?<!quitting )(?<!losing )\bmy (?:day job|full[- ]time job|part[- ]time job|current job|new job|job)\b"
+    r"(?! (?:hunt|hunting|search|application|applications|interview|offer|is to|to|of|from)\b)",
     r"\b(?:i have|i've got|i have got|i got|i landed|i accepted|i took|i started|i hold|i work|i now have|i currently have|i also have|i just got|i finally got|i recently got) "
     r"(?:an? |two |2 |three |3 |multiple |several )(?:[\w-]+ ){0,3}?(?:job|jobs|position|career)\b"
     r"(?! (?:interview|offer|application|hunt|search|fair|posting|listing)\b)",
-    r"\b(?:i'?m at work|on my lunch break|for a living|i get paid|i got paid|i'm getting paid|i'm paid|i am paid|i got hired|i just got hired|i was hired|i'm on shift|i got promoted|i was promoted|my first day at work|"
+    r"\bi (?:[\w'-]+ ){1,4}?for a living\b|\b(?:i'?m at work|on my lunch break|i get paid|i got paid|i'm getting paid|i'm paid|i am paid|i got hired|i just got hired|i was hired|i'm on shift|i got promoted|i was promoted|my first day at work|"
     r"my first week at|my new employer|my employment|i clock in|i clocked in|i clock out|i clocked out|i'm salaried|i am salaried|i'm hourly|i'm full[- ]time|i'm part[- ]time|"
     r"i'm a full[- ]time employee|i'm an employee|as an employee|i'm staff|i'm on salary|i'm on the payroll|i'm unionized|i'm in a union|my union|i'm a union member|"
     r"i'm (?:a )?(?:salaried|hourly) (?:worker|employee)|i(?:'ve| have) been teaching|i(?:'ve| have) been nursing)\b",
     r"\b(?:i|i'm|im|me|my|while|and)\b[^.!?\n]{0,60}?\b(?:working from home|work from home|wfh|working remotely)\b",
-    r"\b(?:ich arbeite|arbeite ich|je travaille|je bosse|eu trabalho|(?:trabajo|trabalho|lavoro) como|lavoro (?:come|presso)|ik werk (?:als|bij))\b",
-    r"\b(?:mon (?:travail|boulot|taf|patron|chef|employeur)|mes collègues|au (?:travail|boulot|taf)|mi (?:trabajo|jefe|jefa|empleo)|mis compañeros de trabajo|en el trabajo|"
-    r"(?:meu|o meu) (?:trabalho|emprego|chefe|patrão)|meus colegas de trabalho|no trabalho|(?:tô|estou|to) trabalhando|meine (?:arbeit|chefin|kollegen|kolleginnen)|mein (?:chef|job|arbeitgeber)|"
-    r"meinem (?:arbeitgeber|job|chef)|auf der arbeit|bei der arbeit|il mio (?:lavoro|capo)|i miei colleghi|al lavoro|mijn (?:werk|baas|collega's|werkgever)|op mijn werk|"
-    r"w pracy|moja praca|mój szef|moim szefem|w mojej pracy)\b",
-    r"\bmy (?!(?:previous|old|former|last|first|dream|ideal|future|next|own)\b|[\w-]+s?'s? )(?:[\w'-]+ ){1,2}jobs?\b"
-    r"(?! (?:hunt|hunting|search|application|applications|interview|offer|is to|to)\b)|\b(?:i'm|im|i am) (?:currently |now |still |gainfully |fully )?employed\b(?! (?:as|by|at|in)\b)|"
+    r"\b(?:i'm|im|i am) (?:currently |now |still |gainfully |fully )?employed\b(?! (?:as|by|at|in)\b)|"
     r"\b(?:i'm|im|i am) (?:currently |now )?on (?:maternity|paternity|parental|mat) leave\b|\bmy (?:maternity|paternity|parental|mat) leave\b|\bmy (?:9 ?(?:-|to) ?5|nine to five)\b|"
-    r"\b(?:i|i'm|im) (?:get|got|getting) off (?:of )?work\b|\bwhere i (?:currently |now |still )?work\b|\b(?:i'm|im|i am|a|as an?|just an?) (?:\w+ )?working (?:professional|mom|mum|dad|parent|mother|father|woman|man|girl|guy)\b|"
     r"\bi(?:'ve| have) been working (?:at|for|in|as|there|here|full[- ]time|part[- ]time|nights|from home|remotely|\d|since)\b|"
     r"\bi(?:'m| am) (?:currently |now |still )?working (?:full[- ]time|part[- ]time|nights|days|weekends|from home|remotely|remote|two jobs|\d+ hours|overtime|doubles|tonight|tomorrow|this weekend|a double)\b|"
     r"\b(?:i|i'm|im|me|my|while)\b[^.!?\n]{0,40}?\bworking (?:a |the |my )?(?:night|day|graveyard|overnight|double|evening|morning|closing|opening|swing|\d+[- ]hour|twelve[- ]hour) shifts?\b|"
     r"\bmy work (?:pays|offers|gives|provides|covers|requires|makes me|schedule|load|week|day|place)\b",
     r"\b(?:i|me) (?:just )?(?:started|start|starting) (?:a |my )?(?:new )?(?:job|position|role|work)\b(?! (?:hunt|search|application|interview)\b)|\bmy (?:first|second) (?:day|week|month) at (?:my|the) (?:new )?(?:job|work|office)\b",
+    r"\bi (?:also |currently |still |now )?work\b(?=\s*(?:[.,!;)]|$|\b(?:and|but|so|too|as well|now)\b))",
 ]
-FOREIGN_WORK = (r"\b(?:trabajo|estoy trabajando|trabalho|estou trabalhando|tô trabalhando|to trabalhando|atuo|je travaille|je bosse|ich arbeite|arbeite ich|lavoro|sto lavorando|ik werk|"
-                r"werk ik|pracuję|pracuje)\s+(?:como|de|en|em|na|no|nas|nos|numa|num|para|pra|com|dans|chez|à|au|aux|comme|pour|in|im|bei|beim|als|für|presso|da|come|nel|nella|al|alla|"
-                r"per|bij|op|voor|w|we|jako|przy|dla)\s")
-DETERMINERS = frozenset("el un mi tu su del al o um meu teu seu do no esse este il mio suo nel buen bom não nao non nie".split())
-
-
-def working_abroad(match):
-    before = TOKEN.findall(match.string, max(0, match.start() - 12), match.start())
-    return None if before and before[-1] in DETERMINERS else "employed"
-
-
 SELF_EMPLOYED = [
-    r"\[\s*(?:for hire|hire me)\s*\]",
+    r"\b(?:i|i'm|im|i am|i've|ive|me|myself)\b[^.!?\n]{0,40}?\b(?:self[- ]employed|work for myself|working for myself|freelance work|freelance gigs|freelancing|freelancer)\b|"
+    r"\bi (?:also |currently |now |mostly )?(?:freelance|do freelance)\b",
     r"\b(?:solo|indie) (?:game )?dev(?:eloper)?s?\b|\bsolo developing\b|\b1099 (?:worker|contractor|employee|income|job)\b",
     r"\b(?:i'm|im|i am|i've been|ive been|i have been) (?:currently |now |also |still |fully |technically )?(?:self[- ]employed|freelancing|a freelancer|freelance|my own boss|"
     r"an independent contractor|a contractor|a sole trader|a sole proprietor|a solopreneur|an entrepreneur|a business owner|a small business owner|a (?:solo |serial |first[- ]time |startup |tech )?(?:co-?)?founder)\b",
@@ -635,8 +603,8 @@ UNEMPLOYED = [
     r"applying (?:for|to) jobs|in between jobs|on ei)\b",
     r"\bi (?:just |recently |unfortunately |finally )?(?:lost my job|got laid off|was laid off|got let go|was let go|got fired|was fired|got made redundant|was made redundant|got terminated|"
     r"was terminated)\b",
-    r"\bsince i (?:lost my job|got laid off|was laid off|was let go|got fired|was fired|quit)\b|\bi(?:'ve| have) been (?:unemployed|out of work|jobless|job hunting|job searching|looking for (?:a )?(?:job|work)|"
-    r"searching for (?:a )?(?:job|work)|applying (?:for|to) jobs)\b|\bmy (?:unemployment|job search|job hunt|job applications)\b|\bunemployed (?:for|since)\b|\b(?:being|as an?) unemployed\b(?=[^.!?\n]{0,40}\b(?:i|my|me)\b)",
+    r"\bi(?:'ve| have) been (?:unemployed|out of work|jobless|job hunting|job searching|looking for (?:a )?(?:job|work)|"
+    r"searching for (?:a )?(?:job|work)|applying (?:for|to) jobs)\b|\bmy (?:unemployment|job search|job hunt|job applications)\b|\b(?:being|as an?) unemployed\b(?=[^.!?\n]{0,40}\b(?:i|my|me)\b)",
     r"\bi (?:can't|cannot|can not|couldn't) (?:find|get) (?:a |any )?(?:job|work)\b|\bno one (?:will|wants to) hire me\b|\bnobody (?:will|wants to) hire me\b|\bcan't get hired\b|"
     r"\b(?:\d+|hundreds of|dozens of) (?:job )?applications\b(?=[^.!?\n]{0,60}\b(?:no|not|zero|none|nothing|haven't|still)\b)",
     r"(?:^|[.!?\n,]\s*|\b(?:and|but|so)\s+)(?:(?:just|recently|unfortunately|sadly) )*(?:lost my job|got laid off|got let go|got fired|got made redundant)\b|"
@@ -679,38 +647,50 @@ STUDENT = [
     r"\b(?:mein(?:em)? studium|ins studium|im studium|ich studiere|studiere ich|ich bin student(?:in)?|je suis (?:étudiant|étudiante|en (?:licence|master|fac))|soy estudiante|"
     r"sou estudante|estudo (?:na|no|em)|faço faculdade|estoy estudiando)\b",
 ]
-STUDYING = (r"\b(?:last|this|next|my) (?:semester|trimester|quarter)\b(?= (?:of|at|i|we|was|is|has|my|in|and)\b|[.,!])|\b\d(?:st|nd|rd|th) sem(?:ester)?\b|\b(?:i'm|im|i am) (?:almost |nearly |currently |now |only )?(?:in )?(?:my )?(?:1st|2nd|3rd|4th|5th|first|second|third|fourth|final|last) year\b(?! of (?:high school|marriage|work))"
-            r"|\b(?:1st|2nd|3rd|4th|first|second|third|final) year (?:electives|student|courses|exams|project)\b|\b(?:in|at) (?:nursing|engineering|law|med|medical|art|film|business|dental|pharmacy|vet|culinary|trade) school\b(?=[^.!?]*\b(?:i|my|me)\b)|\b(?:i'm|im|i am) (?:currently )?(?:in|at) (?:college|uni|university)\b"
+STUDYING = (r"\b\d(?:st|nd|rd|th) sem(?:ester)?\b|\b(?:i'm|im|i am) (?:almost |nearly |currently |now |only )?(?:in )?(?:my )?(?:1st|2nd|3rd|4th|5th|first|second|third|fourth|final|last) year\b(?! of (?:high school|marriage|work))"
+            r"|\b(?:1st|2nd|3rd|4th|first|second|third|final) year (?:electives|student|courses|exams|project)\b|\b(?:i'm|im|i am) (?:currently )?(?:in|at) (?:college|uni|university)\b"
             r"|\b(?:college|university|uni|undergrad|undergraduate|community college|first[- ]generation college|first[- ]gen(?:eration)? college) student\b(?! (?:loans?|debt|visa|athlete|housing|discount)\b)|\bmy (?:freshman|sophomore|junior|senior|first|second|third|final) (?:year|semester) (?:of|in|at) (?:college|uni|university)\b|\bmy (?:major|classes|professors?|lectures?|lecturer|uni|campus|dorm|coursework|semester|gpa|syllabus|midterms?)\b"
             r"|\b(?:i'm|im|i am) (?:currently )?(?:studying|majoring)\b|\bwhile (?:i'm |im |i am |i )?(?:studying|study)\b|\bi(?:'m| am)? (?:in|doing) (?:the|my) (?:bs|ba|bsc|bachelor'?s?|undergrad) (?:program|degree)\b|\b(?:meu|minha) (?:primeiro|segundo|terceiro|primeira) (?:ano|período|semestre)\b|\bfaço (?:uma )?(?:segunda )?graduação\b|\bich studiere\b|\b\w+ studieren\b|\bestudio (?:en la|en el|una|la)\b|\bje suis (?:étudiant|étudiante)\b"
             r"|\bi have (?:a |my )?(?:midterm|midterms|final exam|finals) (?:coming up|tomorrow|next week|this week|today)\b|\bmy (?:college|university|uni) (?:classes|courses|professor|campus|dorm|roommate|application)\b|\b(?:mein(?:em)? studium|ins studium|im studium)\b|\bstudent (?:from|at) (?:the )?(?:main campus|\w+ (?:university|college|campus))\b")
-GRADUATE = rf"\b(?:grad|graduate|phd|ph\.d\.?|doctoral|masters?|master's|msc|mba|msw|ma|ms|mfa) (?:student|candidate|program|programme)\b(?! (?:loans?|debt|visa|housing)\b)|\bgrad school\b|\bgraduate school\b|\bmy (?:thesis|dissertation|advisor|supervisor|phd|doctorate|lab)\b|\bfinishing (?:my )?(?:grad|graduate|masters?|master's|phd) (?:program|degree)?\b|\bi study an? (?:jd|ma|ms|msc|masters|phd|llm)\b|\bmeiner dissertation\b|\bmi (?:tesis|doctorado|maestría)\b|\b(?:accepted|admitted) (?:in)?to (?:the |a )?(?:\w+ ){{0,3}}?(?:masters?|master's|phd|graduate|msw|mba|doctoral) program\b"
+GRADUATE = rf"\b(?:grad|graduate|phd|ph\.d\.?|doctoral|masters?|master's|msc|mba|msw|ma|ms|mfa) (?:student|candidate|program|programme)\b(?! (?:loans?|debt|visa|housing)\b)|\bmy (?:thesis|dissertation|phd|doctorate)\b|\bfinishing (?:my )?(?:grad|graduate|masters?|master's|phd) (?:program|degree)?\b|\bi study an? (?:jd|ma|ms|msc|masters|phd|llm)\b|\bmeiner dissertation\b|\bmi (?:tesis|doctorado|maestría)\b|\b(?:accepted|admitted) (?:in)?to (?:the |a )?(?:\w+ ){{0,3}}?(?:masters?|master's|phd|graduate|msw|mba|doctoral) program\b"
+PRO_SCHOOL = r"(?:law|med|medical|dental|vet|veterinary|pharmacy|grad|graduate)"
+PRO_STUDENT = (rf"\b(?:{I}|i'm currently|currently) (?:still |now )?(?:in|at|attending|finishing) (?:my (?:\w+ )?(?:year|semester) (?:of|in|at) )?{PRO_SCHOOL} school\b|"
+               rf"\b(?:{I}|as) (?:an? |the )?(?:current |first[- ]year |second[- ]year |third[- ]year |fourth[- ]year |final[- ]year |\d(?:st|nd|rd|th)[- ]year )?{PRO_SCHOOL} student\b|"
+               rf"\bmy (?:\w+ )?(?:year|semester) (?:of|in|at) {PRO_SCHOOL} school\b|\bi (?:go to|attend|started|start) {PRO_SCHOOL} school\b")
 HIGH_SCHOOL = r"\b(?:i'm|im|i am) (?:still |currently )?in (?:high ?school|hs|(?:9th|10th|11th|12th) grade|year (?:9|10|11|12))\b|\b(?:high ?school|hs) (?:student|senior|junior|sophomore|freshman)\b|\b(?:i'm|im|i am) (?:a )?(?:senior|junior|sophomore|freshman) in (?:high ?school|hs)\b|\bgraduating (?:in |from )?high ?school\b|\bmy (?:high school|highschool) (?:teacher|classes|graduation|exams)\b"
 COLLEGE = (r"\b(?:i'm|im|i am|a|this|just an?) (?:\w+ )?college (?:boy|girl|guy|dude|bro|kid)\b|\bstudent,? here\b|\bjust an? (?:\w+ )?student\b|"
            r"\b(?:my|next|this) (?:\w+ )?year (?:of|at|in) (?:uni|college|university)\b|\bi (?:take|am taking|'m taking|m taking) (?:\w+ )?(?:classes|courses|units|credits)\b")
+CAMPUS = (r"\bi (?:currently |now |still |also )?(?:go to|attend|am attending|'m attending|transferred to) (?:a |an |the )?(?:[\w'&.-]+ ){0,3}?(?:college|university|uni|community college|polytechnic)\b|"
+          r"\b(?!(?:any|a|the|every|no|some)\b)(?:undergrad|undergraduate|fresher|freshman|sophomore|[\w'-]+ (?:major|student)) here\b|"
+          r"\bmy (?:college|uni|university|class|course|semester|final[- ]year|capstone|group) (?:project|assignment|exams?|presentation|essay|paper|lectures?)\b|"
+          r"\b(?:i'm|im|i am) (?:now |currently |almost |nearly )?(?:in|into|starting) (?:my )?(?:\d(?:st|nd|rd|th)|first|second|third|fourth|fifth|final|last) (?:year|semester|sem) (?:of|in|at) (?:college|uni|university|my degree|my bachelor'?s|undergrad)\b|"
+          r"\b(?:i'm|im|i am) (?:about to |almost |nearly |currently |finally )?(?:finishing|graduating from|graduating|done with) (?:college|uni|university|my degree|my bachelor'?s|my undergrad)\b|"
+          r"\b(?:\d+|one|two|three|four|a) (?:more )?(?:semesters?|years?|terms?|quarters?) (?:away from|left (?:of|in|until|before)) (?:graduation|graduating|my degree|college|uni)\b|"
+          r"\b(?:i'm|im|i am) (?:an? )?(?:[\w'-]+ ){0,2}?major\b(?! (?:issue|problem|concern|fan|reason|part|key|league|player|city|brand|company)\b)")
 ANY_STUDENT = (r"\b(?:i'm|im|i am)(?: currently| still| just| also| now)? (?:an? )?(?:(?!(?:former|ex|old|past|of|the|my|his|her|their|to|with|for|and|that|who|not|high|school|grad|graduate|phd|masters?|master's|doctoral|level)\b)"
               r"[\w'-]+ ){0,4}?student\b(?! (?:loans?|visa|athlete|housing|discount|of|pilot|nurse|teacher|driver|worker|union)\b)|"
               r"(?:^|[.!?\n,]\s*)(?:a |an )?(?:college |uni |university )?student here\b|\b(?:already|still) a student\b|\bmy tuition\b|"
               r"\bas an? (?:(?!(?:former|ex|old|past|of|the|my|high|school|grad|graduate|phd|masters?|doctoral|level)\b)[\w'-]+ ){0,3}?student\b(?=[^.!?\n]{0,60}\b(?:i|my|me)\b)")
-STUDENT_TWINS = [STUDYING, GRADUATE, HIGH_SCHOOL, ANY_STUDENT]
+STUDENT_TWINS = [STUDYING, PRO_STUDENT, ANY_STUDENT]
 RULES = [
     *(rule("occupation", pattern, occupied(find), TAGGED) for pattern, find in (*OCCUPATION, *MENTIONS, (LEAD, fragment))),
-    *(rule("employment_status", pattern, employed(find), TAGGED) for pattern, find in OCCUPATION),
-    *(rule("occupation", pattern, scoped(group(FIELDS if index < 2 else PLACES)), TAGGED) for index, pattern in enumerate(WORKPLACE)),
+    *(rule("employment_status", pattern, employed(find), TAGGED) for pattern, find in (*OCCUPATION[:4], MENTIONS[0])),
+    *(rule("occupation", pattern, scoped(group(FIELDS if index == 0 else PLACES)), TAGGED) for index, pattern in enumerate(WORKPLACE)),
     *(rule("employment_status", pattern, scoped(fixed("employed")), TAGGED) for pattern in WORKPLACE),
     *(rule("occupation", pattern, scoped(lambda match: None if match.group() == "my business" else BUSINESSES.get(match.group(1))), TAGGED) for pattern in OWNERSHIP),
     *(rule("employment_status", pattern, scoped(fixed(OWNER)), TAGGED) for pattern in OWNERSHIP),
     *(rule("occupation", pattern, scoped(value), TAGGED) for pattern, value in ACTIVITY),
     *(rule("employment_status", pattern, scoped(fixed("employed")), TAGGED) for pattern, _ in ACTIVITY),
     rule("occupation", CODING, scoped(fixed(SOFTWARE)), TAGGED),
+    rule("employment_status", CODING, scoped(fixed("employed")), TAGGED),
     *(rule("employment_status", pattern, scoped(fixed("employed")), TAGGED) for pattern in EMPLOYED),
-    rule("employment_status", FOREIGN_WORK, scoped(working_abroad), TAGGED),
     *(rule("employment_status", pattern, scoped(fixed(OWNER)), TAGGED) for pattern in SELF_EMPLOYED),
     *(rule("employment_status", pattern, scoped(fixed("unemployed"), CONDITIONAL), TAGGED) for pattern in UNEMPLOYED),
     *(rule("employment_status", pattern, scoped(fixed("retired")), TAGGED) for pattern in RETIRED),
     *(rule("employment_status", pattern, scoped(fixed("homemaker")), TAGGED) for pattern in HOMEMAKER),
     *(rule("employment_status", pattern, scoped(fixed("unable to work"), CONDITIONAL), TAGGED) for pattern in UNABLE),
-    *(rule("employment_status", pattern, scoped(fixed("student")), TAGGED) for pattern in (*STUDENT, *STUDENT_TWINS)),
+    *(rule("employment_status", pattern, scoped(fixed("student")), TAGGED) for pattern in (*STUDENT[1:], *STUDENT_TWINS)),
+    rule("employment_status", CAMPUS, scoped(fixed("student")), SELF_HEDGE),
 ]
 
 SUBJECTS = {"computer systems": "computer science or IT", "information systems": "computer science or IT", "infosys": "computer science or IT", "informatics": "computer science or IT",
@@ -757,20 +737,19 @@ DEGREES = {"bachelor": "bachelor's degree", "bachelors": "bachelor's degree", "b
            "md": "professional degree such as law or medicine", "mbbs": "professional degree such as law or medicine", "dds": "professional degree such as law or medicine",
            "pharmd": "professional degree such as law or medicine", "dvm": "professional degree such as law or medicine", "llb": "bachelor's degree", "associate's": "trade school or associate degree",
            "associates": "trade school or associate degree", "associate degree": "trade school or associate degree", "ged": "high school diploma", "high school diploma": "high school diploma"}
-DEGREE_NAMES = "|".join(sorted(map(re.escape, DEGREES), key=len, reverse=True))
 SHORT_DEGREES = frozenset({"ba", "bs", "ma", "ms", "md", "jd", "b.s.", "b.a.", "m.s.", "mse", "dds", "dvm", "mfa", "ged", "associates", "associate's"})
 LONG_DEGREE_NAMES = alternation(name for name in DEGREES if name not in SHORT_DEGREES)
 SHORT_DEGREE_NAMES = alternation(SHORT_DEGREES & set(DEGREES))
-LISTED = re.compile(rf"(?: [\w.']+){{0,2}} ?(?:&|and|->|→|,|then|/|\+) ?(?:an? )?(?:{DEGREE_NAMES})(?![\w.])")
-LISTED_AFTER = re.compile(rf"\b(?:{DEGREE_NAMES})(?: [\w.']+){{0,2}} ?(?:&|and|->|→|,|then|/|\+) ?(?:an? )?$")
-
-
-def listed(match):
-    text = match.string
-    return DEGREES[match.group(1)] if LISTED.match(text, match.end()) or LISTED_AFTER.search(text, max(0, match.start() - 40), match.start()) else None
-
-
 FIRST_NEAR = re.compile(r"\b(?:i|i'm|im|i've|ive|my|me)\b")
+OTHER = re.compile(r"\b(?:he|she|they|his|her|their|him|them|husband|wife|boyfriend|girlfriend|partner|friend|friends|brother|sister|son|daughter|mom|mum|dad|mother|father|cousin|roommate|"
+                   r"batchmates?|classmates?|colleagues?|coworkers?)\b")
+
+
+def owned(text, start, reach=50):
+    left = max(clause(text, start), start - reach)
+    return bool(FIRST_NEAR.search(text, left, start)) and not OTHER.search(text, left, start)
+
+
 LEVELS = {name.rstrip("."): level for name, level in DEGREES.items()} | {"msn": "master's degree"}
 DEGREE_IN = (r"\b(bachelor's|bachelors|master's|masters|phd|ph\.d|bsc|msc|b\.s|m\.s|ba|bs|ma|ms|mba|bfa|mfa|llb|jd|md|btech|b\.tech|mtech|m\.tech|bcom|b\.com|bba|bsn|msn|"
              r"meng|beng)\.? (?:degree |hons |honours |honors )?(?:in|of) ([a-z]+(?: [a-z]+)?)")
@@ -796,6 +775,7 @@ EDUCATION_RULES = [
     said("education", PURSUING, lambda match: "graduate student" if match.group(1) else "college student", SELF_HEDGE),
     said("education", STUDYING, fixed("college student")),
     said("education", COLLEGE, fixed("college student")),
+    rule("education", CAMPUS, scoped(fixed("college student")), SELF_HEDGE),
     said("education", STUDENT[0], fixed("college student")),
     said("education", r"\b(?:my|a) (?:master'?s|masters|master|msc|mba) (?:thesis|dissertation|gpa|coursework)\b|\bfinishing (?:a|my) (?:master'?s|masters)\b|\bi did my (?:ms|msc|ma|mba|masters|master's)\b",
          fixed("master's degree")),
@@ -803,16 +783,19 @@ EDUCATION_RULES = [
          fixed("high school student")),
     said("education", ANY_STUDENT, fixed("college student"), SELF_HEDGE),
     said("education", r"\b(?:i'm|im|i am|as|just finished|finished|i was|during|after|since) (?:an? |my )?[123]l\b", fixed("professional degree such as law or medicine"), SELF_HEDGE),
-    said("education", rf"\b(?:grad|graduate|phd|ph\.d\.?|doctoral|masters?|master's|msc|mba|msw|ma|ms|mfa) (?:student|candidate|program|programme)\b(?! (?:loans?|debt|visa|housing)\b)|\bgrad school\b|\bgraduate school\b|\bmy (?:thesis|dissertation|advisor|supervisor|phd|doctorate|lab)\b|\bfinishing (?:my )?(?:grad|graduate|masters?|master's|phd) (?:program|degree)?\b|\bi study an? (?:jd|ma|ms|msc|masters|phd|llm)\b|\bmeiner dissertation\b|\bmi (?:tesis|doctorado|maestría)\b",
-         fixed("graduate student"), SELF_HEDGE),
-    said("education", r"\b(?:law|med|medical|dental|vet|pharmacy) school\b|\bmy residency\b|\b(?:in|doing|finishing|starting) (?:my )?residency\b|\b(?:law|med|medical) student\b", fixed("professional degree such as law or medicine"), SELF_HEDGE),
+    said("education", GRADUATE, fixed("graduate student"), SELF_HEDGE),
+    said("education", PRO_STUDENT, fixed("graduate student"), SELF_HEDGE),
+    said("education", r"\bmy residency\b|\b(?:i'm|im|i am) (?:in|doing|finishing|starting) (?:my )?residency\b", fixed("professional degree such as law or medicine"), SELF_HEDGE),
     said("education", rf"\b(?:i have|i've got|i got|i hold|i earned|i finished|i completed|i've done|i have done|i did|got|just got|have|with) (?:a |an |my |both |two )?(?:({LONG_DEGREE_NAMES})(?: degree| degrees| hons| in| from)?|({SHORT_DEGREE_NAMES}) (?:degree|degrees|in|from))\b(?! (?:student|program|programme|candidate|course|class)\b)|\b({LONG_DEGREE_NAMES}) hons\b",
          lambda match: DEGREES[next(filter(None, match.groups()))], SELF_HEDGE),
-    said("education", rf"\b({DEGREE_NAMES})(?![\w.])", listed, SELF_HEDGE),
+    said("education", r"\b(?:i have|i've got|i hold|i earned|i got|i completed|i finished|i do have|i also have) (?:a |an |my |both |two )?"
+         r"(?:(?!(?:associate'?s?|masters?|master's|phd|doctoral|online|honorary|useless|worthless|second|new)\b)[\w'-]+ ){0,3}?degrees?\b(?! (?:program|programme|course|apprenticeship)\b)|\b(?:college|university|uni)[- ]educated\b",
+         fixed("bachelor's degree"), SELF_HEDGE),
+    said("education", r"\b(?:masters?|master's)[- ]educated\b", fixed("master's degree"), SELF_HEDGE),
     said("education", r"\bi (?:graduated|have graduated|just graduated) (?:from )?(?:college|university|uni|with (?:a|my|honors))\b|\b(?:college|university) graduate\b|\b(?:as an? |i'm an? |im an? |i am an? )(?!(?:\w+ )?high ?school)(?:\w+ ){0,3}?(?:graduate|grad)\b(?! (?:student|program|school)\b)|\b\w+ (?:and \w+ )?grad\b(?= (?:having|here|with|who|and|looking)\b)|\bme formei\b|\bi went back to school for\b|\bmy (?:bachelor'?s|bachelors|undergrad|degree) (?:is|was) in\b",
          fixed("bachelor's degree"), SELF_HEDGE),
     said("education", r"\b(?:i )?(?:graduated|finished) (?:from )?high ?school\b|\bhigh ?school (?:graduate|diploma)\b|\bcompleted (?:my )?12th\b|\bpassed (?:my )?12th\b|\bi have (?:a|my) ged\b", fixed("high school diploma"), SELF_HEDGE),
-    said("education", r"\b(?:i'm|im|i am) (?:still |currently )?in (?:high ?school|hs|(?:9th|10th|11th|12th) grade|year (?:9|10|11|12))\b|\b(?:high ?school|hs) (?:student|senior|junior|sophomore|freshman)\b|\b(?:i'm|im|i am) (?:a )?(?:senior|junior|sophomore|freshman) in (?:high ?school|hs)\b|\bgraduating (?:in |from )?high ?school\b|\bmy (?:high school|highschool) (?:teacher|classes|graduation|exams)\b", fixed("high school student"), SELF_HEDGE),
+    said("education", HIGH_SCHOOL, fixed("high school student"), SELF_HEDGE),
     said("education", r"\bi dropped out of (?:college|uni|university)\b|\bi have some college\b|\bi never finished (?:college|my degree)\b|\btransferred (?:to \w+ )?from a community college\b|\bput myself back in college\b|\bacademic(?:ally)? (?:dismissed|suspended|probation)\b", fixed("some college, no degree"), re.compile(r"\b(?:if|would|wish)\b")),
     said("education", r"\bi dropped out of high ?school\b|\bi never finished high ?school\b|\bi didn't finish high ?school\b", fixed("no high school diploma"), re.compile(r"\b(?:if|would|wish)\b")),
     said("education", r"\bi (?:have|got|earned) (?:an? )?associate'?s(?: degree)?\b|\bi went to (?:a )?trade school\b|\bi(?:'m| am) a (?:journeyman|licensed electrician|licensed plumber)\b", fixed("trade school or associate degree"), SELF_HEDGE),
@@ -837,21 +820,20 @@ FOREIGN_SUBJECTS = table({
 FIELD_RULES = [
     rule("field_of_study", rf"\bmy (?:\w+ )?({SUBJECT_NAMES}) (?:class|classes|course|courses|module|modules|lab|labs|lecture|lectures|lecturer|professor|professors|prof|exam|exams|"
          rf"final|finals|midterm|midterms|coursework|assignment|assignments|thesis|dissertation|program|programme|department|dept|cohort|classmates|seminar|studies)\b|"
-         rf"\bmy (?:thesis|dissertation|capstone|research|phd|ph\.d|masters|master's) (?:is |was )?(?:on|about|in) ({SUBJECT_NAMES})\b|"
+         rf"\bmy (?:thesis|dissertation|capstone|research|phd|ph\.d|masters|master's) (?:is |was )?(?:on|about|in) (?:the )?({SUBJECT_NAMES})\b|"
          rf"\b(?:i'm|im|i am) (?:currently |also )?(?:taking|in|doing) (?:a |an |my |two |some )?({SUBJECT_NAMES}) (?:class|classes|course|courses|module|modules|degree|program|programme)\b",
          lambda match: SUBJECTS[next(filter(None, match.groups()))], SELF_HEDGE),
     rule("field_of_study", rf"\bi(?:'m| am|m)? (?:currently |now |also |still |actually )?(?:study|studied|studying|majored in|major in|majoring in|have a degree in|got my degree in|"
          rf"have a (?:bachelor'?s|bachelors|master'?s|masters|phd|ba|bs|bsc|ms|msc) in|graduated in|did my degree in)\s+({SUBJECT_NAMES})\b", group(SUBJECTS)),
     rule("field_of_study", rf"\b{I} (?:a |an )?({SUBJECT_NAMES}) (?:major|student|graduate|grad)\b|\bmy ({SUBJECT_NAMES}) (?:degree|major)\b", lambda match: SUBJECTS[match.group(1) or match.group(2)]),
-    rule("field_of_study", rf"\b(?:degree|degrees|bachelors?|bachelor's|masters?|master's|phd|bsc|ba|bs|ms|msc|major|majoring|majored|graduate|student|year|diploma|course|studies|studying|study|studied) in ({SUBJECT_NAMES}|electronics(?: and communication)?(?: engineering)?|data analytics|it management|physical therapy|accountancy|ultrasound|nursing|chem)\b",
-         lambda match: SUBJECTS.get(match.group(1)) or {"data analytics": "computer science or IT", "it management": "computer science or IT", "physical therapy": "medicine or health", "accountancy": "business or finance",
-                                                       "ultrasound": "medicine or health", "chem": "natural sciences"}.get(match.group(1)) or "engineering", SELF_HEDGE),
-    rule("field_of_study", rf"\b(?:as an? |i'm an? |im an? |i am an? )(?:\w+ ){{0,2}}({SUBJECT_NAMES}) (?:graduate|grad|student|major)\b|\b(bcom|b\.com|bba|mba|cse|ece|eee|btech in cs|mbbs|llb|bsn|bscn|beng|bfa)\b",
-         lambda match: SUBJECTS.get(match.group(1)) if match.group(1) else {"bcom": "business or finance", "b.com": "business or finance", "bba": "business or finance", "mba": "business or finance", "cse": "computer science or IT",
-                                                                         "ece": "engineering", "eee": "engineering", "btech in cs": "computer science or IT", "mbbs": "medicine or health", "llb": "law", "bsn": "medicine or health",
-                                                                         "bscn": "medicine or health", "beng": "engineering", "bfa": "arts or design"}[match.group(2)], SELF_HEDGE),
+    rule("field_of_study", rf"\b(?:a|an|my) ({SUBJECT_NAMES}) (?:degree|diploma|bachelor'?s|bachelors|masters?|master's|phd)\b|\b({SUBJECT_NAMES}) (?:student|major|grad) here\b|(?:^|\n)\W*(?:an? )?({SUBJECT_NAMES}) (?:student|major)\b",
+         lambda match: SUBJECTS[next(filter(None, match.groups()))] if match.group(1) is None or match.group().startswith("my") or owned(match.string, match.start()) else None, SELF_HEDGE),
+    rule("field_of_study", rf"\b(?:degree|degrees|bachelors?|bachelor's|masters?|master's|phd|bsc|ba|bs|ms|msc|ma|major|majoring|majored|graduate|student|year|diploma|course|studies|studying|study|studied|background(?: is)?) in ({SUBJECT_NAMES}|electronics(?: and communication)?(?: engineering)?|data analytics|it management|physical therapy|accountancy|ultrasound|nursing|chem)\b",
+         lambda match: {**SUBJECTS, "it management": "computer science or IT", "accountancy": "business or finance", "ultrasound": "medicine or health", "electronics": "engineering",
+                        "electronics engineering": "engineering", "electronics and communication": "engineering", "electronics and communication engineering": "engineering"}[match.group(1)], SELF_HEDGE),
+    rule("field_of_study", rf"\b(?:as an? |i'm an? |im an? |i am an? )(?:\w+ ){{0,2}}({SUBJECT_NAMES}) (?:graduate|grad|student|major)\b", group(SUBJECTS), SELF_HEDGE),
     rule("field_of_study", r"\b(law|med|medical|pharmacy|nursing|dental|vet|veterinary|engineering|business|art|film|architecture|b) (?:school|college)\b|\b(?:i'm|im|i am|i was|as) (?:a |an )?[123](l)\b|"
-         r"\b(?:my|in|doing|finishing|starting|out of) (?:my )?(residency)\b", lambda match: SCHOOLS[next(filter(None, match.groups()))] if FIRST_NEAR.search(match.string, max(0, match.start() - 60), match.start()) else None, SELF_HEDGE),
+         r"\b(?:my|in|doing|finishing|starting|out of) (?:my )?(residency)\b", lambda match: SCHOOLS[next(filter(None, match.groups()))] if owned(match.string, match.start(), 60) else None, SELF_HEDGE),
     rule("field_of_study", r"\b(?:estudante|estudiante|étudiante?|studente(?:ssa)?|studentin?|student) (?:de |d'|di |en |der )(?:la |el |a |o )?(\w+)|\b(?:faço|estudo|estudio|curso|cursando|studiere|studio|j'étudie|étudie|studeer) "
          r"(?:de |la |el |a |o |in )?(\w+)|\b(?:facoltà|faculdade|facultad|faculté|fakultät) (?:di |de |d'|für )(?:la |el |a |o )?(\w+)|\b(\w+) (?:zu )?studieren\b",
          lambda match: FOREIGN_SUBJECTS.get(next(filter(None, match.groups()))), SELF_HEDGE),
@@ -867,16 +849,19 @@ def income(match):
     return str(int(amount)) if 1000 <= amount <= 100_000_000 else None
 
 
-AMOUNT = (r"(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly |an? |approximately |approx |more than |barely |only |just )?\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|grand|mil|million)?"
-          r"\s*(?:(?:usd|cad|aud|eur|gbp|dollars|pounds|euros)\s*)?(?:(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b|(annually|yearly|monthly|hourly|weekly)\b|(?=\s*(?:$|[.,!;)]|before|after|pre|post|gross|net|base|salary|total|tc|as)))")
+AMOUNT = (r"(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly |an? |approximately |approx |more than |barely |only |just |(?:a bit|a little|slightly) (?:over|under|more than|less than) |just shy of |upwards of |north of )?"
+          r"\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|grand|mil|million)?"
+          r"\s*(?:(?:usd|cad|aud|eur|gbp|dollars|pounds|euros)\s*)?(?:(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b|(annually|yearly|monthly|hourly|weekly)\b|"
+          r"(?=\s*(?:$|[.,!;)+]|before|after|pre|post|gross|net|base|salary|total|tc|as|currently|now|right now|working|plus|and|but|so|with|which)))")
 INCOME = [
     rf"(?:\b(?:i|me) (?:currently |now |only |just |still )?(?:make|made|earn|earned|bring in|bring home|gross|grossed|net|netted|take home|clear|cleared|pull|pulled|pull in|am making|'m making|m making|"
-    rf"am earning|'m earning|m earning|get paid|got paid|am paid|'m paid|am on|'m on|passed|hit|crossed|topped)|\bmy (?:salary|income|pay|base|base salary|base pay|tc|total comp|total compensation|"
+    rf"am earning|'m earning|m earning|get paid|got paid|am paid|'m paid|am on|'m on|am at|'m at|m at|passed|hit|crossed|topped)|\bmy (?:salary|income|pay|base|base salary|base pay|tc|total comp|total compensation|"
     rf"take home|take-home|take home pay|comp|annual salary|gross income|net income|household income|paycheck|wage|hourly rate|rate) (?:is|was|went up to|of|:|=|is now|just hit|is around|is about|is like)|"
     rf"(?:^|[.!?\n]\s*)(?:passed|cleared|hit|crossed|made|make|earn|earning|making|grossed|netted|took home|take home))\s+{AMOUNT}",
 ]
 RULES += [
     *EDUCATION_RULES,
+    said("employment_status", PURSUING, fixed("student"), SELF_HEDGE),
     *FIELD_RULES,
     *(rule("income", pattern, income, SELF_HEDGE) for pattern in INCOME),
 ]
