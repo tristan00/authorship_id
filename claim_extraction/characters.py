@@ -79,38 +79,52 @@ def emit(name, found, text, position, gate, last=False):
             continue
         if gate == "medium" and not known(piece, 0) and (foreign(piece) or not STRONG.search(text, *sentence(text, position))):
             continue
+        if gate == "named" and foreign(piece):
+            continue
         if value := fan_value("character", piece.lower()):
             found.setdefault(("character", value), position)
 
 
+WORD = re.compile(r"[a-z0-9]+|<3|[❤♥💕💖💜💙💛💚🩷😍🥰]")
+I = frozenset({"i"})
+MY = frozenset({"my"})
+MAINS = frozenset("main mains mained maining trick onetrick twotrick otp".split())
+FAVS = frozenset("fav favs fave faves favorite favorites favourite favourites favrite favrites faveorite faveourite".split())
+LIKES = frozenset("love loved adore adored like liked stan simp prefer obsessed sucker soft thing".split())
+DEARS = frozenset("king queen baby babygirl wife husband man boy girl everything beloved goat son daughter husbando waifu bae crush princess prince goddess pookie precious love true comfort".split())
+CHARMING = frozenset("cute adorable hot sexy fine badass goated peak mommy daddy queen king girl boy precious lovable loveable baddie slay iconic underrated legend goat".split())
+HEARTS = frozenset("<3 ❤ ♥ 💕 💖 💜 💙 💛 💚 🩷 😍 🥰".split())
 RULES = (
-    ("main", re.compile(rf"(?i:\bi(?:'m| am)? (?:also |still |mostly |mainly |usually |always |only |just |now |currently |exclusively |primarily )?(?:main|mained|maining|one[- ]?trick|two[- ]?trick|otp|play as|playing as) ){ANY}"), "any", ("main", "trick", "otp", "play")),
-    ("mains", re.compile(rf"(?:(?i:\b(?:an?|as an?|fellow|other|us|we|i'?m an?|im an?|i am an?|i'?m|i am|im|been an?|being an?|i play) ))({NAME}|[a-z][\w'-]*)(?i: (?:main|mains|one[- ]?trick|two[- ]?trick|otp)\b(?! {ADJECTIVAL}))"), "any", ("main", "trick", "otp")),
-    ("main_tag", re.compile(rf"(?m:^[\W_]*){NAME}(?i: (?:main|mains|otp|one[- ]?trick)(?= here\b| btw\b| and\b| since\b| for\b| who\b|\s*[,.!:\n]|\s*$))"), "any", ("main", "trick", "otp")),
-    ("my_main", re.compile(rf"(?i:\bmy (?:current |new |og |first |only )?(?:mains?|main character|main girl|main boy|one[- ]?trick)(?: (?:is|are|was|has been|have been|include|includes|remains)|:)\s+){ANY}"), "any", ("main", "trick")),
-    ("play", re.compile(rf"(?i:\bi (?:mostly |usually |always |only |mainly |still |also |)(?:play|played) ){NAME}"), "known", ("play",)),
-    ("fav_kind", re.compile(rf"(?i:\b(?:one of )?my {TIER}{FAVOURITE} (?:\w+ ){{0,2}}{KIND}(?: of all time| ever| right now| atm| at the moment| so far| by far| in the (?:game|show|series|anime|manga|book))? (?:is|has to be|would be|would have to be|remains|are|has always been|will always be|:)\s*){ANY}"), "any", ("fav",)),
-    ("fav_plain", re.compile(rf"(?i:\b(?:one of )?my {TIER}{FAVOURITE}(?: of all time| ever| right now| atm| at the moment| so far| by far)? (?:is|has to be|would be|would have to be|remains|are|has always been|will always be|:)\s*|\b(?:other )?{FAVOURITE} of mine (?:are|include|is)\s+){NAME}"), "medium", ("fav",)),
-    ("favored_kind", re.compile(rf"{NAME}(?i: (?:is|are|has always been|will always be|remains|has become|became) (?:still |definitely |probably |easily |honestly |hands down |also |by far |absolutely |literally )*(?:one of |among )?my {TIER}{FAVOURITE} (?:\w+ ){{0,2}}{KIND}\b)"), "any", ("fav",)),
-    ("favored_list", re.compile(rf"{NAME}(?i:,? (?:are |is |)(?:also |definitely |)(?:one of|among|some of) my {TIER}{FAVOURITE}\b(?! (?:\w+ ){{0,2}}{NOUNS}\b))"), "medium", ("fav",)),
-    ("fav_direct", re.compile(rf"(?i:\bmy (?:all[- ]time |absolute |personal |)(?:favou?rite|fave|fav) ){NAME}(?=\s*(?:[,.!?;:)\n]|$| (?:from|in|is|was|and|ever|by far|too|lol|tbh)\b))"), "medium", ("fav",)),
-    ("favored_plain", re.compile(rf"{NAME}(?i: (?:is|are|has always been|will always be|remains|has become|became) (?:still |definitely |probably |easily |honestly |hands down |also |by far |absolutely |literally )*(?:one of |among )?my {TIER}(?:{FAVOURITE}|goat|comfort character|top \d)s?\b(?! (?:\w+ ){{0,2}}{NOUNS}\b))"), "medium", ("fav", "goat", "comfort", "top ")),
-    ("labelled", re.compile(rf"(?im:^\W*(?:my )?{FAVOURITE} {KIND}\W*[:=-]\s*){NAME}"), "any", ("fav",)),
-    ("best_girl", re.compile(rf"(?i:\bbest (?:girl|boy|waifu|husbando)s?,? (?:is |goes to |= |: |)){NAME}|{NAME}(?i:,? (?:is |= )?(?:the |my |)best (?:girl|boy|waifu|husbando)\b)"), "any", ("best ",)),
-    ("beloved", re.compile(rf"{NAME},? (?i:my (?:beloved|one true love|comfort character|precious)\b)|(?i:\bmy (?:beloved|precious|glorious|queen|king|goddess|husbando|waifu|princess|prince|pookie) ){NAME}"), "any", ("my ",)),
-    ("is_my", re.compile(rf"{NAME}(?i: (?:is|are|will always be|has always been) (?:still |literally |honestly |forever |always |)my {DEAR}\b)"), "any", ("my ",)),
-    ("loved", re.compile(rf"(?i:\bi(?:'m| am)? {ADVERB}(?:love|adore|like|loved|adored|liked|stan|simp for|prefer|obsessed with|am a sucker for|have a soft spot for|have a thing for) ){NAME}(?! {MEDIA}\b)"), "medium", ("love", "ador", "like", "stan", "simp", "prefer", "obsess", "sucker", "soft spot", "thing for")),
-    ("loved_how", re.compile(rf"(?i:\bi {ADVERB}(?:love|adore|like|loved|liked|adored) (?:how|that|when|the way) ){NAME}"), "medium", ("love", "like", "ador")),
-    ("as_character", re.compile(rf"{NAME}(?i:(?:'s| is| was|,)? (?:such |so |soo+ |a |an |the |one of the |my |honestly |really |genuinely |easily |still |also |very |pretty |fucking |most |)*{POSITIVE}(?:(?:,| and|, and) (?:most |very |so |)\w+)? (?:characters?|char|protagonist|villain|antagonist|hero|heroine|girl|boy|design)\b| as a character\b)"), "medium", ("char", "protagonist", "antagonist", "villain", "hero", "girl", "boy", "design")),
-    ("fan", re.compile(rf"(?i:\b(?:i'?m|im|i am|as|been|being|i've been|from) (?:an? |the )?(?:huge |big |massive |die[- ]?hard |long ?time |proud |true |real |giant |hardcore |super |casual |)*){NAME}(?i: (?:fan|stan|fanboy|fangirl|simp|lover|enjoyer)s?\b)"), "known", ("fan", "stan", "simp", "lover", "enjoyer")),
-    ("heart", re.compile(rf"(?m:^[\W_]*){NAME}(?=\s*(?:<3|❤|♥|💕|💖|💜|💙|💛|💚|🩷|😍|🥰))"), "known", ("<3", "❤", "♥", "💕", "💖", "💜", "💙", "💛", "💚", "🩷", "😍", "🥰")),
-    ("cosplay", re.compile(rf"(?i:\bmy ){NAME}(?i: cosplay)|{NAME}(?i: cosplay (?:by|from) me\b)|(?i:\bi(?:'m| am| was|'ve been)? (?:\w+ )?cosplay(?:ed|ing)? (?:as|of) ){NAME}"), "any", ("cosplay",)),
+    ("main", re.compile(rf"(?i:\bi(?:'m| am)? (?:also |still |mostly |mainly |usually |always |only |just |now |currently |exclusively |primarily )?(?:main|mained|maining|one[- ]?trick|two[- ]?trick|otp|play as|playing as) ){ANY}"), "any", (I, MAINS | {"play", "playing"})),
+    ("mains", re.compile(rf"(?:(?i:\b(?:an?|as an?|fellow|other|us|we|i'?m an?|im an?|i am an?|i'?m|i am|im|been an?|being an?|i play) ))({NAME}|[a-z][\w'-]*)(?i: (?:main|mains|one[- ]?trick|two[- ]?trick|otp)\b(?! {ADJECTIVAL}))"), "any", (MAINS,)),
+    ("main_tag", re.compile(rf"(?m:^[\W_]*){NAME}(?i: (?:main|mains|otp|one[- ]?trick)(?= here\b| btw\b| and\b| since\b| for\b| who\b|\s*[,.!:\n]|\s*$))"), "any", (MAINS,)),
+    ("my_main", re.compile(rf"(?i:\bmy (?:current |new |og |first |only )?(?:mains?|main character|main girl|main boy|one[- ]?trick)(?: (?:is|are|was|has been|have been|include|includes|remains)|:)\s+){ANY}"), "any", (MY, MAINS)),
+    ("play", re.compile(rf"(?i:\bi (?:mostly |usually |always |only |mainly |still |also |)(?:play|played) ){NAME}"), "known", (I, {"play", "played"})),
+    ("fav_kind", re.compile(rf"(?i:\b(?:one of )?my {TIER}{FAVOURITE} (?:\w+ ){{0,2}}{KIND}(?: of all time| ever| right now| atm| at the moment| so far| by far| in the (?:game|show|series|anime|manga|book))? (?:is|has to be|would be|would have to be|remains|are|has always been|will always be|:)\s*){ANY}"), "any", (MY, FAVS)),
+    ("fav_plain", re.compile(rf"(?i:\b(?:one of )?my {TIER}{FAVOURITE}(?: of all time| ever| right now| atm| at the moment| so far| by far)? (?:is|has to be|would be|would have to be|remains|are|has always been|will always be|:)\s*|\b(?:other )?{FAVOURITE} of mine (?:are|include|is)\s+){NAME}"), "medium", (FAVS,)),
+    ("favored_kind", re.compile(rf"{NAME}(?i: (?:is|are|has always been|will always be|remains|has become|became) (?:still |definitely |probably |easily |honestly |hands down |also |by far |absolutely |literally )*(?:one of |among )?my {TIER}{FAVOURITE} (?:\w+ ){{0,2}}{KIND}\b)"), "any", (MY, FAVS)),
+    ("favored_list", re.compile(rf"{NAME}(?i:,? (?:are |is |)(?:also |definitely |)(?:one of|among|some of) my {TIER}{FAVOURITE}\b(?! (?:\w+ ){{0,2}}{NOUNS}\b))"), "medium", (MY, FAVS)),
+    ("fav_direct", re.compile(rf"(?i:\bmy (?:all[- ]time |absolute |personal |)(?:favou?rite|fave|fav) ){NAME}(?=\s*(?:[,.!?;:)\n]|$| (?:from|in|is|was|and|ever|by far|too|lol|tbh)\b))"), "medium", (MY, FAVS)),
+    ("favored_plain", re.compile(rf"{NAME}(?i: (?:is|are|has always been|will always be|remains|has become|became) (?:still |definitely |probably |easily |honestly |hands down |also |by far |absolutely |literally )*(?:one of |among )?my {TIER}(?:{FAVOURITE}|goat|comfort character|top \d)s?\b(?! (?:\w+ ){{0,2}}{NOUNS}\b))"), "medium", (MY, FAVS | {"goat", "goats", "comfort", "top"})),
+    ("labelled", re.compile(rf"(?im:^\W*(?:my )?{FAVOURITE} {KIND}\W*[:=-]\s*){NAME}"), "any", (FAVS,)),
+    ("best_girl", re.compile(rf"(?i:\bbest (?:girl|boy|waifu|husbando)s?,? (?:is |goes to |= |: |)){NAME}|{NAME}(?i:,? (?:is |= )?(?:the |my |)best (?:girl|boy|waifu|husbando)\b)"), "any", ({"best"}, {"girl", "girls", "boy", "boys", "waifu", "waifus", "husbando", "husbandos"})),
+    ("beloved", re.compile(rf"{NAME},? (?i:my (?:beloved|one true love|comfort character|precious)\b)|(?i:\bmy (?:beloved|precious|glorious|queen|king|goddess|husbando|waifu|princess|prince|pookie) ){NAME}"), "any", (MY, {"beloved", "true", "comfort", "precious", "glorious", "queen", "king", "goddess", "husbando", "waifu", "princess", "prince", "pookie"})),
+    ("is_my", re.compile(rf"{NAME}(?i: (?:is|are|will always be|has always been) (?:still |literally |honestly |forever |always |)my {DEAR}\b)"), "any", (MY, DEARS)),
+    ("loved", re.compile(rf"(?i:\bi(?:'m| am)? {ADVERB}(?:love|adore|like|loved|adored|liked|stan|simp for|prefer|obsessed with|am a sucker for|have a soft spot for|have a thing for) ){NAME}\b"), "named", (I, LIKES)),
+    ("loved_how", re.compile(rf"(?i:\bi {ADVERB}(?:love|adore|like|loved|liked|adored) (?:how|that|when|the way) ){NAME}"), "medium", (I, {"love", "adore", "like", "loved", "liked", "adored"}, {"how", "that", "when", "way"})),
+    ("as_character", re.compile(rf"{NAME}(?i:(?:'s| is| was|,)? (?:such |so |soo+ |a |an |the |one of the |my |honestly |really |genuinely |easily |still |also |very |pretty |fucking |most |)*{POSITIVE}(?:(?:,| and|, and) (?:most |very |so |)\w+)? (?:characters?|char|protagonist|villain|antagonist|hero|heroine|girl|boy|design)\b| as a character\b)"), "medium", ({"character", "characters", "char", "protagonist", "villain", "antagonist", "hero", "heroine", "girl", "boy", "design"},)),
+    ("fan", re.compile(rf"(?i:\b(?:i'?m|im|i am|as|been|being|i've been|from) (?:an? |the )?(?:huge |big |massive |die[- ]?hard |long ?time |proud |true |real |giant |hardcore |super |casual |)*){NAME}(?i: (?:fan|stan|fanboy|fangirl|simp|lover|enjoyer)s?\b)"), "known", ({"fan", "fans", "stan", "stans", "fanboy", "fanboys", "fangirl", "fangirls", "simp", "simps", "lover", "lovers", "enjoyer", "enjoyers"},)),
+    ("heart", re.compile(rf"(?m:^[\W_]*){NAME}(?=\s*(?:<3|❤|♥|💕|💖|💜|💙|💛|💚|🩷|😍|🥰))"), "known", (HEARTS,)),
+    ("praised", re.compile(rf"{NAME}(?i:(?:'s| is| was| are|'re) (?:so |such |soo+ |a |an |the |honestly |really |genuinely |literally |just |fucking |damn |very |pretty |still |always |)*(?:cute|adorable|hot|sexy|fine|badass|goated|peak|mommy|daddy|my queen|my king|best girl|best boy|precious|lovable|loveable|baddie|slay|iconic|underrated|a legend|the goat|my goat)\b)"), "known", (CHARMING,)),
+    ("answer", re.compile(rf"(?m:^[\W_]*){NAME}(?i:,? (?:for me|of course|100%|1000%|all the way|hands down|all day|no contest|every time|any day|without a doubt|no question|for sure|by far|ftw|supremacy))(?=\s*(?:[.!?,;:)\n]|$| tbh\b| imo\b| lol\b))"), "medium", ({"me", "course", "100", "1000", "way", "hands", "day", "contest", "time", "doubt", "question", "sure", "far", "ftw", "supremacy"},)),
+    ("enjoyed", re.compile(rf"(?i:\bi(?:'m| am|'ve| have)? {ADVERB}(?:enjoy|enjoyed|enjoying|miss|missed|respect|admire|admired|appreciate|support|root for|rooting for|ship|shipped|worship|cherish|treasure|idolize|vibe with|relate to|connect with|been obsessed with|fell in love with|fallen in love with|in love with|into|a fan of|a big fan of|a huge fan of|a massive fan of|such a fan of|so into) ){NAME}\b"), "named", (I, {"enjoy", "enjoyed", "enjoying", "miss", "missed", "respect", "admire", "admired", "appreciate", "support", "root", "rooting", "ship", "shipped", "worship", "cherish", "treasure", "idolize", "vibe", "relate", "connect", "obsessed", "fell", "fallen", "love", "into", "fan"})),
+    ("cosplay", re.compile(rf"(?i:\bmy ){NAME}(?i: cosplay)|{NAME}(?i: cosplay (?:by|from) me\b)|(?i:\bi(?:'m| am| was|'ve been)? (?:\w+ )?cosplay(?:ed|ing)? (?:as|of) ){NAME}"), "any", ({"cosplay", "cosplays", "cosplayed", "cosplaying", "cosplayer", "cosplayers"},)),
 )
 
 
-def rule(pattern, gate, keys):
-    def stage(text, found, lowered):
-        if not any(key in lowered for key in keys):
+def rule(pattern, gate, needs):
+    def stage(text, found, lowered, words):
+        if any(words.isdisjoint(need) for need in needs):
             return
         for match in pattern.finditer(text):
             index = next(number for number, group in enumerate(match.groups(), 1) if group)
@@ -125,8 +139,8 @@ REFERRED = re.compile(r"(?i:\bi (?:\w+ ){0,2}(?:love|adore|like|stan) (?:her|him
 PRONOUN_I = re.compile(r"I(?:'m|'ve|'d|'ll)?$")
 
 
-def referred(text, found, lowered):
-    if " her" not in lowered and " him" not in lowered:
+def referred(text, found, lowered, words):
+    if "i" not in words or words.isdisjoint(("her", "him")) or words.isdisjoint(("love", "adore", "like", "stan")):
         return
     for match in REFERRED.finditer(text):
         if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
@@ -138,25 +152,28 @@ def referred(text, found, lowered):
 NEAR = 40
 
 
-def liked(text, found, lowered):
-    if not LIKING.search(text):
+def liked(text, found, lowered, words):
+    starts = [cue.start() for cue in LIKING.finditer(text)]
+    if not starts:
         return
+    single = bool(STRONG.search(text))
     for part in re.finditer(r"[^.!?\n]+[.!?]*", text):
-        words = part.group()
-        cues = [cue.start() for cue in LIKING.finditer(words)]
-        if not cues or NEGATIVE.search(words) or not SELF.search(words):
+        cues = [cue - part.start() for cue in starts if part.start() <= cue < part.end()]
+        clause = part.group()
+        if not cues or NEGATIVE.search(clause) or not SELF.search(clause):
             continue
-        for match in CANDIDATE.finditer(words):
+        for match in CANDIDATE.finditer(clause):
             if match.group(1) and min(abs(cue - match.start()) for cue in cues) < NEAR:
                 for piece in pieces(match.group(1)):
-                    if " " in piece:
+                    if single or " " in piece:
                         emit(piece, found, text, part.start() + match.start(), "known")
 
 
-STAGES = tuple((label, rule(pattern, gate, keys)) for label, pattern, gate, keys in RULES) + (("referred", referred), ("liked", liked))
+STAGES = tuple((label, rule(pattern, gate, needs)) for label, pattern, gate, needs in RULES) + (("referred", referred), ("liked", liked))
 
 
 def characters(text, found):
     lowered = text.lower()
+    words = set(WORD.findall(lowered))
     for _, stage in STAGES:
-        stage(text, found, lowered)
+        stage(text, found, lowered, words)

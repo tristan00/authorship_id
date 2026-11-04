@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from .common import HEDGE, SELF_HEDGE, TAGGED, fixed, group, rule
 
@@ -26,7 +27,7 @@ HAVE_NOW = (rf"{SUBJECT}(?:have|got|get|suffer from|struggle with|deal with|live
             r"been suffering from|been treated for|been recovering from|developed|struggled with|dealt with|suffered from|lived with|battled|fought|survived|beaten)"
             r"|\b(?:i'm|im|i am) (?:also |currently |still |now |actually |officially |finally )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|being treated for|recovering from|"
             r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)"
-            r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as |i'm |im |i am )(?:someone|a person|a guy|a girl|a woman|a man|an adult|a lady) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
+            r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as |i'm |im |i am )(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal)) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
             r"|\bmy (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|\bdiagnosed me (?:with|as)")
 HAVE = HAVE_NOW + rf"|{SUBJECT}(?:had|suffered from|struggled with|dealt with|lived with|battled|fought|beat|survived|overcame|was treated for|was dealing with|went through|got treated for)"
 BARE = r"(?:^|[.!?\n|]\s*)(?:recently |newly |just |finally |officially |formally |also |and |got |was |been )*(?:diagnosed|dx'?d) (?:with|w/)"
@@ -220,47 +221,45 @@ PHYSICAL_STATES = spread({
     "other physical condition": ["immunocompromised", "immunosuppressed", "immuno-compromised", "hypermobile", "chronically ill", "a spoonie", "hiv positive", "hsv positive", "herpes positive", "obese", "morbidly obese", "a transplant recipient",
                                  "a kidney transplant recipient", "on dialysis", "a dwarf", "arthritic", "chronically sick"]})
 PHYSICAL_TOOLS = spread({
-    "respiratory condition or allergy": ["inhaler", "inhalers", "rescue inhaler", "epipen", "epipens", "epi pen", "epi-pen", "nebulizer", "allergist", "pulmonologist", "allergy meds", "allergy medication",
-                                         "allergy shots", "allergy pills", "antihistamines", "albuterol", "symbicort", "advair", "flovent", "singulair", "montelukast", "breo", "trelegy", "spiriva", "ventolin",
-                                         "xolair", "nucala", "fasenra", "tezspire", "dupixent shots", "asthma meds", "asthma medication", "asthma", "allergies", "allergy", "allergic reactions", "allergic reaction",
+    "respiratory condition or allergy": ["inhaler", "inhalers", "rescue inhaler", "nebulizer", "allergist", "pulmonologist", "allergy meds", "allergy medication",
+                                         "allergy shots", "allergy pills", "antihistamines",
+                                         "asthma meds", "asthma medication", "asthma", "allergies", "allergy", "allergic reactions", "allergic reaction",
                                          "peanut allergy", "nut allergy", "food allergies", "seasonal allergies", "sinuses"],
-    "diabetes": ["insulin", "insulin pump", "pump", "cgm", "dexcom", "libre", "freestyle libre", "omnipod", "tandem pump", "metformin", "glucose monitor", "blood sugar", "blood sugars", "a1c", "jardiance",
-                 "januvia", "glipizide", "trulicity", "lantus", "humalog", "novolog", "tresiba", "levemir", "basal insulin", "bolus", "diabetes", "diabetic supplies", "test strips", "diabetes meds",
+    "diabetes": ["insulin", "insulin pump", "pump", "cgm", "glucose monitor", "blood sugar", "blood sugars", "a1c",
+                 "basal insulin", "bolus", "diabetes", "diabetic supplies", "test strips", "diabetes meds",
                  "glucose levels", "sugar levels", "endocrinologist"],
     "cancer": ["chemo", "chemotherapy", "radiation", "radiation therapy", "radiation treatments", "radiotherapy", "oncologist", "oncology team", "tumor", "tumour", "tumors", "tumours", "mastectomy",
-               "double mastectomy", "lumpectomy", "port", "tamoxifen", "letrozole", "anastrozole", "exemestane", "herceptin", "keytruda", "opdivo", "taxol", "carboplatin", "cisplatin", "immunotherapy",
+               "double mastectomy", "lumpectomy", "port", "immunotherapy",
                "biopsy results", "cancer", "breast cancer", "prostate cancer", "cancer diagnosis", "cancer treatment", "cancer treatments", "scans", "pet scan", "remission", "metastasis", "mets",
-               "lymph nodes", "lupron shots", "zoladex", "proton therapy", "brachytherapy", "stem cell transplant", "bone marrow transplant", "infusions",
+               "lymph nodes", "proton therapy", "brachytherapy", "stem cell transplant", "bone marrow transplant", "infusions",
                "leukemia", "lymphoma", "melanoma", "cancer journey", "cancer battle", "tumor markers", "ct scans", "ostomy"],
-    "hormonal or reproductive condition": ["levothyroxine", "synthroid", "armour thyroid", "np thyroid", "cytomel", "tirosint", "methimazole", "thyroid", "thyroid meds", "thyroid medication", "thyroid levels",
+    "hormonal or reproductive condition": ["thyroid", "thyroid meds", "thyroid medication", "thyroid levels",
                                            "tsh", "thyroid doctor", "endo", "periods", "period", "cycle", "cycles", "hormones", "hormone levels", "testosterone levels", "estrogen levels", "trt", "testosterone therapy",
-                                           "hrt", "estradiol", "progesterone", "clomid", "letrozole cycle", "ivf", "ivf journey", "ttc journey", "fertility journey", "fertility doctor", "reproductive endocrinologist",
+                                           "hrt", "ivf", "ivf journey", "ttc journey", "fertility journey", "fertility doctor", "reproductive endocrinologist",
                                            "gynecologist", "gyno", "obgyn", "ob-gyn", "ob", "midwife", "hysterectomy", "endometriosis", "pcos", "fibroids", "adenomyosis", "menopause", "perimenopause",
-                                           "hot flashes", "hot flushes", "night sweats", "mirena", "iud", "birth control", "the pill", "slynd", "visanne", "orilissa", "myfembree", "lupron", "spironolactone",
-                                           "metformin for pcos", "inositol", "hypothyroidism", "hyperthyroidism", "thyroid issues", "thyroid problems", "low t", "pmdd"],
-    "neurological condition": ["migraine", "migraines", "migraine meds", "migraine medication", "seizure", "seizures", "seizure meds", "neurologist", "epilepsy", "epilepsy meds", "keppra", "levetiracetam",
-                               "topamax", "topiramate", "sumatriptan", "imitrex", "rizatriptan", "maxalt", "nurtec", "ubrelvy", "aimovig", "ajovy", "emgality", "qulipta", "vyepti", "triptans", "gabapentin",
-                               "lyrica", "pregabalin", "carbidopa", "sinemet", "trileptal", "oxcarbazepine", "tegretol", "carbamazepine", "depakote for seizures", "xcopri", "vimpat", "briviact", "fycompa",
-                               "onfi", "neuropathy", "tremor", "tremors", "parkinson's", "ms", "multiple sclerosis", "tbi", "brain injury", "concussion", "vertigo", "headaches", "chronic migraines",
-                               "headache", "cluster headaches", "dementia", "narcolepsy", "nerve damage", "vns", "botox for migraines", "aura", "auras", "eeg", "mri results"],
+                                           "hot flashes", "hot flushes", "night sweats", "iud", "birth control", "the pill",
+                                           "hypothyroidism", "hyperthyroidism", "thyroid issues", "thyroid problems", "low t", "pmdd"],
+    "neurological condition": ["migraine", "migraines", "migraine meds", "migraine medication", "seizure", "seizures", "seizure meds", "neurologist", "epilepsy", "epilepsy meds",
+                               "triptans",
+                               "neuropathy", "tremor", "tremors", "parkinson's", "ms", "multiple sclerosis", "tbi", "brain injury", "concussion", "vertigo", "headaches", "chronic migraines",
+                               "headache", "cluster headaches", "dementia", "narcolepsy", "nerve damage", "vns", "aura", "auras", "eeg", "mri results"],
     "heart or blood condition": ["cardiologist", "heart doctor", "heart meds", "heart medication", "blood pressure", "blood pressure meds", "blood pressure medication", "bp meds", "pacemaker", "defibrillator",
-                                 "icd", "lisinopril", "amlodipine", "losartan", "metoprolol", "atenolol", "carvedilol", "bisoprolol", "hydrochlorothiazide", "hctz", "atorvastatin", "lipitor", "crestor",
-                                 "rosuvastatin", "simvastatin", "statins", "statin", "blood thinners", "blood thinner", "eliquis", "xarelto", "warfarin", "coumadin", "plavix", "clopidogrel", "heparin",
-                                 "lovenox", "midodrine", "fludrocortisone", "ivabradine", "flecainide", "amiodarone", "digoxin", "entresto", "iron infusions", "iron infusion", "iron levels", "ferritin",
+                                 "icd",
+                                 "statins", "statin", "blood thinners", "blood thinner",
+                                 "iron infusions", "iron infusion", "iron levels", "ferritin",
                                  "hematologist", "heart condition", "heart", "heart rate", "resting heart rate", "afib", "pots", "anemia", "cholesterol", "high blood pressure", "hypertension", "arrhythmia",
                                  "tachycardia", "palpitations", "heart murmur", "heart failure", "heart attack", "stent", "stents", "bypass", "heart surgery", "valve replacement", "ablation", "blood clots",
                                  "blood clot", "dvt", "factor v", "sickle cell", "hemophilia", "b12 shots", "b12 injections"],
     "digestive condition": ["gastroenterologist", "gi doctor", "gi", "ibs", "gerd", "reflux", "acid reflux", "crohn's", "crohns", "colitis", "uc", "celiac", "celiac disease", "gut", "stomach", "digestion",
-                            "digestive system", "bowels", "bowel movements", "colonoscopy", "endoscopy", "omeprazole", "prilosec", "nexium", "esomeprazole", "pantoprazole", "protonix", "lansoprazole",
-                            "prevacid", "famotidine", "pepcid", "ppi", "ppis", "linzess", "mesalamine", "lialda", "asacol", "pentasa", "entyvio", "stelara", "creon", "budesonide", "colostomy", "ileostomy",
+                            "digestive system", "bowels", "bowel movements", "colonoscopy", "endoscopy",
+                            "ppi", "ppis", "colostomy", "ileostomy",
                             "stoma", "j-pouch", "gallbladder removal", "gallbladder surgery", "liver", "liver enzymes", "flare", "flares", "flare ups", "flare-ups", "trigger foods", "fodmap", "low fodmap",
                             "elimination diet", "sibo", "gastroparesis", "ulcer", "ulcers", "hiatal hernia", "eoe", "diverticulitis", "hemorrhoids", "fissure", "fistula", "lactose intolerance",
                             "gluten intolerance", "ibd", "pancreatitis", "pancreas", "fatty liver", "cirrhosis", "hepatitis", "gastritis", "digestive issues", "stomach issues", "stomach problems", "gut issues",
                             "gut health"],
     "skin condition": ["dermatologist", "derm", "eczema", "psoriasis", "acne", "rosacea", "dermatitis", "hives", "skin", "skin condition", "skin issues", "skin problems", "flare ups", "breakouts",
-                       "accutane", "isotretinoin", "tretinoin", "retin-a", "differin", "adapalene", "epiduo", "aczone", "winlevi", "dupixent", "tremfya", "cosentyx", "taltz", "otezla", "sotyktu",
-                       "skyrizi", "protopic", "tacrolimus", "elidel", "clobetasol", "triamcinolone", "hydrocortisone", "steroid cream", "steroid creams", "topical steroids", "soolantra", "rhofade",
-                       "finacea", "azelaic acid", "minocycline", "doxycycline", "hs", "vitiligo", "alopecia", "hair loss", "scalp", "keratosis pilaris", "melasma", "hyperpigmentation",
+                       "steroid cream", "steroid creams", "topical steroids",
+                       "hs", "vitiligo", "alopecia", "hair loss", "scalp", "keratosis pilaris", "melasma", "hyperpigmentation",
                        "dry skin", "sensitive skin", "oily skin", "acne scars", "cystic acne", "hormonal acne", "skin type", "combination skin", "moisture barrier", "skin barrier", "pores", "spots", "scars"],
     "vision or hearing impairment": ["hearing aid", "hearing aids", "cochlear implant", "cochlear implants", "audiologist", "glasses", "contacts", "contact lenses", "scleral lenses",
                                      "prescription", "eye doctor", "ophthalmologist", "optometrist", "retina specialist", "eyes", "eyesight", "vision", "hearing", "tinnitus", "ears", "lasik", "prk",
@@ -274,19 +273,16 @@ PHYSICAL_TOOLS = spread({
                             "carer", "caregiver", "pca", "home health aide"],
     "chronic pain or fibromyalgia": ["back pain", "chronic pain", "pain", "pain levels", "pain meds", "pain medication", "pain management", "pain doctor", "pain clinic", "pain specialist", "fibro", "fibromyalgia",
                                      "sciatica", "herniated disc", "herniated discs", "bulging disc", "discs", "spine", "lower back", "neck pain", "joint pain", "nerve pain", "tmj", "jaw pain", "crps",
-                                     "tramadol", "oxycodone", "hydrocodone", "percocet", "vicodin", "norco", "morphine", "fentanyl patch", "suboxone for pain", "butrans", "celebrex", "meloxicam", "naproxen",
-                                     "diclofenac", "voltaren", "duloxetine for pain", "cymbalta for pain", "low dose naltrexone", "ldn", "nerve blocks", "nerve block", "epidurals", "epidural injections",
+                                     "nerve blocks", "nerve block", "epidurals", "epidural injections",
                                      "cortisone shots", "cortisone injections", "steroid injections", "spinal cord stimulator", "ablations", "radiofrequency ablation", "flare", "flares", "bad days", "spoons",
                                      "pain flares", "pain days", "physical therapy", "pt", "physio", "physiotherapy", "chiropractor", "chiro"],
-    "autoimmune disease": ["rheumatologist", "rheumy", "lupus", "ra", "ms", "ms meds", "humira", "enbrel", "remicade", "infliximab", "adalimumab", "simponi", "cimzia", "orencia", "actemra", "kevzara",
-                           "rinvoq", "xeljanz", "olumiant", "methotrexate", "mtx", "plaquenil", "hydroxychloroquine", "sulfasalazine", "leflunomide", "arava", "benlysta", "saphnelo", "ocrevus", "kesimpta",
-                           "tysabri", "copaxone", "tecfidera", "vumerity", "gilenya", "mavenclad", "aubagio", "rituximab", "rituxan", "cellcept", "mycophenolate", "azathioprine", "imuran", "prednisone",
+    "autoimmune disease": ["rheumatologist", "rheumy", "lupus", "ra", "ms", "ms meds",
                            "steroids", "biologic", "biologics", "immunosuppressants", "immune system", "autoimmune disease", "autoimmune", "ana", "inflammation", "inflammation markers", "crp", "esr",
                            "hashimoto's", "hashimotos", "graves", "sjogren's", "psoriatic arthritis", "rheumatoid arthritis", "ankylosing spondylitis", "as", "flare", "flares", "lesions", "relapses",
                            "relapse", "mri", "infusions", "infusion"],
     "other physical condition": ["dialysis", "kidneys", "kidney", "kidney function", "kidney doctor", "nephrologist", "transplant", "cpap", "cpap machine", "bipap", "sleep apnea", "knee", "knees",
                                  "bad knee", "bad knees", "hip", "hips", "shoulder", "shoulders", "ankle", "ankles", "wrist", "wrists", "acl", "mcl", "meniscus", "rotator cuff", "achilles", "joints",
-                                 "arthritis", "osteoarthritis", "osteoporosis", "gout", "allopurinol", "colchicine", "eds", "hypermobility", "me/cfs", "chronic fatigue", "long covid", "chronic illness",
+                                 "arthritis", "osteoarthritis", "osteoporosis", "gout", "eds", "hypermobility", "me/cfs", "chronic fatigue", "long covid", "chronic illness",
                                  "chronic illnesses", "chronic condition", "chronic conditions", "condition", "conditions", "health condition", "health conditions", "health issues", "health problems",
                                  "medical condition", "medical conditions", "medical issues", "medical history", "illness", "illnesses", "disease", "diseases", "disorder", "diagnosis", "diagnoses",
                                  "symptoms", "symptom", "surgery", "surgeries", "operation", "procedure", "recovery", "injury", "injuries", "scar", "scoliosis", "spinal fusion", "rods", "hardware",
@@ -295,21 +291,21 @@ PHYSICAL_TOOLS = spread({
                                  "primary care physician", "physician", "nurse", "medication", "medications", "meds", "prescriptions", "pills", "supplements", "treatment", "treatments", "therapy", "therapies",
                                  "hospital stay", "hospitalization", "er visit", "er visits", "health", "body", "bones", "muscles", "tendons", "ligaments", "nerves", "lungs", "chest", "fatigue"]})
 PHYSICAL_TOOL_STRICT = {name: value for name, value in PHYSICAL_TOOLS.items() if value != "other physical condition" or name in {
-    "dialysis", "nephrologist", "cpap", "cpap machine", "bipap", "sleep apnea", "bad knee", "bad knees", "arthritis", "osteoarthritis", "osteoporosis", "gout", "allopurinol", "colchicine", "eds",
+    "dialysis", "nephrologist", "cpap", "cpap machine", "bipap", "sleep apnea", "bad knee", "bad knees", "arthritis", "osteoarthritis", "osteoporosis", "gout", "eds",
     "hypermobility", "me/cfs", "chronic fatigue", "long covid", "chronic illness", "chronic illnesses", "chronic condition", "chronic conditions", "scoliosis", "spinal fusion",
     "ostomy bag", "catheter", "lyme", "hiv", "herpes", "hsv", "hpv"}}
 PHYSICAL_TOOL_STRICT = {name: value for name, value in PHYSICAL_TOOL_STRICT.items() if name not in {
     "pump", "port", "scans", "pet scan", "infusions", "infusion", "lymph nodes", "ct scans", "headache", "headaches", "aura", "auras", "eeg", "mri results", "ms", "heart", "heart rate",
     "resting heart rate", "blood pressure", "cholesterol", "iron levels", "ferritin", "stent", "stents", "bypass", "ablation", "b12 shots", "b12 injections", "gut", "stomach", "digestion",
     "digestive system", "bowels", "bowel movements", "liver", "flare", "flares", "flare ups", "flare-ups", "pancreas", "gut health", "derm", "skin", "scalp", "dry skin", "sensitive skin",
-    "oily skin", "skin type", "combination skin", "moisture barrier", "skin barrier", "pores", "spots", "scars", "doxycycline", "minocycline", "hydrocortisone", "hs", "breakouts", "hair loss",
+    "oily skin", "skin type", "combination skin", "moisture barrier", "skin barrier", "pores", "spots", "scars", "hs", "breakouts", "hair loss",
     "glasses", "contacts", "contact lenses", "prescription", "eye doctor", "ophthalmologist", "optometrist", "eyes", "eyesight", "vision", "hearing", "ears", "lasik", "prk", "eye drops", "lenses",
     "retinas", "retina", "corneas", "cornea", "scooter", "mobility", "carer", "caregiver", "pca", "pip", "ssi", "sci", "cp", "service dog", "pain", "pain levels", "spine", "lower back", "flare",
     "bad days", "spoons", "pt", "physio", "physiotherapy", "physical therapy", "chiropractor", "chiro", "ra", "as", "ana", "crp", "esr", "inflammation", "inflammation markers", "mri", "lesions",
-    "relapse", "relapses", "steroids", "prednisone", "immune system", "biologic", "sinuses", "endocrinologist", "endo", "a1c", "blood sugar", "blood sugars", "bolus", "glucose levels",
-    "sugar levels", "libre", "remission", "metastasis", "tumor markers", "ostomy", "tramadol", "oxycodone", "hydrocodone", "percocet", "vicodin", "norco", "morphine", "celebrex", "meloxicam",
-    "naproxen", "diclofenac", "voltaren", "gabapentin", "lyrica", "pregabalin", "epidurals", "ablations", "pain meds", "pain medication", "allergy meds", "allergy medication", "allergy pills",
-    "antihistamines", "allergies", "allergy", "allergic reactions", "allergic reaction", "acne", "pots", "birth control", "the pill", "iud", "mirena", "slynd", "hrt", "uc", "discs", "ob", "period", "periods", "cycle", "cycles", "gynecologist", "gyno", "obgyn", "ob-gyn", "midwife"}}
+    "relapse", "relapses", "steroids", "immune system", "biologic", "sinuses", "endocrinologist", "endo", "a1c", "blood sugar", "blood sugars", "bolus", "glucose levels",
+    "sugar levels", "remission", "metastasis", "tumor markers", "ostomy",
+    "epidurals", "ablations", "pain meds", "pain medication", "allergy meds", "allergy medication", "allergy pills",
+    "antihistamines", "allergies", "allergy", "allergic reactions", "allergic reaction", "acne", "pots", "birth control", "the pill", "iud", "hrt", "uc", "discs", "ob", "period", "periods", "cycle", "cycles", "gynecologist", "gyno", "obgyn", "ob-gyn", "midwife"}}
 PHYSICAL_TOOL_STRICT |= dict.fromkeys(("surgery", "surgeries", "operation", "injury", "injuries", "diagnosis", "diagnoses", "illness", "illnesses", "disease",
                                       "diseases", "disorder", "condition", "conditions", "health condition", "health conditions", "medical condition", "medical conditions", "health issues",
                                       "health problems", "medical issues", "hospitalization", "hospital stay", "uti", "utis", "bladder", "kidneys", "kidney", "fatigue"), "unspecified")
@@ -331,7 +327,6 @@ RULES = [
          group(PHYSICAL_TOOL_STRICT), OWN_HEDGE),
     rule("physical_condition", r"\bi'?m (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|\bi (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|\bi (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|\bi (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
          lambda match: "vision or hearing impairment" if re.search(r"deaf|blind|hearing|eye|sight|vision|ear\b", match.group()) else "physical disability", SELF_HEDGE),
-    rule("physical_condition", INJURED, fixed("other physical condition"), OTHERS),
     rule("physical_condition", r"\bmy (?:face|skin|scalp|face skin|facial skin) (?:is|has been|gets|get|keeps|is always|is still|is getting|has gotten|tends to be|is naturally|is super|is very|is so|is really|is extremely|is quite|is pretty|is kinda|is a bit|always gets)* ?"
          r"(?:so |very |really |super |extremely |quite |pretty |kinda |a bit |naturally )?(?:dry|oily|sensitive|acne[- ]prone|prone to (?:acne|breakouts|redness|irritation)|breaking out|broken out|flaky|flaking|peeling|"
          r"itchy|irritated|inflamed|congested|dehydrated|reactive|combination)\b", fixed("skin condition"), OWN_HEDGE)]
@@ -461,10 +456,7 @@ MENTAL_STATE_STRICT = {name: value for name, value in MENTAL_STATES.items() if n
                                                                                          "a nervous wreck", "an anxious wreck", "a cutter"}}
 MENTAL_TAIL = re.compile(rf"\b(?:{names(MENTAL)})$")
 MENTAL_WORDS = {name: value for name, value in MENTAL.items() if name not in {"did", "add", "odd", "bed", "ed"}}
-ADHD_MEDICATIONS = dict.fromkeys(["adderall", "adderall xr", "vyvanse", "vyvance", "elvanse", "ritalin", "concerta", "methylphenidate", "strattera", "atomoxetine", "focalin", "focalin xr",
-                                  "dexmethylphenidate", "dexedrine", "dextroamphetamine", "evekeo", "mydayis", "azstarys", "jornay", "jornay pm", "quillichew", "daytrana", "intuniv", "guanfacine",
-                                  "qelbree", "viloxazine", "kapvay", "lisdexamfetamine", "medikinet", "equasym", "zenzedi", "dyanavel", "adzenys", "cotempla", "relexxii", "stimulants", "stimulant",
-                                  "a stimulant", "stimulant meds", "stimulant medication", "adhd meds", "adhd medication", "adhd medications", "non-stimulants", "a non-stimulant", "non stimulants"], "adhd")
+ADHD_DRUGS_WIKIDATA = dict.fromkeys(Path(__file__).with_name("adhd_drugs.txt").read_text(encoding="utf-8").splitlines(), "adhd")
 
 RULES += [
     rule("mental_condition", rf"(?:{HAVE})\s+{MOD}(?:an? )?{GAP}({names(MENTAL_LOOSE)})\b{FOLLOWERS}", group(MENTAL_LOOSE), OWN_HEDGE),
@@ -480,8 +472,8 @@ RULES += [
          group({**MENTAL_LOOSE, **MENTAL_STATE_STRICT}), SELF_HEDGE),
     rule("mental_condition", rf"\b(?:i'm|im|i am|i m|i've been|ive been|i was|i became|i'm now|i'm also|i'm actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({names(MENTAL_STATE_STRICT)})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for|from|by|over|with)\b)",
          group(MENTAL_STATE_STRICT), OWN_HEDGE),
-    rule("mental_condition", rf"\b(?:my|i take|i'm on|i am on|i've been on|i started|i'm taking|i am taking|i've been taking|i was put on|i got put on|i was prescribed|i got prescribed|i was given|prescribed me|gave me|put me on|i switched to|switched me to|i take my|i forgot my|i forgot to take my|i ran out of|i'm out of) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_MEDICATIONS)})\b",
-         group(ADHD_MEDICATIONS), SELF_HEDGE),
+    rule("mental_condition", rf"\b(?:my|i take|i'm on|i am on|i've been on|i started|i'm taking|i am taking|i've been taking|i was put on|i got put on|i was prescribed|i got prescribed|i was given|prescribed me|gave me|put me on|i switched to|switched me to|i take my|i forgot my|i forgot to take my|i ran out of|i'm out of) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_DRUGS_WIKIDATA)})\b",
+         group(ADHD_DRUGS_WIKIDATA), SELF_HEDGE),
     rule("mental_condition", r"\b(audhd|au/dhd)\b", fixed("both adhd and autism"), SELF_HEDGE),
     rule("mental_condition", r"\b(?:i'm|im|i am|i m) (?:literally |also |very |severely |pretty )?nd\b", fixed("neurodivergent, unspecified"), SELF_HEDGE),
     rule("mental_condition", r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar|insomnia) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
@@ -553,7 +545,6 @@ COMMON = ("diabetes", "type 1 diabetes", "type 2 diabetes", "t1d", "t2d", "diabe
           "restless leg syndrome", "dysautonomia", "interstitial cystitis", "lichen sclerosus", "polycystic kidney disease", "chronic kidney disease", "degenerative disc disease", "spinal stenosis",
           "bulging discs", "herniated discs", "costochondritis", "frozen shoulder", "bursitis", "tendinitis")
 AILMENTS = {name: PHYSICAL[name] for name in COMMON}
-AILMENT_NAMES = re.compile(r"\b(" + names(AILMENTS) + r")\b")
 OTHER_PEOPLE = re.compile(r"\b(?:mom|mother|dad|father|wife|husband|son|daughter|friend|brother|sister|grandma|grandpa|grandmother|grandfather|aunt|uncle|cousin|boyfriend|girlfriend|partner|he|she|his|her|him|they|their|dog|cat|patients?|clients?|family|families|relatives)\b")
 MOODS = {"anxiety": "anxiety", "depression": "depression", "ocd": "ocd", "ptsd": "ptsd", "cptsd": "ptsd", "bpd": "personality disorder", "bipolar": "bipolar disorder", "an eating disorder": "eating disorder",
          "anorexia": "eating disorder", "bulimia": "eating disorder", "schizophrenia": "schizophrenia or psychosis", "psychosis": "schizophrenia or psychosis", "insomnia": "other mental health condition",
@@ -566,6 +557,7 @@ ADDRESSED = re.compile(r"\b(?:you|your|you're|u|ur)\b")
 GENERIC = re.compile(r"\s+(?:is|are|isn't|aren't|makes|make|causes|cause|can|could|does|doesn't|means|affects|tends|presents|manifests)\b")
 ATTRIBUTIVE = re.compile(r" +(?!(?:and|or|af|asf|myself|too|as|but|so|lol)\b)[a-z]")
 ASKING = re.compile(r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b")
+CAUSED = re.compile(r"\b(?:give|gives|giving|gave|given) (?:me|us) (?:[\w-]+ ){0,3}$")
 FIRST_PERSON = re.compile(r"\b(?:i|i'm|im|i've|my|me|myself)\b")
 
 ORGANS = {"heart": "heart or blood condition", "cardiac": "heart or blood condition", "blood pressure": "heart or blood condition", "circulation": "heart or blood condition",
@@ -598,7 +590,9 @@ def inflected(table):
 MIND_EXTRA = spread({"anxiety": ["panic attacks", "anxiety attacks", "a panic disorder", "separation anxiety", "performance anxiety", "test anxiety"], "depression": ["depressive episodes", "a depressive episode"],
                      "bipolar disorder": ["manic episodes", "a manic episode"], "eating disorder": ["binge eating"],
                      "other mental health condition": ["suicidal thoughts", "intrusive thoughts", "executive dysfunction", "insomnia"]})
-CONDITIONS = inflected({**{f"{organ} {trouble}": value for organ, value in ORGANS.items() for trouble in TROUBLES}, **GENERAL, **PHYSICAL,
+KNOWN = {*PHYSICAL, *PHYSICAL_STATES, *PHYSICAL_TOOLS, *MENTAL, *MENTAL_STATES, *MIND_EXTRA, *GENERAL}
+WORDNET_CONDITIONS = {name: value for name, value in (line.split("\t") for line in Path(__file__).with_name("wordnet_conditions.tsv").read_text(encoding="utf-8").splitlines()) if name not in KNOWN}
+CONDITIONS = inflected({**WORDNET_CONDITIONS, **{f"{organ} {trouble}": value for organ, value in ORGANS.items() for trouble in TROUBLES}, **GENERAL, **PHYSICAL,
                         **dict.fromkeys(("surgery", "surgeries", "a surgery", "an operation", "an injury", "injuries", "an illness", "illness", "a disease", "an infection", "infection", "infections"), "unspecified")})
 STATES = {name: value for name, value in inflected(PHYSICAL_STATES).items() if name not in CONDITIONS}
 MIND = inflected({**MIND_EXTRA, **MENTAL_LOOSE})
@@ -670,6 +664,24 @@ def mentions(words, nouns, states, suffix, longest):
             index += 1
 
 
+
+TOKEN = re.compile(r"\w+(?:'\w+)*")
+AILMENT_KEYS = {" ".join(TOKEN.findall(name)): value for name, value in AILMENTS.items()}
+AILMENT_SPANS = spans(AILMENT_KEYS)
+
+
+def lexicon(words, table, longest):
+    index = 0
+    while index < len(words):
+        for size in range(min(longest.get(words[index][2], 0), len(words) - index), 0, -1):
+            if (name := " ".join(word for _, _, word in words[index:index + size])) in table:
+                yield words[index][0], name
+                index += size
+                break
+        else:
+            index += 1
+
+
 POSSESSIVE_HEDGE = re.compile(r"\b(?:if|whether|unless|imagine|pretend|wish|hope)\b")
 
 
@@ -716,17 +728,17 @@ def ailments(lowered, found):
             continue
         hedge = HEDGE.search(part)
         addressed = ADDRESSED.search(part)
-        for match in AILMENT_NAMES.finditer(part):
-            if addressed or hedge and hedge.end() <= match.start():
+        for start, name in lexicon([(match.start(), match.end(), match.group()) for match in TOKEN.finditer(part)], AILMENT_KEYS, AILMENT_SPANS):
+            if addressed or hedge and hedge.end() <= start:
                 break
-            if quoted(lowered, sentence.start() + match.start()) or POSSESSOR.search(part, max(0, match.start() - 50), match.start()):
+            if quoted(lowered, sentence.start() + start) or POSSESSOR.search(part, max(0, start - 50), start):
                 continue
-            found.setdefault(("physical_condition", AILMENTS[match.group(1)]), sentence.start() + match.start())
+            found.setdefault(("physical_condition", AILMENT_KEYS[name]), sentence.start() + start)
         if hedge:
             continue
         for match in MOOD_NAMES.finditer(part):
             value, after = MOODS[match.group(1)], match.end()
-            if quoted(lowered, sentence.start() + match.start()) or POSSESSOR.search(part, max(0, match.start() - 50), match.start()) or TRAIL.match(part, after) or ASSESSED.match(part, after):
+            if quoted(lowered, sentence.start() + match.start()) or POSSESSOR.search(part, max(0, match.start() - 50), match.start()) or TRAIL.match(part, after) or ASSESSED.match(part, after) or CAUSED.search(part, max(0, match.start() - 40), match.start()):
                 continue
             if value in ("adhd", "autism", "both adhd and autism") and (OWN_HEDGE.search(part) or GENERIC.match(part, after) or match.group(1) == "autistic" and ATTRIBUTIVE.match(part, after)):
                 continue

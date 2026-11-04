@@ -39,7 +39,7 @@ SINGLE_LEAD = re.compile(r"(?<!every\. )(?<!every )(?<!my )(?<!stay )(?:^|[\n,(/
 MARRIED, DATING, ENGAGED = "married", "dating or in a relationship", "engaged"
 SPOUSES = {"wife": MARRIED, "husband": MARRIED, "hubby": MARRIED, "wifey": MARRIED, "spouse": MARRIED, "missus": MARRIED, "mrs": MARRIED, "hubs": MARRIED, "wifes": MARRIED,
            "husbands": MARRIED, "girlfriend": DATING, "boyfriend": DATING, "gf": DATING, "bf": DATING, "partner": DATING, "significant other": DATING, "misses": MARRIED,
-           "fiance": ENGAGED, "fiancé": ENGAGED, "fiancee": ENGAGED, "fiancée": ENGAGED}
+           "fiance": ENGAGED, "fiancé": ENGAGED, "fiancee": ENGAGED, "fiancée": ENGAGED, "jowa": DATING}
 SPOUSE = r"(wife|husband|hubby|wifey|spouse|wifes|husbands|girlfriend|boyfriend|gf|bf|partner|significant other|fianc[ée]e?)"
 STATUSES = {"single": "single", "married": MARRIED, "engaged": ENGAGED, "divorced": "divorced", "separated": "separated", "widowed": "widowed", "a widow": "widowed",
             "a widower": "widowed", "in a relationship": DATING, "taken": DATING, "unmarried": "single", "not married": "single", "attached": DATING, "partnered": DATING}
@@ -52,6 +52,8 @@ FOLLOW = (r"(?=\s*(?:[.,!;:)(/\n]|$|\d|(?:and|but|with|for|since|in|here|now|aga
           r"|\w+ (?:with|and|from|in|looking|seeking|here|male|female|man|woman|guy|girl|mom|dad)\b))")
 
 
+COUPLED = re.compile(r"\b(?:married|wife|husband|hubby|hotwife)\b")
+SELF = re.compile(r"\b(?:i|me|my|we|our|us|i'm|im|i've)\b")
 def stated(value, hedge=STATED):
     return lambda match: None if hedge.search(match.string, max(0, match.start() - 30), match.start()) else value(match)
 
@@ -64,13 +66,21 @@ def scoped(table):
     return lambda match: None if SCOPED.search(match.string, max(0, match.start() - 30), match.start()) else table.get(match.group(1))
 
 
+def mine(match):
+    end = match.string.find("\n", match.end())
+    return bool(SELF.search(match.string, match.string.rfind("\n", 0, match.start()) + 1, end if end >= 0 else len(match.string)))
+
+
+def couple(match):
+    return None if COUPLED.search(match.string) or not spoken(match) else DATING
+
 RELATIONSHIP = [
-    rule("relationship_status", rf"\b(?:my|our)\s*(?:\(\d{{2}} ?[mf]?\) ?)?(?:{FOND}[ ,]+){{0,3}}{SPOUSE}(?:'s)?\b(?![- ]?to[- ]be|(?:'s)? (?:in crime|at the time|back then|in (?:high school|college)|died|passed)\b)",
+    rule("relationship_status", rf"(?:my(?<=\bmy)|our(?<=\bour))\s*(?:\(\d{{2}} ?[mf]?\) ?)?(?:{FOND}[ ,]+){{0,3}}{SPOUSE}(?:'s)?\b(?![- ]?to[- ]be|(?:'s)? (?:in crime|at the time|back then|in (?:high school|college)|died|passed)\b)",
          lambda match: None if match.group(1) == "partner" and WRITING.search(match.string) else owned(SPOUSES)(match), TAGGED),
     rule("relationship_status", rf"(?:^|[\n.!?]\s*|\b\d{{2}}\s*[mf]?\b\W*|\]\s*)(?:(?:re)?post\W*|update\W*)?(?:{FOND}\s+){{0,3}}{BARE}(?:'s)?\b"
-         r"(?=\s*(?:\(|\d{2}|[.,!](?!\w))|\s+(?!(?:wanted|needed|material|for|search|hunt|swap|request|appreciation|experience|goals|vibes|energy|wanna|of|or|vs|who|that|culture|beaters?|pics?|photos?|share|sharing)\b)[a-z])", owned(SPOUSES), TAGGED),
-    rule("relationship_status", rf"\bmy (?!{KIN}\b)[a-z]+ (wife|husband|hubby|fianc[ée]e?)\b(?!'s (?:friend|brother|sister|ex))", owned(SPOUSES), TAGGED),
-    rule("relationship_status", rf"\bi (?:do |also |already |currently )?(?:have|got) (?:a|an) (?:{FOND} )?(wife|husband|spouse|girlfriend|boyfriend|gf|bf|partner|significant other|fianc[ée]e?)\b(?! (?:material|for|who (?:isn't|is not)))", owned(SPOUSES), SELF_HEDGE),
+         r"(?=\s*(?:\(|\d{2}|[.,!](?!\w))|\s+(?!(?:wanted|needed|material|for|search|hunt|swap|request|appreciation|experience|goals|vibes|energy|wanna|of|or|vs|who|that|culture|beaters?|pics?|photos?|share|sharing)\b)[a-z])", lambda match: owned(SPOUSES)(match) if mine(match) else None, TAGGED),
+    rule("relationship_status", rf"my (?<=\bmy )(?!{KIN}\b)[a-z]+ (wife|husband|hubby|fianc[ée]e?)\b(?!'s (?:friend|brother|sister|ex))", owned(SPOUSES), TAGGED),
+    rule("relationship_status", rf"i (?<=\bi )(?:do |also |already |currently )?(?:have|got) (?:a|an) (?:{FOND} )?(wife|husband|spouse|girlfriend|boyfriend|gf|bf|partner|significant other|fianc[ée]e?)\b(?! (?:material|for|who (?:isn't|is not)))", owned(SPOUSES), SELF_HEDGE),
     rule("relationship_status", r"\b(?:me and|and i|with|i and) the (wife|missus|mrs|hubby|wifey)\b|\bthe (wife|missus|mrs|hubby|wifey) and (?:i|me)\b|\bme (?:and|&) (?:my )?(hubby|wife|husband|missus|misses|mrs|wifey|hubs)\b", lambda match: SPOUSES.get(next(filter(None, match.groups()))) if free(match) else None, TAGGED),
     rule("relationship_status", r"\b(?:mi|minha|meu|mon|ma|meine|mein|min|mijn|moja|mia|mio) (esposa|marido|esposo|mujer|femme|mari|frau|mann|kone|mand|vrouw|man|żona|moglie|marito|novia|novio|namorada|namorado|copine|copain|freundin|freund|kæreste|vriendin|vriend|partner|partnerin)\b",
          group({"esposa": MARRIED, "mujer": MARRIED, "marido": MARRIED, "esposo": MARRIED, "femme": MARRIED, "mari": MARRIED, "frau": MARRIED, "mann": MARRIED, "kone": MARRIED, "mand": MARRIED,
@@ -113,8 +123,10 @@ RELATIONSHIP = [
          r"|\bmy (?:husband|wife|hubby|bride|groom)[- ]to[- ]be\b|\b(?:planning|plan) (?:my|our) wedding\b|\b(?:our|my) wedding (?:is (?:in|next|on|this|coming|only)|will be|next (?:year|month|week)|planning|budget|venue|date)\b", stated(fixed(ENGAGED)), TAGGED),
     rule("relationship_status", r"\bmy late (?:wife|husband|hubby|spouse|partner)\b|\b(?:i lost|since i lost|after i lost|after losing|since losing) my (?:wife|husband|hubby|spouse)\b|\bmy (?:wife|husband|hubby|spouse) (?:passed away|died|passed)\b", stated(fixed("widowed")), TAGGED),
     rule("relationship_status", r"\bmy (?:estranged|separated) (?:wife|husband|hubby|spouse)\b|\bmy (?:stbx\w*|soon[- ]to[- ]be[- ]ex(?:[- ]\w+)?)\b|\b(?:we're|we are|we've been|we have been|we recently|we just) (?:\w+ )?separated\b", stated(fixed("separated")), TAGGED),
-    rule("relationship_status", r"(?:^\W*(?:\d{2}\s*)?(?:[\[\(]\w+[\]\)]\s*)?(?:(?!he |she |they |you |who |we |got |get |not |never |was |were |be |been |is |are )\w+ )?married\b(?! (?:men|women|people|guys|couples|folks|life|cock|or)\b)"
-         r"|\bmarried(?:/| and | )(?:dl|discreet|curious|bi|man|woman|guy|milf|dad|mom|couple|but|white|black|hwp|male|female|m|f)\b)", kept(MARRIED), TAGGED),
+    rule("relationship_status", r"(?:^\W*(?:\d{2}\s*)?(?:[\[\(]\w+[\]\)]\s*)?(?:(?!he |she |they |you |who |we |got |get |not |never |was |were |be |been |is |are )\w+ )?married\b(?! (?:men|women|people|guys|couples|folks|life|cock|or)\b))", kept(MARRIED), TAGGED),
+    rule("relationship_status", r"^\W*(?:(?:\d{2}\s*(?:[mf]\s*)?(?:/\s*\d{2}\s*(?:[mf]\s*)?)?)?[\[\(]?\s*(?:mf|fm)\s*4\s*[mfat]\w*|(?:\d{2}\s*)?[\[\(]?\s*mf\s*\d{2}\b|(?:(?!the |a |this |that |every |each |any |no )\w+ )?couple (?:looking|seeking|here|from|in|\d{2})\b)", couple, TAGGED),
+    rule("relationship_status", r"(?:couple(?<=\bcouple) here|we(?<=\bwe)(?:'re| are) an? (?:\w+ )?couple)\b(?! (?:of|days?|weeks?|months?|years?|hours?|minutes?|games?|more|points?|times?|steps?|levels?)\b)", couple, TAGGED),
+    rule("relationship_status", r"\b(gf|bf|boyfriend|girlfriend|jowa|partner) ko\b", owned(SPOUSES), TAGGED),
 ]
 
 CHILD = (r"(sons?|daughters?|kids?|kiddos?|children|child|toddlers?|twins|triplets|step-?kids|step-?sons?|step-?daughters?|newborn|infant|teenagers?|teen|little ones?|babies|baby|bub|bubba|"
@@ -125,6 +137,7 @@ QUALIFIER = (rf"(?:{AGE}|one|two|three|four|five|six|little|youngest|oldest|elde
 INFANT = re.compile(r"months? old|weeks? old|\d+ ?(?:mo|m/o|wks?)\b|nappies|nappy|diapers?|crib|cot\b|formula|feeds?\b|feeding|daycare|nursery|pediatrician|paediatrician|newborn|toddler|teething|breastfe|bottle|sleep regression|stroller|pram|onesie|bassinet|car seat|"
                     r"kindergarten|preschool|school|daughter|son\b|mama|mommy|crawl|walking|talking|nap|\bborn\b|birth|pregnan|labou?r|deliver|milk|pump|nurs|ultrasound|\bob\b|\bweeks\b|\bmonths\b|teeth|tooth|\bcry|sleep")
 PARENT_LEAD = re.compile(rf"(?:\b{I} an? |\bas an? |\bbeing an? |^\W*|[\n.!?]\s*|\b\d{{2}}\s*[mf]?\s*[,-]?\s*|[\]\)]\s*|[-|:]\s+|\b[mf]4[mfat]\w*\s*)(?:(?!my |his |her |your |their |our |the |a )[\w,-]+ ){{0,3}}$")
+ROMANTIC = re.compile(r"\b(?:bf|gf|boyfriend|girlfriend|husband|hubby|wife|daddy|sex|sexy|cock|dick|pussy|fuck\w*|kiss\w*|cuddl\w*|horny|nsfw|lover|honey|babe|dogs?|cats?|pups?|puppy|puppies|kittens?|kitty|pets?)\b")
 PAST = re.compile(r"\b(?:was|were|been)\s+(?:\w+\s+)?$")
 YEARS = r"(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
 PRONOUN = re.compile(r"\b(?:he|she|him|her|his|they|them|their)\b")
@@ -146,7 +159,7 @@ def child(match):
         return None
     if word in ("boy", "girl", "boys", "girls") and not re.search(r"\b(?:\d+|one|two|three|little|lil|wee|baby|youngest|oldest|eldest|teenage)\b", match.group()):
         return None
-    if word in ("baby", "babies", "bub", "bubba", "lo", "dc", "dcs") and not INFANT.search(match.string):
+    if word in ("baby", "babies", "bub", "bubba", "lo", "dc", "dcs") and not INFANT.search(match.string) and (word != "baby" or ROMANTIC.search(match.string)):
         return None
     if word == "teen" and not re.search(r"\d|year", match.group()):
         return None
@@ -156,7 +169,7 @@ def child(match):
 
 
 PARENTAL = [
-    rule("parental_status", rf"\b(?:my|our) (?:{QUALIFIER}[- ,]+){{0,3}}{CHILD}(?:'s)?\b(?! (?:of|in law|in-law|self|selves|hood|years?|cups?|tits|boobs|sister|brother|face|fever|shower)\b)", child, TAGGED),
+    rule("parental_status", rf"(?:my (?<=\bmy )|our (?<=\bour ))(?:{QUALIFIER}[- ,]+){{0,3}}{CHILD}(?:'s)?\b(?! (?:of|in law|in-law|self|selves|hood|years?|cups?|tits|boobs|sister|brother|face|fever|shower)\b)", child, TAGGED),
     rule("parental_status", rf"\b(?:my|our) (?!(?:future|dream|unborn|imaginary|dog|cat|pup|puppy|fur|furry|kitty|bunny|plant|pet|god|ex|friends?|neighbou?rs?|sisters?|brothers?|cousins?|boyfriends?|girlfriends?|wife|husband|partner|aunt|uncle|boss|inner|little|baby|big|good)\b)[a-z]+ "
          rf"(?:{QUALIFIER}[- ,]+){{0,2}}{CHILD}(?:'s)?\b(?! (?:of|in law|in-law|self|selves|hood|years?|sister|brother|face|fever|shower)\b)",
          lambda match: None if match.group(1) in ("baby", "babies", "child", "girl") else child(match), TAGGED),
@@ -176,7 +189,7 @@ PARENTAL = [
          rf"|\b(?<![^\n.!? ])(?<![^\n.!?] )(?:the )?(?:wife|husband|hubby) (?:and|&) (?:the )?(?:\d+ |two |three )?(?:kids?|children|sons?|daughters?|boys|girls)\b|\bi have (?:a|an|one|two|three|\d) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)(?: 1/2| and a half)?[- ]?(?:year|yr|month)s?[- ]?olds?\b(?! (?:dog|cat|pup|puppy|kitten|horse|car|house|laptop|computer|phone))"
          r"|\b(?:my|our) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)[- ]?(?:yo|y/o|year[- ]old|yr[- ]old|month[- ]old|week[- ]old)s?(?= (?:is|was|has|had|and|loves|likes|started|will|won't|can|can't|does|doesn't|did|didn't|just|still|keeps|gets|got|says|said|asked|wants|refuses|goes|went|son|daughter|boy|girl|twins|daughters|sons)\b|[.,!?;)])",
          kept("has children"), TAGGED),
-    rule("parental_status", rf"\bmy (?:now[- ]|almost[- ]|nearly[- ]|just[- ]turned[- ])?{YEARS}[- ]?(?:(years?|yrs?|months?|weeks?|wks?)[- ]olds?|(yo|y/o|mo|mos|m/o))\b(?! (?:{NOT_CHILD})\b)", aged, TAGGED),
+    rule("parental_status", rf"my (?<=\bmy )(?:now[- ]|almost[- ]|nearly[- ]|just[- ]turned[- ])?{YEARS}[- ]?(?:(years?|yrs?|months?|weeks?|wks?)[- ]olds?|(yo|y/o|mo|mos|m/o))\b(?! (?:{NOT_CHILD})\b)", aged, TAGGED),
     rule("parental_status", r"\bno (?:kids|children)\b(?! (?:allowed|please|zone|menu|under|in|at|on|were|are|will))",
          lambda match: "no children" if LISTED.search(match.string, 0, match.start()) or re.match(r"(?:,| and|;) no\b", match.string[match.end():]) else None, CONDITIONAL),
     rule("parental_status", r"\b(?:i'm|im|i am) (?:currently |now |almost |nearly |only |just |about |officially )?\d{1,2}(?:\+\d)? ?(?:w|wks?|weeks?)(?: along| pregnant|(?: and)? \d ?d(?:ays?)?)?\b(?! (?:sober|clean|out|post|into|off|postpartum|in|of|until|from|ago|later|since|after|before|without|free|smoke|nicotine|vape))"
@@ -278,6 +291,7 @@ PETS = [
          r"|\bmijn (hond|honden|kat|katten|poes)\b|\b(?:il mio|la mia|i miei|le mie) (cane|cani|cagnolino|gatto|gatta|gatti|gattino)\b|\b(?:mój|moja|moje) (pies|psy|piesek|kot|kotka|koty)\b|\b(köpeğim|kedim)\w*|\b(aso|pusa) ko\b",
          lambda match: ("cat" if re.match(r"gat|chat|kat|poes|kot|ked|pusa", next(filter(None, match.groups()))) else "dog") if free(match) else None, TAGGED),
     rule("pets", r"\bi (?:don't|do not|dont) have (?:any )?pets\b|\bi have no pets\b|\bwe (?:don't|do not|dont) have (?:any )?pets\b|\bno pets here\b", fixed("no pets"), CONDITIONAL),
+    rule("pets", r"(?:my (?<=\bmy )|our (?<=\bour ))(?:(?!from|of|with|and|to|in|on|at|for|is|was|the|a|an|are|were|be|been|has|had|have|by|little|high|lizard)[\w-]+ ){0,2}((?:hamsters?|gerbils?|guinea pigs?|rabbits?|bunny|bunnies|ferrets?|parrots?|budgies?|cockatiels?|cockatoos?|parakeets?|conures?|lovebirds?|macaws?|hens|chickens|ball pythons?|corn snakes?|snakes?|rodents?|geckos?|lizards?|bearded dragons?|beardies?|iguanas?|tortoises?|turtles?|betta|bettas|goldfish|axolotls?|hedgehogs?|tarantulas?|chinchillas?|degus?|rats|horses?|ponies|snails?|shrimps?|fish tank|aquarium))\b(?! (?:brain|toy|game|collab)\b)", lambda match: "other pet" if free(match) else None, TAGGED),
 ]
 
 LIVING = [
@@ -291,16 +305,19 @@ LIVING = [
     rule("living_with", r"\b(?:my|our) (?:\w+ ){0,2}(?:roommates?|roomates?|room mates?|flatmates?|housemates?|roomie|roomies)\b|\bi live with (?:\w+ )?(?:roommates?|flatmates?|housemates?)\b|\b(?:ner|einer) wg\b", fixed("roommates"), SELF_HEDGE),
 ]
 
+OWNING = re.compile(r"\b(?:mortgage|bought|buy|own|owned|paid|renovat\w*|remodel\w*|contractor|roof|hoa|property|selling|sell|sold|equity|yard|garage|basement|insurance|apprais\w*|built|build|attic|foundation|plumb\w*|furnace|hvac|siding|gutters?|lawn|deck|porch|driveway|landscap\w*)\b")
 HOUSING = [
     rule("housing", r"\b(?:i|we) (?:just |recently |finally )?(?:own|bought|purchased|closed on) (?:a|my|our|the|this) (?:first |new |own )?(?:\w+ )?(?:house|home|condo|townhouse|townhome|property)\b|\bfirst[- ]time home ?buyers?\b(?= here)|\b(?:as a|i'm a|im a) homeowner\b|\bwe (?:own|bought) (?:a|our) (?:\w+ )?(?:house|home|condo)\b|\bwhen (?:i|we) bought (?:my|our) (?:house|home)\b"
          r"|\b(?:,|and|who|[.!?]) (?:recently |just |finally )?(?:bought|purchased) (?:a|my|our) (?:new |first |\w+ )?(?:house|home|condo|townhouse)\b|\bselling (?:my|our) (?:house|home|condo)\b|\bin the middle of selling the house\b|\bmy house is (?:assessed|worth|paid off|valued|appraised)\b|\bclos(?:ed|ing) on (?:my|our) (?:\w+ )?(?:house|home|condo)\b"
          r"|\b(?:i|we) (?:have|own) (?:a|my own|our own) (?:\d+[- ]?(?:bed(?:room)?|br) )?(?:house|condo|townhouse|home)\b(?! (?:office|gym|studio|theater|theatre|bar|network|server|lab|loan|equity|warranty|base|page|game|birth|visit|care|health|nurse|depot))|\bpaid off (?:my|our) (?:house|mortgage|home)\b", fixed("homeowner")),
-    rule("housing", r"\b(?:my|our) (?:mortgage|hoa|property tax(?:es)?|home ?owners? insurance|homeowner's insurance|home insurance)\b", kept("homeowner"), TAGGED),
+    rule("housing", r"(?:my (?<=\bmy )|our (?<=\bour ))(?:mortgage|hoa|property tax(?:es)?|home ?owners? insurance|homeowner's insurance|home insurance)\b", kept("homeowner"), TAGGED),
     rule("housing", r"\b(?:my|our) (?:landlord|landlady|rent|leasing office|property manager|property owner|security deposit|tenancy|letting agent)\b|\b(?:ich )?wohne in (?:einer|ner) wg\b", kept("renter"), TAGGED),
     rule("housing", r"\bwe rent\b(?! (?:a car|cars|out)\b)|\b(?:i'm|im|i am|as) a tenant\b|\b(?:i|we) (?:pay|paid) (?:\$?\d[\d,]* (?:in |for |a month |per month )?|my |our |)rent\b|\bi rent (?:a|an|my)\b|\bi'm renting\b|\b(?:as a|i'm a) renter\b|\bi rent\b(?! (?:a car|cars|out|movies|equipment|tools|bikes?|a truck|a van|a uhaul|boats?|kayaks?|skis?)\b)|\bwe(?:'re| are) (?:currently )?renting\b", fixed("renter")),
     rule("housing", r"\b(?:i'm|im|i am|we're|we are|as|as new|as first[- ]time) (?:a |an )?(?:new |first[- ]time |proud )?(home ?owners?|renters?|tenants?)\b|\bi (?:live|am living|'m living|currently live) in an? (?:\w+ )?(?:apartment|apt|flat|studio)\b",
          lambda match: "homeowner" if match.group(1) and "own" in match.group(1) else "renter"),
     rule("housing", r"\b(?:i'm|im|i am) (?:currently |now )?homeless\b|\bbeing homeless (?:for|since)\b|\bi(?:'ve| have) been homeless\b|\bi live in my car\b|\bi(?:'m| am) (?:living|sleeping) in (?:my|a) (?:car|van|tent|shelter)\b", fixed("homeless")),
+    rule("housing", r"\bmy (?:current |new |apartment |\w+ )?lease\b|\b(?:i|we) (?:just |recently )?(?:signed|renewed|broke|break|re-?signed) (?:a|my|our|the) (?:\w+ )?lease\b|\b(?:resigning|renewing|breaking) (?:my|our) lease\b", lambda match: None if re.search(r"\b(?:car|cars|vehicle|truck|ev|tesla|auto|mileage|miles|bmw|honda|toyota|lease deal|lease payment)\b", match.string) else kept("renter")(match), TAGGED),
+    rule("housing", r"(?:my (?<=\bmy )|our (?<=\bour ))(?:own |new |current |\d+[- ]?(?:bed(?:room)?|br) )?house\b(?! (?:music|party|parties|rules|of|plants?|cat|guest|wine|band|special|keys?|key)\b)", lambda match: stated(kept("homeowner"), FUTURE)(match) if OWNING.search(match.string) else None, TAGGED),
 ]
 
 RELIGIONS = {"christian": "christian", "catholic": "christian", "protestant": "christian", "mormon": "christian", "lds": "christian", "baptist": "christian", "methodist": "christian",
@@ -325,18 +342,19 @@ RELIGION = [
          r"|\bjestem (katolikiem|katoliczką|ateistą|ateistką|chrześcijaninem|chrześcijanką|muzułmaninem|muzułmanką)\b|\bsono (cattolic[oa]|ateo|atea|cristian[oa]|musulman[oa]|ebre[oa])\b|\bik ben (katholiek|christen|atheïst|moslim|joods)\b",
          lambda match: next((value for stem, value in (("مسلم", "muslim"), ("مسيح", "christian"), ("ملحد", "atheist"), ("ate", "atheist"), ("athe", "atheist"), ("athé", "atheist"), ("musul", "muslim"), ("muzu", "muslim"), ("muslim", "muslim"), ("moslim", "muslim"),
                                                        ("jud", "jewish"), ("jüd", "jewish"), ("juif", "jewish"), ("juive", "jewish"), ("ebre", "jewish"), ("joods", "jewish"), ("agnost", "agnostic")) if match.group().split()[-1].startswith(stem)), "christian"), SELF_HEDGE),
-    rule("religion", r"\bmy (?:salah|wudu|deen|hijab)\b", fixed("muslim"), SELF_HEDGE),
+    rule("religion", r"my (?<=\bmy )(?:salah|wudu|deen|hijab)\b", fixed("muslim"), SELF_HEDGE),
     rule("religion", r"\b(?:bible study|my bible|jesus is my|my lord and savior|my savior|my saviour|christ is king|my rosary|i'm (?:a )?catholic|i(?:'m| am) (?:a )?born[- ]again|i accepted (?:jesus|christ))\b", fixed("christian"), SELF_HEDGE),
-    rule("religion", r"\bi converted to (islam|christianity|judaism|catholicism|buddhism|hinduism|orthodoxy|sikhism)\b",
+    rule("religion", r"i (?<=\bi )converted to (islam|christianity|judaism|catholicism|buddhism|hinduism|orthodoxy|sikhism)\b",
          group({"islam": "muslim", "christianity": "christian", "judaism": "jewish", "catholicism": "christian", "buddhism": "buddhist", "hinduism": "hindu", "orthodoxy": "christian", "sikhism": "sikh"}), SELF_HEDGE),
-    rule("religion", r"\bmy (?:bar|bat) mitzvah\b", fixed("jewish"), SELF_HEDGE),
+    rule("religion", r"my (?<=\bmy )(?:bar|bat) mitzvah\b", fixed("jewish"), SELF_HEDGE),
     rule("religion", r"\bi(?:'m| am) not (?:a )?religious(?: person)?\b|\bi (?:don't|do not) (?:believe in god|follow (?:any )?religion)\b|\bi loathe (?:all )?religion\b|\bspiritual,? but not religious\b|\bя не религиозн|\bno soy religios[oa]\b|\bich bin nicht religiös\b",
          lambda match: "atheist" if "god" in match.group() or "loathe" in match.group() else "spiritual, no religion", TAGGED),
     rule("religion", rf"\b(?:i|i'd|i would) (?:consider myself|identify as|would call myself|call myself|describe myself as) (?:a |an )?(?:\w+ )?({FAITH})\b|\b(?:we|us) as ({FAITH})s\b|{AS} ({FAITH})s,? (?:we|us|our)\b|^\W*(?:\d{{2}}\s*[mf]?\W*)?(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?({FAITH}) (?:couple|guy|girl|man|woman|male|female|m|f|dad|mom|here|only)\b|(?:^|[.!?,;(] *)({FAITH}) here\b|\bfellow ({FAITH})s?\b", lambda match: RELIGIONS.get(next(filter(None, match.groups()))), SELF_HEDGE),
-    rule("religion", r"\bi (?:\w+ )?pray (?:that )?allah\b", fixed("muslim"), SELF_HEDGE),
-    rule("religion", r"\bmy (?:relationship|walk|journey) with (?:god|christ|jesus|the lord)\b|\bi (?:\w+ )?(?:seek|follow|love|accepted|believe in|trust in|pray to|worship) (?:jesus|christ|the lord)\b|\bi (?:\w+ )?pray (?:to god|every (?:day|night|morning)|daily|the rosary)\b",
+    rule("religion", r"i (?<=\bi )(?:\w+ )?pray (?:that )?allah\b", fixed("muslim"), SELF_HEDGE),
+    rule("religion", r"my (?<=\bmy )(?:relationship|walk|journey) with (?:god|christ|jesus|the lord)\b|i (?<=\bi )(?:\w+ )?(?:seek|follow|love|accepted|believe in|trust in|pray to|worship) (?:jesus|christ|the lord)\b|i (?<=\bi )(?:\w+ )?pray (?:to god|every (?:day|night|morning)|daily|the rosary)\b",
          fixed("christian"), SELF_HEDGE),
-    rule("religion", r"\bmy (?:pagan|wiccan|witchy|heathen|druid\w*|witchcraft) (?:community|path|practice|journey|beliefs|faith|spirituality|tradition|altar|craft|friends|group)\b|\bmy (?:altar|deities|patron (?:god|goddess|deity)|book of shadows)\b", fixed("pagan or other religion"), SELF_HEDGE),
+    rule("religion", r"my (?<=\bmy )(?:pagan|wiccan|witchy|heathen|druid\w*|witchcraft) (?:community|path|practice|journey|beliefs|faith|spirituality|tradition|altar|craft|friends|group)\b|my (?<=\bmy )(?:altar|deities|patron (?:god|goddess|deity)|book of shadows)\b", fixed("pagan or other religion"), SELF_HEDGE),
+    rule("religion", r"(?:my (?<=\bmy )|our (?<=\bour ))(?:home |local |new |old )?(church|pastor|priest|parish|congregation|mosque|masjid|imam|synagogue|shul|rabbi)\b(?! (?:friends?|youth group)\b)", lambda match: ("muslim" if match.group(1) in ("mosque", "masjid", "imam") else "jewish" if match.group(1) in ("synagogue", "shul", "rabbi") else "christian") if free(match) else None, SELF_HEDGE),
 ]
 
 POLITICS = {"communist": "communist or far left", "marxist": "communist or far left", "socialist": "socialist or left", "leftist": "socialist or left", "liberal": "progressive or liberal",
@@ -379,7 +397,7 @@ SMOKING = [
          r"|\b(?:days?|weeks?|months?|years?) (?:smoke|nicotine|vape|cigarette)[- ]free\b|\b(?:days?|weeks?|months?|years?) (?:without|off) (?:smoking|vaping|nicotine|cigarettes)\b|\b(?:days?|weeks?|months?) after (?:vaping|smoking) (?:since|for)\b", fixed("non-smoker"), SELF_HEDGE),
     rule("smoking", r"\bi (?:don't|do not|dont|never) smoke\b|\bi quit smoking\b|\bi used to (?:smoke|vape)\b|\b(?:i'm|im|i am) a non-?smoker\b|\bi've never smoked\b", fixed("non-smoker"), CONDITIONAL),
     rule("smoking", r"\b(?:i|me) (?:\w+ )?(?:smoke|smoked|vape|vaped) (?:for|to|after|before|when|every|a|cigarettes|cigs|daily)\b|\bmy (?:cigarettes?|cigs|vape|juul|pack of (?:cigs|cigarettes|smokes)|smoke break|cigarette break)\b|\b(?:i'm|im|i am) a (?:heavy |chain |social |casual )?(?:smoker|vaper)\b"
-         r"|\bi(?:'ve| have) been (?:smoking|vaping) (?:for|since)\b|\bi smoke (?:a|\d+|two) packs?\b|\b420[- ]friendly\b|\bi (?:\w+ )?(?:drink|drink socially) and smoke\b|\bi (?:\w+ )?smoke and drink\b|\bich rauche\b|\bwir rauchen\b|\brauchen den\b", fixed("smoker or vaper"), SELF_HEDGE),
+         r"|\bi(?:'ve| have) been (?:smoking|vaping) (?:for|since)\b|\bi smoke (?:a|\d+|two) packs?\b|\bi (?:\w+ )?(?:drink|drink socially) and smoke\b|\bi (?:\w+ )?smoke and drink\b|\bich rauche\b|\bwir rauchen\b|\brauchen den\b", fixed("smoker or vaper"), SELF_HEDGE),
     rule("smoking", r"\bnon[- ]?smoker\b|\b(?:i|we) don'?t smoke\b", fixed("non-smoker"), re.compile(r"\b(?:if|would|wish|prefer|looking for|seeking|must be|only)\b")),
     rule("smoking", rf"(?:\b(?:i'm|im|i am|signed,?|i've been)|{AS}) (?:a |an )?(?:(?!(?:not|never|no|former|ex)\b)[\w-]+ ){{0,2}}?(?:smoker|vaper|stoner|pothead)\b", lambda match: None if "non" in match.group() else "smoker or vaper", SELF_HEDGE),
     rule("smoking", r"\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|a few|several) (?:days?|weeks?|months?|years?)\W{0,8}(?:after|since|off|without|free from|clean from|of not) (?:vaping|smoking|nicotine|cigarettes|cigs|the vape|juul|tobacco)\b"
@@ -404,7 +422,7 @@ MILITARY = [
          lambda match: "military veteran" if SERVICE.search(match.string) else None, SELF_HEDGE),
     rule("military_status", rf"\b{I} (?:(?!on |at |my |so |to |no |in |an )[a-z]{{2}} |army |air )?(?:national )?guard(?:sman|swoman)?\b(?! (?:duty at|dog)\b)|\b{I} (?:a |an )?(?:reservist|guardsman|guardswoman)\b|\b{I} (?:in|with) the (?:\w+ )?(?:reserves?|guard)\b",
          fixed("serving in the military"), SELF_HEDGE),
-    rule("military_status", r"\bmy (?:va |disability |combined |current )?(?:rating|claim|c&p|dbq|vso|gi bill|tricare|dd-?214|va benefits|va healthcare|va doctor|va appointment|pact act)\b",
+    rule("military_status", r"my (?<=\bmy )(?:va |disability |combined |current )?(?:rating|claim|c&p|dbq|vso|gi bill|tricare|dd-?214|va benefits|va healthcare|va doctor|va appointment|pact act)\b",
          lambda match: "military veteran" if re.search(r"\b(?:va|veterans?|military|service|army|navy|marines?|air force|usmc|vso|dbq|c&p)\b", match.string) else None, SELF_HEDGE),
     rule("military_status", rf"\b{I} (?:a |an )?(?:\w+ )?(?:officer|medic|nco|sergeant|corporal|private|specialist|pilot|mechanic|engineer|nurse|soldier|infantryman|linguist|analyst|doctor|chaplain) in the (?:army|navy|marines|air force|military|national guard|coast guard|reserves?|space force)\b",
          fixed("serving in the military"), SELF_HEDGE),

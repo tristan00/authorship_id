@@ -51,7 +51,7 @@ def generate(target=TARGET):
     def add(name, kind, value, region, country, cased=None):
         name = key(name)
         if name and name not in rows and len(name) > 2 and name not in excluded and name not in MONTHS:
-            rows[name] = (kind, value.lower(), PREFIX.sub("", region.lower()), country.lower(), "1" if (common(name) if cased is None else cased) else "")
+            rows[name] = (kind, value.lower(), PREFIX.sub("", region.lower()), country.lower(), cased if cased == "town" else "1" if (common(name) if cased is None else cased) else "")
 
     ranked = sorted(countries.items(), key=lambda item: -item[1][1])
     for code, (name, _) in ranked:
@@ -79,6 +79,11 @@ def generate(target=TARGET):
             add(variant, "city", name, admin.get(region, ("", ""))[0], countries[country][0])
             if (short := key(variant)).startswith(("st ", "saint ")):
                 add(short.replace("st ", "saint ", 1) if short.startswith("st ") else short.replace("saint ", "st ", 1), "city", name, admin.get(region, ("", ""))[0], countries[country][0])
+    squashed = {name.replace(" ", "") for name in rows if " " in name}
+    for population, name, ascii, country, region in sorted(((int(row[14] or 0), row[1], row[2], row[8], f"{row[8]}.{row[10]}") for row in fields("cities5000.zip")), reverse=True):
+        for variant in (name, ascii):
+            if population < 15000 and not common(key(variant)) and key(variant).replace(" ", "") not in squashed and not any(" ".join(key(variant).split()[cut:]) in rows or " ".join(key(variant).split()[:cut]) in rows for cut in range(1, len(key(variant).split()))):
+                add(variant, "city", name, admin.get(region, ("", ""))[0], countries[country][0], "town")
     with open(target, "w", encoding="utf-8", newline="\n") as out:
         out.write("key\tkind\tvalue\tregion\tcountry\tcased\n")
         out.writelines("\t".join((name, *row)) + "\n" for name, row in rows.items())
