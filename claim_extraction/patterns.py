@@ -1,9 +1,9 @@
-from . import characters, demographics, fandom, health, life, location, timed, work
+from . import characters, demographics, fandom, health, life, lifestyle, location, timed, work
 from .common import BOT_TEXT, hedged, prepared
 from .schema import canonical
 
 SINGLE = frozenset({"age", "gender"})
-RULES = [*demographics.RULES, *location.RULES, *life.RULES, *work.RULES, *health.RULES, *fandom.RULES]
+RULES = [*demographics.RULES, *location.RULES, *life.RULES, *lifestyle.RULES, *work.RULES, *health.RULES, *fandom.RULES]
 DEMOGRAPHIC = frozenset(attribute for attribute, *_ in demographics.RULES) | {"automated_account"}
 
 
