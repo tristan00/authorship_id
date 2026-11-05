@@ -112,10 +112,10 @@ def adjacent(text, found):
             named(kind, name, found, match.start())
 
 
-DEGREE = r"(?:huge|big|massive|die[- ]?hard|lifelong|life[- ]long|long[- ]?time|proud|loyal|true|real|giant|enormous|devoted|avid|hardcore|crazy|super|major|total)"
+DEGREE = r"(?:huge|big|massive|die[- ]?hard|lifelong|life[- ]long|long[- ]?time|proud|loyal|true|real|giant|enormous|devoted|avid|hardcore|crazy|super|major|total|self[- ](?:admitted|proclaimed|confessed|described))"
 FAN = re.compile(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|been|as|being) (?:an? )?(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)")
-TEAM_FAN = re.compile(rf"(?i:\b(?:(?:i'm|im|i am|i've been|ive been|been|as|being) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
-                      rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:fan|supporter)s? (?:here|since|for life|all my life|my whole life|through and through)\b)")
+TEAM_FAN = re.compile(rf"(?i:\b(?:(?:i'm|im|i am|i've been|ive been|been|as|being|from) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
+                      rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:fan|supporter)(?:s? (?:here|since|for life|all my life|my whole life|through and through)\b|(?=[,.!;:]|(?m:$))))")
 FAN_OF = re.compile(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|i've always been|been|as) (?:also |still |definitely |honestly |really |such |always )?(?:an? |the )?(?:{DEGREE} )*(?:fan|supporter|admirer) of (?:the )?){NAME}")
 STAN = re.compile(rf"(?i:\bi (?:also |still |will always |literally |really )?stan ){NAME}")
 GOAT = re.compile(rf"(?i:\bmy (?:all[- ]time )?goat:? ){NAME}")
@@ -126,6 +126,8 @@ OBJECTS = {"music": "artist", "songs": "artist", "song": "artist", "album": "art
            "channel": "creator", "content": "creator", "podcast": "creator", "books": "author", "novels": "author", "writing": "author", "prose": "author"}
 LOVED = re.compile(rf"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally )*"
                    rf"(?:love|adore|loved|adored|enjoy|enjoyed|in love with|obsessed with) ){NAME}")
+LOWER_FAN = re.compile(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|as|being) (?:an? )?(?:{DEGREE} )*)((?:[a-z][\w'-]* ){{0,2}}[a-z][\w'-]*) (?:fan|stan|supporter)\b")
+LIKED_PERSON = re.compile(rf"(?i:\bi (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |personally |kinda |always )*(?:like|liked) ){NAME}")
 CREATED = re.compile(rf"{NAME}(?:(?:'s|s'|’s) |(?<!'s)(?= (?i:youtube|yt|twitch|tiktok) ))(?i:(?: ?(?:youtube|yt|twitch|tiktok) )?(?:new |latest |recent |old |last |early )?(?:videos?|vids|streams?|vods?|channel|podcasts?|content|vlogs?)\b)")
 WATCHED = re.compile(rf"(?i:\b(?:i (?:\w+ )?(?:watch|watching|watched)|subscribed to|i follow|i'?ve been following) ){NAME}(?i: (?:on|'s) (?:youtube|twitch|tiktok|kick)\b)")
 LISTENED = re.compile(rf"(?i:\b(?:i(?:'m| am|'ve been| have been)? (?:\w+ )?(?:listening to|listen to|listened to|jamming to|bumping)|been (?:listening to|bumping|jamming to)) ){NAME}")
@@ -133,6 +135,7 @@ ALBUM = re.compile(rf"{NAME}(?:'s|s'|’s) (?i:(?:new |latest |last |debut |firs
 SEEN = re.compile(rf"(?i:\b(?:i|we) (?:\w+ )?(?:saw|seen|see|seeing) ){NAME}(?i: (?:live|in concert|perform|play live|open for)\b)")
 PRAISED = re.compile(rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:is|was|are|were|has been|remains) (?:still |so |fucking |really |honestly |just |literally |absolutely |easily |genuinely |lowkey )*"
                      rf"(?:peak|goated|amazing|incredible|underrated|phenomenal|a masterpiece|a banger|fire|elite|god ?tier|top tier|the goat|the best\b|one of the best)\b)")
+LITERALS = {FAN: (" fan", " supporter", " stan", " enjoyer"), FAN_OF: ("fan of", "supporter of", "admirer of"), STAN: ("stan",), GOAT: ("goat",), GOATED: ("goat",)}
 FAVORITE_PLAIN = re.compile(rf"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav) ({KIND_WORDS})s? (?:is|has to be|would be|was|are)\s+"
                             r"((?:the )?[\w'&:!+-]+(?: [\w'&:!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|lol|too|tbh|honestly|by far|hands down|of all time|ever|for sure)\b)")
 PERSON = r"((?:[A-Z]\. |[A-Z][\w-]*(?:'[A-Z][\w-]*)? ){1,3}[A-Z][\w-]*(?:'[A-Z][\w-]*)?)(?![\w-])"
@@ -173,6 +176,12 @@ def lexical(name):
     return attribute, shown(surface, value)
 
 
+def proper(name):
+    titled = " ".join(word.capitalize() for word in name.split())
+    hits = [(links, attribute, value) for attribute, start, end, value, _, common, links in mentions(titled) if start == 0 and end == len(titled) and not common and attribute in PEOPLE and attribute != "character"]
+    return max(hits)[1:] if hits else None
+
+
 def shown(surface, value):
     return surface if len(surface) > SHORT_KEY and " ".join(WORD.findall(surface.lower())) != " ".join(WORD.findall(value)) else value
 
@@ -192,7 +201,7 @@ def classified(text, start, name, options):
 
 def favorites(text, found):
     lowered = text.lower()
-    for pattern in (FAVORITE, FAVORED):
+    for pattern in (FAVORITE, FAVORED) if "fav" in lowered or "goat" in lowered else ():
         for match in pattern.finditer(text):
             name, kind = (match.group(2), match.group(1)) if pattern is FAVORITE else (match.group(1), match.group(2))
             attribute = KINDS.get((kind or "").lower())
@@ -207,13 +216,13 @@ def favorites(text, found):
         words = match.group(2).removeprefix("the ").split()
         if words and words[0] not in COMMON and words[0] not in GENERIC and not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
             named(KINDS[match.group(1)], " ".join(words), found, match.start())
-    for match in TEAM_FAN.finditer(text):
+    for match in TEAM_FAN.finditer(text) if " fan" in lowered or " supporter" in lowered else ():
         if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
             for piece in parts(match.group(1) or match.group(2)):
                 if club := team(piece):
                     named("sports_team", club, found, match.start())
     for pattern in (FAN, FAN_OF, STAN, GOAT, GOATED, PRAISED):
-        for match in pattern.finditer(text):
+        for match in pattern.finditer(text) if any(word in lowered for word in LITERALS.get(pattern, ("",))) else ():
             if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
                 for piece in parts(match.group(1)):
                     if pattern in (FAN, FAN_OF) and (club := team(piece)):
@@ -233,6 +242,15 @@ def favorites(text, found):
             for piece in parts(name):
                 if hit := classified(text, match.start(), piece, PEOPLE):
                     named(*hit, found, match.start())
+    for match in LOWER_FAN.finditer(text) if " fan" in lowered or " stan" in lowered or " supporter" in lowered else ():
+        if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
+            if club := team(match.group(1)):
+                named("sports_team", club, found, match.start())
+            elif hit := proper(match.group(1)):
+                named(*hit, found, match.start())
+    for match in LIKED_PERSON.finditer(text):
+        if not hedged(lowered, match.start(), match.end(), SELF_HEDGE) and (hit := lexical(STOP.split(match.group(1))[0])) and hit[0] in NAMED_ONLY:
+            named(*hit, found, match.start())
     for match in CHOICE.finditer(text):
         if " " in (name := match.group(1).strip()) and (hit := lexical(name)):
             named(*hit, found, match.start())
@@ -324,8 +342,11 @@ royal challengers bengaluru|royal challengers bangalore;sunrisers hyderabad"""
 TEAMS = (NFL_TEAMS_2025, NBA_TEAMS_2025, MLB_TEAMS_2025, NHL_TEAMS_2025, MLS_TEAMS_2025, PREMIER_LEAGUE_TEAMS_2025, LA_LIGA_TEAMS_2025, SERIE_A_TEAMS_2025, BUNDESLIGA_TEAMS_2025,
          LIGUE_1_TEAMS_2025, IPL_TEAMS_2025)
 KNOWLEDGE = Path(__file__).with_name("knowledge.tsv")
+CLUBS = Path(__file__).with_name("clubs.tsv")
+FILMS = Path(__file__).with_name("films.tsv")
 AUTHOR_OF_BOOK = dict(line.split("\t") for line in Path(__file__).with_name("book_authors.tsv").read_text(encoding="utf-8").splitlines()[1:])
 SERIES_OF_GAME = dict(line.split("\t") for line in Path(__file__).with_name("game_series.tsv").read_text(encoding="utf-8").splitlines()[1:])
+NONWORD_TITLES = frozenset(Path(__file__).with_name("nonword_titles.tsv").read_text(encoding="utf-8").splitlines()[1:])
 PLACES = frozenset(line.split("\t", 1)[0] for line in Path(__file__).with_name("gazetteer.tsv").read_text(encoding="utf-8").splitlines()[1:])
 SHORT_KEY = 3
 LOOSE = frozenset({"video_game"})
@@ -352,7 +373,17 @@ def table():
     for key, values in teams.items():
         if len(values) == 1:
             plain.setdefault(key, []).append(("sports_team", next(iter(values)), False, False, 0))
-    with open(KNOWLEDGE, encoding="utf-8") as rows:
+    read(KNOWLEDGE, plain, cased)
+    films = read(FILMS, {}, {})
+    prefixes = set()
+    for key in (*plain, *cased, *films[0], *films[1]):
+        tokens = key.lower().split(" ")
+        prefixes.update(" ".join(tokens[:size]) for size in range(1, len(tokens) + 1))
+    return plain, cased, *films, prefixes
+
+
+def read(path, plain, cased):
+    with open(path, encoding="utf-8") as rows:
         next(rows)
         for line in rows:
             key, attribute, value, links, surfaces, common = line.rstrip("\n").split("\t")
@@ -361,18 +392,14 @@ def table():
                 cased.setdefault(surface, []).append(entry)
             if not surfaces or (attribute in LOOSE and common == "1" and " " in key.removeprefix("the ")):
                 plain.setdefault(key, []).append((attribute, value, False, common == "1" or len(key) <= SHORT_KEY, int(links)))
-    prefixes = set()
-    for key in (*plain, *cased):
-        tokens = key.lower().split(" ")
-        prefixes.update(" ".join(tokens[:size]) for size in range(1, len(tokens) + 1))
-    return plain, cased, prefixes
+    return plain, cased
 
 
-PLAIN, CASED, PREFIXES = table()
+PLAIN, CASED, FILM_PLAIN, FILM_CASED, PREFIXES = table()
 
 
 def team_words():
-    words = {}
+    words, places = {}, {}
     for entry in filter(None, (piece.strip() for block in TEAMS for piece in block.replace("\n", "").split(";"))):
         head, *aliases = entry.split("|")
         tokens = WORD.findall(head)
@@ -380,7 +407,16 @@ def team_words():
             key = " ".join(WORD.findall(folded(form))).lower()
             for variant in (key, key[:-1]) if key.endswith("s") and " " not in key and len(key) > 4 else (key,):
                 words.setdefault(variant, set()).add(head.lower())
-    return {key: next(iter(heads)) if len(heads) == 1 else key for key, heads in words.items()}
+        if len(tokens) > 1:
+            places.setdefault(" ".join(WORD.findall(folded(" ".join(tokens[:-1])))).lower(), set()).add(head.lower())
+    known = {key: next(iter(heads)) if len(heads) == 1 else key for key, heads in words.items()} | {key: next(iter(heads)) for key, heads in places.items() if len(heads) == 1 and key not in words}
+    clubs = {}
+    with open(CLUBS, encoding="utf-8") as rows:
+        next(rows)
+        for line in rows:
+            key, _, value, *_ = line.split("\t")
+            clubs[key] = value
+    return clubs | known
 
 
 TEAM_WORDS = team_words()
@@ -397,6 +433,8 @@ def raised():
             lowered[surface.lower()] = famous
         elif " " not in surface and any(char.isdigit() for char in surface) and LETTERS.search(surface) and (coded := [entry for entry in entries if entry[0] in TITLES and not entry[3]]):
             lowered.setdefault(surface.lower(), coded)
+        elif surface.lower() in NONWORD_TITLES and (coined := [entry for entry in entries if entry[0] in TITLES and not entry[3]]):
+            lowered.setdefault(surface.lower(), coined)
     return lowered
 
 
@@ -426,6 +464,8 @@ def mentions(text):
             cased = CASED.get(surface) or size == 1 and RAISED.get(surface) or not plain and SENTENCE_CASED.get(surface) or None
             if plain or cased:
                 found = size, (plain or []) + (cased or [])
+            elif (films := FILM_PLAIN.get(key, []) + FILM_CASED.get(surface, [])) and praised(text, words[index].start(), words[index + size - 1].end()):
+                found = size, films
             if index + size == total:
                 break
             key, surface, size = key + " " + lows[index + size], surface + " " + shown[index + size], size + 1

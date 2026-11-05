@@ -1,7 +1,8 @@
 import re
+from collections import Counter
 from pathlib import Path
 
-from .common import HEDGE, SELF_HEDGE, TAGGED, fixed, group, rule
+from .common import HEDGE, SELF_HEDGE, TAGGED, clause, fixed, group, question, rule
 
 
 def names(table):
@@ -19,16 +20,16 @@ PEOPLE = (r"mom|mother|mum|mommy|dad|father|daddy|wife|husband|son|daughter|kid|
 OWN_HEDGE = re.compile(SELF_HEDGE.pattern + r"|\b(?:suspect|suspected|probably|possibly|wonder|wondering|could be|could have|do i have|self[- ]diagnosed|test(?:ed)? for|screen(?:ed)? for|rule out|ruled out|i think|i thought|i guess|i feel like|pretty sure|i believe)\b")
 OTHERS = re.compile(OWN_HEDGE.pattern + rf"|\b(?:{PEOPLE})\b")
 GAP = rf"(?:(?!(?:{PEOPLE}|not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|than|to)\b)[\w'/-]+,?\s+){{0,3}}?"
-SUBJECT = r"\bi (?:also |still |do |actually |now |already |too |even |definitely |literally |personally |unfortunately |both |currently |recently |just |really |apparently |obviously |basically |technically |myself |officially |finally |eventually |later |since |unfortunately also )*"
+SUBJECT = r"i(?<!\wi) (?:also |still |do |actually |now |already |too |even |definitely |literally |personally |unfortunately |both |currently |recently |just |really |apparently |obviously |basically |technically |myself |officially |finally |eventually |later |since |unfortunately also )*"
 HAVE_NOW = (rf"{SUBJECT}(?:have|got|get|suffer from|suffer with|struggle with|deal with|live with|battle|fight|manage|was born with|developed|contracted|have been diagnosed with|got diagnosed with|"
             r"was (?:also |recently |officially |formally |finally |just |eventually |later |then |initially |first |since )?diagnosed with|have had|have got|am diagnosed with|am being treated for|"
             r"am recovering from|am dealing with|am struggling with|am living with|am suffering from|am suffering with|am battling|am fighting)"
-            r"|\b(?:i've|ive|i have) (?:also |always |recently |just |finally |officially |since |now |personally |actually |unfortunately |literally |basically |definitely |still |apparently |technically |long )*(?:had|got|been diagnosed with|been dealing with|been struggling with|been battling|been fighting|been living with|"
+            r"|i(?<!\wi)(?:'ve|ve| have) (?:also |always |recently |just |finally |officially |since |now |personally |actually |unfortunately |literally |basically |definitely |still |apparently |technically |long )*(?:had|got|been diagnosed with|been dealing with|been struggling with|been battling|been fighting|been living with|"
             r"been suffering from|been suffering with|been treated for|been recovering from|developed|struggled with|dealt with|suffered from|suffered with|lived with|battled|fought|survived|beaten)"
-            r"|\b(?:i'm|im|i am) (?:also |currently |still |now |actually |officially |finally |recently |just |newly |personally |technically |literally |basically |definitely |unfortunately |apparently )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|suffering with|being treated for|recovering from|"
+            r"|i(?<!\wi)(?:'m|m| am) (?:also |currently |still |now |actually |officially |finally |recently |just |newly |personally |technically |literally |basically |definitely |unfortunately |apparently )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|suffering with|being treated for|recovering from|"
             r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)"
-            r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as |i'm |im |i am )(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal)) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
-            r"|\bmy (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|\bdiagnosed me (?:with|as)")
+            r"|i(?<!\wi) (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|(?:a(?<!\wa)s |i(?<!\wi)(?:'m |m | am ))(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal)) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
+            r"|m(?<!\wm)y (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|d(?<!\wd)iagnosed me (?:with|as)")
 HAD = rf"{SUBJECT}(?:had|suffered from|struggled with|dealt with|lived with|battled|fought|beat|survived|overcame|was treated for|was dealing with|went through|got treated for)"
 HAVE = HAVE_NOW + "|" + HAD
 BARE = r"(?:^|[.!?\n|]\s*)(?:recently |newly |just |finally |officially |formally |also |and |got |was |been )*(?:diagnosed|dx'?d) (?:with|w/)"
@@ -319,16 +320,16 @@ def physical_tool(match):
 
 
 RULES = [
-    rule("physical_condition", rf"\bmy (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |"
+    rule("physical_condition", rf"m(?<!\wm)y (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |"
          rf"\w+ (?:and )?)?({names(PHYSICAL_TOOL_STRICT)})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad)s?\b)", physical_tool, OWN_HEDGE),
-    rule("physical_condition", rf"\b(?:i (?:also |still |now |have to |had to |need to |always |usually |currently |sometimes |must )?(?:wear|need|use|carry|have|got|take|took|started|start|am on|was on|was put on|got put on|was prescribed|got prescribed|inject|do|did|go to|see|saw|visit)|i'm (?:also |still |now |currently )?(?:on|taking|using)|i've (?:been on|been taking|been using|started)) (?:a |an |my |the |two |both |prescription |daily )?({names({name for name in PHYSICAL_TOOL_STRICT if name not in {'cancer', 'diabetes', 'asthma', 'hypertension', 'migraines', 'migraine', 'seizures', 'seizure', 'heart condition', 'eczema', 'psoriasis', 'rosacea', 'dermatitis', 'hives', 'tinnitus', 'glaucoma', 'ibs', 'gerd', 'reflux', 'acid reflux', 'colitis', 'celiac', 'celiac disease', 'endometriosis', 'pcos', 'fibroids', 'adenomyosis', 'menopause', 'perimenopause', 'hypothyroidism', 'hyperthyroidism', 'arthritis', 'osteoarthritis', 'gout', 'lupus', 'autoimmune disease'}})})\b",
+    rule("physical_condition", rf"i(?<!\wi)(?: (?:also |still |now |have to |had to |need to |always |usually |currently |sometimes |must )?(?:wear|need|use|carry|have|got|take|took|started|start|am on|was on|was put on|got put on|was prescribed|got prescribed|inject|do|did|go to|see|saw|visit)|'m (?:also |still |now |currently )?(?:on|taking|using)|'ve (?:been on|been taking|been using|started)) (?:a |an |my |the |two |both |prescription |daily )?({names({name for name in PHYSICAL_TOOL_STRICT if name not in {'cancer', 'diabetes', 'asthma', 'hypertension', 'migraines', 'migraine', 'seizures', 'seizure', 'heart condition', 'eczema', 'psoriasis', 'rosacea', 'dermatitis', 'hives', 'tinnitus', 'glaucoma', 'ibs', 'gerd', 'reflux', 'acid reflux', 'colitis', 'celiac', 'celiac disease', 'endometriosis', 'pcos', 'fibroids', 'adenomyosis', 'menopause', 'perimenopause', 'hypothyroidism', 'hyperthyroidism', 'arthritis', 'osteoarthritis', 'gout', 'lupus', 'autoimmune disease'}})})\b",
          group(PHYSICAL_TOOL_STRICT), OWN_HEDGE),
-    rule("physical_condition", r"\bi'?m (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|\bi (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|\bi (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|\bi (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
+    rule("physical_condition", r"i(?<!\wi)'?m (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|i(?<!\wi) (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|i(?<!\wi) (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|i(?<!\wi) (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
          lambda match: "vision or hearing impairment" if re.search(r"deaf|blind|hearing|eye|sight|vision|ear\b", match.group()) else "physical disability", SELF_HEDGE),
-    rule("physical_condition", r"\bmy (?:face|skin|scalp|face skin|facial skin) (?:is|has been|gets|get|keeps|is always|is still|is getting|has gotten|tends to be|is naturally|is super|is very|is so|is really|is extremely|is quite|is pretty|is kinda|is a bit|always gets)* ?"
+    rule("physical_condition", r"m(?<!\wm)y (?:face|skin|scalp|face skin|facial skin) (?:is|has been|gets|get|keeps|is always|is still|is getting|has gotten|tends to be|is naturally|is super|is very|is so|is really|is extremely|is quite|is pretty|is kinda|is a bit|always gets)* ?"
          r"(?:so |very |really |super |extremely |quite |pretty |kinda |a bit |naturally )?(?:dry|oily|sensitive|acne[- ]prone|prone to (?:acne|breakouts|redness|irritation)|breaking out|broken out|flaky|flaking|peeling|"
          r"itchy|irritated|inflamed|congested|dehydrated|reactive|combination)\b", fixed("skin condition"), OWN_HEDGE),
-    rule("physical_condition", r"\bmy (?:\w+ )?(?:back|knees?|hips?|joints|neck|shoulders?|wrists?|ankles?|feet|legs|hands|stomach|head) (?:still |always |really |constantly |also )?"
+    rule("physical_condition", r"m(?<!\wm)y (?:\w+ )?(?:back|knees?|hips?|joints|neck|shoulders?|wrists?|ankles?|feet|legs|hands|stomach|head) (?:still |always |really |constantly |also )?"
          r"(?:hurts?|aches?|(?:is |are |has been |have been |keeps |keep )?(?:hurting|aching|killing me|sore|in pain))\b", fixed("unspecified"), OWN_HEDGE)]
 
 MENTAL = spread({
@@ -441,53 +442,83 @@ ADHD_DRUGS_WIKIDATA = dict.fromkeys(Path(__file__).with_name("adhd_drugs.txt").r
 RULES += [
     rule("mental_condition", rf"(?:{HAVE})\s+{MOD}(?:an? )?{GAP}({names(MENTAL_LOOSE)})\b{FOLLOWERS}", group(MENTAL_LOOSE), OWN_HEDGE),
     rule("mental_condition", rf"{BARE}\s+{MOD}(?:an? )?{GAP}({names(MENTAL_LOOSE)})\b{FOLLOWERS}", group(MENTAL_LOOSE), OTHERS),
-    rule("mental_condition", r"\bas an? (suicidal|depressed|anxious|paranoid|psychotic)\b", group({"suicidal": "other mental health condition", "depressed": "depression", "anxious": "anxiety", "paranoid": "anxiety", "psychotic": "schizophrenia or psychosis"}), SELF_HEDGE),
-    rule("mental_condition", rf"\b(?:i have|i've had|i was diagnosed with|i got diagnosed with|i've been diagnosed with|i'm diagnosed with|i'm on meds for|i take meds for|i was recently diagnosed with|diagnosed with|i also have|i do have|i have had) (?:(?:severe|mild|moderate|chronic|clinical|diagnosed|combined[- ]type|inattentive[- ]type|bad|really bad|pretty bad|terrible|untreated|unmedicated|adult|both|some|serious) )*(add|did|ied|odd|osdd|trich|tics|insomnia|pmdd|hypomania|mania|panic attacks|anxiety attacks|binge eating|disordered eating|intrusive thoughts|suicidal thoughts|self harm|self-harm|childhood trauma|complex trauma|trauma|burnout|autistic burnout|executive dysfunction|sensory issues|gender dysphoria|separation anxiety|claustrophobia|dissociation|sleep paralysis|night terrors|a stutter|a speech impediment|stuttering|apraxia|a nervous breakdown|a mental breakdown|nervous breakdowns|emotional dysregulation)\b",
+    rule("mental_condition", r"a(?<!\wa)s an? (suicidal|depressed|anxious|paranoid|psychotic)\b", group({"suicidal": "other mental health condition", "depressed": "depression", "anxious": "anxiety", "paranoid": "anxiety", "psychotic": "schizophrenia or psychosis"}), SELF_HEDGE),
+    rule("mental_condition", rf"(?:i(?<!\wi)(?: have|'ve had| was diagnosed with| got diagnosed with|'ve been diagnosed with|'m diagnosed with|'m on meds for| take meds for| was recently diagnosed with| also have| do have| have had)|d(?<!\wd)iagnosed with) (?:(?:severe|mild|moderate|chronic|clinical|diagnosed|combined[- ]type|inattentive[- ]type|bad|really bad|pretty bad|terrible|untreated|unmedicated|adult|both|some|serious) )*(add|did|ied|odd|osdd|trich|tics|insomnia|pmdd|hypomania|mania|panic attacks|anxiety attacks|binge eating|disordered eating|intrusive thoughts|suicidal thoughts|self harm|self-harm|childhood trauma|complex trauma|trauma|burnout|autistic burnout|executive dysfunction|sensory issues|gender dysphoria|separation anxiety|claustrophobia|dissociation|sleep paralysis|night terrors|a stutter|a speech impediment|stuttering|apraxia|a nervous breakdown|a mental breakdown|nervous breakdowns|emotional dysregulation)\b",
          group({**MENTAL, "add": "adhd", "bed": "eating disorder", "ied": "other mental health condition", "odd": "other mental health condition"}), OWN_HEDGE),
-    rule("mental_condition", rf"\bmy {MOD}({names(MENTAL_LOOSE)})\b{FOLLOWERS}(?! (?:medication|meds)\b)", group(MENTAL_LOOSE), OWN_HEDGE),
-    rule("mental_condition", rf"\bmy (?:own )?(adhd|autism|audhd|ocd|bpd|ptsd|cptsd|anxiety|depression|bipolar|ed|eating disorder|addiction|insomnia|tics|trich|did) (?:brain|meds|medication|diagnosis|symptoms|is|was|has|makes|gets|kicks|flares|got|took|and|so)\b",
+    rule("mental_condition", rf"m(?<!\wm)y {MOD}({names(MENTAL_LOOSE)})\b{FOLLOWERS}(?! (?:medication|meds)\b)", group(MENTAL_LOOSE), OWN_HEDGE),
+    rule("mental_condition", rf"m(?<!\wm)y (?:own )?(adhd|autism|audhd|ocd|bpd|ptsd|cptsd|anxiety|depression|bipolar|ed|eating disorder|addiction|insomnia|tics|trich|did) (?:brain|meds|medication|diagnosis|symptoms|is|was|has|makes|gets|kicks|flares|got|took|and|so)\b",
          group({**MENTAL, "bipolar": "bipolar disorder", "ed": "eating disorder", "insomnia": "other mental health condition", "tics": "other mental health condition",
                 "trich": "other mental health condition", "did": "other mental health condition"}), OWN_HEDGE),
-    rule("mental_condition", rf"\b(?:as an?|being an?|me, an?|as a fellow|as someone who is|as a person who is|as somebody with|as a person with|as someone with|as one with) (?:fellow |diagnosed |late[- ]diagnosed |recovering |recovered |formerly )?({names(MENTAL_LOOSE)}|{names(MENTAL_STATE_STRICT)}) ?(?:person|woman|man|adult|guy|girl|individual|sufferer|patient|survivor|haver|myself|lady|dude|mom|dad|mother|father|parent|teen|kid|student|female|male|human|being)?\b",
+    rule("mental_condition", rf"(?:a(?<!\wa)s(?: an?| a fellow| someone who is| a person who is| somebody with| a person with| someone with| one with)|b(?<!\wb)eing an?|m(?<!\wm)e, an?) (?:fellow |diagnosed |late[- ]diagnosed |recovering |recovered |formerly )?({names(MENTAL_LOOSE)}|{names(MENTAL_STATE_STRICT)}) ?(?:person|woman|man|adult|guy|girl|individual|sufferer|patient|survivor|haver|myself|lady|dude|mom|dad|mother|father|parent|teen|kid|student|female|male|human|being)?\b",
          group({**MENTAL_LOOSE, **MENTAL_STATE_STRICT}), SELF_HEDGE),
-    rule("mental_condition", rf"\b(?:i'm|im|i am|i m|i've been|ive been|i have been|i was|i became|i'm now|i'm also|i'm actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |so |really |too |super |just |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({names({**MENTAL_STATE_STRICT, **FEELINGS})})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for|from|by|over|with)\b)",
+    rule("mental_condition", rf"i(?<!\wi)(?:'m|m| am| m|'ve been|ve been| have been| was| became|'m now|'m also|'m actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |so |really |too |super |just |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({names({**MENTAL_STATE_STRICT, **FEELINGS})})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for|from|by|over|with)\b)",
          group({**MENTAL_STATE_STRICT, **FEELINGS}), OWN_HEDGE),
-    rule("mental_condition", rf"\b(?:my|i take|i'm on|i am on|i've been on|i started|i'm taking|i am taking|i've been taking|i was put on|i got put on|i was prescribed|i got prescribed|i was given|prescribed me|gave me|put me on|i switched to|switched me to|i take my|i forgot my|i forgot to take my|i ran out of|i'm out of) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_DRUGS_WIKIDATA)})\b",
+    rule("mental_condition", rf"(?:m(?<!\wm)y|i(?<!\wi)(?: take|'m on| am on|'ve been on| started|'m taking| am taking|'ve been taking| was put on| got put on| was prescribed| got prescribed| was given| switched to| take my| forgot my| forgot to take my| ran out of|'m out of)|p(?<!\wp)(?:rescribed me|ut me on)|g(?<!\wg)ave me|s(?<!\ws)witched me to) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_DRUGS_WIKIDATA)})\b",
          group(ADHD_DRUGS_WIKIDATA), SELF_HEDGE),
     rule("mental_condition", rf"\b(audhd|au/dhd)\b{FOLLOWERS}", fixed("both adhd and autism"), OTHERS),
     rule("mental_condition", r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar|insomnia) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
          group({**MENTAL, "bipolar": "bipolar disorder", "insomnia": "other mental health condition"}), SELF_HEDGE),
     *(rule("mental_condition", pattern, group(MENTAL_LOOSE), OWN_HEDGE) for pattern in (
-        rf"\b(?:recovering|recovered|in recovery) from (?:my |an? )?({names(MENTAL_LOOSE)})\b",
-        rf"\b(?:undiagnosed|unmedicated|untreated|diagnosed|crippling|lifelong|late[- ]diagnosed) (?:but severe )?({names(MENTAL_LOOSE)})\b(?=[^.!?\n]*\b(?:i|my|me)\b)",
+        rf"(?:r(?<!\wr)ecover(?:ing|ed)|i(?<!\wi)n recovery) from (?:my |an? )?({names(MENTAL_LOOSE)})\b",
+        rf"(?:u(?<!\wu)n(?:diagnosed|medicated|treated)|d(?<!\wd)iagnosed|c(?<!\wc)rippling|l(?<!\wl)(?:ifelong|ate[- ]diagnosed)) (?:but severe )?({names(MENTAL_LOOSE)})\b(?=[^.!?\n]*\b(?:i|my|me)\b)",
         rf"^\W*(?:yep\W+|yeah\W+|also\W+|same\W+|me too\W+)?({names(MENTAL_LOOSE)})\W*$", rf"(?:^|[.!?\n]\s*)also,? ({names(MENTAL_LOOSE)})\b(?=\W*(?:$|[.!?\n]))")),
-    rule("mental_condition", r"\b(?:made|makes|making|left|leaving|gave) me (?:really |so |very |super |severely |clinically |chronically )?(depressed|suicidal|depression|anxiety|ptsd|an eating disorder|agoraphobic)\b(?= *(?:$|[.!\n,;]|and\b|for (?:years|months|a long time)))|\b(?:becoming|became|become) an (alcoholic|addict)\b",
+    rule("mental_condition", r"(?:m(?<!\wm)a(?:de|kes|king)|l(?<!\wl)e(?:ft|aving)|g(?<!\wg)ave) me (?:really |so |very |super |severely |clinically |chronically )?(depressed|suicidal|depression|anxiety|ptsd|an eating disorder|agoraphobic)\b(?= *(?:$|[.!\n,;]|and\b|for (?:years|months|a long time)))|b(?<!\wb)ec(?:oming|ame|ome) an (alcoholic|addict)\b",
          lambda match: {"depressed": "depression", "suicidal": "other mental health condition", "depression": "depression", "anxiety": "anxiety", "ptsd": "ptsd",
                         "an eating disorder": "eating disorder", "agoraphobic": "anxiety", "alcoholic": "addiction", "addict": "addiction"}[next(filter(None, match.groups()))], OWN_HEDGE),
-    rule("mental_condition", r"\bfor my (adhd|autism|anxiety|depression|ocd|ptsd|cptsd|bipolar|bpd|insomnia|panic attacks|panic disorder|social anxiety|mdd|gad|ed|eating disorder|addiction|alcoholism)\b",
+    rule("mental_condition", r"f(?<!\wf)or my (adhd|autism|anxiety|depression|ocd|ptsd|cptsd|bipolar|bpd|insomnia|panic attacks|panic disorder|social anxiety|mdd|gad|ed|eating disorder|addiction|alcoholism)\b",
          group({**MENTAL, "bipolar": "bipolar disorder", "ed": "eating disorder", "insomnia": "other mental health condition", "panic attacks": "anxiety"}), OWN_HEDGE),
-    rule("mental_condition", r"\bi (?:was|got) (?:\w+ )?(?:hospitalized|hospitalised|admitted|committed|sectioned|baker acted|5150'?d|put on a 5150|put in a psych ward|in a psych ward|in the psych ward|inpatient) (?:for|after|because of) (?:my |an? )?(depression|suicidal thoughts|a suicide attempt|suicide attempt|an overdose|psychosis|a psychotic episode|mania|a manic episode|an eating disorder|anorexia|bulimia|self harm|self-harm)\b",
+    rule("mental_condition", r"i(?<!\wi) (?:was|got) (?:\w+ )?(?:hospitalized|hospitalised|admitted|committed|sectioned|baker acted|5150'?d|put on a 5150|put in a psych ward|in a psych ward|in the psych ward|inpatient) (?:for|after|because of) (?:my |an? )?(depression|suicidal thoughts|a suicide attempt|suicide attempt|an overdose|psychosis|a psychotic episode|mania|a manic episode|an eating disorder|anorexia|bulimia|self harm|self-harm)\b",
          group({"depression": "depression", "suicidal thoughts": "depression", "a suicide attempt": "depression", "suicide attempt": "depression", "an overdose": "addiction", "psychosis": "schizophrenia or psychosis",
                 "a psychotic episode": "schizophrenia or psychosis", "mania": "bipolar disorder", "a manic episode": "bipolar disorder", "an eating disorder": "eating disorder", "anorexia": "eating disorder",
                 "bulimia": "eating disorder", "self harm": "other mental health condition", "self-harm": "other mental health condition"}), OWN_HEDGE),
-    rule("mental_condition", r"\b(?:i'm|im|i am|i've been|i have been) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|several|many|over \d+|almost \d+|nearly \d+) (?:days?|weeks?|months?|years?|yrs?) (?:sober|clean|off (?:drugs|alcohol|heroin|meth|opiates|opioids|pills|booze|the booze|the drink|drinking))\b",
+    rule("mental_condition", r"i(?<!\wi)(?:'m|m| am|'ve been| have been) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|several|many|over \d+|almost \d+|nearly \d+) (?:days?|weeks?|months?|years?|yrs?) (?:sober|clean|off (?:drugs|alcohol|heroin|meth|opiates|opioids|pills|booze|the booze|the drink|drinking))\b",
          fixed("addiction"), SELF_HEDGE),
-    rule("mental_condition", r"\b(?:i'm|im|i am|i've been|ive been|i got|i became) (?:so |really |literally |kinda |pretty |super |very |totally |completely |still |seriously |severely )*addicted to\b",
+    rule("mental_condition", r"i(?<!\wi)(?:'m|m| am|'ve been|ve been| got| became) (?:so |really |literally |kinda |pretty |super |very |totally |completely |still |seriously |severely )*addicted to\b",
          fixed("addiction"), OWN_HEDGE)]
 
-FOREIGN_AM = r"(?<![\w'])(?:soy|sou|je suis|ich bin|sono|jestem|ik ben|tengo|tenho|j'ai|ich habe|ho|mam|ik heb|con|com|avec|mit)\s+(?:(?:un|una|um|uma|une|ein|eine|einen|un'|een|tambien|también|também|aussi|auch|anche|też|ook|le|la|de|del|du)\s+|l')*"
+FOREIGN_AM = r"(?:soy|sou|je suis|ich bin|sono|jestem|ik ben|tengo|tenho|j'ai|ich habe|ho|mam|ik heb|con|com|avec|mit)\s+(?:(?:un|una|um|uma|une|ein|eine|einen|un'|een|tambien|también|também|aussi|auch|anche|też|ook|le|la|de|del|du)\s+|l')*"
 FOREIGN_MIND_STATES = spread({"autism": ["autista", "autiste", "autist", "autistin", "autistisch", "autistico", "autistica", "autystą", "autystyczny", "autystyczna", "autismo", "autisme", "autismus", "autyzm"],
                               "bipolar disorder": ["bipolar", "bipolaire", "bipolare"], "depression": ["depresivo", "depresiva", "deprimido", "deprimida", "depressivo", "depressiva", "dépressif", "dépressive",
                                                                                                      "depressiv", "depresso", "depressa", "w depresji", "depressief"],
                               "adhd": ["tdah", "adhs", "adhd", "adhdowcem"], "dyslexia": ["dyslexique", "disléxico", "disléxica", "dislessico", "dislessica", "legastheniker", "dislexia", "dyslexie", "legasthenie", "dysleksja", "dislessia"], "addiction": ["alcohólico", "alcohólica", "alcoólatra", "alcoolique", "alkoholiker", "alkoholikerin", "alcolizzato", "alkoholikiem", "verslaafd"]})
+FOREIGN_MIND_EXTRA = spread({"addiction": ["adicto", "adicta", "viciado", "viciada", "accro", "süchtig", "uzależniony", "uzależniona"],
+                             "schizophrenia or psychosis": ["esquizofrénico", "esquizofrénica", "esquizofrênico", "esquizofrênica", "schizophrène", "schizophren", "schizofrenico", "schizofrenica", "schizofreen"],
+                             "eating disorder": ["anoréxico", "anoréxica", "anorexique", "magersüchtig", "anoressico", "anoressica", "bulímico", "bulímica", "boulimique"],
+                             "neurodivergent, unspecified": ["neurodivergente", "neurodivergent", "neuroatípico", "neuroatípica", "neuroatypique"]})
+FOREIGN_BODY_STATES = spread({
+    "diabetes": ["diabético", "diabética", "diabétique", "diabetiker", "diabetikerin", "diabetico", "diabetica", "diabeet", "diabetykiem", "cukrzykiem"],
+    "respiratory condition or allergy": ["asmático", "asmática", "asthmatique", "asthmatiker", "asthmatikerin", "asmatico", "asmatica", "astmapatiënt", "astmatykiem", "alérgico", "alérgica", "allergique",
+                                         "allergiker", "allergikerin", "allergisch", "allergico", "allergica", "alergikiem", "uczulony", "uczulona"],
+    "digestive condition": ["celíaco", "celíaca", "celiaco", "celiaca", "cœliaque", "coeliaque"],
+    "vision or hearing impairment": ["sordo", "sorda", "surdo", "surda", "sourd", "sourde", "taub", "gehörlos", "schwerhörig", "doof", "slechthorend", "głuchy", "głucha", "ciego", "ciega", "cego", "cega",
+                                     "aveugle", "malvoyant", "malvoyante", "blind", "cieco", "cieca", "ipovedente", "slechtziend", "niewidomy", "niewidoma", "daltónico", "daltónica", "daltônico", "daltônica",
+                                     "daltonien", "daltonienne", "farbenblind", "daltonico", "daltonica", "kleurenblind", "daltonistą"],
+    "physical disability": ["discapacitado", "discapacitada", "minusválido", "minusválida", "cadeirante", "paraplégico", "paraplégica", "tetraplégico", "tetraplégica", "handicapé", "handicapée",
+                            "paraplégique", "tétraplégique", "behindert", "körperbehindert", "schwerbehindert", "querschnittsgelähmt", "rollstuhlfahrer", "rollstuhlfahrerin", "disabile", "paraplegico",
+                            "paraplegica", "tetraplegico", "tetraplegica", "gehandicapt", "rolstoelgebruiker", "niepełnosprawny", "niepełnosprawna"],
+    "other physical condition": ["obeso", "obesa", "obèse", "fettleibig", "adipös", "zwaarlijvig", "otyły", "otyła", "enfermo crónico", "enferma crónica", "doente crônico", "doente crônica", "doente crónico",
+                                 "doente crónica", "malade chronique", "chronisch krank", "malato cronico", "malata cronica", "chronisch ziek", "przewlekle chory", "przewlekle chora"],
+    "neurological condition": ["epiléptico", "epiléptica", "épileptique", "epileptiker", "epileptikerin", "epilettico", "epilettica", "epileptykiem"],
+    "hormonal or reproductive condition": ["infértil", "unfruchtbar", "onvruchtbaar", "bezpłodny", "bezpłodna"]})
+FOREIGN_IS = r"(?:soy|sou|je suis|ich bin|sono|jestem|ik ben)\s+(?:(?:un|una|um|uma|une|ein|eine|un'|een|tambien|también|também|aussi|auch|anche|też|ook)\s+)*"
+FOREIGN_PERSON = (r"(?:(?:hombre|mujer|chico|chica|persona|tipo|homem|mulher|cara|rapaz|menina|menino|garota|pessoa|homme|femme|mec|fille|gars|personne|mann|frau|typ|uomo|donna|ragazzo|ragazza|"
+                  r"vrouw|jongen|meisje|persoon|facet|kobieta|osoba)\s+)?")
+def leading(table):
+    return lambda match: None if match.start() and (match.string[match.start() - 1].isalnum() or match.string[match.start() - 1] in "'_") else table.get(match.group(1))
+
+
+FOREIGN_SELF_HEDGE = re.compile(SELF_HEDGE.pattern + r"|(?<![\w'])(?:no|nunca|jamás|ni|si|creo|quizá|quizás|tal vez|ojalá|não|nao|nem|se|acho|talvez|ne|n'|pas|jamais|nicht|kein|keine|nie|niemals|wenn|falls|ob|"
+                                r"vielleicht|non|mai|forse|niet|geen|nooit|misschien|jeśli|może|chyba)(?![\w'])")
 RULES += [
-    rule("mental_condition", rf"{FOREIGN_AM}({names(FOREIGN_MIND_STATES)})(?![\w'])", group(FOREIGN_MIND_STATES), SELF_HEDGE),
-    rule("mental_condition", r"\b(?:we|us)\W+(?:fellow |other )?(autistic|adhd|adhders|neurodivergent|nd|audhd|bipolar|ocd|anxious|depressed|dyslexic) (?:people|folks|adults|women|men|girls|guys|ones|kids|types|individuals|humans)\b",
+    rule("mental_condition", rf"{FOREIGN_AM}({names(FOREIGN_MIND_STATES)})(?![\w'])", leading(FOREIGN_MIND_STATES), FOREIGN_SELF_HEDGE),
+    rule("mental_condition", rf"{FOREIGN_IS}{FOREIGN_PERSON}({names(FOREIGN_MIND_EXTRA)})(?![\w'])", leading(FOREIGN_MIND_EXTRA), FOREIGN_SELF_HEDGE),
+    rule("physical_condition", rf"{FOREIGN_IS}{FOREIGN_PERSON}({names(FOREIGN_BODY_STATES)})(?![\w'])", leading(FOREIGN_BODY_STATES), FOREIGN_SELF_HEDGE),
+    rule("mental_condition", r"(?:we|us)(?<!\w(?:we|us))\W+(?:fellow |other )?(autistic|adhd|adhders|neurodivergent|nd|audhd|bipolar|ocd|anxious|depressed|dyslexic) (?:people|folks|adults|women|men|girls|guys|ones|kids|types|individuals|humans)\b",
          group({"autistic": "autism", "adhd": "adhd", "adhders": "adhd", "neurodivergent": "neurodivergent, unspecified", "nd": "neurodivergent, unspecified", "audhd": "both adhd and autism",
                 "bipolar": "bipolar disorder", "ocd": "ocd", "anxious": "anxiety", "depressed": "depression", "dyslexic": "dyslexia"}), SELF_HEDGE),
-    rule("mental_condition", rf"\b(?:i was|i've been|i got|i am|i'm|got|was|been|they|doctor|psychiatrist|therapist) (?:\w+ )?(?:diagnosed|dx'?d) (?:me )?(?:with|as)(?: an?)? ({names(MENTAL)})\b",
+    rule("mental_condition", rf"(?:i(?<!\wi)(?: was|'ve been| got| am|'m)|g(?<!\wg)ot|w(?<!\ww)as|b(?<!\wb)een|t(?<!\wt)(?:hey|herapist)|d(?<!\wd)octor|p(?<!\wp)sychiatrist) (?:\w+ )?(?:diagnosed|dx'?d) (?:me )?(?:with|as)(?: an?)? ({names(MENTAL)})\b",
          group(MENTAL), OTHERS),
-    rule("mental_condition", rf"\bi (?:also |still |do )?(?:have|have had|struggle with|deal with|live with)(?: an?)? ({names(MENTAL_WORDS)})\b(?! (?:to|with|of|that|for|in)\b)", group(MENTAL), OTHERS)]
+    rule("mental_condition", rf"i(?<!\wi) (?:also |still |do )?(?:have|have had|struggle with|deal with|live with)(?: an?)? ({names(MENTAL_WORDS)})\b(?! (?:to|with|of|that|for|in)\b)", group(MENTAL), OTHERS)]
 
 BOT_SELF = (r"(?:\bi(?:'m| am)[\s^]+a[\s^]+bot\b|\bthis is a bot\b|\bperformed[\s^]+automatically\b|\bsou um bot\b|\bsoy un bot\b|\bbeep boop\b|\bbleep bloop\b|"
             r"\bthis is an? (?:automated|automatic) (?:message|response|reply|comment|process)\b|\bthis message is an automat\w+ response\b)")
@@ -694,6 +725,86 @@ def owned(lowered, sentence, found, families):
                 previous = None
 
 
+FOREIGN_LABELS = {}
+for language_code, label, attribute, value in (line.split("\t") for line in Path(__file__).with_name("foreign_conditions.tsv").read_text(encoding="utf-8").splitlines()):
+    FOREIGN_LABELS.setdefault(language_code, {})[label] = (attribute, value)
+for labels in FOREIGN_LABELS.values():
+    labels.update({name: pair for name, pair in {**{name: ("mental_condition", value) for name, value in {**FOREIGN_MIND_STATES, **FOREIGN_MIND_EXTRA}.items()},
+                                                 **{name: ("physical_condition", value) for name, value in FOREIGN_BODY_STATES.items()}}.items() if name not in labels})
+FOREIGN_LONGEST = {language_code: max(label.count(" ") + 1 for label in labels) for language_code, labels in FOREIGN_LABELS.items()}
+LANGUAGE_WORDS = {language_code: set(words.split()) for language_code, words in {
+    "es": "que los las por para pero muy una está también porque cuando tengo estoy del más como eso esto hay todo yo mi mis él ella nos",
+    "pt": "que os por para mas muito uma está também porque quando tenho estou mais como isso isto tem sem tudo eu meu minha você não são",
+    "fr": "que les mais très une est aussi parce quand j'ai suis comme ça cette tout je moi mes pas avec des du qui",
+    "de": "und ich nicht ist das der mit auch ein eine aber sehr habe mein meine wenn oder sich auf für noch nur wie",
+    "it": "che ma molto una anche perché quando sono più come questo tutto io mio mia della del gli il",
+    "nl": "het een en ik niet voor maar ook heb mijn zijn je nog",
+    "pl": "nie się jest że jak jestem mnie mój moja tak czy już po"}.items()}
+FOREIGN_TYPES = frozenset().union(*LANGUAGE_WORDS.values())
+ENGLISH_TYPES = frozenset("the and is to of it you that in my this for was with but have are not be on just so what like me at they he she if do can".split())
+FOREIGN_CUES = {
+    "es": r"(?:soy|estoy) (?:una? )?(?:persona|hombre|mujer|chico|chica|tipo|alguien|paciente) (?:con|que tiene|que padece|que sufre de)|tengo|padezco(?: de)?|sufro(?: de| con)?|convivo con|vivo con|lucho contra|"
+          r"me diagnosticaron(?: con| de)?|me han diagnosticado(?: con| de)?|fui diagnosticad[oa](?: con| de)?|estoy diagnosticad[oa](?: con| de)?|mis?|mí|(?:soy|estoy)(?: una?)?(?: (?:hombre|mujer|chico|chica|persona|tipo|paciente))?",
+    "pt": r"(?:sou|estou) (?:uma? )?(?:pessoa|homem|mulher|cara|menino|menina|rapaz|garota|paciente) (?:com|que tem|que sofre de)|tenho|sofro(?: de| com)?|convivo com|vivo com|luto contra|fui diagnosticad[oa](?: com)?|"
+          r"me diagnosticaram(?: com)?|meus?|minhas?|(?:sou|estou)(?: uma?)?(?: (?:homem|mulher|cara|menino|menina|rapaz|garota|pessoa|paciente))?",
+    "fr": r"je suis (?:une? )?(?:personne|homme|femme|mec|fille|gars|patiente?) (?:avec|atteinte? (?:de|d'))|j'ai été diagnostiquée?(?: avec)?|je suis diagnostiquée?|j'ai|je souffre (?:de|d')|je vis avec|on m'a diagnostiqué|"
+          r"mon|ma|mes|je suis(?: une?)?(?: (?:homme|femme|mec|fille|gars|personne|patiente?))?",
+    "de": r"ich bin (?:ein |eine )?(?:mensch|mann|frau|typ|person|patient|patientin) mit|(?:ich )?hab(?:e)?(?: ich)?|ich leide (?:an|unter)|leide ich (?:an|unter)|ich lebe mit|mein|meine|meinen|meinem|meiner|"
+          r"(?:ich )?bin(?: ich)?(?: eine?)?(?: (?:mann|frau|typ|person|patient|patientin))?",
+    "it": r"sono (?:una? |un' )?(?:persona|uomo|donna|ragazzo|ragazza|paziente) (?:con|che ha|che soffre di)|sono stat[oa] diagnosticat[oa](?: con)?|ho|soffro di|convivo con|mi hanno diagnosticato|mi è stat[oa] diagnosticat[oa]|"
+          r"(?:il |la |i |le )?(?:mio|mia|miei|mie)|sono(?: una?| un')?(?: (?:uomo|donna|ragazzo|ragazza|persona|paziente))?",
+    "nl": r"ik ben (?:een )?(?:persoon|man|vrouw|jongen|meisje|patiënt) met|ik heb|heb ik|ik lijd aan|ik leef met|mijn|m'n|ik ben(?: een)?(?: (?:man|vrouw|jongen|meisje|persoon|patiënt))?|ben ik",
+    "pl": r"mam|cierpię na|choruję na|zdiagnozowano u mnie|mój|moja|moje|jestem"}
+FOREIGN_FILL = {
+    "es": r"un|una|el|la|los|las|mucha|mucho|muchos|muchas|algo de|un poco de|problemas de|problemas con|también|tambien|ya|severa|severo|grave|leve|fuerte",
+    "pt": r"um|uma|o|a|os|as|muita|muito|problemas de|problemas com|também|tambem|já|grave|leve|forte",
+    "fr": r"un|une|le|la|les|des|du|de|d'|l'|un peu de|beaucoup de|problèmes de|problèmes d'|aussi|déjà|grave|sévère|léger|légère|forte|fort",
+    "de": r"eine|einen|ein|einer|die|den|das|auch|schon|starke|starken|leichte|leichten|schwere|schweren|chronische|chronischen|probleme mit",
+    "it": r"un|una|uno|un'|il|la|lo|l'|i|le|gli|problemi di|problemi con|anche|già|grave|lieve|forte",
+    "nl": r"een|de|het|ook|al|ernstige|lichte|chronische|last van|zware",
+    "pl": r"też|już"}
+FOREIGN_HEDGES = {
+    "es": r"no|nunca|jamás|ni|si|creo|creía|quizá|quizás|tal vez|ojalá|puede que|sospecho|como si",
+    "pt": r"não|nao|nunca|jamais|nem|se|acho|achava|talvez|será|suspeito|como se",
+    "fr": r"ne|n'|pas|jamais|si|peut-être|pense|crois|croyais|soupçonne|comme si",
+    "de": r"nicht|kein|keine|keinen|keiner|nie|niemals|wenn|falls|ob|vielleicht|glaube|denke|vermute|vermutlich|wahrscheinlich",
+    "it": r"non|mai|se|forse|credo|penso|pensavo|sospetto|come se",
+    "nl": r"niet|geen|nooit|als|of|misschien|denk|geloof|vermoed|waarschijnlijk",
+    "pl": r"nie|jeśli|jeżeli|może|chyba|myślę|podejrzewam"}
+FOREIGN_CUE = {language_code: re.compile(rf"(?<![\w'])(?:{cue})(?:\s+|(?<='))(?:(?:{FOREIGN_FILL[language_code]})(?:\s+|(?<=')))*+") for language_code, cue in FOREIGN_CUES.items()}
+FOREIGN_HEDGE = {language_code: re.compile(rf"(?<![\w'])(?:{words})(?![\w'])") for language_code, words in FOREIGN_HEDGES.items()}
+FOREIGN_END = re.compile(r"[.;:!?()\[\]\"\n]")
+FOREIGN_TOKEN = re.compile(r"[\w'-]+|[^\w\s]")
+FOREIGN_LINKS = {",", "/", "+", "&", "y", "e", "et", "und", "en", "i", "oraz"}
+FOREIGN_FILLS = {code: {word for word in fill.split("|") if " " not in word} for code, fill in FOREIGN_FILL.items()}
+
+
+def language(lowered):
+    words = lowered.split()
+    if len(FOREIGN_TYPES.intersection(words)) < 3:
+        return None
+    code, count = Counter(code for word in words for code, vocabulary in LANGUAGE_WORDS.items() if word in vocabulary).most_common(1)[0]
+    return code if count > sum(word in ENGLISH_TYPES for word in words) else None
+
+
+def foreign(lowered, found):
+    if not (code := language(lowered)):
+        return
+    labels, longest, hedge, fills = FOREIGN_LABELS[code], FOREIGN_LONGEST[code], FOREIGN_HEDGE[code], FOREIGN_FILLS[code]
+    for match in FOREIGN_CUE[code].finditer(lowered):
+        if hedge.search(lowered, clause(lowered, match.start()), match.start()) or question(lowered, match.end()) or quoted(lowered, match.start()):
+            continue
+        stop = FOREIGN_END.search(lowered, match.end())
+        tokens, index = FOREIGN_TOKEN.findall(lowered, match.end(), stop.start() if stop else len(lowered)), 0
+        while size := next((size for size in range(min(longest, len(tokens) - index), 0, -1) if " ".join(tokens[index:index + size]) in labels), 0):
+            found.setdefault(labels[" ".join(tokens[index:index + size])], match.start())
+            index += size
+            if index >= len(tokens) or tokens[index] not in FOREIGN_LINKS:
+                break
+            while index < len(tokens) and (tokens[index] in FOREIGN_LINKS or tokens[index] in fills):
+                index += 1
+
+
 def ailments(lowered, found):
     speaker = FIRST_PERSON.search(lowered)
     moody = speaker and MOOD_NAMES.search(lowered)
@@ -732,6 +843,7 @@ def ailments(lowered, found):
             if OTHERS.search(window, scoped(window)) or value in NEURO and (OWN_HEDGE.search(part) or GENERIC.match(part, after) or match.group(1) == "autistic" and ATTRIBUTIVE.match(part, after)):
                 continue
             found.setdefault(("mental_condition", value), sentence.start() + match.start())
+    foreign(lowered, found)
     if ASTROLOGY.search(lowered):
         found.pop(("physical_condition", "cancer"), None)
     if (key := ("mental_condition", "both adhd and autism")) in found:

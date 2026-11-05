@@ -330,7 +330,7 @@ def spot(text, start, skip, block, titles):
         return None
     tokens = [(token.group(), token.end()) for token in TOKEN.finditer(text, start, run.end())]
     names = [name for name, _ in tokens]
-    for offset in range(min(skip + 1, len(names))):
+    for offset in range(len(names) if skip is None else min(skip + 1, len(names))):
         if names[offset] in block:
             return None
         for size in range(min(6, len(names) - offset), 0, -1):
@@ -346,7 +346,7 @@ def spotted(text, start, skip):
     return spot(text, start, skip, BLOCK, TITLES)
 
 
-def title(text, start, skip=3, titles=TITLES):
+def title(text, start, skip=None, titles=TITLES):
     found = spotted(text, start, skip)
     return found and (titles[found[0]], found[1])
 
@@ -762,15 +762,15 @@ OTHERS = re.compile(rf"\b(?:{KIN}|you|your|u|someone|anyone|everyone|everybody|n
 
 
 def mine(value):
-    return lambda match: value(match) if not OTHERS.search(match.string, max(clause(match.string, match.start()), match.start() - 40), match.start()) else None
+    return lambda match: value(match) if not OTHERS.search(match.string, clause(match.string, match.start()), match.start()) else None
 
 
-def near(value, reach):
-    def found(match):
-        text, start = match.string, match.start()
-        left = max(max(text.rfind(mark, 0, start) for mark in ".!?\n") + 1, start - reach)
-        return value(match) if FIRST_NEAR.search(text, left, start) else None
-    return found
+def sentence(text, start):
+    return max(text.rfind(mark, 0, start) for mark in ".!?\n") + 1
+
+
+def near(value):
+    return lambda match: value(match) if FIRST_NEAR.search(match.string, sentence(match.string, match.start()), match.start()) else None
 
 
 WORKLIFE = [
@@ -783,7 +783,7 @@ WORKLIFE = [
     r"\b(?:i|i'm|im|i've|ive)\b[^.!?\n]{0,25}?\b(?:a|long|night|day|double|late|early|morning|evening|closing|opening|graveyard|overnight|\d+ ?(?:hr|hour)|\d+-hour|twelve[- ]hour) shifts?\b|"
     r"\b(?:got|get|getting|coming|came|home) off (?:a |my |the )?(?:\w+ )?shift\b|\bbusy with work\b",
 ]
-SELF_WORK = [(r"\b(?:off|from) work\b", 30), (r"(?=for work)(?<!looking )(?<!look )(?<!searching )(?<!search )(?<!apply )(?<!applying )(?<!ready )(?<!late )(?<!hunting )\bfor work\b(?! (?:to|that|in|at|on|online)\b)", 40),(r"\b(?:work|working) (?:full[- ]time|part[- ]time|\d+ days a week|\d+ hours a week|\d+ ?hrs a week)\b", 60)]
+SELF_WORK = [r"\b(?:off|from) work\b", r"(?=for work)(?<!looking )(?<!look )(?<!searching )(?<!search )(?<!apply )(?<!applying )(?<!ready )(?<!late )(?<!hunting )\bfor work\b(?! (?:to|that|in|at|on|online)\b)", r"\b(?:work|working) (?:full[- ]time|part[- ]time|\d+ days a week|\d+ hours a week|\d+ ?hrs a week)\b"]
 SELLING = [
     r"\b(?:i'm |im |i am |i )?(?:selling|sell) (?:my )?(?:[\w-]+ ){0,2}?(?:nudes|pics|pictures|videos|vids|content|premades|pre-mades|pre mades|sex tapes|gfe|customs|sexting)\b|"
     r"\boffering (?:[\w-]+,? ){0,3}?(?:sexting|customs?|content|gfe|video calls|facetime)\b",
@@ -820,7 +820,7 @@ RULES = [
     *(rule("employment_status", pattern, scoped(fixed("student")), TAGGED) for pattern in (*STUDENT, *STUDENT_TWINS)),
     rule("employment_status", CAMPUS, scoped(fixed("student")), SELF_HEDGE),
     *(rule("employment_status", pattern, scoped(mine(fixed("employed"))), TAGGED) for pattern in WORKLIFE),
-    *(rule("employment_status", pattern, scoped(mine(near(fixed("employed"), reach))), TAGGED) for pattern, reach in SELF_WORK),
+    *(rule("employment_status", pattern, scoped(mine(near(fixed("employed")))), TAGGED) for pattern in SELF_WORK),
     *(rule("employment_status", pattern, scoped(fixed(OWNER), played=True), TAGGED) for pattern in SELLING),
     *(rule("occupation", pattern, scoped(fixed(ADULT), played=True), TAGGED) for pattern in SELLING),
     *(rule("employment_status", pattern, scoped(fixed(OWNER)), TAGGED) for pattern in OWNERS),
@@ -1028,8 +1028,8 @@ RULES += [
 ]
 TERM = r"\b(?:this|next) (?:semester|quarter|sem)\b|\bcurrently (?:studying|pursuing|enrolled|doing (?:my|a|an) (?:degree|bachelor'?s|masters?|master's|bsc|ba|bs|btech|undergrad))\b"
 RULES += [
-    said("employment_status", TERM, near(fixed("student"), 40)),
-    said("education", TERM, near(fixed("college student"), 40)),
+    said("employment_status", TERM, near(fixed("student"))),
+    said("education", TERM, near(fixed("college student"))),
 ]
 
 

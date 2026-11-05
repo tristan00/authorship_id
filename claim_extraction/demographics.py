@@ -168,6 +168,14 @@ def tags(text, lowered, found):
     tagged = LOOKING.search(lowered, 0, 300) or AGED.search(lowered, 0, 120) or WORDED.search(lowered, 0, 120) or BRACKETED.search(lowered, 0, 120) or re.match(r"\W*\d{2},?\s|\W*[\[\(]\d{2}[\]\)]", lowered) or YEARS_OLD.search(lowered, 0, 80) or SIZED.search(lowered, 0, 120) or COLORED.search(lowered, 0, 120)
     signed = tagged or any(attribute == "age" for attribute, _ in found)
     speaking = signed or re.match(r"\W*(?:i'm|im|i am)\b", lowered)
+    if speaking or AD.search(line(lowered, 0)):
+        for match in DESCRIBED.finditer(lowered):
+            before = lowered[max(0, match.start(1) - 24):match.start(1)]
+            if (match.group(1) in STURDY or not (GIRTH.search(before) or PHALLIC.match(lowered, match.end(1)))) and not PARTY.search(before) and not desired(lowered, match.start(1)):
+                found.setdefault(("body_type", BODIES.get(match.group(1)) or SHAPES[match.group(1)]), match.start())
+        for match in SHAPED.finditer(lowered):
+            if not WANTED.search(lowered, max(0, match.start() - 20), match.start()) and (match.group(1) in STURDY or not (GIRTH.search(lowered[max(0, match.start(1) - 24):match.start(1)]) or PHALLIC.match(lowered, match.end(1)))) and not desired(lowered, match.start(1)):
+                found.setdefault(("body_type", BODIES.get(match.group(1)) or SHAPES[match.group(1)]), match.start())
     if not speaking:
         for match in METRIC.finditer(lowered, 0, played):
             if (owned(lowered, match.start()) or FIRST.search(sentence(lowered, match.start(), match.end())) or WEIGHED.search(line(lowered, match.start()))) and not desired(lowered, match.start()) and not COMPARED.search(SENTENCE.split(lowered[max(0, match.start() - 25):match.start()])[-1]):
@@ -176,17 +184,10 @@ def tags(text, lowered, found):
             if (match.group(2) or match.group(3)) and int(match.group(2) or match.group(3)) < 12 and (owned(lowered, match.start()) or FIRST.search(sentence(lowered, match.start(), match.end())) or WEIGHED.search(line(lowered, match.start()))) and not desired(lowered, match.start()) and not COMPARED.search(SENTENCE.split(lowered[max(0, match.start() - 25):match.start()])[-1]) and not re.match(r"\s*(?:-|–|to|or)\s*\d", lowered[match.end():]):
                 found.setdefault(("height", str(round((int(match.group(1)) * 12 + int(match.group(2) or match.group(3))) * 2.54))), match.start())
     else:
-        for match in DESCRIBED.finditer(lowered):
-            before = lowered[max(0, match.start(1) - 24):match.start(1)]
-            if (match.group(1) in STURDY or not (GIRTH.search(before) or PHALLIC.match(lowered, match.end(1)))) and not PARTY.search(before) and not desired(lowered, match.start(1)):
-                found.setdefault(("body_type", BODIES.get(match.group(1)) or SHAPES[match.group(1)]), match.start())
         if tagged and not automatic:
             for match in ORIENTED.finditer(lowered, 0, 1500):
                 if not desired(lowered, match.start()) and not PARTY.search(lowered[max(0, match.start() - 24):match.start()]) and not re.match(rf" (?:\w+ ){{0,2}}{CROWD}", lowered[match.end():]):
                     found.setdefault(("sexual_orientation", ORIENTATIONS[match.group(1)]), match.start())
-        for match in SHAPED.finditer(lowered):
-            if not WANTED.search(lowered, max(0, match.start() - 20), match.start()) and (match.group(1) in STURDY or not (GIRTH.search(lowered[max(0, match.start(1) - 24):match.start(1)]) or PHALLIC.match(lowered, match.end(1)))) and not desired(lowered, match.start(1)):
-                found.setdefault(("body_type", BODIES.get(match.group(1)) or SHAPES[match.group(1)]), match.start())
         for match in ETHNIC.finditer(lowered if signed else ""):
             if not PARTY.search(lowered[max(0, match.start() - 24):match.start()]) and not desired(lowered, match.start()):
                 found.setdefault(("ethnicity", ETHNICITIES.get(match.group(1) or match.group(2)) or COLORS[match.group(2)]), match.start())
@@ -263,6 +264,19 @@ def ages(value):
     return value if value and value.isascii() and 13 <= int(value) <= 99 else None
 
 
+FOREIGN_GENDERS = {**dict.fromkeys(("hombre", "chico", "muchacho", "señor", "papá", "padre", "esposo", "homem", "rapaz", "menino", "pai", "marido", "homme", "mec", "gars", "garçon", "papa", "père", "mann", "junge", "kerl", "vater",
+                                     "uomo", "ragazzo", "papà", "jongen", "vader", "kille", "mężczyzną", "facetem", "chłopakiem", "ojcem", "tatą", "парень", "мужчина", "хлопець", "чоловік", "ladka", "mard", "cowok", "pria", "lelaki", "راجل", "رجل", "ولد"), "male"),
+                   **dict.fromkeys(("mujer", "chica", "muchacha", "señora", "mamá", "madre", "esposa", "mulher", "moça", "menina", "garota", "mãe", "femme", "fille", "maman", "mère", "frau", "mädchen", "mutter", "donna", "ragazza", "mamma",
+                                    "vrouw", "meisje", "moeder", "kvinna", "tjej", "kobietą", "dziewczyną", "matką", "mamą", "девушка", "женщина", "дівчина", "жінка", "ladki", "aurat", "cewek", "perempuan", "wanita", "بنت", "امرأة", "ست"), "female"),
+                   "erkeğim": "male", "kadınım": "female"}
+FOREIGN_GENDER = "|".join(sorted(FOREIGN_GENDERS, key=len, reverse=True))
+NEGATED = r"(?!(?:no|não|nao|pas|nicht|kein|keine|niet|geen|inte|nie|не|non|nunca|jamais)\b)"
+OWNERS = r"(?!(?:tuo|tua|tu|su|sus|seu|sua|ton|ta|votre|ma|mon|mi|meu|minha|mio|mia|dein|deine|mein|meine|jouw|je|mijn|din|ditt|min|mitt|twoja|twój|mój|moja)\b)"
+ROMANCE = re.compile(r"\b(?:que|para|com|con|não|por|una|uma|um|est|é|és|pour|avec|je|eu|yo|sou|soy|muy|mais|más|aqui|aquí|ici)\b")
+HOMBRE = r"h(?<!\wh) ?(\d{2})\)?(?![\w'%])"
+OPENED = re.compile(r"(?:^|[.!?,:\n]|\b(?:soy|sou|sono|je suis)(?: un| una| um| uma| une)?) *$")
+NOUNED = r"(h(?<!\wh)(?:omme|ombre|omem)|f(?<!\wf)emme|m(?<!\wm)(?:ujer|ulher)|u(?<!\wu)omo|d(?<!\wd)onna) (?:de|di) (\d{2})\b(?! ?(?:kg|cm|€|%))"
+FOREIGN_SELF = rf"(?:(?:soy|sou|sono|saya|je suis|jestem|jag är|ich bin|ik ben|aku|eu sendo|yo siendo) (?:{NEGATED}{OWNERS}[^\W\d_]+ ){{0,2}}?|(?:я|انا|أنا) |(?:eu|yo|moi|ich|io|ik|jag), |(?:main|mai) (?:bhi |ek )?(?=\w+ h(?:u|oon|un|oo)\b)|(?:als|como|som) (?=(?:mann|frau|hombre|mujer|homem|mulher|kvinna|vrouw)(?![\w-])(?! (?:de|da|do|di|von|der|des)\b))|en tant que (?=homme|femme))({FOREIGN_GENDER})(?![\w-])"
 LISTED = rf"{IM} [^.!?\n;]{{0,40}}?"
 BORN = re.compile(r"(?:(?<![^\W_])i was |(?<![^\W_])(?:^|[.!?\n]) *)$")
 CONFESSED = re.compile(rf"{IM} (?:just |also |kinda |a bit |a little |a |an )?$")
@@ -334,8 +348,10 @@ GENDER = [
     said("gender", r"(?:^|[\s,(\[])(t4[mfat]|ts girl|tgirl|trans girl|transgirl|mtf|ftm|trans guy|transman|transwoman)\b|^\W*(agender|non-?binary|enby|genderfluid|genderqueer)\b|\b(domme|dominatrix|mistress)\b(?= (?:here|looking|seeking|available|for)\b)",
          alone(mine(lambda match: None if question(match.string, match.end()) else GENDERS.get(match.group(1), "trans woman") if match.group(1) and not match.group(1).startswith("t4") else "trans woman" if match.group(1) else GENDERS[match.group(2).replace("nonbinary", "non-binary")] if match.group(2) else "female")), SELF_HEDGE),
     said("gender", TRAILING, lambda match: GENDERS[match.group(1) or match.group(4) or match.group(5)], TAGGED),
-    said("gender", r"\b(?:soy|sou) (?:un |una |uma |um )?(hombre|mujer|chica|chico|homem|mulher)\b|\bje suis une? (homme|femme)\b|\bich bin (?:ein |eine )?(mann|frau)\b",
-         lambda match: {"hombre": "male", "chico": "male", "homem": "male", "homme": "male", "mann": "male"}.get(next(filter(None, match.groups())), "female")),
+    said("gender", rf"[^\w-](?=[sjiaeymckяاأ])(?:{FOREIGN_SELF}|(erkeğim|kadınım)(?![\w-]))",lambda match: FOREIGN_GENDERS[next(filter(None, match.groups()))]),
+    said("gender", rf"^\W*(?:{FOREIGN_SELF}|(erkeğim|kadınım)(?![\w-])|(vrouw|homme|femme|mujer|hombre|chica|chico|frau|mann|mulher|homem)\W{{1,3}}\d{{2}}\b)", lambda match: FOREIGN_GENDERS[next(filter(None, match.groups()))]),
+    said("gender", NOUNED, lambda match: FOREIGN_GENDERS[match.group(1)] if OPENED.search(match.string[:match.start()]) else None),
+    said("gender", HOMBRE, lambda match: "male" if ages(match.group(1)) and ROMANCE.search(match.string) and re.search(r"(?:^\W*|\b(?:sou|soy|eu|yo|je suis|moi)\W{1,2})\(?$", match.string[:match.start()]) else None, TAGGED),
     said("gender", r"\b(?:we|us|we're|we are) (?:as |fellow |other |older |younger |black |white |gay |straight |trans |single |married |tall |short )?(men|women|guys|girls|ladies|dudes|females|males|moms|dads|mothers|fathers|wives|husbands)\b", group(GENDERS)),
     said("gender", r"i(?<!\wi)(?: have| got|'ve got| ve got|'ve| have got) (?:an? )?(?:[\w-]+,? ){0,3}?(cock|dick|penis|pussy|vagina|clit|tits|boobs|breasts)\b", lambda match: ANATOMY[match.group(1)]),
     said("gender", r"my(?<!\wmy) (?:(?!(?:wife|wifes|husband|hubby|gf|bf|girlfriend|boyfriend|partner|friend|friends|sister|brother|mom|dad|son|daughter|girl|guy|man|woman|lady|ex|and|or|with|in|on|to|your|his|her)\b)[\w-]+,? ){0,3}?(cock|dick|penis|balls|foreskin|bwc|bbc|pussy|vagina|clit|tits|boobs|breasts)\b", lambda match: None if question(match.string, match.end()) else ANATOMY[match.group(1)]),

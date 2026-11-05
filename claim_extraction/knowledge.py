@@ -59,6 +59,12 @@ SCREEN_AND_COMIC_CLASSES = ("Q21198342", "Q14406742", "Q196600", "Q24856", "Q539
 WRITTEN = """SELECT ?label ?name WHERE {{ VALUES ?class {{ {classes} }} ?item wdt:{property} ?class ; wikibase:sitelinks ?links ; wdt:P50 ?author . FILTER(?links >= {minimum})
 FILTER NOT EXISTS {{ ?item wdt:P31/wdt:P279* ?other . VALUES ?other {{ {excluded} }} }}
 ?item rdfs:label ?label FILTER(LANG(?label) = "en") ?author rdfs:label ?name FILTER(LANG(?name) = "en") }}"""
+FILMS = Path(__file__).with_name("films.tsv")
+FILM_SOURCES = (Source("film", "P31", "Q11424", True, "franchise", 10),)
+CLUBS = Path(__file__).with_name("clubs.tsv")
+CLUB_SOURCES = (Source("sports team", "P31", "Q12973014", True, "sports_team", 20), Source("sports club", "P31", "Q847017", True, "sports_team", 20))
+NONWORD_TITLES = Path(__file__).with_name("nonword_titles.tsv")
+TITLE_ATTRIBUTES = frozenset({"franchise", "video_game"})
 GAME_SERIES = Path(__file__).with_name("game_series.tsv")
 GAME_SOURCES = frozenset({"video game"})
 SERIES = """SELECT ?label ?name WHERE {{ VALUES ?class {{ {classes} }} ?item wdt:{property} ?class ; wikibase:sitelinks ?links ; wdt:P179 ?series . FILTER(?links >= {minimum})
@@ -194,7 +200,36 @@ def generate(target=TARGET, sources=SOURCES):
             out.write(f"{key}\t{attribute}\t{value}\t{links}\t{'|'.join(sorted(cased))}\t{'1' if common else ''}\n")
 
 
+@timed
+def generate_films(target=FILMS, sources=FILM_SOURCES):
+    generate(target, sources)
+
+
+@timed
+def generate_clubs(target=CLUBS, sources=CLUB_SOURCES):
+    generate(target, sources)
+
+
+@timed
+def generate_nonword_titles(target=NONWORD_TITLES, lexicon=TARGET):
+    nltk.download("wordnet", quiet=True)
+    dictionary = frozenset(nltk.corpus.wordnet.all_lemma_names())
+    forms = set()
+    with open(lexicon, encoding="utf-8") as rows:
+        next(rows)
+        for line in rows:
+            key, attribute, value, links, surfaces, common = line.rstrip("\n").split("\t")
+            if attribute in TITLE_ATTRIBUTES:
+                forms.update(form for surface in filter(None, surfaces.split("|")) if " " not in surface and (form := surface.lower()).capitalize() == surface and form not in dictionary)
+    with open(target, "w", encoding="utf-8", newline="\n") as out:
+        out.write("form\n")
+        out.writelines(form + "\n" for form in sorted(forms))
+
+
 if __name__ == "__main__":
     generate(Path(sys.argv[1]) if len(sys.argv) > 1 else TARGET)
     generate_book_authors()
     generate_game_series()
+    generate_films()
+    generate_clubs()
+    generate_nonword_titles()
