@@ -325,6 +325,7 @@ TEAMS = (NFL_TEAMS_2025, NBA_TEAMS_2025, MLB_TEAMS_2025, NHL_TEAMS_2025, MLS_TEA
          LIGUE_1_TEAMS_2025, IPL_TEAMS_2025)
 KNOWLEDGE = Path(__file__).with_name("knowledge.tsv")
 AUTHOR_OF_BOOK = dict(line.split("\t") for line in Path(__file__).with_name("book_authors.tsv").read_text(encoding="utf-8").splitlines()[1:])
+SERIES_OF_GAME = dict(line.split("\t") for line in Path(__file__).with_name("game_series.tsv").read_text(encoding="utf-8").splitlines()[1:])
 PLACES = frozenset(line.split("\t", 1)[0] for line in Path(__file__).with_name("gazetteer.tsv").read_text(encoding="utf-8").splitlines()[1:])
 SHORT_KEY = 3
 LOOSE = frozenset({"video_game"})
@@ -355,7 +356,7 @@ def table():
         next(rows)
         for line in rows:
             key, attribute, value, links, surfaces, common = line.rstrip("\n").split("\t")
-            entry = (attribute, value, bool(surfaces), common == "1" or len(key) <= SHORT_KEY, int(links))
+            entry = (attribute, value, bool(surfaces), common == "1" or len(key) <= SHORT_KEY and not (any(char.isdigit() for char in key) and LETTERS.search(key)), int(links))
             for surface in surfaces.split("|") if surfaces else ():
                 cased.setdefault(surface, []).append(entry)
             if not surfaces or (attribute in LOOSE and common == "1" and " " in key.removeprefix("the ")):
@@ -394,10 +395,23 @@ def raised():
     for surface, entries in CASED.items():
         if " " not in surface and surface.lower().capitalize() == surface and (famous := [entry for entry in entries if entry[0] in TITLES and not entry[3] and entry[4] >= FAMOUS_SITELINKS]):
             lowered[surface.lower()] = famous
+        elif " " not in surface and any(char.isdigit() for char in surface) and LETTERS.search(surface) and (coded := [entry for entry in entries if entry[0] in TITLES and not entry[3]]):
+            lowered.setdefault(surface.lower(), coded)
     return lowered
 
 
 RAISED = raised()
+
+
+def sentence_cased():
+    forms = {}
+    for surface, entries in CASED.items():
+        if " " in surface and (form := surface[0] + surface[1:].lower()) != surface and form not in CASED and (artists := [entry for entry in entries if entry[0] == "artist"]):
+            forms.setdefault(form, []).extend(artists)
+    return forms
+
+
+SENTENCE_CASED = sentence_cased()
 
 
 def mentions(text):
@@ -408,7 +422,8 @@ def mentions(text):
     while index < total:
         found, size, key, surface = None, 1, lows[index], shown[index]
         while key in PREFIXES:
-            plain, cased = PLAIN.get(key), CASED.get(surface) or size == 1 and RAISED.get(surface) or None
+            plain = PLAIN.get(key)
+            cased = CASED.get(surface) or size == 1 and RAISED.get(surface) or not plain and SENTENCE_CASED.get(surface) or None
             if plain or cased:
                 found = size, (plain or []) + (cased or [])
             if index + size == total:
@@ -456,20 +471,24 @@ def praised(text, start, end):
     return bool(POSITIVE.search(text, left, right)) and not NEGATIVE.search(text, left, right) and text[right:right + 1] != "?"
 
 
+PRODROP = re.compile(r"[\W_]*(?i:(?:still|currently|just|finally|also|now|recently|been|really|absolutely|honestly) )*(?i:(love|loved|loving|enjoyed|enjoying|digging)|playing|played|replaying|replayed|finished|finishing|watching|watched|rewatching|rewatched|reading|rereading|listening to|listened to|started|bought)\b")
+
+
 def engaged(text, start, end, attribute, popular, plain):
     left, right = narrow = sentence(text, start, end)
-    if text[right:right + 1] == "?" or attribute == "athlete" and not SELF.search(text, *narrow):
+    dropped = attribute in TITLES and clause(text, start) <= left and PRODROP.match(text, left, start)
+    if text[right:right + 1] == "?" or attribute == "athlete" and not (SELF.search(text, *narrow) or dropped):
         return False
     if plain and attribute == "franchise":
-        return bool(POSITIVE.search(text, *narrow))
+        return bool(POSITIVE.search(text, *narrow) or dropped and dropped.group(1))
     if attribute in DONE and (" " in text[start:end] or attribute == "artist" or attribute == "video_game" and not popular):
         left, right = max(0, left - 100), right + 100
-    if POSITIVE.search(text, left, right):
+    if POSITIVE.search(text, left, right) or dropped and dropped.group(1):
         return True
     if attribute in DONE and not popular:
         scope = (left, right) if attribute == "video_game" else narrow
-        return bool(SELF.search(text, *scope) and DONE[attribute].search(text, *scope))
-    return attribute not in CHEERED and bool(SELF.search(text, left, right))
+        return bool((SELF.search(text, *scope) or dropped) and DONE[attribute].search(text, *scope))
+    return attribute not in CHEERED and bool(SELF.search(text, left, right) or dropped)
 
 
 BACKING = re.compile(r"(?i:\b(?:my|our|go|let'?s go|lets go|up the|c'?mon|come on|i (?:love|support|root for|cheer for|follow)|fan of|rooting for|cheering for|supporter of)(?: the| my| our| beloved| boys)?\s*$)")
@@ -504,7 +523,7 @@ def chosen(text, start, options, totals):
     return [option for score, option in scored if score or option[0] != "video_game"]
 
 
-FAVOURED = re.compile(r"(?i:fav(?<!least fav)(?<!\wfav)(?:ou?rites?|es?|s)?\b[^\n:]*:)")
+FAVOURED = re.compile(r"(?i:fav(?<!least fav)(?<!\wfav)(?:ou?rites?|es?|s)?\b[^\n:]*:|\^\(likes?:)")
 
 
 def favoured(segments, start):
@@ -581,6 +600,8 @@ def known(text, found):
             named(attribute, shown(text[start:end], value), found, start)
             if attribute == "franchise" and (writer := AUTHOR_OF_BOOK.get(value)) and AUTHORING.search(text) and praised(text, start, end):
                 named("author", writer, found, start)
+            if attribute == "video_game" and value in SERIES_OF_GAME:
+                named("franchise", SERIES_OF_GAME[value], found, start)
             for other in ALSO.get(attribute, ()):
                 if (start, end, other) in readings:
                     named(other, shown(text[start:end], readings[start, end, other]), found, start)

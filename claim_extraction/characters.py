@@ -145,6 +145,7 @@ def rule(pattern, gate, needs):
     return stage
 
 
+BLANK = re.compile(r"\n[ \t]*\n")
 REFERRED = re.compile(r"(?i:\bi (?:\w+ ){0,2}(?:love|adore|like|stan|loved|adored|liked|enjoy|miss|respect) (?:her|him)\b)")
 PRONOUN_I = re.compile(r"I(?:'m|'ve|'d|'ll)?$")
 
@@ -154,12 +155,12 @@ def referred(text, found, lowered, words):
         return
     for match in REFERRED.finditer(text):
         if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
-            names = [name.group(1) for name in re.finditer(NAME, text[max(0, match.start() - 200):match.start()]) if not PRONOUN_I.match(name.group(1)) and any(pieces(name.group(1)))]
+            names = [name.group(1) for name in re.finditer(NAME, text[max((blank.end() for blank in BLANK.finditer(text, 0, match.start())), default=0):match.start()]) if not PRONOUN_I.match(name.group(1)) and any(pieces(name.group(1)))]
             if names:
                 emit(names[-1], found, text, match.start(), "medium")
 
 
-NEAR = 40
+PARAGRAPH = re.compile(r"(?:[^\n]|\n(?![ \t]*\n))+")
 
 
 CUES = frozenset("love loved adore adored enjoy enjoyed like liked dig recommend second rewatched replayed obsessed addicted into fan hooked enough favorite favorites favourite favourites fave faves fav favs fell "
@@ -176,15 +177,24 @@ def liked(text, found, lowered, words):
         return
     single = bool(STRONG.search(text))
     for part in re.finditer(r"[^.!?\n]+[.!?]*", text):
-        cues = [cue - part.start() for cue in starts if part.start() <= cue < part.end()]
         clause = part.group()
-        if not cues or NEGATIVE.search(clause) or not SELF.search(clause):
+        if not any(part.start() <= cue < part.end() for cue in starts) or NEGATIVE.search(clause) or not SELF.search(clause):
             continue
         for match in CANDIDATE.finditer(clause):
-            if match.group(1) and min(abs(cue - match.start()) for cue in cues) < NEAR:
+            if match.group(1):
                 for piece in pieces(match.group(1)):
                     if single or " " in piece:
                         emit(piece, found, text, part.start() + match.start(), "known")
+    if not single:
+        return
+    for part in PARAGRAPH.finditer(text):
+        block = part.group()
+        if any(part.start() <= cue < part.end() for cue in starts) and SELF.search(block) and not NEGATIVE.search(block):
+            for match in CANDIDATE.finditer(block):
+                if match.group(1):
+                    for piece in pieces(match.group(1)):
+                        if " " in piece and known(piece, 3):
+                            emit(piece, found, text, part.start() + match.start(), "known")
 
 
 CHEER = re.compile(rf"(?m:(?:^|[.!?]\s+)[\W_]*(?:(?i:absolutely |really |just |still |totally |fucking |fuckin |so |gotta |truly |honestly |)(?:[Ll]ove|LOVE|[Aa]dore|ADORE) |(?i:hell yeah|hell yes|let'?s go|justice for|respect for|protect|love for|all hail|long live|w) )){NAME}(?=[^\w\n]*(?:\n|$)|\s*[.!?,;:)]| (?i:so much|forever|always|tho|though|too)\b)")
