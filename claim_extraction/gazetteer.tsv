@@ -3496,7 +3496,6 @@ maritime	region	maritime	maritime	togo
 centrale	region	centrale	centrale	togo	
 xiangkhoang	region	xiangkhoang	xiangkhoang	laos	
 xiagnabouli	region	xiagnabouli	xiagnabouli	laos	
-vientiane	region	vientiane	vientiane	laos	
 savannakhet province	region	savannakhet province	savannakhet province	laos	
 salavan province	region	salavan province	salavan province	laos	
 phôngsali	region	phôngsali	phôngsali	laos	
@@ -3751,7 +3750,6 @@ gorgol	region	gorgol	gorgol	mauritania
 dakhlet nouadhibou	region	dakhlet nouadhibou	dakhlet nouadhibou	mauritania	
 brakna	region	brakna	brakna	mauritania	
 assaba	region	assaba	assaba	mauritania	
-adrar	region	adrar	adrar	mauritania	
 nouakchott west	region	nouakchott west	nouakchott west	mauritania	
 nouakchott north	region	nouakchott north	nouakchott north	mauritania	
 nouakchott south	region	nouakchott south	nouakchott south	mauritania	
@@ -3884,7 +3882,6 @@ cidra	region	cidra	cidra	puerto rico
 coamo	region	coamo	coamo	puerto rico	
 comerío	region	comerío	comerío	puerto rico	
 comerio	region	comerío	comerío	puerto rico	
-corozal	region	corozal	corozal	puerto rico	
 culebra	region	culebra	culebra	puerto rico	
 dorado	region	dorado	dorado	puerto rico	
 guánica	region	guánica	guánica	puerto rico	
@@ -3902,16 +3899,13 @@ lajas	region	lajas	lajas	puerto rico
 lares	region	lares	lares	puerto rico	
 las marías	region	las marías	las marías	puerto rico	
 las marias	region	las marías	las marías	puerto rico	
-las piedras	region	las piedras	las piedras	puerto rico	
 loíza	region	loíza	loíza	puerto rico	
 loiza	region	loíza	loíza	puerto rico	
 luquillo	region	luquillo	luquillo	puerto rico	
 maricao	region	maricao	maricao	puerto rico	
 maunabo	region	maunabo	maunabo	puerto rico	
-moca	region	moca	moca	puerto rico	
 morovis	region	morovis	morovis	puerto rico	
 naguabo	region	naguabo	naguabo	puerto rico	
-naranjito	region	naranjito	naranjito	puerto rico	
 orocovis	region	orocovis	orocovis	puerto rico	
 patillas	region	patillas	patillas	puerto rico	
 peñuelas	region	peñuelas	peñuelas	puerto rico	
@@ -3920,15 +3914,8 @@ rincón	region	rincón	rincón	puerto rico
 rincon	region	rincón	rincón	puerto rico	
 quebradillas	region	quebradillas	quebradillas	puerto rico	
 río grande	region	río grande	río grande	puerto rico	
-rio grande	region	río grande	río grande	puerto rico	
 sabana grande	region	sabana grande	sabana grande	puerto rico	
-salinas	region	salinas	salinas	puerto rico	
-san germán	region	san germán	san germán	puerto rico	
-san german	region	san germán	san germán	puerto rico	
-san lorenzo	region	san lorenzo	san lorenzo	puerto rico	
 san sebastián	region	san sebastián	san sebastián	puerto rico	
-san sebastian	region	san sebastián	san sebastián	puerto rico	
-santa isabel	region	santa isabel	santa isabel	puerto rico	
 toa alta	region	toa alta	toa alta	puerto rico	
 toa baja	region	toa baja	toa baja	puerto rico	
 utuado	region	utuado	utuado	puerto rico	
@@ -3983,7 +3970,6 @@ saint catherine parish	region	saint catherine parish	saint catherine parish	jama
 saint ann parish	region	saint ann parish	saint ann parish	jamaica	
 saint andrew parish	region	saint andrew parish	saint andrew parish	jamaica	
 portland parish	region	portland parish	portland parish	jamaica	
-manchester	region	manchester	manchester	jamaica	
 hanover	region	hanover	hanover	jamaica	
 clarendon	region	clarendon	clarendon	jamaica	
 woleu ntem	region	woleu-ntem	woleu-ntem	gabon	
@@ -4699,8 +4685,6 @@ tal pieta	region	tal-pietà	tal-pietà	malta
 il qala	region	il-qala	il-qala	malta	
 il qrendi	region	il-qrendi	il-qrendi	malta	
 ir rabat	region	ir-rabat	ir-rabat	malta	
-safi	region	safi	safi	malta	
-saint john	region	saint john	saint john	malta	
 saint julian	region	saint julian	saint julian	malta	
 saint lawrence	region	saint lawrence	saint lawrence	malta	
 saint paul s bay	region	saint paul’s bay	saint paul’s bay	malta	
@@ -4748,22 +4732,15 @@ baa atholhu	region	baa atholhu	baa atholhu	maldives
 northern ari atoll	region	northern ari atoll	northern ari atoll	maldives	
 southern ari atoll	region	southern ari atoll	southern ari atoll	maldives	
 tarrafal	region	tarrafal	tarrafal	cabo verde	
-são vicente	region	são vicente	são vicente	cabo verde	
-sao vicente	region	são vicente	são vicente	cabo verde	
 sal	region	sal	sal	cabo verde	
 ribeira grande	region	ribeira grande	ribeira grande	cabo verde	
 paul	region	paul	paul	cabo verde	
 maio	region	maio	maio	cabo verde	
 brava	region	brava	brava	cabo verde	
-boa vista	region	boa vista	boa vista	cabo verde	
 mosteiros	region	mosteiros	mosteiros	cabo verde	
 são domingos	region	são domingos	são domingos	cabo verde	
-sao domingos	region	são domingos	são domingos	cabo verde	
 são filipe	region	são filipe	são filipe	cabo verde	
 sao filipe	region	são filipe	são filipe	cabo verde	
-são miguel	region	são miguel	são miguel	cabo verde	
-sao miguel	region	são miguel	são miguel	cabo verde	
-porto novo	region	porto novo	porto novo	cabo verde	
 ribeira brava	region	ribeira brava	ribeira brava	cabo verde	
 santa catarina do fogo	region	santa catarina do fogo	santa catarina do fogo	cabo verde	
 são salvador do mundo	region	são salvador do mundo	são salvador do mundo	cabo verde	
@@ -4781,7 +4758,6 @@ stann creek	region	stann creek	stann creek	belize
 corozal district	region	corozal district	corozal district	belize	
 cayo district	region	cayo district	cayo district	belize	
 belize district	region	belize district	belize district	belize	
-san salvador	region	san salvador	san salvador	bahamas	
 mayaguana	region	mayaguana	mayaguana	bahamas	
 inagua	region	inagua	inagua	bahamas	
 harbour island	region	harbour island	harbour island	bahamas	
@@ -4817,9 +4793,7 @@ saint philip	region	saint philip	saint philip	barbados
 saint peter	region	saint peter	saint peter	barbados	
 saint michael	region	saint michael	saint michael	barbados	
 saint lucy	region	saint lucy	saint lucy	barbados	
-saint joseph	region	saint joseph	saint joseph	barbados	
 saint james	region	saint james	saint james	barbados	
-saint george	region	saint george	saint george	barbados	
 saint andrew	region	saint andrew	saint andrew	barbados	
 christ church	region	christ church	christ church	barbados	
 marquesas islands	region	marquesas islands	marquesas islands	french polynesia	
@@ -4870,7 +4844,6 @@ choiseul	region	choiseul	choiseul	saint lucia
 anse la raye	region	anse-la-raye	anse-la-raye	saint lucia	
 canaries	region	canaries	canaries	saint lucia	
 piti	region	piti	piti	guam	
-santa rita	region	santa rita	santa rita	guam	
 sinajana	region	sinajana	sinajana	guam	
 talofofo	region	talofofo	talofofo	guam	
 umatac	region	umatac	umatac	guam	
@@ -4880,7 +4853,6 @@ merizo	region	merizo	merizo	guam
 mangilao	region	mangilao	mangilao	guam	
 agana heights	region	agana heights	agana heights	guam	
 chalan pago ordot	region	chalan pago-ordot	chalan pago-ordot	guam	
-asan	region	asan	asan	guam	
 agat	region	agat	agat	guam	
 dededo	region	dededo	dededo	guam	
 barrigada	region	barrigada	barrigada	guam	
@@ -4889,7 +4861,6 @@ mongmong toto maite	region	mongmong-toto-maite	mongmong-toto-maite	guam
 gilbert islands	region	gilbert islands	gilbert islands	kiribati	
 phoenix islands	region	phoenix islands	phoenix islands	kiribati	
 takamaka	region	takamaka	takamaka	seychelles	
-saint louis	region	saint louis	saint louis	seychelles	
 port glaud	region	port glaud	port glaud	seychelles	
 pointe la rue	region	pointe la rue	pointe la rue	seychelles	
 plaisance	region	plaisance	plaisance	seychelles	
@@ -4971,7 +4942,6 @@ patrick	region	patrick	patrick	isle of man
 peel	region	peel	peel	isle of man	
 port erin	region	port erin	port erin	isle of man	
 port st mary	region	port st mary	port st mary	isle of man	
-ramsey	region	ramsey	ramsey	isle of man	
 rushen	region	rushen	rushen	isle of man	
 santon	region	santon	santon	isle of man	
 sant julià de loria	region	sant julià de loria	sant julià de loria	andorra	
@@ -4992,15 +4962,12 @@ castel	region	castel	castel	guernsey
 vale	region	vale	vale	guernsey	
 st sampson	region	st sampson	st sampson	guernsey	
 alderney	region	alderney	alderney	guernsey	
-warwick	region	warwick	warwick	bermuda	
-southampton	region	southampton	southampton	bermuda	
 smithʼs	region	smithʼs	smithʼs	bermuda	
 smith s parish	region	smithʼs	smithʼs	bermuda	
 sandys	region	sandys	sandys	bermuda	
 saint georgeʼs	region	saint georgeʼs	saint georgeʼs	bermuda	
 saint george s parish	region	saint georgeʼs	saint georgeʼs	bermuda	
 paget	region	paget	paget	bermuda	
-hamilton	region	hamilton	hamilton	bermuda	
 hamilton city	region	hamilton city	hamilton city	bermuda	
 devonshire	region	devonshire	devonshire	bermuda	
 kujalleq	region	kujalleq	kujalleq	greenland	
@@ -5032,7 +4999,6 @@ saint anne sandy point	region	saint anne sandy point	saint anne sandy point	sain
 christ church nichola town	region	christ church nichola town	christ church nichola town	saint kitts and nevis	
 swains island	region	swains island	swains island	american samoa	
 manu a	region	manu'a	manu'a	american samoa	
-rota	region	rota	rota	northern mariana islands	
 tinian	region	tinian	tinian	northern mariana islands	
 triesenberg	region	triesenberg	triesenberg	liechtenstein	
 triesen	region	triesen	triesen	liechtenstein	
@@ -5096,13 +5062,11 @@ mangaia	region	mangaia	mangaia	cook islands
 manihiki	region	manihiki	manihiki	cook islands	
 ma uke	region	ma'uke	ma'uke	cook islands	
 mitiaro	region	mitiaro	mitiaro	cook islands	
-palmerston	region	palmerston	palmerston	cook islands	
 penrhyn	region	penrhyn	penrhyn	cook islands	
 pukapuka	region	pukapuka	pukapuka	cook islands	
 rakahanga	region	rakahanga	rakahanga	cook islands	
 rarotonga	region	rarotonga	rarotonga	cook islands	
 bonaire	region	bonaire	bonaire	bonaire, saint eustatius and saba 	
-saba	region	saba	saba	bonaire, saint eustatius and saba 	
 sint eustatius	region	sint eustatius	sint eustatius	bonaire, saint eustatius and saba 	
 ngatpang	region	ngatpang	ngatpang	palau	
 sonsorol	region	sonsorol	sonsorol	palau	
@@ -5148,7 +5112,6 @@ nanumanga	region	nanumanga	nanumanga	tuvalu
 vaitupu	region	vaitupu	vaitupu	tuvalu	
 nukufetau	region	nukufetau	nukufetau	tuvalu	
 nukulaelae	region	nukulaelae	nukulaelae	tuvalu	
-saint georges	region	saint georges	saint georges	montserrat	
 saint anthony	region	saint anthony	saint anthony	montserrat	
 ascension	region	ascension	ascension	saint helena	
 tristan da cunha	region	tristan da cunha	tristan da cunha	saint helena	
@@ -5545,7 +5508,6 @@ monastir	region	monastir governorate	monastir governorate	tunisia
 mahdia	region	mahdia governorate	mahdia governorate	tunisia	
 kef	region	kef governorate	kef governorate	tunisia	
 valverde	region	valverde province	valverde province	dominican republic	
-san juan	region	san juan province	san juan province	dominican republic	
 pedernales	region	pedernales province	pedernales province	dominican republic	
 monte plata	region	monte plata province	monte plata province	dominican republic	
 monte cristi	region	monte cristi province	monte cristi province	dominican republic	
@@ -5652,6 +5614,7 @@ salavan	region	salavan province	salavan province	laos
 luang prabang	region	luang prabang province	luang prabang province	laos	
 khammouane	region	khammouane province	khammouane province	laos	
 champasak	region	champasak province	champasak province	laos	
+vientiane	region	vientiane prefecture	vientiane prefecture	laos	
 sai kung	region	sai kung district	sai kung district	hong kong	
 yau tsim mong	region	yau tsim mong district	yau tsim mong district	hong kong	
 sham shui po	region	sham shui po district	sham shui po district	hong kong	
@@ -5665,7 +5628,6 @@ talas	region	talas region	talas region	kyrgyzstan
 naryn	region	naryn region	naryn region	kyrgyzstan	
 jalal abad	region	jalal-abad region	jalal-abad region	kyrgyzstan	
 chuy	region	chuy region	chuy region	kyrgyzstan	
-san pedro	region	san pedro department	san pedro department	paraguay	
 ñeembucú	region	ñeembucú department	ñeembucú department	paraguay	
 neembucu	region	ñeembucú department	ñeembucú department	paraguay	
 caaguazú	region	caaguazú department	caaguazú department	paraguay	
@@ -5695,6 +5657,7 @@ boaco	region	boaco department	boaco department	nicaragua
 sonsonate	region	sonsonate department	sonsonate department	el salvador	
 san vicente	region	san vicente department	san vicente department	el salvador	
 santa ana	region	santa ana department	santa ana department	el salvador	
+san salvador	region	san salvador department	san salvador department	el salvador	
 san miguel	region	san miguel department	san miguel department	el salvador	
 chalatenango	region	chalatenango department	chalatenango department	el salvador	
 baalbek hermel	region	baalbek-hermel governorate	baalbek-hermel governorate	lebanon	
@@ -5748,7 +5711,6 @@ chiriqui	region	chiriquí province	chiriquí province	panama
 bocas del toro	region	bocas del toro province	bocas del toro province	panama	
 panamá oeste	region	panamá oeste province	panamá oeste province	panama	
 panama oeste	region	panamá oeste province	panamá oeste province	panama	
-zagreb	region	zagreb county	zagreb county	croatia	
 uvs	region	uvs province	uvs province	mongolia	
 govi altai	region	govi-altai province	govi-altai province	mongolia	
 bayan ölgii	region	bayan-ölgii province	bayan-ölgii province	mongolia	
@@ -5760,9 +5722,6 @@ arkhangai	region	arkhangai province	arkhangai province	mongolia
 treinta y tres	region	treinta y tres department	treinta y tres department	uruguay	
 tacuarembó	region	tacuarembó department	tacuarembó department	uruguay	
 tacuarembo	region	tacuarembó department	tacuarembó department	uruguay	
-san josé	region	san josé department	san josé department	uruguay	
-san jose	region	san josé department	san josé department	uruguay	
-salto	region	salto department	salto department	uruguay	
 rocha	region	rocha department	rocha department	uruguay	
 rivera	region	rivera department	rivera department	uruguay	
 río negro	region	río negro department	río negro department	uruguay	
@@ -5842,7 +5801,7 @@ coronie	region	coronie district	coronie district	suriname
 commewijne	region	commewijne district	commewijne district	suriname	
 brokopondo	region	brokopondo district	brokopondo district	suriname	
 brunei muara	region	brunei-muara district	brunei-muara district	brunei	
-toledo	region	toledo district	toledo district	belize	
+corozal	region	corozal district	corozal district	belize	
 cayo	region	cayo district	cayo district	belize	
 yap	region	yap state	yap state	micronesia	
 pohnpei	region	pohnpei state	pohnpei state	micronesia	
@@ -5862,6 +5821,7 @@ anabar	region	anabar district	anabar district	nauru
 aiwo	region	aiwo district	aiwo district	nauru	
 dongying	city	dongying	shandong	china	
 luzhou	city	luzhou	sichuan	china	
+san jose	city	san jose	california	united states	
 sholapur	city	sholapur	maharashtra	india	
 marrakesh	city	marrakesh	marrakesh-safi	morocco	
 guatemala city	city	guatemala city	guatemala	guatemala	
@@ -6170,6 +6130,7 @@ mudanjiang	city	mudanjiang	heilongjiang	china
 aracaju	city	aracaju	sergipe	brazil	
 joinville	city	joinville	santa catarina	brazil	
 athens	city	athens	attica	greece	
+zagreb	city	zagreb	zagreb	croatia	
 leshan	city	leshan	sichuan	china	
 santo andré	city	santo andré	são paulo	brazil	
 santo andre	city	santo andré	são paulo	brazil	
@@ -6335,7 +6296,9 @@ gujrat	city	gujrat	punjab	pakistan
 uemraniye	city	ümraniye	istanbul	turkey	
 shihezi	city	shihezi	xinjiang	china	
 south boston	city	south boston	massachusetts	united states	
+hamilton	city	hamilton	ontario	canada	
 irbid	city	irbid	irbid	jordan	
+manchester	city	manchester	england	united kingdom	
 kota bharu	city	kota bharu	kelantan	malaysia	
 surrey	city	surrey	british columbia	canada	
 meknes	city	meknes	fes-meknes	morocco	
@@ -6782,6 +6745,7 @@ dingxi	city	dingxi	gansu	china
 bamenda	city	bamenda	north-west	cameroon	
 thái nguyên	city	thái nguyên	thai nguyen	vietnam	
 thai nguyen	city	thái nguyên	thai nguyen	vietnam	
+boa vista	city	boa vista	roraima	brazil	
 rio branco	city	rio branco	acre	brazil	
 oakland	city	oakland	california	united states	
 christchurch	city	christchurch	canterbury	new zealand	
@@ -6793,6 +6757,7 @@ tirana	city	tirana	tirana	albania
 petrolina	city	petrolina	pernambuco	brazil	
 mauá	city	mauá	são paulo	brazil	
 maua	city	mauá	são paulo	brazil	
+san juan	city	san juan	san juan	puerto rico	
 alor setar	city	alor setar	kedah	malaysia	
 tongchuan	city	tongchuan	shaanxi	china	
 pasay	city	pasay	national capital region	philippines	
@@ -6897,6 +6862,7 @@ pasto	city	pasto	nariño	colombia
 gaomi	city	gaomi	shandong	china	
 santa fe	city	santa fe	santa fe	argentina	
 san pédro	city	san-pédro	bas-sassandra district	ivory coast	
+san pedro	city	san-pédro	bas-sassandra district	ivory coast	
 gauriganj	city	gauriganj	uttar pradesh	india	
 makurdi	city	makurdi	benue state	nigeria	
 palu	city	palu	central sulawesi	indonesia	
@@ -7165,14 +7131,18 @@ makiyivka	city	makiyivka	donetsk	ukraine
 west raleigh	city	west raleigh	north carolina	united states	
 cuernavaca	city	cuernavaca	morelos	mexico	
 markham	city	markham	ontario	canada	
+são vicente	city	são vicente	são paulo	brazil	
+sao vicente	city	são vicente	são paulo	brazil	
 kaesŏng	city	kaesŏng	kaesong	north korea	
 kaesong	city	kaesŏng	kaesong	north korea	
 tungi	city	tungi	dhaka division	bangladesh	
 krasnogvargeisky	city	krasnogvargeisky	st. petersburg	russia	
 randburg	city	randburg	gauteng	south africa	
+safi	city	safi	marrakesh-safi	morocco	
 simferopol	city	simferopol	crimea	ukraine	
 lublin	city	lublin	lublin	poland	
 pelotas	city	pelotas	rio grande do sul	brazil	
+san josé	city	san josé	san josé	costa rica	
 orlando	city	orlando	florida	united states	
 viña del mar	city	viña del mar	valparaiso	chile	
 vina del mar	city	viña del mar	valparaiso	chile	
@@ -7591,6 +7561,7 @@ bukhara	city	bukhara	bukhara	uzbekistan
 wollongong	city	wollongong	new south wales	australia	
 volta redonda	city	volta redonda	rio de janeiro	brazil	
 st louis	city	st. louis	missouri	united states	
+saint louis	city	st. louis	missouri	united states	
 poltava	city	poltava	poltava	ukraine	
 sumaré	city	sumaré	são paulo	brazil	
 sumare	city	sumaré	são paulo	brazil	
@@ -7679,6 +7650,7 @@ gelsenkirchen	city	gelsenkirchen	north rhine-westphalia	germany
 longling county	city	longling county	yunnan	china	
 cherkasy	city	cherkasy	cherkasy	ukraine	
 malolos	city	malolos	central luzon	philippines	
+southampton	city	southampton	england	united kingdom	
 kapar	city	kapar	selangor	malaysia	
 çorum	city	çorum	çorum	turkey	
 corum	city	çorum	çorum	turkey	
@@ -7721,6 +7693,7 @@ chengzhong	city	chengzhong	hubei	china
 djelfa	city	djelfa	djelfa	algeria	
 chula vista	city	chula vista	california	united states	
 shimonoseki	city	shimonoseki	yamaguchi	japan	
+toledo	city	toledo	ohio	united states	
 ulanhot	city	ulanhot	inner mongolia	china	
 kibaha	city	kibaha	pwani	tanzania	
 hulan ergi	city	hulan ergi	heilongjiang	china	
@@ -7746,6 +7719,7 @@ macaé	city	macaé	rio de janeiro	brazil
 macae	city	macaé	rio de janeiro	brazil	
 rānipet	city	rānipet	tamil nadu	india	
 ranipet	city	rānipet	tamil nadu	india	
+porto novo	city	porto-novo	ouémé	benin	
 chernivtsi	city	chernivtsi	chernivtsi	ukraine	
 jersey city	city	jersey city	new jersey	united states	
 manta	city	manta	manabí	ecuador	
@@ -8192,6 +8166,7 @@ meycauayan	city	meycauayan	central luzon	philippines
 bexley	city	bexley	england	united kingdom	
 aliayabiagba	city	aliayabiagba	lagos	nigeria	
 nassau	city	nassau	new providence	bahamas	
+san lorenzo	city	san lorenzo	central department	paraguay	
 rennes	city	rennes	brittany	france	
 mohammedia	city	mohammedia	casablanca-settat	morocco	
 guatire	city	guatire	miranda	venezuela	
@@ -8648,6 +8623,7 @@ mushin	city	mushin	lagos	nigeria
 yuzhno sakhalinsk	city	yuzhno-sakhalinsk	sakhalin oblast	russia	
 hagen	city	hagen	north rhine-westphalia	germany	
 salatiga	city	salatiga	central java	indonesia	
+rio grande	city	rio grande	rio grande do sul	brazil	
 guacara	city	guacara	carabobo	venezuela	
 khūy	city	khūy	west azerbaijan	iran	
 khuy	city	khūy	west azerbaijan	iran	
@@ -8906,6 +8882,7 @@ le havre	city	le havre	normandy	france
 verhunskyi	city	verhunskyi	luhansk	ukraine	
 phusro	city	phusro	jharkhand	india	
 donostia san sebastián	city	donostia / san sebastián	basque country	spain	
+san sebastian	city	donostia / san sebastián	basque country	spain	
 poza rica de hidalgo	city	poza rica de hidalgo	veracruz	mexico	
 bilbeis	city	bilbeis	sharqia	egypt	
 roxas city	city	roxas city	western visayas	philippines	
@@ -9544,6 +9521,7 @@ sunggal	city	sunggal	north sumatra	indonesia
 industrialnyi	city	industrialnyi	kharkiv	ukraine	
 admiralteisky	city	admiralteisky	st. petersburg	russia	
 ueda	city	ueda	nagano	japan	
+salinas	city	salinas	california	united states	
 san blas canillejas	city	san blas-canillejas	madrid	spain	
 cuautla	city	cuautla	morelos	mexico	
 salzburg	city	salzburg	salzburg	austria	
@@ -9778,6 +9756,7 @@ shāntipur	city	shāntipur	west bengal	india
 shantipur	city	shāntipur	west bengal	india	
 chishtian	city	chishtian	punjab	pakistan	
 playa del carmen	city	playa del carmen	quintana roo	mexico	
+santa rita	city	santa rita	paraíba	brazil	
 split	city	split	split-dalmatia	croatia	1
 ursynów	city	ursynów	mazovia	poland	
 ursynow	city	ursynów	mazovia	poland	
@@ -10077,6 +10056,7 @@ fukayacho	city	fukayachō	saitama	japan
 usera	city	usera	madrid	spain	
 limoges	city	limoges	new aquitaine	france	
 cangaiba	city	cangaiba	são paulo	brazil	
+salto	city	salto	são paulo	brazil	
 asaka	city	asaka	saitama	japan	
 ghazni	city	ghazni	ghazni	afghanistan	
 orange	city	orange	california	united states	1
@@ -12453,6 +12433,7 @@ erdenet	city	erdenet	orhon	mongolia
 hyesan dong	city	hyesan-dong	yanggang-do	north korea	
 temixco	city	temixco	morelos	mexico	
 namalombwe	city	namalombwe	lusaka province	zambia	
+asan	city	asan	chungcheongnam-do	south korea	
 catarman	city	catarman	eastern visayas	philippines	
 jharsuguda	city	jharsuguda	odisha	india	
 gò công	city	gò công	dong thap	vietnam	
@@ -13136,6 +13117,7 @@ kartasura	city	kartasura	central java	indonesia
 calabanga	city	calabanga	bicol region	philippines	
 shwebo	city	shwebo	sagaing region	myanmar	
 iga	city	iga	mie	japan	
+sao domingos	city	sao domingos	são paulo	brazil	
 talavera de la reina	city	talavera de la reina	castille-la mancha	spain	
 hartlepool	city	hartlepool	england	united kingdom	
 fusagasugá	city	fusagasugá	cundinamarca	colombia	
@@ -13857,6 +13839,7 @@ babamba	city	babamba	tshopo	democratic republic of the congo
 tangping	city	tangping	guangdong	china	
 ar rass	city	ar rass	al-qassim region	saudi arabia	
 mhow	city	mhow	madhya pradesh	india	
+warwick	city	warwick	rhode island	united states	
 bartın	city	bartın	bartın	turkey	
 bartin	city	bartın	bartın	turkey	
 luzern	city	luzern	lucerne	switzerland	
@@ -13930,6 +13913,8 @@ rockhampton	city	rockhampton	queensland	australia
 moabit	city	moabit	berlin	germany	
 san timoteo	city	san timoteo	zulia	venezuela	
 yessentuki	city	yessentuki	stavropol kray	russia	
+são miguel	city	são miguel	são paulo	brazil	
+sao miguel	city	são miguel	são paulo	brazil	
 vitry sur seine	city	vitry-sur-seine	île-de-france	france	
 largo	city	largo	florida	united states	
 naesŏ	city	naesŏ	gyeongsangnam-do	south korea	
@@ -14392,6 +14377,7 @@ kundla	city	kundla	gujarat	india
 itapetinga	city	itapetinga	bahia	brazil	
 fishers	city	fishers	indiana	united states	
 shrewsbury	city	shrewsbury	england	united kingdom	
+saint joseph	city	saint joseph	missouri	united states	
 st joseph	city	saint joseph	missouri	united states	
 al maţār al atīq	city	al maţār al ‘atīq	baladiyat ad dawhah	qatar	
 al matar al atiq	city	al maţār al ‘atīq	baladiyat ad dawhah	qatar	
@@ -14823,6 +14809,7 @@ chilca	city	chilca	junin	peru
 ohafia ifigh	city	ohafia-ifigh	abia state	nigeria	
 cloverdale	city	cloverdale	british columbia	canada	
 juegang	city	juegang	jiangsu	china	
+lost mountain	city	lost mountain	georgia	united states	1
 virudunagar	city	virudunagar	tamil nadu	india	
 bonao	city	bonao	monseñor nouel	dominican republic	
 khlong san	city	khlong san	bangkok	thailand	
@@ -14882,6 +14869,7 @@ rabigh	city	rābigh	mecca region	saudi arabia
 lappeenranta	city	lappeenranta	south karelia	finland	
 ostrów wielkopolski	city	ostrów wielkopolski	greater poland	poland	
 ostrow wielkopolski	city	ostrów wielkopolski	greater poland	poland	
+saint george	city	saint george	utah	united states	
 st george	city	saint george	utah	united states	
 padre las casas	city	padre las casas	araucania	chile	
 rosh ha ayin	city	rosh ha‘ayin	central district	israel	
@@ -15010,6 +14998,7 @@ amatitlán	city	amatitlán	guatemala	guatemala
 amatitlan	city	amatitlán	guatemala	guatemala	
 livyi bereh	city	livyi bereh	dnipropetrovsk	ukraine	
 castro	city	castro	paraná	brazil	
+saint john	city	saint john	new brunswick	canada	
 são sebastião do paraíso	city	são sebastião do paraíso	minas gerais	brazil	
 sao sebastiao do paraiso	city	são sebastião do paraíso	minas gerais	brazil	
 tando jam	city	tando jam	sindh	pakistan	
@@ -15320,6 +15309,7 @@ basavakalyan	city	basavakalyan	karnataka	india
 planeta rica	city	planeta rica	córdoba	colombia	
 āsosa	city	āsosa	bīnshangul gumuz	ethiopia	
 asosa	city	āsosa	bīnshangul gumuz	ethiopia	
+las piedras	city	las piedras	canelones	uruguay	
 pul pehlad	city	pul pehlad	delhi	india	
 tacarigua	city	tacarigua	carabobo	venezuela	
 abū arīsh	city	abū ‘arīsh	jazan region	saudi arabia	
@@ -15490,6 +15480,7 @@ sabae	city	sabae	fukui	japan
 al faḩāḩīl	city	al faḩāḩīl	al aḩmadī	kuwait	
 al fahahil	city	al faḩāḩīl	al aḩmadī	kuwait	
 saldanha	city	saldanha	western cape	south africa	
+adrar	city	adrar	adrar	algeria	
 issia	city	issia	sassandra-marahoue	ivory coast	
 dolgoprudnyy	city	dolgoprudnyy	moscow oblast	russia	
 formiga	city	formiga	minas gerais	brazil	
@@ -16558,6 +16549,7 @@ bāmyān	city	bāmyān	bamyan	afghanistan
 bamyan	city	bāmyān	bamyan	afghanistan	
 taoluo	city	taoluo	shandong	china	
 bassar	city	bassar	kara	togo	
+moca	city	moca	espaillat province	dominican republic	
 zamora	city	zamora	castille and león	spain	
 iskitim	city	iskitim	novosibirsk oblast	russia	
 kiryat gat	city	kiryat gat	southern district	israel	
@@ -18357,6 +18349,7 @@ sandīla	city	sandīla	uttar pradesh	india
 sandila	city	sandīla	uttar pradesh	india	
 tingo maría	city	tingo maría	huánuco department	peru	
 tingo maria	city	tingo maría	huánuco department	peru	
+santa isabel	city	santa isabel	são paulo	brazil	
 silivri	city	silivri	istanbul	turkey	
 novena	city	novena		singapore	
 cholet	city	cholet	pays de la loire	france	
@@ -20886,6 +20879,8 @@ muţūbas	city	muţūbas	kafr el-sheikh	egypt
 mutubas	city	muţūbas	kafr el-sheikh	egypt	
 artigas	city	artigas	artigas	uruguay	
 olavanna	city	olavanna	kerala	india	
+san germán	city	san germán	holguín province	cuba	
+san german	city	san germán	holguín province	cuba	
 ramallah	city	ramallah	west bank	palestinian territory	
 etten leur	city	etten-leur	north brabant	the netherlands	
 cyangugu	city	cyangugu	western province	rwanda	
@@ -24325,6 +24320,8 @@ baturité	city	baturité	ceará	brazil
 baturite	city	baturité	ceará	brazil	
 victoria falls	city	victoria falls	matabeleland north	zimbabwe	
 puzhathi	city	puzhathi	kerala	india	
+rājāsan	city	rājāsan	dhaka division	bangladesh	
+rajasan	city	rājāsan	dhaka division	bangladesh	
 presidente venceslau	city	presidente venceslau	são paulo	brazil	
 vyshhorodskyi masyv	city	vyshhorodskyi masyv	kyiv city	ukraine	
 tchéboa	city	tchéboa	north	cameroon	
@@ -24856,6 +24853,7 @@ pangururan	city	pangururan	north sumatra	indonesia
 glendale heights	city	glendale heights	illinois	united states	
 navāpur	city	navāpur	maharashtra	india	
 navapur	city	navāpur	maharashtra	india	
+naranjito	city	naranjito	guayas	ecuador	
 ladispoli	city	ladispoli	lazio	italy	
 bayt al faqīh	city	bayt al faqīh	al hudaydah	yemen	
 bayt al faqih	city	bayt al faqīh	al hudaydah	yemen	
@@ -25039,6 +25037,7 @@ ijsselstein	city	ijsselstein	utrecht	the netherlands
 opañel	city	opañel	madrid	spain	
 opanel	city	opañel	madrid	spain	
 sabá	city	sabá	colón department	honduras	
+saba	city	sabá	colón department	honduras	
 itiúba	city	itiúba	bahia	brazil	
 itiuba	city	itiúba	bahia	brazil	
 wakkanai	city	wakkanai	hokkaido	japan	
@@ -25137,6 +25136,7 @@ kalaleh	city	kalāleh	golestan	iran
 colgong	city	colgong	bihar	india	
 artëmovskiy	city	artëmovskiy	sverdlovsk oblast	russia	
 artemovskiy	city	artëmovskiy	sverdlovsk oblast	russia	
+palmerston	city	palmerston	northern territory	australia	
 l aquila	city	l'aquila	abruzzo	italy	
 bāsudebpur	city	bāsudebpur	odisha	india	
 basudebpur	city	bāsudebpur	odisha	india	
@@ -26561,6 +26561,7 @@ cloppenburg	city	cloppenburg	lower saxony	germany
 bembèrèkè	city	bembèrèkè	borgou	benin	
 bembereke	city	bembèrèkè	borgou	benin	
 zhakou	city	zhakou	guangxi	china	
+saint georges	city	saint-georges	quebec	canada	
 st georges	city	saint-georges	quebec	canada	
 rāmāpuram	city	rāmāpuram	andhra pradesh	india	
 orillia	city	orillia	ontario	canada	
@@ -28142,6 +28143,7 @@ vihti	city	vihti	uusimaa	finland
 santa cruz das palmeiras	city	santa cruz das palmeiras	são paulo	brazil	
 oba	city	oba	antalya	turkey	
 big spring	city	big spring	texas	united states	1
+rota	city	rota	andalusia	spain	
 kotagiri	city	kotagiri	tamil nadu	india	
 el marsa	city	el marsa		western sahara	
 kelaniya	city	kelaniya	western province	sri lanka	
@@ -29520,6 +29522,7 @@ traralgon	city	traralgon	victoria	australia
 kulasēkarapuram	city	kulasēkarapuram	kerala	india	
 kulasekarapuram	city	kulasēkarapuram	kerala	india	
 chawinda	city	chawinda	punjab	pakistan	
+genda	city	genda	dhaka division	bangladesh	
 sankt wendel	city	sankt wendel	saarland	germany	
 quakers hill	city	quakers hill	new south wales	australia	
 parral	city	parral	maule region	chile	
@@ -30073,6 +30076,7 @@ bou tlelis	city	bou tlelis	oran	algeria
 maâtkas	city	maâtkas	tizi ouzou	algeria	
 maatkas	city	maâtkas	tizi ouzou	algeria	
 kaouara	city	kaouara	savanes district	ivory coast	
+bank colony	city	bank colony	dhaka division	bangladesh	1
 innoshima	city	innoshima	hiroshima	japan	
 marrickville	city	marrickville	new south wales	australia	
 reengus	city	reengus	rajasthan	india	
@@ -30318,6 +30322,7 @@ krasnoarmeysk	city	krasnoarmeysk	saratov oblast	russia
 artvin	city	artvin	artvin	turkey	
 maao	city	maao	western visayas	philippines	
 almassora	city	almassora	valencia	spain	
+ramsey	city	ramsey	minnesota	united states	
 fokino	city	fokino	primorye	russia	
 güroymak	city	güroymak	bitlis	turkey	
 gueroymak	city	güroymak	bitlis	turkey	
@@ -35717,6 +35722,7 @@ yellāpur	city	yellāpur	karnataka	india
 yellapur	city	yellāpur	karnataka	india	
 schofield wheeler	city	schofield-wheeler	hawaii	united states	
 rovira	city	rovira	tolima department	colombia	
+purba narsinghapur	city	purba narsinghapur	dhaka division	bangladesh	
 wainuiomata	city	wainuiomata	wellington region	new zealand	
 mường lay	city	mường lay	điện biên province	vietnam	
 muong lay	city	mường lay	điện biên province	vietnam	
@@ -40182,6 +40188,8 @@ falkoeping	city	falköping	västra götaland	sweden
 serinhisar	city	serinhisar	denizli	turkey	
 chisasa	city	chisasa	north-western	zambia	
 barrett town	city	barrett town	saint james parish	jamaica	
+jirāba	city	jirāba	dhaka division	bangladesh	
+jiraba	city	jirāba	dhaka division	bangladesh	
 radzionków	city	radzionków	silesia	poland	
 radzionkow	city	radzionków	silesia	poland	
 pebane	city	pebane	zambezia province	mozambique	
@@ -42145,6 +42153,8 @@ vijayapuri north	city	vijayapuri north	telangana	india
 mankayan	city	mankayan	cordillera	philippines	
 gentbrugge	city	gentbrugge	flanders	belgium	
 tlokoeng	city	tlokoeng	eastern cape	south africa	
+karnapāra	city	karnapāra	dhaka division	bangladesh	
+karnapara	city	karnapāra	dhaka division	bangladesh	
 cerveteri	city	cerveteri	lazio	italy	
 mtsapéré	city	mtsapéré	mamoudzou	mayotte	
 mtsapere	city	mtsapéré	mamoudzou	mayotte	
@@ -44108,6 +44118,7 @@ fuke	city	fuke	osaka	japan	town
 ogontz	city	ogontz	pennsylvania	united states	town
 oberndorf	city	oberndorf	baden-wurttemberg	germany	town
 knaresborough	city	knaresborough	england	united kingdom	town
+imandipur	city	imandipur	dhaka division	bangladesh	town
 la entrada	city	la entrada	copán department	honduras	town
 shklov	city	shklov	mogilev	belarus	town
 nkoaranga	city	nkoaranga	arusha	tanzania	town
@@ -46534,6 +46545,7 @@ talovaya	city	talovaya	voronezh oblast	russia	town
 mogotio	city	mogotio	baringo	kenya	town
 calle larga	city	calle larga	valparaiso	chile	town
 horst	city	horst	limburg	the netherlands	town
+aich noadda shahibag	city	aich noadda shahibag	dhaka division	bangladesh	town
 lingjiao	city	lingjiao	chongqing	china	town
 busto garolfo	city	busto garolfo	lombardy	italy	town
 kalininskaya	city	kalininskaya	krasnodar krai	russia	town
@@ -54222,6 +54234,7 @@ chilubi	city	chilubi	northern province	zambia	town
 dhamda	city	dhamda	chhattisgarh	india	town
 ritchie	city	ritchie	northern cape	south africa	town
 kerepes	city	kerepes	pest county	hungary	town
+bolsward	city	bolsward	friesland	the netherlands	town
 piraziz	city	piraziz	giresun	turkey	town
 mscislau	city	mscislau	mogilev	belarus	town
 kozarska dubica	city	kozarska dubica	srpska	bosnia and herzegovina	town
@@ -54488,6 +54501,8 @@ vetschau	city	vetschau	brandenburg	germany	town
 doğanhisar	city	doğanhisar	konya	turkey	town
 doganhisar	city	doğanhisar	konya	turkey	town
 woodley park	city	woodley park	district of columbia	united states	town
+jāmsing	city	jāmsing	dhaka division	bangladesh	town
+jamsing	city	jāmsing	dhaka division	bangladesh	town
 ou smach	city	ou smach	ŏtâr méanchey	cambodia	town
 east victoria park	city	east victoria park	western australia	australia	town
 aranzazu	city	aranzazu	caldas department	colombia	town
@@ -55395,6 +55410,8 @@ nieuw lekkerland	city	nieuw-lekkerland	south holland	the netherlands	town
 asten	city	asten	north brabant	the netherlands	town
 zheshart	city	zheshart	komi	russia	town
 senillosa	city	senillosa	neuquen	argentina	town
+ānandapur	city	ānandapur	dhaka division	bangladesh	town
+anandapur	city	ānandapur	dhaka division	bangladesh	town
 as sanad	city	as sanad	gafsa	tunisia	town
 wan tsui estate	city	wan tsui estate	eastern district	hong kong	town
 talpādi	city	talpādi	karnataka	india	town
@@ -56464,7 +56481,6 @@ morgenzon	city	morgenzon	mpumalanga	south africa	town
 kaimbujae nding	city	kaimbujae nding	western	gambia	town
 douradina	city	douradina	paraná	brazil	town
 ardooie	city	ardooie	flanders	belgium	town
-bolsward	city	bolsward	friesland	the netherlands	town
 nekrasovka	city	nekrasovka	khabarovsk	russia	town
 dom inocêncio	city	dom inocêncio	piauí	brazil	town
 dom inocencio	city	dom inocêncio	piauí	brazil	town
@@ -63685,6 +63701,8 @@ bigues i riells	city	bigues i riells	catalonia	spain	town
 hadžići	city	hadžići	federation of b&h	bosnia and herzegovina	town
 hadzici	city	hadžići	federation of b&h	bosnia and herzegovina	town
 glenolden	city	glenolden	pennsylvania	united states	town
+dhanāid	city	dhanāid	dhaka division	bangladesh	town
+dhanaid	city	dhanāid	dhaka division	bangladesh	town
 cornubia	city	cornubia	queensland	australia	town
 conkal	city	conkal	yucatán	mexico	town
 colmenarejo	city	colmenarejo	madrid	spain	town

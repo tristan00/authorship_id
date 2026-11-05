@@ -88,11 +88,11 @@ ENGLISH_NAMES = {"bangalore": "bengaluru", "cologne": "köln", "seville": "sevil
 COUNTRY_CODES = {"us": "united states"}
 US_CENSUS_REGIONS = ("northeast", "midwest", "south", "west", "new england", "mid-atlantic", "east north central", "west north central", "south atlantic", "east south central",
                      "west south central", "mountain", "pacific")
-REGION_CODES = {"canada": {"ab": "alberta", "bc": "british columbia", "mb": "manitoba", "nb": "new brunswick", "nl": "newfoundland and labrador", "ns": "nova scotia",
+REGION_CODES = {"united states": {code: name for name, code in US_STATES.items()},
+                "canada": {"ab": "alberta", "bc": "british columbia", "mb": "manitoba", "nb": "new brunswick", "nl": "newfoundland and labrador", "ns": "nova scotia",
                            "nt": "northwest territories", "nu": "nunavut", "on": "ontario", "pe": "prince edward island", "qc": "quebec", "sk": "saskatchewan", "yt": "yukon"},
-                "australia": {"nsw": "new south wales", "vic": "victoria", "qld": "queensland", "sa": "south australia", "tas": "tasmania", "nt": "northern territory",
-                              "act": "australian capital territory"},
-                "united states": {code: name for name, code in US_STATES.items()}}
+                "australia": {"nsw": "new south wales", "vic": "victoria", "qld": "queensland", "sa": "south australia", "wa": "western australia", "tas": "tasmania",
+                              "nt": "northern territory", "act": "australian capital territory"}}
 
 
 def key(name):
@@ -127,6 +127,7 @@ def table():
 
 
 PLACES = table()
+FOREIGN = dict(line.split("\t") for line in Path(__file__).with_name("demonyms.tsv").read_text(encoding="utf-8").splitlines()[1:])
 NATIONS = {key(name): country for name, country in DEMONYMS.items()}
 PEOPLES = {**{key(name): ("people", region, region, "united states", "") for name, region in US_STATE_DEMONYMS.items()},
            **{key(name): ("people", region, region, "canada", "") for name, region in CA_PROVINCE_DEMONYMS.items()}}

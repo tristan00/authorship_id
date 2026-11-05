@@ -72,7 +72,7 @@ def fandom(text, found):
             window = part[max(0, match.start() - 80):match.end() + 80]
             kinds = {kind: 3 * len(pattern.findall(window)) + len(pattern.findall(part)) for kind, pattern in CONTEXTS.items()}
             kind = max(kinds, key=kinds.get)
-            if kinds[kind]:
+            if kinds[kind] and not (kind == "franchise" and othered(part.lower(), match.start(), match.end())):
                 names.append((abs(match.start() - cue.start()), kind, name))
         for _, kind, name in sorted(names):
             if kind not in NAMED_ONLY and not junk(name) and (kind == "artist" or 1 < len(TRAILING.sub("", name).split()) < 4):
@@ -127,7 +127,6 @@ OBJECTS = {"music": "artist", "songs": "artist", "song": "artist", "album": "art
 LOVED = re.compile(rf"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally )*"
                    rf"(?:love|adore|loved|adored|enjoy|enjoyed|in love with|obsessed with) ){NAME}")
 CREATED = re.compile(rf"{NAME}(?:'s|s'|’s) (?i:(?:new |latest |recent |old |last |early )?(?:videos?|streams?|vods?|channel|podcasts?|content|vlogs?)\b)")
-TITLED = re.compile(rf"(?i:\b(?:youtubers?|streamers?|creators?|podcasters?|vtubers?|youtube channel|twitch channel|podcast)(?: i (?:follow|watch|like|love|enjoy|recommend))?,?\s+(?:called |named )?){NAME}")
 WATCHED = re.compile(rf"(?i:\b(?:i (?:\w+ )?(?:watch|watching|watched)|subscribed to|i follow|i'?ve been following) ){NAME}(?i: (?:on|'s) (?:youtube|twitch|tiktok|kick)\b)")
 LISTENED = re.compile(rf"(?i:\b(?:i(?:'m| am|'ve been| have been)? (?:\w+ )?(?:listening to|listen to|listened to|jamming to|bumping)|been (?:listening to|bumping|jamming to)) ){NAME}")
 ALBUM = re.compile(rf"{NAME}(?:'s|s'|’s) (?i:(?:new |latest |last |debut |first |second |third |next |old |early )?(?:albums?|songs?|singles?|discography|tour|concerts?|records?|ep|lp|music|vocals|lyrics)\b)")
@@ -136,6 +135,12 @@ PRAISED = re.compile(rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:is|was|are|were|has 
                      rf"(?:peak|goated|amazing|incredible|underrated|phenomenal|a masterpiece|a banger|fire|elite|god ?tier|top tier|the goat|the best\b|one of the best)\b)")
 FAVORITE_PLAIN = re.compile(rf"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav) ({KIND_WORDS})s? (?:is|has to be|would be|was|are)\s+"
                             r"((?:the )?[\w'&:!+-]+(?: [\w'&:!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|lol|too|tbh|honestly|by far|hands down|of all time|ever|for sure)\b)")
+PERSON = r"((?:[A-Z]\. |[A-Z][\w-]*(?:'[A-Z][\w-]*)? ){1,3}[A-Z][\w-]*(?:'[A-Z][\w-]*)?)(?![\w-])"
+WRITTEN_BY = re.compile(rf"(?<!read )\bby {PERSON}")
+BOOKISH = ("author", "novel", "writ", "wrote", "book", "read", "series", "trilogy", "saga")
+BLANK = re.compile(r"\n[^\S\n]*\n")
+ADVISED = re.compile(r"(?i:\b(?:recommend\w*|suggest\w*|advise|try|check out)\b)")
+WROTE = re.compile(rf"{PERSON}(?:'s|s') (?:[\w:'-]+ ){{0,6}}?(?i:books?|novels?|series|trilogy|saga|writing)\b|(?i:\b(?:read|reading|finished|love|loved|enjoy|enjoyed)\b (?:\w+ ){{0,3}}){PERSON}(?i: (?:books|novels)\b)")
 CHOICE = re.compile(r"\^\((?:My choice|Me|Chose|My pick): ([^)|\n]{2,60}?)\s*[)|]")
 SPLIT = re.compile(r"\s*(?:,|/|&|\band\b)\s*")
 POSSESSIVE = re.compile(r"'s\b.*$")
@@ -230,7 +235,7 @@ def favorites(text, found):
     for match in CHOICE.finditer(text):
         if " " in (name := match.group(1).strip()) and (hit := lexical(name)):
             named(*hit, found, match.start())
-    for pattern in (CREATED, WATCHED, TITLED):
+    for pattern in (CREATED, WATCHED):
         for match in pattern.finditer(text):
             sentence = text[clause(text, match.start()):match.end() + 80]
             if (SELF.search(sentence) or POSITIVE.search(sentence)) and not hedged(lowered, match.start(), match.end(), SELF_HEDGE) and not lexical(match.group(1)):
@@ -243,7 +248,30 @@ def favorites(text, found):
                     hit = lexical(piece)
                     if not hit or hit[0] == "artist":
                         named("artist", hit[1] if hit else piece, found, match.start())
+    authored(text, found)
     known(text, found)
+
+
+def paragraph(text, start):
+    return blank.start() if (blank := BLANK.search(text, start)) else len(text)
+
+
+def authored(text, found):
+    lowered = text.lower()
+    if not any(word in lowered for word in BOOKISH):
+        return
+    for pattern in (WRITTEN_BY, WROTE):
+        for match in pattern.finditer(text):
+            name = match.group(1) or match.group(2)
+            left, right = sentence(text, match.start(), match.end())
+            alone = pattern is WRITTEN_BY and opening(text, left) and not text[match.end():right].strip(" .,!*}")
+            if not (SELF.search(text, left, right) or POSITIVE.search(text, left, right) or alone and SELF.search(text, right, paragraph(text, right))) or NEGATIVE.search(text, left, right) or text[right:right + 1] == "?" or ADVISED.search(text, left, right) or hedged(lowered, match.start(), match.end(), SELF_HEDGE):
+                continue
+            hit = lexical(name)
+            if hit and hit[0] not in ("author", "celebrity", "artist"):
+                continue
+            if pattern is WROTE or AUTHORING.search(text, max(0, left - 100), right + 100) and not CONTEXTS["artist"].search(text, max(0, left - 100), right + 100):
+                named("author", hit[1] if hit and hit[0] == "author" else name, found, match.start())
 
 
 def named(attribute, name, found, position):
@@ -428,7 +456,7 @@ def praised(text, start, end):
 
 def engaged(text, start, end, attribute, popular, plain):
     left, right = narrow = sentence(text, start, end)
-    if text[right:right + 1] == "?":
+    if text[right:right + 1] == "?" or attribute == "athlete" and not SELF.search(text, *narrow):
         return False
     if plain and attribute == "franchise":
         return bool(POSITIVE.search(text, *narrow))
@@ -446,13 +474,22 @@ BACKING = re.compile(r"(?i:\b(?:my|our|go|let'?s go|lets go|up the|c'?mon|come o
 BACKER = re.compile(r"(?i:\s*(?:nation|faithful|for life|forever|till i die|all the way)\b)")
 FANNED = re.compile(r"(?i:\s*(?:fan|supporter)\b)")
 AVOWED = re.compile(r"(?i:\b(?:i'?m|i am|as|been|being)\b[\w\s-]{0,20}$)")
+OWNED = re.compile(r"(?:my|our)\b")
 PEER = re.compile(r"(?i:\b(?:he|she|they|his|her|their|dad|mom|father|mother|brother|sister|wife|husband|son|daughter|friend|friends|boyfriend|girlfriend|partner|people|everyone|nobody|every)\b)")
+
+
+def othered(lowered, start, end):
+    left = clause(lowered, start)
+    return bool(PEER.search(lowered, left, start)) and not SELF.search(lowered, left, end)
 
 
 def supported(text, start, end):
     lowered = text.lower()
     before = max(0, start - 30)
-    if not (BACKING.search(lowered, before, start) or BACKER.match(lowered, end) or (FANNED.match(lowered, end) and AVOWED.search(lowered, before, start))):
+    backed = BACKING.search(lowered, before, start)
+    if backed and text[start:end].islower() and OWNED.match(backed.group()):
+        backed = None
+    if not (backed or BACKER.match(lowered, end) or (FANNED.match(lowered, end) and AVOWED.search(lowered, before, start))):
         return False
     return not PEER.search(lowered, clause(lowered, start), start) and not hedged(lowered, start, end, SELF_HEDGE)
 
@@ -482,14 +519,16 @@ def known(text, found):
             readings.setdefault((start, end, attribute), value)
         surface = text[start:end]
         key = " ".join(WORD.findall(folded(surface).lower())).removeprefix("the ")
-        if (attribute == "character" or (cased and attribute in SPELLED) or (common and links < FAMOUS_SITELINKS and " " not in surface)
+        liked = attribute == "franchise" and LIKED.search(text, max(0, start - 40), start)
+        if (attribute == "character" or (cased and attribute in SPELLED) or (common and links < FAMOUS_SITELINKS and " " not in surface and not liked)
+                or (attribute in TITLES and len("".join(WORD.findall(value))) <= 2)
                 or (attribute in TITLES and (key in COMMON or key in PLACES) and surface.removeprefix("the ").removeprefix("The ") in (key, key.capitalize(), key.title()))
                 or (attribute in LOOSE and not cased and common and links < FAMOUS_SITELINKS and surface.islower())
                 or (attribute == "franchise" and surface.islower() and any(char.isdigit() for char in surface))):
             continue
         gated = (cased or common or attribute in NAMED_ONLY or attribute in GATED) and not GATES[attribute].search(text, max(0, start - WINDOW), end + WINDOW)
         if gated and not ((attribute == "franchise" and links >= FAMOUS_SITELINKS and not common or attribute in NAMED_ONLY) and praised(text, start, end)
-                          or attribute == "franchise" and LIKED.search(text, max(0, start - 40), start)):
+                          or liked):
             continue
         if cased and " " not in surface and opening(text, start):
             bounds = sentence(text, start, end)
@@ -515,6 +554,8 @@ def known(text, found):
     told, lowered = set(), ""
     for span in spans:
         start, end, attribute, value = span
+        if attribute == "video_game" and othered(lowered := lowered or text.lower(), start, end):
+            continue
         if ((attribute, value) not in told and (span in listed or ((start, end, attribute) not in opened and engaged(text, start, end, attribute, (start, end, attribute) in famous, (start, end, attribute) in ordinary)))
                 and not (attribute not in PLAYED and hedged(lowered := lowered or text.lower(), start, end, SELF_HEDGE))):
             told.add((attribute, value))
