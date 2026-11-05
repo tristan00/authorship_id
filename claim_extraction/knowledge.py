@@ -53,6 +53,12 @@ HUMAN = "?item wdt:P31 wd:Q5 ."
 WORD = re.compile(r"\w+")
 SUFFIXES = frozenset({"jr", "sr", "ii", "iii", "iv"})
 BRACKETED = re.compile(r"\s*[(\[][^)\]]*[)\]]")
+BOOK_AUTHORS = Path(__file__).with_name("book_authors.tsv")
+BOOK_SOURCES = frozenset({"novel", "book series"})
+SCREEN_AND_COMIC_CLASSES = ("Q21198342", "Q14406742", "Q196600", "Q24856", "Q5398426", "Q63952888", "Q11424")
+WRITTEN = """SELECT ?label ?name WHERE {{ VALUES ?class {{ {classes} }} ?item wdt:{property} ?class ; wikibase:sitelinks ?links ; wdt:P50 ?author . FILTER(?links >= {minimum})
+FILTER NOT EXISTS {{ ?item wdt:P31/wdt:P279* ?other . VALUES ?other {{ {excluded} }} }}
+?item rdfs:label ?label FILTER(LANG(?label) = "en") ?author rdfs:label ?name FILTER(LANG(?name) = "en") }}"""
 
 
 def fetched(query):
@@ -83,6 +89,34 @@ def members(source, classes):
         raise TimeoutError(source.name + " " + classes[0])
     half = len(classes) // 2
     return members(source, classes[:half]) + members(source, classes[half:])
+
+
+def written(source, classes):
+    rows = fetched(WRITTEN.format(classes=" ".join("wd:" + code for code in classes), property=source.property, minimum=source.minimum_sitelinks, excluded=" ".join("wd:" + code for code in SCREEN_AND_COMIC_CLASSES)))
+    if rows is not None:
+        return rows
+    if len(classes) == 1:
+        raise TimeoutError(source.name + " " + classes[0])
+    half = len(classes) // 2
+    return written(source, classes[:half]) + written(source, classes[half:])
+
+
+@timed
+def generate_book_authors(target=BOOK_AUTHORS, sources=SOURCES):
+    authors = {}
+    for source in sources:
+        if source.name not in BOOK_SOURCES:
+            continue
+        classes = subclasses(source.root) if source.subclasses else [source.root]
+        for start in range(0, len(classes), CHUNK):
+            for label, name in written(source, classes[start:start + CHUNK]):
+                if (title := fan_value("franchise", BRACKETED.sub("", label).strip().lower())) and (writer := fan_value("author", BRACKETED.sub("", name).strip().lower())):
+                    authors.setdefault(title, set()).add(writer)
+    with open(target, "w", encoding="utf-8", newline="\n") as out:
+        out.write("title\tauthor\n")
+        for title, writers in sorted(authors.items()):
+            if len(writers) == 1:
+                out.write(f"{title}\t{next(iter(writers))}\n")
 
 
 def folded(text):
@@ -148,3 +182,4 @@ def generate(target=TARGET, sources=SOURCES):
 
 if __name__ == "__main__":
     generate(Path(sys.argv[1]) if len(sys.argv) > 1 else TARGET)
+    generate_book_authors()

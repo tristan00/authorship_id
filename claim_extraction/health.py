@@ -29,7 +29,8 @@ HAVE_NOW = (rf"{SUBJECT}(?:have|got|get|suffer from|suffer with|struggle with|de
             r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)"
             r"|\bi (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|\b(?:as |i'm |im |i am )(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal)) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
             r"|\bmy (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|\bdiagnosed me (?:with|as)")
-HAVE = HAVE_NOW + rf"|{SUBJECT}(?:had|suffered from|struggled with|dealt with|lived with|battled|fought|beat|survived|overcame|was treated for|was dealing with|went through|got treated for)"
+HAD = rf"{SUBJECT}(?:had|suffered from|struggled with|dealt with|lived with|battled|fought|beat|survived|overcame|was treated for|was dealing with|went through|got treated for)"
+HAVE = HAVE_NOW + "|" + HAD
 BARE = r"(?:^|[.!?\n|]\s*)(?:recently |newly |just |finally |officially |formally |also |and |got |was |been )*(?:diagnosed|dx'?d) (?:with|w/)"
 MODIFIERS = (r"own|severe|mild|moderate|chronic|acute|stupid|damn|damned|fucking|freaking|bloody|bad|untreated|undiagnosed|diagnosed|recent|current|constant|occasional|lifelong|genetic|congenital|"
              r"hereditary|early|late|new|old|primary|secondary|crippling|debilitating|terrible|horrible|awful|pretty bad|really bad|annoying|lovely|wonderful|recurring|recurrent|persistent|ongoing|"
@@ -452,7 +453,6 @@ RULES += [
     rule("mental_condition", rf"\b(?:my|i take|i'm on|i am on|i've been on|i started|i'm taking|i am taking|i've been taking|i was put on|i got put on|i was prescribed|i got prescribed|i was given|prescribed me|gave me|put me on|i switched to|switched me to|i take my|i forgot my|i forgot to take my|i ran out of|i'm out of) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({names(ADHD_DRUGS_WIKIDATA)})\b",
          group(ADHD_DRUGS_WIKIDATA), SELF_HEDGE),
     rule("mental_condition", rf"\b(audhd|au/dhd)\b{FOLLOWERS}", fixed("both adhd and autism"), OTHERS),
-    rule("mental_condition", r"\b(?:i'm|im|i am|i m) (?:literally |also |very |severely |pretty )?nd\b", fixed("neurodivergent, unspecified"), SELF_HEDGE),
     rule("mental_condition", r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar|insomnia) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
          group({**MENTAL, "bipolar": "bipolar disorder", "insomnia": "other mental health condition"}), SELF_HEDGE),
     *(rule("mental_condition", pattern, group(MENTAL_LOOSE), OWN_HEDGE) for pattern in (
@@ -473,11 +473,11 @@ RULES += [
     rule("mental_condition", r"\b(?:i'm|im|i am|i've been|ive been|i got|i became) (?:so |really |literally |kinda |pretty |super |very |totally |completely |still |seriously |severely )*addicted to\b",
          fixed("addiction"), OWN_HEDGE)]
 
-FOREIGN_AM = r"(?<![\w'])(?:soy|sou|je suis|ich bin|sono|jestem|ik ben)\s+(?:(?:un|una|um|uma|une|ein|eine|einen|un'|een|tambien|también|também|aussi|auch|anche|też|ook)\s+)*"
-FOREIGN_MIND_STATES = spread({"autism": ["autista", "autiste", "autist", "autistin", "autistisch", "autistico", "autistica", "autystą", "autystyczny", "autystyczna"],
+FOREIGN_AM = r"(?<![\w'])(?:soy|sou|je suis|ich bin|sono|jestem|ik ben|tengo|tenho|j'ai|ich habe|ho|mam|ik heb|con|com|avec|mit)\s+(?:(?:un|una|um|uma|une|ein|eine|einen|un'|een|tambien|también|também|aussi|auch|anche|też|ook|le|la|de|del|du)\s+|l')*"
+FOREIGN_MIND_STATES = spread({"autism": ["autista", "autiste", "autist", "autistin", "autistisch", "autistico", "autistica", "autystą", "autystyczny", "autystyczna", "autismo", "autisme", "autismus", "autyzm"],
                               "bipolar disorder": ["bipolar", "bipolaire", "bipolare"], "depression": ["depresivo", "depresiva", "deprimido", "deprimida", "depressivo", "depressiva", "dépressif", "dépressive",
                                                                                                      "depressiv", "depresso", "depressa", "w depresji", "depressief"],
-                              "adhd": ["tdah", "adhs", "adhd", "adhdowcem"], "addiction": ["alcohólico", "alcohólica", "alcoólatra", "alcoolique", "alkoholiker", "alkoholikerin", "alcolizzato", "alkoholikiem", "verslaafd"]})
+                              "adhd": ["tdah", "adhs", "adhd", "adhdowcem"], "dyslexia": ["dyslexique", "disléxico", "disléxica", "dislessico", "dislessica", "legastheniker", "dislexia", "dyslexie", "legasthenie", "dysleksja", "dislessia"], "addiction": ["alcohólico", "alcohólica", "alcoólatra", "alcoolique", "alkoholiker", "alkoholikerin", "alcolizzato", "alkoholikiem", "verslaafd"]})
 RULES += [
     rule("mental_condition", rf"{FOREIGN_AM}({names(FOREIGN_MIND_STATES)})(?![\w'])", group(FOREIGN_MIND_STATES), SELF_HEDGE),
     rule("mental_condition", r"\b(?:we|us)\W+(?:fellow |other )?(autistic|adhd|adhders|neurodivergent|nd|audhd|bipolar|ocd|anxious|depressed|dyslexic) (?:people|folks|adults|women|men|girls|guys|ones|kids|types|individuals|humans)\b",
@@ -545,10 +545,6 @@ ORGANS = {"heart": "heart or blood condition", "cardiac": "heart or blood condit
           "kidney": "other physical condition", "liver": "other physical condition", "bladder": "other physical condition", "health": "other physical condition", "medical": "other physical condition",
           "dental": "other physical condition", "teeth": "other physical condition", "sleep": "other physical condition"}
 TROUBLES = ("problems", "issues", "trouble", "condition", "conditions", "imbalance")
-GENERAL = spread({"autoimmune disease": ["ms"], "other physical condition": ["motion sickness", "car sickness", "parkinsonism", "drug induced parkinsonism", "a chronic illness", "a medical condition", "a health condition"],
-                  "digestive condition": ["constipation", "chronic constipation"],
-                  "hormonal or reproductive condition": ["miscarriages", "a miscarriage", "recurrent miscarriages", "recurrent pregnancy loss", "a hormonal imbalance"],
-                  "skin condition": ["keratosis pilaris"]})
 
 
 def inflected(table):
@@ -566,9 +562,9 @@ def inflected(table):
 MIND_EXTRA = spread({"anxiety": ["panic attacks", "anxiety attacks", "a panic disorder", "separation anxiety", "performance anxiety", "test anxiety"], "depression": ["depressive episodes", "a depressive episode"],
                      "bipolar disorder": ["manic episodes", "a manic episode"], "eating disorder": ["binge eating"],
                      "other mental health condition": ["suicidal thoughts", "intrusive thoughts", "executive dysfunction", "insomnia"]})
-KNOWN = {*PHYSICAL, *PHYSICAL_STATES, *PHYSICAL_TOOLS, *MENTAL, *MENTAL_STATES, *MIND_EXTRA, *GENERAL}
+KNOWN = {*PHYSICAL, *PHYSICAL_STATES, *PHYSICAL_TOOLS, *MENTAL, *MENTAL_STATES, *MIND_EXTRA}
 WORDNET_CONDITIONS = {name: value for name, value in (line.split("\t") for line in Path(__file__).with_name("wordnet_conditions.tsv").read_text(encoding="utf-8").splitlines()) if name not in KNOWN}
-CONDITIONS = inflected({**WORDNET_CONDITIONS, **{f"{organ} {trouble}": value for organ, value in ORGANS.items() for trouble in TROUBLES}, **GENERAL, **PHYSICAL,
+CONDITIONS = inflected({**WORDNET_CONDITIONS, **{f"{organ} {trouble}": value for organ, value in ORGANS.items() for trouble in TROUBLES}, **PHYSICAL,
                         **dict.fromkeys(("surgery", "surgeries", "a surgery", "an operation", "an injury", "injuries", "an illness", "illness", "a disease", "an infection", "infection", "infections"), "unspecified")})
 STATES = {name: value for name, value in inflected(PHYSICAL_STATES).items() if name not in CONDITIONS}
 MIND = inflected({**MIND_EXTRA, **MENTAL_LOOSE})
@@ -584,6 +580,7 @@ def owning(have, mine):
 
 
 NOUN_CUE = re.compile(rf"(?:{owning(HAVE_NOW, rf'\bmy{LEAD}{FREE}{{0,2}}')})$")
+PAST_CUE = re.compile(rf"(?:{HAD}){LEAD}{FREE}{{0,2}}$")
 MIND_CUE = re.compile(rf"(?:{owning(HAVE, rf'\bmy{LEAD}')}|\b(?:must|could|might|may|probably|just|it's|its|that's|thats|blame it on|blame)(?: just| probably| definitely)?(?: be)? the{LEAD})$")
 DROPPED = re.compile(rf"\W*(?:also |and |but |still |now |recently |just |newly |finally |officially |got |was |been )*(?:have|got|having|suffer from|suffer with|suffering from|suffering with|struggle with|struggling with|deal with|dealing with|live with|living with|recovering from|battling|diagnosed with|dx'?d with){LEAD}{FREE}?")
 DIAGNOSED = re.compile(rf"\W*(?:recently |just |also |finally |newly |officially |formally )?(?:got |was |been )?(?:diagnosed|dx'?d)(?: as)?{LEAD}")
@@ -603,8 +600,6 @@ MIND_STATE_CUE = stating("being(?: an?)?|of us")
 LINK = re.compile(rf"\s*(?:,|&|/|\+|\band\b|\bor\b|\bplus\b|\bas well as\b|\balong with\b|\bw/)(?:\s*(?:and|&)\b)?{LEAD}")
 TRAIL = re.compile(rf"\s*(?:{PEOPLE}|community|person|research|awareness|month|day|walk|"
                    r"charity|foundation|society|association|group|subreddit|sub|forum|nurse|doctor|unit|ward|center|centre|clinic|risk|test|testing|screening)s?\b|'s\b")
-MS_PREV = re.compile(r"\b(?:have|had|with|my|i've|ive|got|and|&)\s*$")
-MS_NEXT = re.compile(r"\s*(?:$|[^\w\s]|(?:and|is|was|has|had|diagnosis|symptoms|flare|relapse|meds|medication|fatigue|brain|lesions)\b)")
 SCOPE = re.compile(r"[,;:(.!?\n]|\b(?:and|but|because|cause|cuz|bc|since|so|though|although|while|whereas)\b")
 ASTROLOGY = re.compile(r"\b(?:aries|taurus|gemini|geminis|leo|leos|virgo|virgos|libra|libras|scorpio|scorpios|sagittarius|capricorn|capricorns|aquarius|pisces|zodiac|horoscope|astrology)\b|\b(?:in|into) cancer\b|\bcancer (?:sun|moon|rising|venus|mars|mercury|jupiter|saturn|placement|season|sign)\b|\b(?:sun|moon|rising|saturn|jupiter|venus|mars|mercury) (?:in|sign)\b")
 
@@ -673,10 +668,10 @@ def owned(lowered, sentence, found, families):
                 continue
             left = part[max(0, start - 90):start]
             here = HERE_AFTER[attribute].match(part, end) and HERE_BEFORE.search(left)
-            cue = (noun_cue if noun else state_cue).search(left) or here
+            cue = (noun_cue if noun else state_cue).search(left) or here or attribute == "physical_condition" and noun and nouns.get(name) != "unspecified" and PAST_CUE.search(left)
             begin = start - len(cue.group()) if cue else 0 if (DROPPED if noun else DIAGNOSED).fullmatch(part, 0, start) else None
             chained = previous is not None and LINK.fullmatch(part, previous, start)
-            if ((begin is not None or chained) and (here or not TRAIL.match(part, end)) and (name != "ms" or MS_NEXT.match(part, end) and MS_PREV.search(part, 0, start))
+            if ((begin is not None or chained) and (here or not TRAIL.match(part, end))
                     and (chained or unhedged(lowered, sentence.start() + begin)) and not quoted(lowered, sentence.start() + start)):
                 found.setdefault((attribute, nouns.get(name) or states.get(name) or suffix[1]), sentence.start() + start)
                 previous = end

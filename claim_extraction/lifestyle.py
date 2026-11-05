@@ -29,11 +29,12 @@ def labelled(lead, table):
 
 
 STEMS = (("مسلم", "muslim"), ("مسيح", "christian"), ("ملحد", "atheist"), ("ate", "atheist"), ("athe", "atheist"), ("athé", "atheist"), ("musul", "muslim"), ("muzu", "muslim"), ("muslim", "muslim"), ("moslim", "muslim"),
-         ("jud", "jewish"), ("jüd", "jewish"), ("juif", "jewish"), ("juive", "jewish"), ("ebre", "jewish"), ("joods", "jewish"), ("agnost", "agnostic"))
+         ("jud", "jewish"), ("jüd", "jewish"), ("juif", "jewish"), ("juive", "jewish"), ("ebre", "jewish"), ("joods", "jewish"), ("agnost", "agnostic"), ("agnóst", "agnostic"),
+         ("cat", "christian"), ("kat", "christian"), ("crist", "christian"), ("christ", "christian"), ("chrét", "christian"), ("chrz", "christian"), ("evang", "christian"))
 
 
 def foreign(match):
-    return next((value for stem, value in STEMS if match.group().split()[-1].startswith(stem)), "christian")
+    return next((value for stem, value in STEMS if match.group().split()[-1].startswith(stem)), None)
 
 
 RELIGION = [
@@ -48,7 +49,7 @@ RELIGION = [
          foreign, SELF_HEDGE),
     rule("religion", r"i(?<=\bi)(?:'m| am|m| m) (?:also |personally |actually |just |definitely |certainly |honestly )?not (?:a |very |really |particularly |that |super |overly |at all |even |remotely |exactly |all that |terribly |the least bit )?religious(?: person)?\b|n(?<=\bn)ot(?:(?<=^not)|(?<=[.!?\n]not)|(?<=[.!?\n] not)|(?<=[.!?\n]  not)) (?:a |very |really |particularly )?religious(?: person)?\b|i(?<=\bi)(?:'m| am) (?:a )?(?:non-?religious|irreligious)\b|i(?<=\bi) (?:don't|do not|dont) (?:have|practice|follow) (?:a |any )religion\b|i(?<=\bi) have no religion\b|i(?<=\bi) (?:don't|do not) (?:believe in god|follow (?:any )?religion)\b|i(?<=\bi) loathe (?:all )?religion\b|s(?<=\bs)piritual,? (?:but )?not religious\b|m(?<=\bm)ore spiritual than religious\b|я(?<=\bя) не религиозн|n(?<=\bn)o soy religios[oa]\b|i(?<=\bi)ch bin nicht religiös\b",
          lambda match: "atheist" if "god" in match.group() or "loathe" in match.group() else "spiritual, no religion", TAGGED),
-    rule("religion", rf"\b(?:i|i'd|i would) (?:consider myself|identify as|would call myself|call myself|describe myself as) (?:a |an )?(?:\w+ )?({FAITH})\b|\b(?:we|us) as ({FAITH})s\b|{AS} ({FAITH})s,? (?:we|us|our)\b|\bfellow ({FAITH})s?\b", lambda match: RELIGIONS.get(next(filter(None, match.groups()))), SELF_HEDGE),
+    rule("religion", rf"i(?<=\bi)(?:'d| would)? (?:consider myself|identify as|would call myself|call myself|describe myself as) (?:a |an )?(?:\w+ )?({FAITH})\b|(?:w(?<=\bw)e|u(?<=\bu)s) as ({FAITH})s\b|{AS} ({FAITH})s,? (?:we|us|our)\b|f(?<=\bf)ellow ({FAITH})s?\b", lambda match: RELIGIONS.get(next(filter(None, match.groups()))), SELF_HEDGE),
     rule("religion", r"here(?<=\bhere)\b", labelled(re.compile(rf"(?:^|[.!?,;(] *)(?:(?!former\b|ex\b|recovering\b|lapsed\b|non\b|not\b|raised\b|born\b|anti\b)\w+ )?({FAITH}) \Z"), RELIGIONS), SELF_HEDGE),
     rule("religion", rf"\A\W*(?:\d{{2}}\s*[mf]?\W*)?(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?({FAITH}) (?:couple|guy|girl|man|woman|male|female|m|f|dad|mom|here|only)\b", group(RELIGIONS), SELF_HEDGE),
     rule("religion", r"i (?<=\bi )(?:\w+ )?pray (?:that )?allah\b", fixed("muslim"), SELF_HEDGE),
@@ -63,45 +64,79 @@ POLITICS = {"communist": "communist or far left", "marxist": "communist or far l
             "conservative": "conservative or right", "republican": "conservative or right", "libertarian": "libertarian", "anarchist": "anarchist",
             "nationalist": "nationalist or far right", "apolitical": "apolitical", "lefty": "socialist or left"}
 PARTY = "|".join(POLITICS)
+STANCES = {"prochoice": "progressive or liberal", "prolife": "conservative or right", "antiabortion": "conservative or right", "anticapitalist": "socialist or left", "antiwoke": "conservative or right",
+           "republicans": "conservative or right", "red": "conservative or right", "right": "conservative or right", "democrats": "progressive or liberal", "dems": "progressive or liberal", "blue": "progressive or liberal",
+           "left": "socialist or left", "libertarian": "libertarian", "green": "progressive or liberal"}
 POLITICAL = [
     rule("political_identity", rf"i(?<=\bi){ME} {FREE}(?:a |an )?{FREE}{FILLER}({PARTY})\b(?! (?:party|candidate|politician|media|news|state|areas?|policies|policy|government|friends?|with|about|when|in terms|on|in my|of|arts|education|college|degree|use|amount|drinker|smoker|pain|exercise|interpretation|reading|translation|estimate|side|approach)\b)",
          scoped(POLITICS), TAGGED),
     rule("political_identity", rf"i(?<=\bi) (?:consider myself|identify as|would call myself|describe myself as) (?:a |an )?(?:\w+ )?({PARTY})\b|i(?<=\bi)(?:'m| am) a registered (democrat|republican)\b|i(?<=\bi) (?:\w+ )?lean(?:s)? (?:more |pretty |very |slightly |a bit |a little |heavily |strongly |hard )?(?:to the |towards the |toward the |towards |toward )?(left|right|liberal|conservative|progressive|libertarian|socialist)\b(?! (?:on|against|into|over|back|forward|in)\b)",
          lambda match: POLITICS.get(match.group(1)) or POLITICS.get(match.group(2)) or {"left": "socialist or left", "right": "conservative or right"}.get(match.group(3)) or POLITICS.get(match.group(3)), SELF_HEDGE),
-    rule("political_identity", rf"\b(?:we|us) ({PARTY})s\b|\bme and (?:every|other|fellow|all the) ({PARTY})s?\b|\b(?:center|centre)[- ](left|right)(?: \w+){{0,2}} here\b|\bi(?:'m| am) (?:a )?maga\b|\bi (?:\w+ )?(?:voted|vote|will vote|am voting|'m voting) (?:for )?(republican|gop|democrat)\b"
-         r"|\b(?:volledig |totally |completely )?(apolitiek|apolitisch|apolítico|apolítica|apolitico|apolitica)\b",
-         lambda match: POLITICS.get(match.group(1) or match.group(2)) or {"left": "progressive or liberal", "right": "conservative or right", "republican": "conservative or right", "gop": "conservative or right"}.get(match.group(3) or match.group(4) or "", "apolitical" if match.group(5) else "conservative or right" if "maga" in match.group() else "progressive or liberal"), SELF_HEDGE),
+    rule("political_identity", rf"(?:w(?<=\bw)e|u(?<=\bu)s) ({PARTY})s\b|m(?<=\bm)e and (?:every|other|fellow|all the) ({PARTY})s?\b|c(?<=\bc)ent(?:er|re)[- ](left|right)(?: \w+){{0,2}} here\b|i(?<=\bi)(?:'m| am) (?:a )?maga\b|i(?<=\bi) (?:\w+ )?(?:voted|vote|will vote|am voting|'m voting) (?:for )?(republican|gop|democrat)\b",
+         lambda match: POLITICS.get(match.group(1) or match.group(2)) or {"left": "progressive or liberal", "right": "conservative or right", "republican": "conservative or right", "gop": "conservative or right"}.get(match.group(3) or match.group(4) or "", "conservative or right" if "maga" in match.group() else "progressive or liberal"), SELF_HEDGE),
+    rule("political_identity", r"\b(?:volledig |totally |completely )?(?:apolitiek|apolitisch|apolítico|apolítica|apolitico|apolitica)\b", fixed("apolitical"), SELF_HEDGE),
     rule("political_identity", rf"{AS} an? (?:\w+ )?({PARTY})\b(?! (?:party|candidate|politician|media|news|state|areas?|policies|policy|government|friends?)\b)", group(POLITICS)),
     rule("political_identity", r"here(?<=\bhere)\b", labelled(re.compile(rf"(?:^|[.!?,;(] *)({PARTY}) \Z"), POLITICS), SELF_HEDGE),
     rule("political_identity", rf"f(?<=\bf)ellow ({PARTY})s?\b", group(POLITICS), SELF_HEDGE),
     rule("political_identity", r"\b(?:i'm|im|i am|i m) [*_]*(?:on|firmly on|solidly on|squarely on|also on)[*_]* the [*_]*(?:far[- ])?(left|right)\b(?! (?:track|path|side of|page|way|foot|direction|answer|thing|one|place|time|hand|lane|side of history)\b)|\b(?:i'm|im|i am|i m) (?:pretty |very |far |more |center |centre |a |fairly |quite )?(left[- ]wing|right[- ]wing|left[- ]leaning|right[- ]leaning|leftist|lefty|far[- ]left|far[- ]right|center[- ]left|centre[- ]left|center[- ]right|centre[- ]right|left of cent(?:er|re)|right of cent(?:er|re))\b",
          lambda match: "socialist or left" if "left" in (match.group(1) or match.group(2)) or "lefty" in (match.group(1) or match.group(2)) else "conservative or right", SELF_HEDGE),
+    rule("political_identity", r"i(?<=\bi)(?:'m| am|m| m) (?:(?!not\b|never\b|no\b)\w+ )?(?:very |strongly |firmly |staunchly |proudly |100% )?(pro[- ]?choice|pro[- ]?life|anti[- ]?abortion|anti[- ]?capitalist|anti[- ]?woke)\b|m(?<=\bm)y (pro[- ]?choice|pro[- ]?life|anti[- ]?capitalist) (?:views?|stance|ideology|beliefs|politics|values)\b"
+         r"|i(?<=\bi) (?:(?!never\b|won't\b|wont\b|wouldn't\b|didn't\b|didnt\b|can't\b|cant\b)\w+ )?(?:voted|vote|will vote|am voting|'m voting) (?:for )?(?:the )?(republicans|democrats|dems|blue|red|left|right|libertarian|green)\b(?! (?:light|line|state|flag|button|card|wave|tide)\b)",
+         lambda match: STANCES[re.sub(r"[- ]", "", next(filter(None, match.groups())))], SELF_HEDGE),
 ]
 
+SELF_NEAR = re.compile(r"\b(?:i|i'm|im|i've|ive|me|my|we)\b")
+OTHER_NEAR = re.compile(r"\b(?:you|he|she|they|people|someone|somebody|anyone|everyone|his|her|their|your|friends?|dad|mom|father|mother|grandfather|grandpa|granddad|uncle|brother|sister|cousin|husband|wife|spouse|boyfriend|girlfriend|fiance|fiancee|partner|kids?|son|daughter)\b")
+
+
+def sentence_start(match):
+    return max(match.string.rfind(mark, 0, match.start()) for mark in ".!?\n") + 1
+
+
+def lead(match):
+    return match.string[sentence_start(match):match.start()]
+
+
+ADOPTED = re.compile(r"\b(?:my|on|eating|following|follow|followed|started|adopted|switched to|stick to|stuck to|thanks to|due to|doing) (?:a |an |the )?(?:(?:strict|strictly|mostly|fully|very|nearly|almost|100%|\d+%|whole food|healthy|clean) )*\Z")
+STARTED = re.compile(r"\b(?:on|doing|started|start|eating|following|going|went|been|stay|staying) (?:strict |a strict |full |proper |properly |mostly |strictly )?\Z")
+
+
+FOODWAY = re.compile(r"vegan|vegetarian|veggie|pescatarian|pescetarian|keto|low[- ]carb|gluten[- ]free|plant[- ]based|halal|kosher|carnivore")
+NOT_DIET = re.compile(r" (?:diet|recipes?|friendly|meals?|food|snacks?|bread|options?|version)\b")
+
+
+def diet_mine(match):
+    before = lead(match)
+    word = FOODWAY.match(match.group()).group()
+    if len(word) < len(match.group()):
+        framed = word != "carnivore" and ADOPTED.search(before)
+    else:
+        framed = word in ("keto", "low carb", "low-carb", "carnivore") and not NOT_DIET.match(match.string, match.end()) and STARTED.search(before)
+    return DIETS.get(word) if framed and SELF_NEAR.search(before) and not OTHER_NEAR.search(before) else None
+
+
 DIETS = {"vegan": "vegan", "vegetarian": "vegetarian", "veggie": "vegetarian", "pescatarian": "pescatarian", "pescetarian": "pescatarian", "keto": "keto or low carb",
-         "halal": "halal or kosher", "kosher": "halal or kosher", "gluten free": "gluten free", "gluten-free": "gluten free"}
+         "halal": "halal or kosher", "kosher": "halal or kosher", "gluten free": "gluten free", "gluten-free": "gluten free",
+         "low carb": "keto or low carb", "low-carb": "keto or low carb", "ketogenic": "keto or low carb", "carnivore": "keto or low carb", "plant based": "vegan", "plant-based": "vegan"}
 DIET = [
     rule("diet", rf"i(?<=\bi){ME} (?:a |an )?(?:(?!not\b|never\b|no\b|ex\b|non\b|former\b|recovering\b|bad\b)[\w-]+ )?(?:a |an )?(?:(?!not\b|never\b|no\b|ex\b|non\b|former\b)[\w-]+ )?(vegan|vegetarian|veggie|pescatarian|pescetarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friends?)\b)", group(DIETS)),
     rule("diet", rf"{AS} an? (vegan|vegetarian|pescatarian|pescetarian)\b(?! (?:food|restaurant|options?|meals?|recipes?)\b)", group(DIETS)),
-    rule("diet", r"\bwe(?:'re| are) (?:all |both |also |strictly )?(vegan|vegetarian|pescatarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friendly)\b)|\b(?:soy|sou|sono|ich bin|ik ben) (vegan[oa]?|vegetarian[oa]|vegetarisch|vegetarier(?:in)?|vegetariër|veganer(?:in)?)\b"
-         r"|\bje suis (végane?|végétarien(?:ne)?|vegan)\b|\bjestem (weganką|weganinem|wegetarianką|wegetarianinem)\b", lambda match: DIETS.get(word := next(filter(None, match.groups()))) or ("vegetarian" if "tar" in word else "vegan"), SELF_HEDGE),
+    rule("diet", r"we(?<=\bwe)(?:'re| are) (?:all |both |also |strictly )?(vegan|vegetarian|pescatarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friendly)\b)|(?:s(?<=\bs)oy|s(?<=\bs)ou|s(?<=\bs)ono|i(?<=\bi)ch bin|i(?<=\bi)k ben) (vegan[oa]?|vegetarian[oa]|vegetarisch|vegetarier(?:in)?|vegetariër|veganer(?:in)?)\b"
+         r"|j(?<=\bj)e suis (végane?|végétarien(?:ne)?|vegan)\b|j(?<=\bj)estem (weganką|weganinem|wegetarianką|wegetarianinem)\b", lambda match: DIETS.get(word := next(filter(None, match.groups()))) or ("vegetarian" if "tar" in word else "vegan"), SELF_HEDGE),
     rule("diet", r"i(?<=\bi)(?:'m| am| have| was diagnosed with| got diagnosed with|'ve got| also have)? (?:a )?(?:celiac|coeliac)\b|m(?<=\bm)y (?:celiac|coeliac)\b|i(?<=\bi) (?:eat|am|'m|have to (?:eat|be|stay)|keep|went|stay) (?:strictly |completely |100% )?gluten[- ]free\b|t(?<=\bt)he gf diet\b", fixed("gluten free"), SELF_HEDGE),
     rule("diet", r"i(?<=\bi) (?:eat|keep|only eat|stick to|stick with|have to stick with|follow) (?:strictly )?(halal|kosher)\b|i(?<=\bi)(?:'m| am) (?:on |doing )?(?:a |strict )?(keto)\b(?! (?:friendly|recipe))|i(?<=\bi) (?:do|eat|follow|went) (keto|low[- ]carb)\b",
          lambda match: "halal or kosher" if match.group(1) else "keto or low carb", SELF_HEDGE),
     rule("diet", r"i(?<=\bi) (?:don't|do not|dont) eat (meat|any meat|animal products)\b|i(?<=\bi)(?:'m| am) (?:fully |mostly |\d+% )?(plant[- ]based)\b|i(?<=\bi) eat (plant[- ]based)\b", lambda match: "vegetarian" if "meat" in match.group() else "vegan", SELF_HEDGE),
     rule("diet", r"i(?<=\bi) (?:eat|love) meat\b|i(?<=\bi)'?m a (?:meat eater|carnivore|omnivore)\b", fixed("eats everything")),
+    rule("diet", r"(?:vegan|vegetarian|veggie|pescatarian|pescetarian|keto|ketogenic|low[- ]carb|gluten[- ]free|plant[- ]based|halal|kosher|carnivore)\b(?: (?:diet|lifestyle|eating pattern|way of eating|woe|regimen)\b)?", diet_mine, SELF_HEDGE),
     rule("diet", r"here(?<=\bhere)\b", labelled(re.compile(r"(?:^|[.!?,;(] *)(vegan|vegetarian|veggie|pescatarian|pescetarian) \Z"), DIETS), SELF_HEDGE),
-    rule("diet", r"i(?<=\bi)(?:'ve been| went| became| turned) (vegan|vegetarian|pescatarian)\b|been(?<=\bbeen) (vegan|vegetarian|pescatarian)\b|went(?<=\bwent) (vegan|vegetarian|pescatarian)\b", lambda match: DIETS.get(next(filter(None, match.groups()))), SELF_HEDGE),
+    rule("diet", r"i(?<=\bi)(?:'ve been| went| became| turned) (vegan|vegetarian|pescatarian)\b|been(?<=\bbeen) (?:strictly |completely |fully |mostly )?(vegan|vegetarian|pescatarian|gluten[- ]free|keto|low[- ]carb)\b|went(?<=\bwent) (vegan|vegetarian|pescatarian|gluten[- ]free|keto|low[- ]carb)\b", lambda match: DIETS.get(next(filter(None, match.groups()))), SELF_HEDGE),
 ]
 
 
-SELF_NEAR = re.compile(r"\b(?:i|i'm|im|i've|ive|me|my|we)\b")
-OTHER_NEAR = re.compile(r"\b(?:you|he|she|they|people|someone|somebody|anyone|everyone|his|her|their|your|friends?|dad|mom|husband|wife|boyfriend|girlfriend|kids?|son|daughter)\b")
-
-
 def smoking_mine(match):
-    lead = match.string[max(match.string.rfind(mark, 0, match.start()) for mark in ".!?\n") + 1:match.start()]
-    return "smoker or vaper" if SELF_NEAR.search(lead) and not OTHER_NEAR.search(lead) else None
+    before = lead(match)
+    return "smoker or vaper" if SELF_NEAR.search(before) and not OTHER_NEAR.search(before) else None
 
 
 SMOKED = r"(?:a |my |some |the )?(?:weed|pot|cigs?|cigarettes?|blunts?|joints?|bowls?|spliffs?|tobacco|cigars?|pipe|dabs?|carts?|j)\b"
@@ -109,7 +144,8 @@ QUIT_SPAN = r"(?:(?:smoke|nicotine|vape|cigarette)[- ]free|(?:without|off) (?:sm
 
 
 SMOKING = [
-    rule("smoking", rf"\bi (?:smoke|vape)(?: cigarettes| cigs| a pack| daily| every day)?\b(?! (?:meat|out|detector|alarm)\b)|(?:\b(?:i'm|im|i am)|{AS}) a (?:\w+ )?(?:weed |pot )?smoker\b|\bneed to smoke\b|\bi(?:'m| am)? (?:\w+ ){{0,2}}(?:buying|buy|bought|hitting|hit) (?:a |my )?(?:disposable |nic |nicotine )?(?:vape|juul|cigs|cigarettes|pack of (?:cigs|cigarettes|smokes))\b|\b(?:i'm|im|i am) a (?:heavy |chain |social )?smoker\b|\bmy (?:vape|cigarettes)\b", fixed("smoker or vaper"), SELF_HEDGE),
+    rule("smoking", rf"i(?<=\bi) (?:smoke|vape)(?: cigarettes| cigs| a pack| daily| every day)?\b(?! (?:meat|out|detector|alarm)\b)|i(?<=\bi)(?:'m|m| am) a (?:\w+ )?(?:weed |pot )?smoker\b|{AS} a (?:\w+ )?(?:weed |pot )?smoker\b|n(?<=\bn)eed to smoke\b"
+         r"|i(?<=\bi)(?:'m| am)? (?:\w+ ){0,2}(?:buying|buy|bought|hitting|hit) (?:a |my )?(?:disposable |nic |nicotine )?(?:vape|juul|cigs|cigarettes|pack of (?:cigs|cigarettes|smokes))\b|my(?<=\bmy) (?:vape|cigarettes)\b", fixed("smoker or vaper"), SELF_HEDGE),
     rule("smoking", r"i(?<=\bi)(?: |'ve | have )(?:haven't|have not|havent) (?:smoked|vaped|had a (?:cigarette|cig|smoke))\b|h(?<=\bh)ave(?:n't| not|nt) (?:smoked|vaped|had a (?:cigarette|cig|smoke))\b"
          r"|i(?<=\bi) (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b|since(?<=\bsince) i (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b|after(?<=\bafter) i (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b"
          r"|when(?<=\bwhen) i (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b|i(?<=\bi)(?:'ve| have)? never smoked\b"
@@ -134,6 +170,41 @@ SMOKING = [
 
 SERVICE = re.compile(r"\b(?:army|navy|marines?|military|usmc|air force|national guard|coast guard|deploy\w*|enlist\w*|veterans?|va|dd-?214|gi bill|mos|ets|boot ?camp|basic training|base|platoon|squadron|battalion|nco|sergeant|sgt|corporal|cpl|soldiers?|sailors?|airmen|servicemembers?|served)\b")
 
+BRANCH = r"(?:(?:us|u\.s\.|british|canadian|australian|indian|royal|israeli) )?(?:army|navy|marines|marine corps|air force|usaf|usmc|military|coast guard|national guard|air national guard|armed forces|army reserves?|navy reserves?|reserves|raf|idf|space force)\b"
+UNDECLINED = r"(?:(?!never\b|almost\b|nearly\b|should\b|could\b|would\b|might\b|will\b|wanted\b|want\b|wanna\b|didn't\b|didnt\b|don't\b|dont\b|won't\b|wont\b|wouldn't\b|wish\b|hope\b|plan\b|planning\b|thinking\b|considering\b|trying\b|tried\b|not\b)[\w']+ )"
+COUNTED = re.compile(r"\b(?:\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|a few|several|many|a couple of) (?:\+ |plus )?\Z")
+ENTERED = re.compile(rf"\bi {UNDECLINED}?\Z")
+WITHIN = re.compile(rf"\bi(?:'m|'ve)? {UNDECLINED}{{1,4}}?\Z")
+PAST = re.compile(r"\b(?:was|were|had|did|used to|back then|back in|ago|got out|retired|served|after)\b")
+DISCHARGED = re.compile(r"dd|discharge|gi bill|separat|ets|eas")
+REST = re.compile(r"[^.!?\n]*")
+
+
+def service(match):
+    text, start = match.string, sentence_start(match)
+    if OTHER_NEAR.search(text, start, match.start()):
+        return None
+    if DISCHARGED.search(match.group()) or PAST.search(text[start:match.start()] + REST.match(text, match.start()).group()):
+        return "military veteran"
+    return "serving in the military"
+
+
+def served(match):
+    return None if OTHER_NEAR.search(match.string, sentence_start(match), match.start()) else "military veteran"
+
+
+def counted(match):
+    return served(match) if COUNTED.search(match.string, max(0, match.start() - 20), match.start()) else None
+
+
+def entered(match):
+    return served(match) if ENTERED.search(match.string, sentence_start(match), match.start()) else None
+
+
+def within(match):
+    return service(match) if WITHIN.search(match.string, sentence_start(match), match.start()) else None
+
+
 VET = r"(?:a |an )?(?:proud |disabled |combat |retired |former |old )?(?:(?:army|navy|marine|marine corps|air force|military|usmc|combat|war|coast guard) )?(?:vet|veteran)\b(?! (?:tech|clinic|bill|school|student|player|gamer|member|user|fan|raider|streamer|poster|of (?:the|this))\b)"
 VA = r"[^.!?\n]{0,40}?\b(?:va claim|va rating|va disability|dd-?214|c&p exam|nexus letter|service[- ]connected|100% p&t|the va\b(?! (?:area|beach|state|border|side|suburbs|region)\b))\b"
 MILITARY = [
@@ -146,9 +217,9 @@ MILITARY = [
          r"|retired(?<=\bretired) (?:chief|sergeant|master sergeant|colonel|lieutenant|major|captain|petty officer|sgt|gunny|army|navy|marine|air force|military|usmc)\b"
          rf"|my(?<=\bmy)\b{VA}|i(?<=\bi)(?:'ve| have| was| got| am|'m)?\b{VA}", fixed("military veteran"), SELF_HEDGE),
     rule("military_status", r"\d(?<!\w\d)\d{1,2} ?% (?:p&t|sc|service[- ]connected)\b", fixed("military veteran"), SELF_HEDGE),
-    rule("military_status", r"\bi (?:went to boot ?camp|went through (?:boot ?camp|basic(?: training)?)|did basic(?: training)?|got out of the (?:army|navy|marines|military|air force|service|guard|corps)|was (?:honorably |medically )?discharged|"
+    rule("military_status", r"i(?<=\bi) (?:went to boot ?camp|went through (?:boot ?camp|basic(?: training)?)|did basic(?: training)?|got out of the (?:army|navy|marines|military|air force|service|guard|corps)|was (?:honorably |medically )?discharged|"
          r"was (?:a|an) (?:\w+ )?(?:soldier|marine|sailor|airman|medic|paratrooper|infantryman|nco)|was (?:a |an )?(?:\w+ )?(?:officer|sergeant|corporal|specialist) in the (?:army|navy|marines|air force|military))\b"
-         r"|\b(?:i did|i spent|i served|after|my) (?:\d+|two|three|four|five|six|eight|ten|twelve|fifteen|twenty) (?:years|yrs) (?:in|of) (?:the )?(?:army|navy|marines|military|air force|service|active duty|marine corps|guard|reserves)\b",
+         r"|(?:i(?<=\bi) did|i(?<=\bi) spent|i(?<=\bi) served|a(?<=\ba)fter|m(?<=\bm)y) (?:\d+|two|three|four|five|six|eight|ten|twelve|fifteen|twenty) (?:years|yrs) (?:in|of) (?:the )?(?:army|navy|marines|military|air force|service|active duty|marine corps|guard|reserves)\b",
          lambda match: "military veteran" if SERVICE.search(match.string) else None, SELF_HEDGE),
     rule("military_status", rf"i(?<=\bi){ME} (?:(?!on |at |my |so |to |no |in |an )[a-z]{{2}} |army |air )?(?:national )?guard(?:sman|swoman)?\b(?! (?:duty at|dog)\b)|i(?<=\bi){ME} (?:a |an )?(?:reservist|guardsman|guardswoman)\b|i(?<=\bi){ME} (?:in|with) the (?:\w+ )?(?:reserves?|guard)\b",
          fixed("serving in the military"), SELF_HEDGE),
@@ -156,12 +227,22 @@ MILITARY = [
          lambda match: "military veteran" if re.search(r"\b(?:va|veterans?|military|service|army|navy|marines?|air force|usmc|vso|dbq|c&p)\b", match.string) else None, SELF_HEDGE),
     rule("military_status", rf"i(?<=\bi){ME} (?:a |an )?(?:\w+ )?(?:officer|medic|nco|sergeant|corporal|private|specialist|pilot|mechanic|engineer|nurse|soldier|infantryman|linguist|analyst|doctor|chaplain) in the (?:army|navy|marines|air force|military|national guard|coast guard|reserves?|space force)\b",
          fixed("serving in the military"), SELF_HEDGE),
-    rule("military_status", rf"\bi (?:\w+ )?served (?:\w+ )?(?:in (?:combat)|overseas|(?:\d+|two|three|four|five|six|eight|ten|twenty) (?:years|yrs|tours)|my (?:time|country|contract|enlistment))\b"
-         r"|\bfellow (?:veterans|vets|servicemembers|service members)\b"
-         r"|\b(?:after|since|when|before|once) (?:i )?(?:got out|getting out|ets(?:'d|ed)?|i separated|separating|i was discharged)\b|\b(?:my|i did|i've done|i have done|i had) (?:\w+ )?(?:\d+|two|three|four|five|multiple|several) (?:deployments|combat tours|tours)\b|\b\d+ deployments\b"
-         rf"|\b(?:i'm|im|i am) (?:using|running|on) (?:the |my )?(?:gi bill|post[- ]9/11)\b|\bi (?:used|use) (?:the |my )?gi bill\b|i(?<=\bi){ME} (?:a |an )?(?:[\w-]+ ){{1,3}}(?:and )?(?:a )?(?:war|combat|army|navy|marine|air force|military|disabled|retired|coast guard) (?:vet|veteran)\b"
-         r"|\bi (?:was|spent) (?:\w+ ){1,3}in the (?:army|navy|marines|air force|military|coast guard|marine corps|national guard)\b", lambda match: "military veteran" if SERVICE.search(match.string) else None, SELF_HEDGE),
+    rule("military_status", rf"i(?<=\bi) (?:\w+ )?served (?:\w+ )?(?:in (?:combat)|overseas|(?:\d+|two|three|four|five|six|eight|ten|twenty) (?:years|yrs|tours)|my (?:time|country|contract|enlistment))\b"
+         r"|i(?<=\bi) (?:did|'ve done|have done|had) (?:\w+ )?(?:\d+|two|three|four|five|multiple|several) (?:deployments|combat tours|tours)\b"
+         rf"|i(?<=\bi)(?:'m|m| am) (?:using|running|on) (?:the |my )?(?:gi bill|post[- ]9/11)\b|i(?<=\bi) (?:used|use) (?:the |my )?gi bill\b|i(?<=\bi){ME} (?:a |an )?(?:[\w-]+ ){{1,3}}(?:and )?(?:a )?(?:war|combat|army|navy|marine|air force|military|disabled|retired|coast guard) (?:vet|veteran)\b"
+         r"|i(?<=\bi) (?:was|spent) (?:\w+ ){1,3}in the (?:army|navy|marines|air force|military|coast guard|marine corps|national guard)\b", lambda match: "military veteran" if SERVICE.search(match.string) else None, SELF_HEDGE),
+    rule("military_status", r"fellow(?<=\bfellow) (?:veterans|vets|servicemembers|service members)\b"
+         r"|(?:a(?<=\ba)fter|s(?<=\bs)ince|w(?<=\bw)hen|b(?<=\bb)efore|o(?<=\bo)nce) (?:i )?(?:got out|getting out|ets(?:'d|ed)?|i separated|separating|i was discharged)\b|my(?<=\bmy) (?:\w+ )?(?:\d+|two|three|four|five|multiple|several) (?:deployments|combat tours|tours)\b|\d(?<!\w\d)\d* deployments\b",
+         lambda match: "military veteran" if SERVICE.search(match.string) else None, SELF_HEDGE),
 ]
 
+MILITARY += [
+    rule("military_status", r"my(?<=\bmy) (?:(?!coding\b|code\b|data\b|fitness\b|web\b|ux\b|dev\b|design\b)\w+ )?(?:mos|afsc|ets|eas|dd-?214|dd 214|discharge papers|deployments?|tdy|duty station|first sergeant|drill sergeant|drill instructor|platoon sergeant|squad leader|nco|ncoic|commanding officer|bah|les|dog tags|cac card|basic training|boot camp|bootcamp|ait|tech school|bct|meps|enlistment|re-?enlistment|reenlistment|chain of command|battalion|platoon|brigade|regiment|time in service|military service|military career|military id|military records?|troops|soldiers|sailors|airmen|marines)\b"
+         r"|i(?<=\bi) (?:(?!never\b|didn't\b|didnt\b|won't\b|wont\b|wouldn't\b|almost\b|nearly\b)\w+ )?(?:enlisted|reenlisted|re-enlisted|deployed (?:to|overseas|twice|with|for)|pcs'd|pcsed|ets'd|etsed|separated from the|was commissioned|got commissioned|commissioned as|shipped out to (?:basic|boot camp|bootcamp)|graduated (?:basic|boot camp|bootcamp|ait|ocs|bct))\b", service, SELF_HEDGE),
+    rule("military_status", rf"i(?<=\bi) (?:was|got) (?:\w+ )?(?:stationed|deployed)\b|w(?<=\bw)h(?:en|ile) i was (?:\w+ )?(?:stationed|deployed|in (?:the )?{BRANCH}|on active[- ]duty|active[- ]duty|enlisted|in boot ?camp|in basic training)", served, SELF_HEDGE),
+    rule("military_status", rf"(?:j(?<=\bj)oined|e(?<=\be)nlisted in|e(?<=\be)nlisted into|w(?<=\bw)ent into|l(?<=\bl)eft|d(?<=\bd)eployed with|d(?<=\bd)ischarged from|m(?<=\bm)edically retired from|s(?<=\bs)erved with) (?:the )?{BRANCH}", entered, SELF_HEDGE),
+    rule("military_status", rf"(?:y(?<=\by)ears?|y(?<=\by)rs?|d(?<=\bd)ecades?) (?:(?:in|of service in|serving in|with|of active[- ]duty in|on active[- ]duty in) (?:the )?{BRANCH}|(?:of )?(?:military|active[- ]duty|naval|army|navy|marine corps|air force) service\b)|(?:y(?<=\by)ears?|y(?<=\by)rs?) (?:of )?active[- ]duty\b", counted, SELF_HEDGE),
+    rule("military_status", rf"i(?<=\bi)n(?:to)? the {BRANCH}(?! (?:blue|painter|surplus|times|store|green|issue|knife|boots?|jacket|style|museum|industrial|base)\b)", within, SELF_HEDGE),
+]
 
 RULES = [*scoped_rules(RELIGION), *scoped_rules(POLITICAL), *scoped_rules(DIET), *scoped_rules(SMOKING), *scoped_rules(MILITARY)]

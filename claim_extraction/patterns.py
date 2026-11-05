@@ -4,7 +4,7 @@ from .schema import canonical
 
 SINGLE = frozenset({"age", "gender"})
 RULES = [*demographics.RULES, *location.RULES, *life.RULES, *lifestyle.RULES, *work.RULES, *health.RULES, *fandom.RULES]
-DEMOGRAPHIC = frozenset(attribute for attribute, *_ in demographics.RULES) | {"automated_account"}
+BOT_SAFE = frozenset(attribute for attribute, *_ in (*demographics.RULES, *work.RULES)) | {"automated_account", "relationship_status", "parental_status"}
 
 
 def positioned(raw):
@@ -14,7 +14,7 @@ def positioned(raw):
     automatic = bool(BOT_TEXT.search(lowered))
     demographics.tags(text, lowered, found)
     for attribute, pattern, value, hedge in RULES:
-        if automatic and attribute not in DEMOGRAPHIC:
+        if automatic and attribute not in BOT_SAFE:
             continue
         for match in pattern.finditer(lowered):
             if (stated := value(match)) is not None and not hedged(lowered, match.start(), match.end(), hedge):

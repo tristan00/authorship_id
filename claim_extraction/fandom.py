@@ -126,7 +126,7 @@ OBJECTS = {"music": "artist", "songs": "artist", "song": "artist", "album": "art
            "channel": "creator", "content": "creator", "podcast": "creator", "books": "author", "novels": "author", "writing": "author", "prose": "author"}
 LOVED = re.compile(rf"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally )*"
                    rf"(?:love|adore|loved|adored|enjoy|enjoyed|in love with|obsessed with) ){NAME}")
-CREATED = re.compile(rf"{NAME}(?:'s|s'|’s) (?i:(?:new |latest |recent |old |last |early )?(?:videos?|streams?|vods?|channel|podcasts?|content|vlogs?)\b)")
+CREATED = re.compile(rf"{NAME}(?:(?:'s|s'|’s) |(?<!'s)(?= (?i:youtube|yt|twitch|tiktok) ))(?i:(?: ?(?:youtube|yt|twitch|tiktok) )?(?:new |latest |recent |old |last |early )?(?:videos?|vids|streams?|vods?|channel|podcasts?|content|vlogs?)\b)")
 WATCHED = re.compile(rf"(?i:\b(?:i (?:\w+ )?(?:watch|watching|watched)|subscribed to|i follow|i'?ve been following) ){NAME}(?i: (?:on|'s) (?:youtube|twitch|tiktok|kick)\b)")
 LISTENED = re.compile(rf"(?i:\b(?:i(?:'m| am|'ve been| have been)? (?:\w+ )?(?:listening to|listen to|listened to|jamming to|bumping)|been (?:listening to|bumping|jamming to)) ){NAME}")
 ALBUM = re.compile(rf"{NAME}(?:'s|s'|’s) (?i:(?:new |latest |last |debut |first |second |third |next |old |early )?(?:albums?|songs?|singles?|discography|tour|concerts?|records?|ep|lp|music|vocals|lyrics)\b)")
@@ -153,6 +153,7 @@ SPELLED = frozenset({"athlete", "celebrity", "author", "creator"})
 GATED = frozenset({"artist", "author"})
 LISTED = re.compile(r"[\s,;/&*|>()\[\]^:.\d-]{1,12}|\s*(?:,\s*)?(?:and|or)\s+")
 LISTS = frozenset({"artist", "franchise", "video_game"})
+LIKABLE = frozenset({"artist", "franchise"})
 RUN = 3
 
 
@@ -323,6 +324,7 @@ royal challengers bengaluru|royal challengers bangalore;sunrisers hyderabad"""
 TEAMS = (NFL_TEAMS_2025, NBA_TEAMS_2025, MLB_TEAMS_2025, NHL_TEAMS_2025, MLS_TEAMS_2025, PREMIER_LEAGUE_TEAMS_2025, LA_LIGA_TEAMS_2025, SERIE_A_TEAMS_2025, BUNDESLIGA_TEAMS_2025,
          LIGUE_1_TEAMS_2025, IPL_TEAMS_2025)
 KNOWLEDGE = Path(__file__).with_name("knowledge.tsv")
+AUTHOR_OF_BOOK = dict(line.split("\t") for line in Path(__file__).with_name("book_authors.tsv").read_text(encoding="utf-8").splitlines()[1:])
 PLACES = frozenset(line.split("\t", 1)[0] for line in Path(__file__).with_name("gazetteer.tsv").read_text(encoding="utf-8").splitlines()[1:])
 SHORT_KEY = 3
 LOOSE = frozenset({"video_game"})
@@ -502,14 +504,29 @@ def chosen(text, start, options, totals):
     return [option for score, option in scored if score or option[0] != "video_game"]
 
 
+FAVOURED = re.compile(r"(?i:fav(?<!least fav)(?<!\wfav)(?:ou?rites?|es?|s)?\b[^\n:]*:)")
+
+
+def favoured(segments, start):
+    return any(left <= start < right for left, right in segments)
+
+
+def preferred(start, end, options, bypassed, loved):
+    if not loved:
+        return [option for option in options if (start, end, option[0]) not in bypassed] or options
+    plain = [option for option in options if (start, end, option[0]) not in loved]
+    return ([option for option in plain if (start, end, option[0]) not in bypassed] or plain) + [option for option in options if (start, end, option[0]) in loved]
+
+
 def known(text, found):
-    grouped, counts, opened, famous, ordinary, bypassed, readings = {}, {}, set(), set(), set(), set(), {}
+    grouped, counts, opened, famous, ordinary, bypassed, readings, loved = {}, {}, set(), set(), set(), set(), {}, set()
 
     def totals(attribute):
         if attribute not in counts:
             counts[attribute] = len(LEXICON_CONTEXT[attribute].findall(text))
         return counts[attribute]
 
+    segments = [(match.end(), end if (end := text.find("\n", match.end())) >= 0 else len(text)) for match in FAVOURED.finditer(text)]
     for attribute, start, end, value, cased, common, links in mentions(text):
         if attribute == "sports_team":
             if supported(text, start, end):
@@ -519,7 +536,7 @@ def known(text, found):
             readings.setdefault((start, end, attribute), value)
         surface = text[start:end]
         key = " ".join(WORD.findall(folded(surface).lower())).removeprefix("the ")
-        liked = attribute == "franchise" and LIKED.search(text, max(0, start - 40), start)
+        liked = attribute in LIKABLE and LIKED.search(text, max(0, start - 40), start)
         if (attribute == "character" or (cased and attribute in SPELLED) or (common and links < FAMOUS_SITELINKS and " " not in surface and not liked)
                 or (attribute in TITLES and len("".join(WORD.findall(value))) <= 2)
                 or (attribute in TITLES and (key in COMMON or key in PLACES) and surface.removeprefix("the ").removeprefix("The ") in (key, key.capitalize(), key.title()))
@@ -528,8 +545,10 @@ def known(text, found):
             continue
         gated = (cased or common or attribute in NAMED_ONLY or attribute in GATED) and not GATES[attribute].search(text, max(0, start - WINDOW), end + WINDOW)
         if gated and not ((attribute == "franchise" and links >= FAMOUS_SITELINKS and not common or attribute in NAMED_ONLY) and praised(text, start, end)
-                          or liked):
+                          or liked or favoured(segments, start)):
             continue
+        if gated and liked and attribute != "franchise":
+            loved.add((start, end, attribute))
         if cased and " " not in surface and opening(text, start):
             bounds = sentence(text, start, end)
             if not (attribute in TITLES and POSITIVE.search(text, *bounds) or attribute == "video_game" and SELF.search(text, *bounds)):
@@ -538,10 +557,10 @@ def known(text, found):
             famous.add((start, end, attribute))
         if common and links < FAMOUS_SITELINKS:
             ordinary.add((start, end, attribute))
-        if gated and attribute in NAMED_ONLY:
+        if gated and attribute in NAMED_ONLY and not favoured(segments, start):
             bypassed.add((start, end, attribute))
         grouped.setdefault((start, end), []).append((attribute, value))
-    spans = sorted((start, end, attribute, value) for (start, end), options in grouped.items() for attribute, value in chosen(text, start, [option for option in options if (start, end, option[0]) not in bypassed] or options, totals))
+    spans = sorted((start, end, attribute, value) for (start, end), options in grouped.items() for attribute, value in chosen(text, start, preferred(start, end, options, bypassed, loved), totals))
     listed = set()
     run = []
     for span in [*spans, None]:
@@ -556,10 +575,12 @@ def known(text, found):
         start, end, attribute, value = span
         if attribute == "video_game" and othered(lowered := lowered or text.lower(), start, end):
             continue
-        if ((attribute, value) not in told and (span in listed or ((start, end, attribute) not in opened and engaged(text, start, end, attribute, (start, end, attribute) in famous, (start, end, attribute) in ordinary)))
+        if ((attribute, value) not in told and (span in listed or favoured(segments, start) or ((start, end, attribute) not in opened and engaged(text, start, end, attribute, (start, end, attribute) in famous, (start, end, attribute) in ordinary)))
                 and not (attribute not in PLAYED and hedged(lowered := lowered or text.lower(), start, end, SELF_HEDGE))):
             told.add((attribute, value))
             named(attribute, shown(text[start:end], value), found, start)
+            if attribute == "franchise" and (writer := AUTHOR_OF_BOOK.get(value)) and AUTHORING.search(text) and praised(text, start, end):
+                named("author", writer, found, start)
             for other in ALSO.get(attribute, ()):
                 if (start, end, other) in readings:
                     named(other, shown(text[start:end], readings[start, end, other]), found, start)
