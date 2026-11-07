@@ -39,7 +39,14 @@ def flair_chunks():
 
 
 @timed
+def import_patterns():
+    from . import patterns
+    return patterns
+
+
+@timed
 def extract_flairs():
+    import_patterns()
     db = client()
     for statement in TABLES:
         db.command(statement)
@@ -102,6 +109,7 @@ def extract(reset=False):
         db.command("DROP TABLE IF EXISTS extracted_parts")
     for statement in TABLES:
         db.command(statement)
+    import_patterns()
     done = {row[0] for row in db.query("SELECT part FROM extracted_parts").result_rows}
     todo = [(part, low, high) for part, (low, high) in enumerate(sha_ranges(PARTS)) if part not in done]
     LOG.info("extract parts=%d done=%d todo=%d workers=%d", PARTS, len(done), len(todo), WORKERS)
