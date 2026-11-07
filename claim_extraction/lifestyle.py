@@ -2,6 +2,7 @@ import re
 
 from .common import SELF_HEDGE, TAGGED, Gated, fixed, group, rule, words
 from .life import AS, CONDITIONAL, free, scoped, scoped_rules
+from .literals import scan
 
 FREE = r"(?:(?!not\b|never\b|no\b|anti\b|ex\b|non\b|neither\b|nor\b|either\b|considering\b|becoming\b|getting\b)\w+ )?"
 FILLER = r"(?:(?!not\b|never\b|no\b|anti\b|ex\b|non\b|former\b|neither\b|nor\b|the\b|any\b|your\b|his\b|her\b|their\b|this\b|that\b|these\b|those\b|some\b)[\w-]+,? (?:and )?){0,2}?(?:a |an )?"
@@ -122,12 +123,12 @@ def lead(match):
     return match.string[sentence_start(match):match.start()]
 
 
-ADOPTED = re.compile(r"\b(?:my|on|eating|following|follow|followed|started|adopted|switched to|stick to|stuck to|thanks to|due to|doing) (?:a |an |the )?(?:(?:strict|strictly|mostly|fully|very|nearly|almost|100%|\d+%|whole food|healthy|clean) )*\Z")
-STARTED = re.compile(r"\b(?:on|doing|started|start|eating|following|going|went|been|stay|staying) (?:strict |a strict |full |proper |properly |mostly |strictly )?\Z")
+ADOPTED = scan(r"\b(?:my|on|eating|following|follow|followed|started|adopted|switched to|stick to|stuck to|thanks to|due to|doing) (?:a |an |the )?(?:(?:strict|strictly|mostly|fully|very|nearly|almost|100%|\d+%|whole food|healthy|clean) )*\Z")
+STARTED = scan(r"\b(?:on|doing|started|start|eating|following|going|went|been|stay|staying) (?:strict |a strict |full |proper |properly |mostly |strictly )?\Z")
 
 
-FOODWAY = re.compile(r"vegan|vegetarian|veggie|pescatarian|pescetarian|keto|low[- ]carb|gluten[- ]free|plant[- ]based|halal|kosher|carnivore")
-NOT_DIET = re.compile(r" (?:diet|recipes?|friendly|meals?|food|snacks?|bread|options?|version)\b")
+FOODWAY = scan(r"vegan|vegetarian|veggie|pescatarian|pescetarian|keto|low[- ]carb|gluten[- ]free|plant[- ]based|halal|kosher|carnivore")
+NOT_DIET = scan(r" (?:diet|recipes?|friendly|meals?|food|snacks?|bread|options?|version)\b")
 
 
 def diet_mine(match):
@@ -164,7 +165,7 @@ def smoking_mine(match):
     return current(match) if SELF_NEAR.search(before) and not OTHER_NEAR.search(before) else None
 
 
-SMOKED_BEFORE = re.compile(r"\b(?:was|were|did|had|used to|back then|back in|ago|when i was)\b")
+SMOKED_BEFORE = scan(r"\b(?:was|were|did|had|used to|back then|back in|ago|when i was)\b")
 
 
 def current(match):
@@ -211,7 +212,7 @@ UNDECLINED = r"(?:(?!never\b|almost\b|nearly\b|should\b|could\b|would\b|might\b|
 COUNTED = re.compile(r"\b(?:\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|a few|several|many|a couple of) (?:\+ |plus )?\Z")
 ENTERED = re.compile(rf"\bi {UNDECLINED}?\Z")
 WITHIN = re.compile(rf"\bi(?:'m|'ve)? {UNDECLINED}{{1,4}}?\Z")
-PAST = re.compile(r"\b(?:was|were|had|did|used to|back then|back in|ago|got out|retired|served|after)\b")
+PAST = scan(r"\b(?:was|were|had|did|used to|back then|back in|ago|got out|retired|served|after)\b")
 DISCHARGED = re.compile(r"dd|discharge|gi bill|separat|ets|eas")
 REST = re.compile(r"[^.!?\n]*")
 
@@ -241,7 +242,7 @@ def within(match):
     return service(match) if WITHIN.search(match.string, sentence_start(match), match.start()) else None
 
 
-HERE_LABEL = re.compile(r"(?:^|[.!?,;(] *)(?:hey,? |also |another )?(fellow |proud |disabled |combat |retired |former |ex[- ]?|prior )?((?:us |u\.s\. )?(?:army|navy|marine|marine corps|air force|af|usaf|usmc|military|coast guard|national guard|combat|war|gwot) )?(veteran|vet|marine|soldier|sailor|airman|service ?member|active duty|reservist) (?:too )?\Z")
+HERE_LABEL = scan(r"(?:^|[.!?,;(] *)(?:hey,? |also |another )?(fellow |proud |disabled |combat |retired |former |ex[- ]?|prior )?((?:us |u\.s\. )?(?:army|navy|marine|marine corps|air force|af|usaf|usmc|military|coast guard|national guard|combat|war|gwot) )?(veteran|vet|marine|soldier|sailor|airman|service ?member|active duty|reservist) (?:too )?\Z")
 SERVED_NOUN = r"(?:us |u\.s\. )?(?:military|army|navy|marines?|marine corps|air force|usaf|usmc|coast guard|national guard|infantry|enlisted|service ?member|soldier|sailor|airman|paratrooper|infantryman)\b"
 
 
@@ -305,7 +306,7 @@ MILITARY += [
 ]
 
 
-GATES = {r"\b(?:volledig ": ("apol",), r"(?:w(?<=\bw)e|u(?<=\bu)s) (communist": (*POLITICS, "maga", "gop", "left", "right"), r"\b(?:i'm|im|i am|i m) [*_]*(?:on|firmly": ("left", "right"),
+GATES = {LISTED: tuple(POLITICS), r"\b(?:volledig ": ("apol",),r"(?:w(?<=\bw)e|u(?<=\bu)s) (communist": (*POLITICS, "maga", "gop", "left", "right"), r"\b(?:i'm|im|i am|i m) [*_]*(?:on|firmly": ("left", "right"),
          r"i(?<=\bi)(?: |'ve | have )(?:haven't": ("smok", "vap", "cig", "nicotine"), r"\bi (?:(?!don't|dont|do not|don|never": ("smok", "vap"), r"\b(?:\d+|one|two": ("vap", "smok", "nicotine", "cig", "juul", "tobacco"), r"\b(?:i|me) (?:\w+ )?(?:smoke": ("smok", "vap", "cig", "juul", "rauch"),
          r"we(?<=\bwe)(?:'re| are) (?:all |both |also |strictly )?(vegan": ("veg", "pesc", "vég", "weg"),
          rf"i(?<=\bi){ME} (?:currently |still )?(?:in|serving in": ("army", "navy", "marine", "air force", "military", "guard", "reserves", "space force", "active duty", "soldier", "sailor", "airman", "service",

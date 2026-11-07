@@ -4,12 +4,13 @@ from functools import lru_cache
 from pathlib import Path
 
 from .common import I, SELF_HEDGE, TAGGED, Gated, clause, fixed, group, needs, question, rule, words
+from .literals import scan
 
 CONDITIONAL = re.compile(r"\b(?:if|would|wish|imagine|pretend|unless|whether|might|maybe)\b")
 
 
 def alternation(words):
-    return "|".join(sorted(map(re.escape, words), key=len, reverse=True))
+    return "|".join(sorted(map(re.escape, words), key=lambda word: (-len(word), word)))
 
 
 def table(entries):
@@ -307,9 +308,11 @@ FOREIGN = {phrase(word): value for word, value in table({
            "freelancer|freelance|ondernemer|zzp'er|zelfstandige|przedsiębiorcą|przedsiębiorca",
 }).items()}
 FOREIGN_BLOCK = frozenset("kein keine keiner geen pas nie não no non nicht plus ex".split())
+TITLE_HEADS = frozenset(key.split(" ")[0] for key in TITLES)
+FOREIGN_HEADS = frozenset(key.split(" ")[0] for key in FOREIGN)
 SCOPE = re.compile(r"\b(?:because|cause|cuz|since|and|but|so|as|although|though|after|before|while|until)\b")
 FORMER = re.compile(r"\s*\(?\s*(?:retired|ret\.|former|ex)\b")
-PRETEND = re.compile(r"\b(?:like|as if|as though|pretend|pretending|imagine)\s*$")
+PRETEND = scan(r"\b(?:like|as if|as though|pretend|pretending|imagine)\s*$")
 MARKS = re.compile(r"[\W_]*")
 YOU = re.compile(r"\s*,?\s*(?:you|u|your|yourself)\b")
 SELF = re.compile(r"\b(?:i|i'm|im|i've|ive|my|me|myself)\b")
@@ -327,7 +330,7 @@ def free(text, start, hedge=SELF_HEDGE):
     return not hedge.search(text, cut, start)
 
 
-def spot(text, start, skip, block, titles):
+def spot(text, start, skip, block, titles, heads):
     if not (run := RUN.match(text, start)):
         return None
     tokens = [(token.group(), token.end()) for token in TOKEN.finditer(text, start, run.end())]
@@ -335,6 +338,8 @@ def spot(text, start, skip, block, titles):
     for offset in range(len(names) if skip is None else min(skip + 1, len(names))):
         if names[offset] in block:
             return None
+        if names[offset] not in heads:
+            continue
         for size in range(min(6, len(names) - offset), 0, -1):
             if (key := " ".join(names[offset:offset + size])) in titles:
                 after = offset + size
@@ -345,7 +350,7 @@ def spot(text, start, skip, block, titles):
 
 @lru_cache(maxsize=1024)
 def spotted(text, start, skip):
-    return spot(text, start, skip, BLOCK, TITLES)
+    return spot(text, start, skip, BLOCK, TITLES, TITLE_HEADS)
 
 
 def title(text, start, skip=None, titles=TITLES):
@@ -396,7 +401,7 @@ def hired(match, titles=TITLES):
 
 
 def abroad(match):
-    found = spot(match.string, match.end(), 1, FOREIGN_BLOCK, FOREIGN)
+    found = spot(match.string, match.end(), 1, FOREIGN_BLOCK, FOREIGN, FOREIGN_HEADS)
     return FOREIGN[found[0]] if found else None
 
 
@@ -762,7 +767,7 @@ STUDENT_LINE = (r"(?:(?m:^)[ \t>*#\\-]*|,[ \t]*)(?:(?:\d{2}\s?[mf]?|[mf]4[a-z]+|
                 r"(?:(?!(?:the|this|that|these|those|my|your|his|her|their|our|every|each|any|some|no|one|which|what|why|how|when|is|are|was|were|do|does|did|former|ex|old|future|fellow)\b)[\w'-]+ ){0,3}?"
                 r"(?:student|college (?:girl|boy|guy|student|kid))\b(?! (?:loans?|visa|athlete|housing|discount|debt|union|card|id|council|account|accommodation|life|government|body|aid|finance)\b)"
                 r"(?=\s*(?:$|[.,!;|(\n-]|\d|\b(?:here|looking|seeking|from|in|at|with|who|and)\b))")
-GRADUATE_LEVEL = re.compile(r"\b(?:grad|graduate|phd|masters?|master's|doctoral|med|law|medical)\b")
+GRADUATE_LEVEL = scan(r"\b(?:grad|graduate|phd|masters?|master's|doctoral|med|law|medical)\b")
 SCHOOL_LEVEL = re.compile(r"\b(?:high school|highschool|hs)\b")
 LEVELED = re.compile(r"\b(?:high|school|hs|grad|graduate|phd|masters?|master's|doctoral|med|law|medical|nursing|international|foreign|exchange|overseas)\b")
 
@@ -809,7 +814,7 @@ OWNERS = [
     r"\[\s*for hire\s*\]",
 ]
 INDEPENDENT = rf"\b{I}(?: [a-z]+(?:[ -][a-z]+)?,)? {ADVERB}an? (?:independent|freelance|freelancing|self[- ]employed) "
-LEVELLESS = re.compile(r"\b(?:international|foreign|exchange|overseas)\b")
+LEVELLESS = scan(r"\b(?:international|foreign|exchange|overseas)\b")
 RULES = [
     *(rule("occupation", pattern, occupied(find), TAGGED) for pattern, find in (*OCCUPATION, *MENTIONS, (LEAD, fragment))),
     *(rule("employment_status", pattern, employed(find), TAGGED) for pattern, find in (*OCCUPATION[:2], *OCCUPATION[3:], *MENTIONS[:2], MENTIONS[3], (LEAD, fragment))),
@@ -880,7 +885,7 @@ SUBJECTS |= table({
     "law": "legal studies|pre-law|prelaw",
     "psychology": "clinical psychology|counseling psychology",
 })
-SUBJECT_NAMES = "|".join(sorted(map(re.escape, SUBJECTS), key=len, reverse=True))
+SUBJECT_NAMES = "|".join(sorted(map(re.escape, SUBJECTS), key=lambda word: (-len(word), word)))
 DEGREES = {"bachelor": "bachelor's degree", "bachelors": "bachelor's degree", "bachelor's": "bachelor's degree", "ba": "bachelor's degree", "bs": "bachelor's degree", "bsc": "bachelor's degree",
            "b.s.": "bachelor's degree", "b.a.": "bachelor's degree", "bcom": "bachelor's degree", "b.com": "bachelor's degree", "btech": "bachelor's degree", "b.tech": "bachelor's degree",
            "beng": "bachelor's degree", "bba": "bachelor's degree", "bfa": "bachelor's degree", "bsn": "bachelor's degree", "undergrad degree": "bachelor's degree", "undergraduate degree": "bachelor's degree",
@@ -905,7 +910,7 @@ def owned(text, start, reach=50):
 LEVELS = {name.rstrip("."): level for name, level in DEGREES.items()} | {"msn": "master's degree"}
 DEGREE_IN = (r"\b(bachelor's|bachelors|master's|masters|phd|ph\.d|bsc|msc|b\.s|m\.s|ba|bs|ma|ms|mba|bfa|mfa|llb|jd|md|btech|b\.tech|mtech|m\.tech|bcom|b\.com|bba|bsn|msn|"
              r"meng|beng)\.? (?:degree |hons |honours |honors )?(?:in|of) ([a-z]+(?: [a-z]+)?)")
-ASPIRING = re.compile(r"\b(?:goal|goals|pursue|pursuing|planning|plan|plans|apply|applying|application|considering|thinking|soch|want|wanted|wanting|hoping|dream|future|next|aspiring|"
+ASPIRING = scan(r"\b(?:goal|goals|pursue|pursuing|planning|plan|plans|apply|applying|application|considering|thinking|soch|want|wanted|wanting|hoping|dream|future|next|aspiring|"
                       r"get|getting|start|starting|consider|choose|choosing|need|needs|require|requires|required|offer|offers)\b")
 
 

@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 from .common import HEDGE, SELF_HEDGE, TAGGED, clause, fixed, group, needs, rule
+from .literals import scan
 
 ME = r"i(?<!\wi)(?:'m|m| am|am| m|'am|'?ve been|'ve always been)"
 NEAR = re.compile(r"\b(?:be|become|becoming|imagine|pretend|roleplay|rp|future|someday|dream|wish|if i (?:ever )?(?:had|have|get|got|find)|when i (?:have|get|find))[\s'\"*_]+(?:\w+[\s'\"*_]+)?$")
@@ -30,8 +31,8 @@ def kept(result):
     return lambda match: result if spoken(match) else None
 
 
-ENDED = re.compile(r"\b(?:i'm|i am|im|we're|we are|we got|i got) (?:now |recently |newly |legally |finally |officially )?(?:divorced|separated)\b|\b(?:my|our) divorce\b|\bmy ex[- ]?(?:wife|husband|hubby|spouse)\b|\bnow ex\b|\bmy (?:late|deceased) (?:wife|husband)\b|\bi(?:'m| am) (?:a )?widow(?:er|ed)?\b")
-BROKEN = re.compile(r"\b(?:broke up with me|dumped me|(?:she|he) left me|we (?:just |recently |finally )?(?:broke up|broken up|split up)|i (?:just |finally )?broke up with (?:him|her|my)|since (?:the|our|my) break ?up|after (?:the|our|my) break ?up)\b")
+ENDED = scan(r"\b(?:i'm|i am|im|we're|we are|we got|i got) (?:now |recently |newly |legally |finally |officially )?(?:divorced|separated)\b|\b(?:my|our) divorce\b|\bmy ex[- ]?(?:wife|husband|hubby|spouse)\b|\bnow ex\b|\bmy (?:late|deceased) (?:wife|husband)\b|\bi(?:'m| am) (?:a )?widow(?:er|ed)?\b")
+BROKEN = scan(r"\b(?:broke up with me|dumped me|(?:she|he) left me|we (?:just |recently |finally )?(?:broke up|broken up|split up)|i (?:just |finally )?broke up with (?:him|her|my)|since (?:the|our|my) break ?up|after (?:the|our|my) break ?up)\b")
 FOND = (r"(?:sweet|lovely|loving|beautiful|gorgeous|pretty|hot|sexy|naughty|amazing|wonderful|awesome|dear|dearest|darling|current|new|supportive|incredible|poor|long[- ]?term|live[- ]in|beloved|own|big|"
         r"little|cute|cuck(?:old)?|kinky|horny|slutty|shy|petite|busty|curvy|thick|chubby|young|younger|older|patient|perfect|handsome|lucky|silly|sleepy|grumpy|crazy|lazy|jealous|loyal|faithful|now|second|2nd|third|3rd|"
         r"\d{2} ?[mf]?|\(\d{2} ?[mf]?\)|\d{2}[- ]?(?:yo|y/o|years?[- ]old)|(?:\w+[- ])?year[- ]old)")
@@ -56,7 +57,7 @@ FOLLOW = (r"(?=\s*(?:[.,!;:)(/\n]|$|\d|[mf]\s?\d{2}\b|(?:and|but|with|for|since|
 
 
 THIRD = re.compile(r"\b(?:he|she|they|you|u|his|her|their|your|ur)\b")
-COUPLED = re.compile(r"\b(?:married|wife|husband|hubby|hotwife)\b")
+COUPLED = scan(r"\b(?:married|wife|husband|hubby|hotwife)\b")
 PAIRED = re.compile(r"\b(?:couple|we|our)\b")
 SELF = re.compile(r"\b(?:i|me|my|we|our|us|i'm|im|i've)\b")
 def stated(value, hedge=STATED):
@@ -90,14 +91,14 @@ def couple(match):
 
 
 OTHERS = re.compile(r"(?:^|\W)(?:your|ur|her|his|their|a|an|some|someone's|whose|ex|future|dream|trophy|of|another|every|any|no|perfect|ideal|ex-|good|loyal|cuck|friends?|friend's)\W*$")
-YOU = re.compile(r"\byou\b")
+YOU = scan(r"\byou\b")
 
 
 def bare(match):
     return None if not SELF.search(match.string) or YOU.search(match.string, max(0, match.start() - 60), match.start()) or OTHERS.search(match.string, max(0, match.start() - 14), match.start()) else kept(MARRIED)(match)
 
 
-ATTACHED = re.compile(r"\b(?:married|wife|husband|hubby|my bf|my gf|my boyfriend|my girlfriend|my partner|couple|taken|engaged)\b")
+ATTACHED = scan(r"\b(?:married|wife|husband|hubby|my bf|my gf|my boyfriend|my girlfriend|my partner|couple|taken|engaged)\b")
 
 
 def seeking(match):
@@ -106,8 +107,8 @@ def seeking(match):
 
 SOLO_AD = r"^\W*(?:(?:\d{2}\s*[\]\)]?\s*)?[\[\(]?\s*(?:m|f|t|nb|tm|tf|mtf|ftm)\s*4\s*(?:[mfatr]|me|nb)\w*\s*[\]\)]?|\d{2}\s*(?:[mf]|yo|y/o|yrs?|years? old)\b|[mf]\s*\d{2}\b)"
 HEAD = re.compile(r"\s*[^\n]*(?:\n\s*[^\n]*)?")
-SOLICIT = re.compile(r"\b(?:looking for|seeking|searching for|in search of)\b")
-FRIENDLY = re.compile(r"\b(?:friends?|friendship|frds?|bros?|buddy|buddies|pals?|penpals?|talk|chat|chatting|game|gaming|vent)\b")
+SOLICIT = scan(r"\b(?:looking for|seeking|searching for|in search of)\b")
+FRIENDLY = scan(r"\b(?:friends?|friendship|frds?|bros?|buddy|buddies|pals?|penpals?|talk|chat|chatting|game|gaming|vent)\b")
 
 
 def soliciting(match):
@@ -139,7 +140,7 @@ COUPLE_ADS = (r"^\W*(?:(?:\d{2}\s*(?:[mf]\s*)?(?:/\s*\d{2}\s*(?:[mf]\s*)?)?)?[\[
               r"(?:couple(?<=\bcouple) here|we(?<=\bwe)(?:'re| are) an? (?:\w+ )?couple)\b(?! (?:of|days?|weeks?|months?|years?|hours?|minutes?|games?|more|points?|times?|steps?|levels?)\b)")
 
 
-UNPARTNERED = re.compile(r"\b(?:wife|husband|hubby|my bf|my gf|my boyfriend|my girlfriend|my partner|engaged|fianc[ée]e?)\b")
+UNPARTNERED = scan(r"\b(?:wife|husband|hubby|my bf|my gf|my boyfriend|my girlfriend|my partner|engaged|fianc[ée]e?)\b")
 NEVER_LEAD = re.compile(r"(?:^|[.!?\n,;(]|\band|\bbut|\bi|\bi've|\bi have|\bi'm|\bim|\bi am|\bstill)\s*$")
 BREAK_LEAD = re.compile(r"(?:^|[.!?\n]\s*)(?:i )?(?:just |recently |finally )?$")
 
@@ -242,7 +243,7 @@ INFANT = re.compile(r"months? old|weeks? old|\d+ ?(?:mo|m/o|wks?)\b|nappies|napp
                     r"kindergarten|preschool|school|daughter|son\b|mama|mommy|crawl|walking|talking|nap|\bborn\b|birth|pregnan|labou?r|deliver|milk|pump|nurs|ultrasound|\bob\b|\bweeks\b|\bmonths\b|teeth|tooth|\bcry|sleep")
 PARENT_LEAD = re.compile(rf"(?:{ME} an? |\bas an? |\bbeing an? |^\W*|[\n.!?]\s*|\b\d{{2}}\s*[mf]?\s*[,-]?\s*|[\]\)]\s*|[-|:]\s+|\b[mf]4[mfat]\w*\s*)(?:(?!my |his |her |your |their |our |the |a )[\w,-]+ ){{0,3}}$")
 ROMANTIC = re.compile(r"\b(?:bf|gf|boyfriend|girlfriend|husband|hubby|wife|daddy|sex|sexy|cock|dick|pussy|fuck\w*|kiss\w*|cuddl\w*|horny|nsfw|lover|honey|babe|dogs?|cats?|pups?|puppy|puppies|kittens?|kitty|pets?)\b")
-PAST = re.compile(r"\b(?:was|were|been)\s+(?:\w+\s+)?$")
+PAST = scan(r"\b(?:was|were|been)\s+(?:\w+\s+)?$")
 YEARS = r"(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
 PRONOUN = re.compile(r"\b(?:he|she|him|her|his|they|them|their)\b")
 NOT_CHILD = (r"(?:rescues?|fosters?|dogs?|cats?|pups?|puppy|puppies|kittens?|kitty|horses?|pony|birds?|cars?|trucks?|vans?|bikes?|house|home|laptop|computer|pc|phone|tv|account|self|body|brother|sister|cousin|nephew|niece|friend|student|students|"
@@ -255,7 +256,7 @@ def aged(match):
         return None
     return "has children" if free(match) and PRONOUN.search(match.string, match.end(), bounds(match)[1]) else None
 FIRST = re.compile(r"\b(?:i|we)\b[^.!?\n]{0,40}$")
-TEACHING = re.compile(r"\b(?:teach|teacher|class|classroom|students?|school|nanny|babysit\w*|camp|coach\w*|daycare|work)\b")
+TEACHING = scan(r"\b(?:teach|teacher|class|classroom|students?|school|nanny|babysit\w*|camp|coach\w*|daycare|work)\b")
 LISTED = re.compile(r"(?:^|[,;:]\s*|\b(?:single|married|divorced|no partner|no pets|no debt|\d{2}\s*[mf]?)\s*[,;&/]\s*(?:and )?)$")
 
 
@@ -272,8 +273,8 @@ PARENT_WORD = r"(?:mamá|mama|mãe|madre|padre|papá|pai|maman|mère|papa|père|
 THINGS = re.compile(r"\b(?:dogs?|cats?|pups?|puppy|puppies|kittens?|kitty|pets?|horses?|birds?|fish|rabbits?|bunny|car|cars|truck|bike|phone|laptop|pc|build|tattoo|hair|order|package|account|plant|plants|vet|spay\w*|neuter\w*)\b")
 
 
-BIRTH_VERB = re.compile(r" (?:was|is|had|has|took|came|arrived|weighed|needed|cried|slept|sleeps|loved|hated|refused|turned|started|didn't|did|wasn't|isn't|got)\b")
-BIRTH_LEAD = re.compile(r"\b(?:had|have|with|after|since|before|for|from|than|during) $")
+BIRTH_VERB = scan(r" (?:was|is|had|has|took|came|arrived|weighed|needed|cried|slept|sleeps|loved|hated|refused|turned|started|didn't|did|wasn't|isn't|got)\b")
+BIRTH_LEAD = scan(r"\b(?:had|have|with|after|since|before|for|from|than|during) $")
 
 
 def birth_order(match):
@@ -282,8 +283,8 @@ def birth_order(match):
     return kept("has children")(match) if INFANT.search(match.string) and not ROMANTIC.search(match.string) and not THINGS.search(match.string) else None
 
 
-AWAITED = re.compile(r"\b(?:to|wanna|until|till|before|once|planning on|plan on) (?:have|having)\s+$")
-DUE = re.compile(r"(?:'s)? (?:is |was )?due\b")
+AWAITED = scan(r"\b(?:to|wanna|until|till|before|once|planning on|plan on) (?:have|having)\s+$")
+DUE = scan(r"(?:'s)? (?:is |was )?due\b")
 
 
 def child(match):
@@ -426,12 +427,12 @@ OTHER = (r"(?:hamsters?|gerbils?|guinea pigs?|rabbits?|bunny|bunnies|ferrets?|pa
 OWN = (r"\b(?:my|our) (?:(?!(?:friends|parents|moms|dads|mums|neighbors|neighbours|brothers|sisters|sons|daughters|boyfriends|girlfriends|bfs|gfs|cousins|grandmas|grandparents|roommates|aunts|uncles|exs|exes|kids|bosses|"
        r"husbands|wifes|future|dream|next|neighbor|neighbour|friend|sister|brother|family|families|childhood|late|previous|former|deceased|departed|first|last|the|a|an|and|but|or|so|after|before|of|to|in|on|at|for|with|from|by|about|like|than|as|that|this|these|those|which|who|where|when|while|if|is|was|are|were|be|been|am|has|had|have|do|does|did|i|you|he|she|it|we|they|me|him|her|us|them|not|no)\b)[a-z\d-]+ ){0,4}")
 HAVE = r"(?:i(?<=\bi)|we(?<=\bwe))(?: (?:also |both |still |do |currently |now |already )?(?:have|got|own|adopted|rescued|recently adopted|just adopted|just got|bought myself|got myself|just bought)|'ve (?:also |still )?got) (?:a |an |two |three |four |\d+ )?(?:(?!(?:to|seen|been|heard|watched|met|noticed|found|the|this|that|these|those|of|for|with|from|in|on|at|by|about|like|no|not|never|ever|always|is|was|are|were|and|or|but|my|your|his|her|their|our)\b)[a-z\d-]+ ){0,2}"
-FELINE = re.compile(r"\bcats?\b|\bkitten|meow|litter|purr|feline|\bvet\b|catnip|scratching post|\bfur\b|indoor|outdoor|feral|adopt|rescue")
-CANINE = re.compile(r"\b(?:dogs?|pups?|puppy|puppies|vet|walks?|walked|walking|leash|bark\w*|fetch|kibble|breed|breeder|groomer|crate|treats?|paws?|fur|tail|neutered|spayed)\b")
-GENERIC_DOG = re.compile(r"(?:dogs?|pups?|puppy|puppies|doggos?|pupper|doggy|doggie|pooch|mutt)$")
-MOURNED = re.compile(r"\b(?:lost|losing|death of|passing of|loss of|rip|buried|bury|in memory of|used to|grew up|growing up|childhood)\b")
-DIED = re.compile(r"(?:'s)?\s*(?:\w+ ){0,3}(?:passed|died|was put down|was put to sleep|crossed the rainbow bridge|is gone)\b")
-GAME = re.compile(r"\b(?:game|games|gaming|gameplay|played|playing|playthrough|quests?|npcs?|server|mods?|dlc|console|ps4|ps5|xbox|steam|nintendo)\b")
+FELINE = scan(r"\bcats?\b|\bkitten|meow|litter|purr|feline|\bvet\b|catnip|scratching post|\bfur\b|indoor|outdoor|feral|adopt|rescue")
+CANINE = scan(r"\b(?:dogs?|pups?|puppy|puppies|vet|walks?|walked|walking|leash|bark\w*|fetch|kibble|breed|breeder|groomer|crate|treats?|paws?|fur|tail|neutered|spayed)\b")
+GENERIC_DOG = scan(r"(?:dogs?|pups?|puppy|puppies|doggos?|pupper|doggy|doggie|pooch|mutt)$")
+MOURNED = scan(r"\b(?:lost|losing|death of|passing of|loss of|rip|buried|bury|in memory of|used to|grew up|growing up|childhood)\b")
+DIED = scan(r"(?:'s)?\s*(?:\w+ ){0,3}(?:passed|died|was put down|was put to sleep|crossed the rainbow bridge|is gone)\b")
+GAME = scan(r"\b(?:game|games|gaming|gameplay|played|playing|playthrough|quests?|npcs?|server|mods?|dlc|console|ps4|ps5|xbox|steam|nintendo)\b")
 
 
 def departed(match):
@@ -482,10 +483,10 @@ LIVING = [
     *(rule("living_with", pattern, cohabiting, TAGGED) for pattern in COUPLE_ADS[1:]),
 ]
 
-OWNING = re.compile(r"\b(?:mortgage|bought|buy|own|owned|paid|renovat\w*|remodel\w*|contractor|roof|hoa|property|selling|sell|sold|equity|yard|garage|basement|insurance|apprais\w*|built|build|attic|foundation|plumb\w*|furnace|hvac|siding|gutters?|lawn|deck|porch|driveway|landscap\w*)\b")
+OWNING = scan(r"\b(?:mortgage|bought|buy|own|owned|paid|renovat\w*|remodel\w*|contractor|roof|hoa|property|selling|sell|sold|equity|yard|garage|basement|insurance|apprais\w*|built|build|attic|foundation|plumb\w*|furnace|hvac|siding|gutters?|lawn|deck|porch|driveway|landscap\w*)\b")
 NOT_DWELLING = r"(?! (?:music|party|parties|rules|of|plants?|cat|guest|wine|band|special|keys?|key|country|town|city|state|office|page|screen|base|team|game|gym|network|router|server|assistant|lab|workout|cooked|made|school|schooling|planet|world|island|province|club|ground|turf|button|feed|depot|address|phone|internet|wifi|life|health|care|nurse|visits?|remedies|remedy)\b)"
-RENTING = re.compile(r"\b(?:rent|rents|rented|renting|landlord|landlady|lease|leasing|tenant|tenants|tenancy|security deposit|sublet\w*|letting agent|property manager|leasing office)\b")
-RENT_OUT = re.compile(r"\brent(?:s|ed|ing)? (?:it |them |\w+ )?out\b|\b(?:my|our) tenants?\b")
+RENTING = scan(r"\b(?:rent|rents|rented|renting|landlord|landlady|lease|leasing|tenant|tenants|tenancy|security deposit|sublet\w*|letting agent|property manager|leasing office)\b")
+RENT_OUT = scan(r"\brent(?:s|ed|ing)? (?:it |them |\w+ )?out\b|\b(?:my|our) tenants?\b")
 OTHER_PEOPLE = re.compile(r"\b(?:he|she|they|his|her|their|them|him|people|someone|anyone|everyone|you|your|op)\b")
 MAYBE = re.compile(r"\b(?:would|wish|if|could|might|should|maybe)\b")
 

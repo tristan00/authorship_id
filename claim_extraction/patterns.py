@@ -1,19 +1,25 @@
 from . import characters, demographics, fandom, health, life, lifestyle, location, timed, work
-from .common import BOT_TEXT, hedged, prepared
+from .common import BOT_TEXT, Gated, hedged, prepared
+from .literals import build, prime
+from .prefilter import Prefilter
 from .schema import canonical
 
 SINGLE = frozenset({"age", "gender"})
 RULES = [*demographics.RULES, *location.RULES, *life.RULES, *lifestyle.RULES, *work.RULES, *health.RULES, *fandom.RULES]
 BOT_SAFE = frozenset(attribute for attribute, *_ in (*demographics.RULES, *work.RULES)) | {"automated_account", "relationship_status", "parental_status"}
+PREFILTER = Prefilter([pattern.compiled if isinstance(pattern, Gated) else pattern for _, pattern, *_ in RULES])
+build()
 
 
 def positioned(raw):
     text = prepared(raw)
     lowered = text.lower()
+    prime(text, lowered)
     found = {}
     automatic = bool(BOT_TEXT.search(lowered))
     demographics.tags(text, lowered, found)
-    for attribute, pattern, value, hedge in RULES:
+    for index in sorted(PREFILTER.flagged(lowered)):
+        attribute, pattern, value, hedge = RULES[index]
         if automatic and attribute not in BOT_SAFE:
             continue
         for match in pattern.finditer(lowered):

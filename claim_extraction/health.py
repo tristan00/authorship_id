@@ -2,11 +2,12 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from .common import HEDGE, SELF_HEDGE, TAGGED, clause, fixed, group, question, rule
+from .common import HEDGE, SELF_HEDGE, TAGGED, Names, clause, fixed, group, question, rule
+from .literals import scan
 
 
 def names(table):
-    return "|".join(sorted(map(re.escape, table), key=len, reverse=True))
+    return "|".join(sorted(map(re.escape, table), key=lambda word: (-len(word), word)))
 
 
 def spread(groups):
@@ -435,7 +436,7 @@ MENTAL_STATE_STRICT = {name: value for name, value in MENTAL_STATES.items() if n
                                                                                          "x days sober", "years sober", "months sober", "days sober", "a junkie", "add", "a depressive",
                                                                                          "a nervous wreck", "an anxious wreck", "a cutter"}}
 FEELINGS = {"depressed": "depression"}
-MENTAL_TAIL = re.compile(rf"\b(?:{names(MENTAL)})$")
+MENTAL_TAIL = scan(rf"\b(?:{names(MENTAL)})$")
 MENTAL_WORDS = {name: value for name, value in MENTAL.items() if name not in {"did", "add", "odd", "bed", "ed"}}
 ADHD_DRUGS_WIKIDATA = dict.fromkeys(Path(__file__).with_name("adhd_drugs.txt").read_text(encoding="utf-8").splitlines(), "adhd")
 
@@ -558,19 +559,19 @@ MOODS = {"anxiety": "anxiety", "depression": "depression", "ocd": "ocd", "ptsd":
          "anorexia": "eating disorder", "bulimia": "eating disorder", "schizophrenia": "schizophrenia or psychosis", "psychosis": "schizophrenia or psychosis",
          "body dysmorphia": "other mental health condition", "adhd": "adhd", "autism": "autism", "audhd": "both adhd and autism", "autistic": "autism", "asd": "autism",
          "addiction": "addiction", "an addiction": "addiction", "alcoholism": "addiction"}
-MOOD_NAMES = re.compile(r"\b(" + names(MOODS) + r")\b")
+MOOD_NAMES = scan(r"\b(" + names(MOODS) + r")\b")
 NEURO = ("adhd", "autism", "both adhd and autism")
 AUDHD_PARTS = ("adhd", "autism")
-ASSESSED = re.compile(r"\s*(?:assessments?|evaluations?|diagnosis|diagnoses|traits|testing|tests?)\b")
-POSSESSOR = re.compile(rf"\b(?:{PEOPLE}|someone|anyone|somebody|anybody)(?: (?!(?:and|but|or|i|i'm|im|me|my)\b)\w+){{0,2}} (?:has|have|had|having|with|gets|got)(?: \w+){{0,2}} $")
+ASSESSED = scan(r"\s*(?:assessments?|evaluations?|diagnosis|diagnoses|traits|testing|tests?)\b")
+POSSESSOR = scan(rf"\b(?:{PEOPLE}|someone|anyone|somebody|anybody)(?: (?!(?:and|but|or|i|i'm|im|me|my)\b)\w+){{0,2}} (?:has|have|had|having|with|gets|got)(?: \w+){{0,2}} $")
 ADDRESSED = re.compile(r"\b(?:you|your|you're|u|ur)\b")
 GENERIC = re.compile(r"\s+(?:is|are|isn't|aren't|makes|make|causes|cause|can|could|does|doesn't|means|affects|tends|presents|manifests)\b")
 ATTRIBUTIVE = re.compile(r" +(?!(?:and|or|af|asf|myself|too|as|but|so|lol)\b)[a-z]")
-ASKING = re.compile(r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b")
-CAUSED = re.compile(r"\b(?:give|gives|giving|gave|given) (?:me|us) (?:[\w-]+ ){0,3}$")
+ASKING = scan(r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b")
+CAUSED = scan(r"\b(?:give|gives|giving|gave|given) (?:me|us) (?:[\w-]+ ){0,3}$")
 FIRST_PERSON = re.compile(r"\b(?:i|i'm|im|i've|ive|i'd|i'll|my|me|myself|mine)\b")
-HEADS = re.compile(r"\s*(?:meds|medications?|medicines?|drugs?|pills?|supplies|creams?|moisturi[sz]ers?|products?|routines?|complications?|experiences?|sufferers?|babies|studios?|diets?|friendly|centers?|centres?)\b")
-CROWD = re.compile(r"\b(?:people|person|those|anyone|someone|somebody|everyone|many|most|some|others|patients|women|men|kids|children|americans|studies|research|risk|causes?|symptoms?)\b")
+HEADS = scan(r"\s*(?:meds|medications?|medicines?|drugs?|pills?|supplies|creams?|moisturi[sz]ers?|products?|routines?|complications?|experiences?|sufferers?|babies|studios?|diets?|friendly|centers?|centres?)\b")
+CROWD = scan(r"\b(?:people|person|those|anyone|someone|somebody|everyone|many|most|some|others|patients|women|men|kids|children|americans|studies|research|risk|causes?|symptoms?)\b")
 
 ORGANS = {"heart": "heart or blood condition", "cardiac": "heart or blood condition", "blood pressure": "heart or blood condition", "circulation": "heart or blood condition",
           "stomach": "digestive condition", "gut": "digestive condition", "bowel": "digestive condition", "digestive": "digestive condition", "gi": "digestive condition", "tummy": "digestive condition",
@@ -617,9 +618,9 @@ def owning(have, mine):
 
 
 NOUN_CUE = re.compile(rf"(?:{owning(HAVE_NOW, rf'\bmy{LEAD}{FREE}{{0,2}}')})$")
-PAST_CUE = re.compile(rf"(?:{HAD}){LEAD}{FREE}{{0,2}}$")
+PAST_CUE = scan(rf"(?:{HAD}){LEAD}{FREE}{{0,2}}$")
 MIND_CUE = re.compile(rf"(?:{owning(HAVE, rf'\bmy{LEAD}')}|\b(?:must|could|might|may|probably|just|it's|its|that's|thats|blame it on|blame)(?: just| probably| definitely)?(?: be)? the{LEAD})$")
-DROPPED = re.compile(rf"\W*(?:also |and |but |still |now |recently |just |newly |finally |officially |got |was |been )*(?:have|got|having|suffer from|suffer with|suffering from|suffering with|struggle with|struggling with|deal with|dealing with|live with|living with|recovering from|battling|diagnosed with|dx'?d with){LEAD}{FREE}?")
+DROPPED = scan(rf"\W*(?:also |and |but |still |now |recently |just |newly |finally |officially |got |was |been )*(?:have|got|having|suffer from|suffer with|suffering from|suffering with|struggle with|struggling with|deal with|dealing with|live with|living with|recovering from|battling|diagnosed with|dx'?d with){LEAD}{FREE}?")
 DIAGNOSED = re.compile(rf"\W*(?:recently |just |also |finally |newly |officially |formally )?(?:got |was |been )?(?:diagnosed|dx'?d)(?: as)?{LEAD}")
 CAUSE = re.compile(rf"(?:(?<=\bbecause )of|(?<=\bbc )of|(?<=\bdue )to|(?<=\bthanks )to|(?<=\bcaused )by){LEAD}{FREE}?$")
 KIN = re.compile(rf"\b(?:{PEOPLE}|we|us|our)\b")
@@ -642,7 +643,7 @@ LINK = re.compile(rf"\s*(?:,|&|/|\+|\band\b|\bor\b|\bplus\b|\bas well as\b|\balo
 TRAIL = re.compile(rf"\s*(?:{PEOPLE}|community|person|research|awareness|month|day|walk|"
                    r"charity|foundation|society|association|group|subreddit|sub|forum|nurse|doctor|unit|ward|center|centre|clinic|risk|test|testing|screening)s?\b|'s\b")
 SCOPE = re.compile(r"[,;:(.!?\n]|\b(?:and|but|because|cause|cuz|bc|since|so|though|although|while|whereas)\b")
-ASTROLOGY = re.compile(r"\b(?:aries|taurus|gemini|geminis|leo|leos|virgo|virgos|libra|libras|scorpio|scorpios|sagittarius|capricorn|capricorns|aquarius|pisces|zodiac|horoscope|astrology)\b|\b(?:in|into) cancer\b|\bcancer (?:sun|moon|rising|venus|mars|mercury|jupiter|saturn|placement|season|sign)\b|\b(?:sun|moon|rising|saturn|jupiter|venus|mars|mercury) (?:in|sign)\b")
+ASTROLOGY = scan(r"\b(?:aries|taurus|gemini|geminis|leo|leos|virgo|virgos|libra|libras|scorpio|scorpios|sagittarius|capricorn|capricorns|aquarius|pisces|zodiac|horoscope|astrology)\b|\b(?:in|into) cancer\b|\bcancer (?:sun|moon|rising|venus|mars|mercury|jupiter|saturn|placement|season|sign)\b|\b(?:sun|moon|rising|saturn|jupiter|venus|mars|mercury) (?:in|sign)\b")
 
 
 def spans(names):
@@ -681,6 +682,10 @@ TOKEN = re.compile(r"\w+(?:'\w+)*")
 SPOTS = re.compile(r"\w+(?:'\w+)*|[.!?\n]")
 AILMENT_KEYS = {" ".join(TOKEN.findall(name)): value for name, value in AILMENTS.items()}
 AILMENT_SPANS = spans(AILMENT_KEYS)
+AILMENT_NAMES = Names(AILMENT_KEYS)
+CONDITION_NAMES = Names(name for family in FAMILIES for name in family[3])
+RUNS = re.compile(r"[\w'/+-]+")
+SUFFIXES = tuple(family[6][0] for family in FAMILIES)
 
 
 POSSESSIVE_HEDGE = re.compile(r"\b(?:if|whether|unless|imagine|pretend|wish|hope)\b")
@@ -812,9 +817,11 @@ def foreign(lowered, found):
 def ailments(lowered, found):
     speaker = FIRST_PERSON.search(lowered)
     moody = speaker and MOOD_NAMES.search(lowered)
-    spotted = lookup([(match.start(), match.end(), match.group()) for match in SPOTS.finditer(lowered)], AILMENT_KEYS, AILMENT_SPANS) if speaker else iter(())
+    sick = speaker and AILMENT_NAMES.within(set(TOKEN.findall(lowered)))
+    named = sick or MOOD_NAMES.search(lowered) or any(suffix in lowered for suffix in SUFFIXES) or CONDITION_NAMES.within(set(RUNS.findall(lowered)))
+    spotted = lookup([(match.start(), match.end(), match.group()) for match in SPOTS.finditer(lowered)], AILMENT_KEYS, AILMENT_SPANS) if sick else iter(())
     upcoming = next(spotted, None)
-    for sentence in re.finditer(r"[^.!?\n]+", lowered):
+    for sentence in re.finditer(r"[^.!?\n]+", lowered) if named else ():
         part = sentence.group()
         here = []
         while upcoming and upcoming[0] < sentence.end():

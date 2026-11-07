@@ -3,6 +3,7 @@ import unicodedata
 from pathlib import Path
 
 from .common import SELF_HEDGE, clause, hedged
+from .literals import scan
 from .schema import fan_value
 
 NAME = r"((?:[Tt]he )?[A-Z0-9][\w'&.:!+-]*(?:,? (?:of|the|and|&|de|la|le|vs\.?|in|on|a|to|[A-Z0-9][\w'&.:!+-]*)){0,6})"
@@ -15,19 +16,19 @@ KINDS = {"band": "artist", "artist": "artist", "singer": "artist", "rapper": "ar
          "player": "athlete", "athlete": "athlete", "driver": "athlete", "fighter": "athlete", "wrestler": "athlete", "character": "character", "pokemon": "character",
          "hero": "character", "villain": "character", "champion": "character", "streamer": "creator", "youtuber": "creator", "podcast": "creator", "podcaster": "creator",
          "creator": "creator", "actor": "celebrity", "actress": "celebrity", "comedian": "celebrity", "celebrity": "celebrity"}
-KIND_WORDS = "|".join(sorted(map(re.escape, KINDS), key=len, reverse=True))
+KIND_WORDS = "|".join(sorted(map(re.escape, KINDS), key=lambda word: (-len(word), word)))
 LETTERS = re.compile(r"[^\W\d_]{2}")
 RULES = []
-FAVORITE = re.compile(rf"(?i:\b(?:one of )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|favs) ({KIND_WORDS})s?(?: of all time| ever| right now| atm| at the moment)? (?:is|has to be|would be|would have to be|was always|remains|are)\s+){NAME}")
-FAVORED = re.compile(rf"{NAME}(?i: (?:is|are|was|has always been|will always be) (?:still |definitely |probably |easily |honestly |hands down )?(?:one of )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|goat)s?(?: ({KIND_WORDS})s?)?\b)")
-POSITIVE = re.compile(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |totally |seriously |genuinely |do |personally )?(?:love|loved|adore|adored|enjoy|enjoyed|like|liked|dig|recommend|second|rewatched|replayed)\b|"
+FAVORITE = scan(rf"(?i:\b(?:one of )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|favs) ({KIND_WORDS})s?(?: of all time| ever| right now| atm| at the moment)? (?:is|has to be|would be|would have to be|was always|remains|are)\s+){NAME}")
+FAVORED = scan(rf"{NAME}(?i: (?:is|are|was|has always been|will always be) (?:still |definitely |probably |easily |honestly |hands down )?(?:one of )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|goat)s?(?: ({KIND_WORDS})s?)?\b)")
+POSITIVE = scan(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |totally |seriously |genuinely |do |personally )?(?:love|loved|adore|adored|enjoy|enjoyed|like|liked|dig|recommend|second|rewatched|replayed)\b|"
                       r"\bi'?m (?:so |really |totally |kinda |completely )?(?:obsessed with|addicted to|into|a (?:huge |big )?fan of|hooked on|in love with)\b|\bcan'?t get enough of\b|"
                       r"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rites?|faves?|favs?)\b|\bfell in love with\b|"
                       r"\b(?:is|are|was|were) (?:so |really |very |absolutely |just |still |honestly |such an? |pretty |easily |definitely |by far )?(?:good|great|amazing|awesome|excellent|fantastic|"
                       r"underrated|underappreciated|goated|incredible|perfect|beautiful|fun|peak|fire|the goat|the best|my jam|a banger|bangers|a masterpiece|a classic|brilliant|"
                       r"phenomenal|gorgeous|lovely|wonderful|so fun)\b|\b(?:been|currently|finally|started) (?:playing|watching|listening to|reading|bingeing|binging|replaying|rewatching)\b|"
                       r"\bfor me\b|\bmine is\b|\bhands down\b|\bthe goat\b|\bi'?m (?:playing|watching|listening to|reading|replaying|rewatching)\b)")
-NEGATIVE = re.compile(r"(?i:\b(?:hate|hated|don'?t like|didn'?t like|not a fan|dislike|overrated|boring|worst|trash|garbage|sucks|terrible|awful|meh|never (?:played|watched|liked))\b)")
+NEGATIVE = scan(r"(?i:\b(?:hate|hated|don'?t like|didn'?t like|not a fan|dislike|overrated|boring|worst|trash|garbage|sucks|terrible|awful|meh|never (?:played|watched|liked))\b)")
 CONTEXTS = {
     "video_game": re.compile(r"(?i:\b(?:games?|gaming|gamer|play|played|playing|playthrough|steam|xbox|playstation|ps[1-5]|switch|nintendo|console|dlc|boss|bosses|speedrun|multiplayer|co-?op|rpg|jrpg|mmo|mmorpg|fps|roguelike|patch|grind|raid|quest|controller|remake|remaster|sequel|campaign|achievements?|platinum)\b)"),
     "franchise": re.compile(r"(?i:\b(?:show|shows|series|season|seasons|episode|episodes|anime|manga|movie|movies|film|films|watch|watched|watching|rewatch|rewatching|binge|tv|netflix|hbo|disney|sitcom|cartoon|comic|comics|trilogy|franchise|novel|novels|books?)\b)"),
@@ -89,7 +90,7 @@ def junk(name):
     return words[0] in EDGE or words[-1] in EDGE or words[-1].endswith(("'s", "s'")) or " and " in name.lower()
 
 
-ADJACENT = re.compile(r"\b(?:i (?:really |absolutely |just |also |still |honestly |do |genuinely )?(?:love|loved|adore|adored|enjoy|enjoyed)|obsessed with|addicted to|can'?t get enough of|a (?:huge |big |massive )?fan of|in love with|hooked on|"
+ADJACENT = scan(r"\b(?:i (?:really |absolutely |just |also |still |honestly |do |genuinely )?(?:love|loved|adore|adored|enjoy|enjoyed)|obsessed with|addicted to|can'?t get enough of|a (?:huge |big |massive )?fan of|in love with|hooked on|"
                       r"my (?:all[- ]time |absolute |personal )?(?:favou?rite|fave|fav)(?: \w+)? (?:is|has to be|would be|was)|i'?m (?:currently |still |also )?(?:playing|watching|reading|listening to|replaying|rewatching|bingeing|binging)|"
                       r"i'?ve been (?:playing|watching|reading|listening to|replaying|rewatching|bingeing|binging|obsessed with)|i (?:just )?(?:finished|beat|started) (?:playing |watching |reading )?|i (?:still |also |mostly |mainly |usually |really )?(?:play|played|replayed|rewatched))\s+"
                       r"((?:the )?[\w'&:.!+-]+(?: [\w'&:.!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|it|is|was|lol|too|again|right|atm|lately|recently|these|since|for|with|on|in|at|when|while|haha|tbh|honestly|now|today)\b)")
@@ -113,38 +114,38 @@ def adjacent(text, found):
 
 
 DEGREE = r"(?:huge|big|massive|die[- ]?hard|lifelong|life[- ]long|long[- ]?time|proud|loyal|true|real|giant|enormous|devoted|avid|hardcore|crazy|super|major|total|self[- ](?:admitted|proclaimed|confessed|described))"
-FAN = re.compile(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|been|as|being) (?:an? )?(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)")
-TEAM_FAN = re.compile(rf"(?i:\b(?:(?:i'm|im|i am|i've been|ive been|been|as|being|from) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
+FAN = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|been|as|being) (?:an? )?(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)")
+TEAM_FAN = scan(rf"(?i:\b(?:(?:i'm|im|i am|i've been|ive been|been|as|being|from) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
                       rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:fan|supporter)(?:s? (?:here|since|for life|all my life|my whole life|through and through)\b|(?=[,.!;:]|(?m:$))))")
-FAN_OF = re.compile(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|i've always been|been|as) (?:also |still |definitely |honestly |really |such |always )?(?:an? |the )?(?:{DEGREE} )*(?:fan|supporter|admirer) of (?:the )?){NAME}")
-STAN = re.compile(rf"(?i:\bi (?:also |still |will always |literally |really )?stan ){NAME}")
-GOAT = re.compile(rf"(?i:\bmy (?:all[- ]time )?goat:? ){NAME}")
-GOATED = re.compile(rf"{NAME}(?i: (?:is|was|will always be|remains) (?:still |easily |honestly )?(?:the|my) goat\b| the goat\b)")
+FAN_OF = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|i've always been|been|as) (?:also |still |definitely |honestly |really |such |always )?(?:an? |the )?(?:{DEGREE} )*(?:fan|supporter|admirer) of (?:the )?){NAME}")
+STAN = scan(rf"(?i:\bi (?:also |still |will always |literally |really )?stan ){NAME}")
+GOAT = scan(rf"(?i:\bmy (?:all[- ]time )?goat:? ){NAME}")
+GOATED = scan(rf"{NAME}(?i: (?:is|was|will always be|remains) (?:still |easily |honestly )?(?:the|my) goat\b| the goat\b)")
 OBJECTS = {"music": "artist", "songs": "artist", "song": "artist", "album": "artist", "albums": "artist", "voice": "artist", "vocals": "artist", "lyrics": "artist", "art": "artist",
            "artwork": "artist", "movies": "celebrity", "films": "celebrity", "acting": "celebrity", "performance": "celebrity", "performances": "celebrity", "roles": "celebrity",
            "comedy": "celebrity", "standup": "celebrity", "specials": "celebrity", "videos": "creator", "video": "creator", "streams": "creator", "stream": "creator",
            "channel": "creator", "content": "creator", "podcast": "creator", "books": "author", "novels": "author", "writing": "author", "prose": "author"}
-LOVED = re.compile(rf"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally )*"
+LOVED = scan(rf"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally )*"
                    rf"(?:love|adore|loved|adored|enjoy|enjoyed|in love with|obsessed with) ){NAME}")
-LOWER_FAN = re.compile(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|as|being) (?:an? )?(?:{DEGREE} )*)((?:[a-z][\w'-]* ){{0,2}}[a-z][\w'-]*) (?:fan|stan|supporter)\b")
-LIKED_PERSON = re.compile(rf"(?i:\bi (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |personally |kinda |always )*(?:like|liked) ){NAME}")
-CREATED = re.compile(rf"{NAME}(?:(?:'s|s'|’s) |(?<!'s)(?= (?i:youtube|yt|twitch|tiktok) ))(?i:(?: ?(?:youtube|yt|twitch|tiktok) )?(?:new |latest |recent |old |last |early )?(?:videos?|vids|streams?|vods?|channel|podcasts?|content|vlogs?)\b)")
-WATCHED = re.compile(rf"(?i:\b(?:i (?:\w+ )?(?:watch|watching|watched)|subscribed to|i follow|i'?ve been following) ){NAME}(?i: (?:on|'s) (?:youtube|twitch|tiktok|kick)\b)")
-LISTENED = re.compile(rf"(?i:\b(?:i(?:'m| am|'ve been| have been)? (?:\w+ )?(?:listening to|listen to|listened to|jamming to|bumping)|been (?:listening to|bumping|jamming to)) ){NAME}")
-ALBUM = re.compile(rf"{NAME}(?:'s|s'|’s) (?i:(?:new |latest |last |debut |first |second |third |next |old |early )?(?:albums?|songs?|singles?|discography|tour|concerts?|records?|ep|lp|music|vocals|lyrics)\b)")
-SEEN = re.compile(rf"(?i:\b(?:i|we) (?:\w+ )?(?:saw|seen|see|seeing) ){NAME}(?i: (?:live|in concert|perform|play live|open for)\b)")
-PRAISED = re.compile(rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:is|was|are|were|has been|remains) (?:still |so |fucking |really |honestly |just |literally |absolutely |easily |genuinely |lowkey )*"
+LOWER_FAN = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|as|being) (?:an? )?(?:{DEGREE} )*)((?:[a-z][\w'-]* ){{0,2}}[a-z][\w'-]*) (?:fan|stan|supporter)\b")
+LIKED_PERSON = scan(rf"(?i:\bi (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |personally |kinda |always )*(?:like|liked) ){NAME}")
+CREATED = scan(rf"{NAME}(?:(?:'s|s'|’s) |(?<!'s)(?= (?i:youtube|yt|twitch|tiktok) ))(?i:(?: ?(?:youtube|yt|twitch|tiktok) )?(?:new |latest |recent |old |last |early )?(?:videos?|vids|streams?|vods?|channel|podcasts?|content|vlogs?)\b)")
+WATCHED = scan(rf"(?i:\b(?:i (?:\w+ )?(?:watch|watching|watched)|subscribed to|i follow|i'?ve been following) ){NAME}(?i: (?:on|'s) (?:youtube|twitch|tiktok|kick)\b)")
+LISTENED = scan(rf"(?i:\b(?:i(?:'m| am|'ve been| have been)? (?:\w+ )?(?:listening to|listen to|listened to|jamming to|bumping)|been (?:listening to|bumping|jamming to)) ){NAME}")
+ALBUM = scan(rf"{NAME}(?:'s|s'|’s) (?i:(?:new |latest |last |debut |first |second |third |next |old |early )?(?:albums?|songs?|singles?|discography|tour|concerts?|records?|ep|lp|music|vocals|lyrics)\b)")
+SEEN = scan(rf"(?i:\b(?:i|we) (?:\w+ )?(?:saw|seen|see|seeing) ){NAME}(?i: (?:live|in concert|perform|play live|open for)\b)")
+PRAISED = scan(rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:is|was|are|were|has been|remains) (?:still |so |fucking |really |honestly |just |literally |absolutely |easily |genuinely |lowkey )*"
                      rf"(?:peak|goated|amazing|incredible|underrated|phenomenal|a masterpiece|a banger|fire|elite|god ?tier|top tier|the goat|the best\b|one of the best)\b)")
 LITERALS = {FAN: (" fan", " supporter", " stan", " enjoyer"), FAN_OF: ("fan of", "supporter of", "admirer of"), STAN: ("stan",), GOAT: ("goat",), GOATED: ("goat",)}
-FAVORITE_PLAIN = re.compile(rf"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav) ({KIND_WORDS})s? (?:is|has to be|would be|was|are)\s+"
+FAVORITE_PLAIN = scan(rf"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav) ({KIND_WORDS})s? (?:is|has to be|would be|was|are)\s+"
                             r"((?:the )?[\w'&:!+-]+(?: [\w'&:!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|lol|too|tbh|honestly|by far|hands down|of all time|ever|for sure)\b)")
 PERSON = r"((?:[A-Z]\. |[A-Z][\w-]*(?:'[A-Z][\w-]*)? ){1,3}[A-Z][\w-]*(?:'[A-Z][\w-]*)?)(?![\w-])"
-WRITTEN_BY = re.compile(rf"(?<!read )\bby {PERSON}")
+WRITTEN_BY = scan(rf"(?<!read )\bby {PERSON}")
 BOOKISH = ("author", "novel", "writ", "wrote", "book", "read", "series", "trilogy", "saga")
 BLANK = re.compile(r"\n[^\S\n]*\n")
-ADVISED = re.compile(r"(?i:\b(?:recommend\w*|suggest\w*|advise|try|check out)\b)")
-WROTE = re.compile(rf"{PERSON}(?:'s|s') (?:[\w:'-]+ ){{0,6}}?(?i:books?|novels?|series|trilogy|saga|writing)\b|(?i:\b(?:read|reading|finished|love|loved|enjoy|enjoyed)\b (?:\w+ ){{0,3}}){PERSON}(?i: (?:books|novels)\b)")
-CHOICE = re.compile(r"\^\((?:My choice|Me|Chose|My pick): ([^)|\n]{2,60}?)\s*[)|]")
+ADVISED = scan(r"(?i:\b(?:recommend\w*|suggest\w*|advise|try|check out)\b)")
+WROTE = scan(rf"{PERSON}(?:'s|s') (?:[\w:'-]+ ){{0,6}}?(?i:books?|novels?|series|trilogy|saga|writing)\b|(?i:\b(?:read|reading|finished|love|loved|enjoy|enjoyed)\b (?:\w+ ){{0,3}}){PERSON}(?i: (?:books|novels)\b)")
+CHOICE = scan(r"\^\((?:My choice|Me|Chose|My pick): ([^)|\n]{2,60}?)\s*[)|]")
 SPLIT = re.compile(r"\s*(?:,|/|&|\band\b)\s*")
 POSSESSIVE = re.compile(r"'s\b.*$")
 STOP = re.compile(r"[.!?:;]\s")
@@ -479,26 +480,42 @@ def sentence_cased():
 SENTENCE_CASED = sentence_cased()
 
 
+def lowered_words(surface):
+    return " ".join(word.lower() for word in surface.split(" "))
+
+
+ENTRIES = frozenset(PLAIN.keys() | FILM_PLAIN.keys() | {lowered_words(surface) for table in (CASED, SENTENCE_CASED, FILM_CASED, RAISED) for surface in table})
+
+
 def mentions(text):
-    words = list(WORD.finditer(text))
-    shown = [word.group() for word in words]
+    shown = WORD.findall(text)
     lows = [word.lower() for word in shown]
-    spans, index, total = [], 0, len(words)
+    spans, index, total, bounds = [], 0, len(shown), None
     while index < total:
-        found, size, key, surface = None, 1, lows[index], shown[index]
-        while key in PREFIXES:
-            plain = PLAIN.get(key)
-            cased = CASED.get(surface) or size == 1 and RAISED.get(surface) or not plain and SENTENCE_CASED.get(surface) or None
-            if plain or cased:
-                found = size, (plain or []) + (cased or [])
-            elif (films := FILM_PLAIN.get(key, []) + FILM_CASED.get(surface, [])) and praised(text, words[index].start(), words[index + size - 1].end()):
-                found = size, films
+        key = lows[index]
+        if key not in PREFIXES:
+            index += 1
+            continue
+        found, size, surface = None, 1, shown[index]
+        while True:
+            if key in ENTRIES:
+                plain = PLAIN.get(key)
+                cased = CASED.get(surface) or size == 1 and RAISED.get(surface) or not plain and SENTENCE_CASED.get(surface) or None
+                if plain or cased:
+                    found = size, (plain or []) + (cased or [])
+                elif films := FILM_PLAIN.get(key, []) + FILM_CASED.get(surface, []):
+                    bounds = bounds or [word.span() for word in WORD.finditer(text)]
+                    if praised(text, bounds[index][0], bounds[index + size - 1][1]):
+                        found = size, films
             if index + size == total:
                 break
             key, surface, size = key + " " + lows[index + size], surface + " " + shown[index + size], size + 1
+            if key not in PREFIXES:
+                break
         if found:
             size, entries = found
-            spans.extend((attribute, words[index].start(), words[index + size - 1].end(), value, cased, common, links) for attribute, value, cased, common, links in entries)
+            bounds = bounds or [word.span() for word in WORD.finditer(text)]
+            spans.extend((attribute, bounds[index][0], bounds[index + size - 1][1], value, cased, common, links) for attribute, value, cased, common, links in entries)
             index += size
         else:
             index += 1
@@ -509,7 +526,7 @@ LEXICON_CONTEXT = dict(CONTEXTS)
 LEXICON_CONTEXT["artist"] = re.compile(CONTEXTS["artist"].pattern[:-4] + r"|sing|sings|sang|singing|playlist|records?|records|festival|fans?|stan)\b)")
 LEXICON_CONTEXT["franchise"] = re.compile(CONTEXTS["franchise"].pattern[:-4] + r"|read|reading|fandom|canon|plot|characters?|finale|spinoff|reboot|adaptation)\b)")
 
-AUTHORING = re.compile(r"(?i:\b(?:author|authors|novelist|writer|writes|wrote|written|books?|novels?|reading|read|series|trilogy)\b)")
+AUTHORING = scan(r"(?i:\b(?:author|authors|novelist|writer|writes|wrote|written|books?|novels?|reading|read|series|trilogy)\b)")
 GATES = {**LEXICON_CONTEXT, "author": AUTHORING}
 TARGET_CONTEXT = {**LEXICON_CONTEXT, "author": AUTHORING}
 
@@ -519,7 +536,7 @@ def opening(text, start):
     return not before or before[-1] in ".!?\n:"
 
 
-LIKED = re.compile(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |totally |genuinely |do |personally |fucking )*(?:love|loved|adore|adored|enjoy|enjoyed|like|liked|dig)|\bi'?m (?:so |really |totally |kinda |completely )?(?:obsessed with|addicted to|into|a (?:huge |big |massive )?fan of|hooked on|in love with)|\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav)(?: \w+)? (?:is|are|was|has to be))(?: the)?\s+$")
+LIKED = scan(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |totally |genuinely |do |personally |fucking )*(?:love|loved|adore|adored|enjoy|enjoyed|like|liked|dig)|\bi'?m (?:so |really |totally |kinda |completely )?(?:obsessed with|addicted to|into|a (?:huge |big |massive )?fan of|hooked on|in love with)|\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav)(?: \w+)? (?:is|are|was|has to be))(?: the)?\s+$")
 SELF = re.compile(r"(?i:\b(?:i|i'm|im|i've|ive|i'd|i'll|my|me|mine|myself)\b)")
 DONE = {"video_game": re.compile(r"(?i:\b(?:play|playing|played|replay\w*|beat|beaten|finished|finishing|completed|platinumed|grinding|started|bought|preordered|pre-ordered|hours|hrs)\b)"),
         "franchise": re.compile(r"(?i:\b(?:watch|watching|watched|rewatch\w*|binge\w*|binging|read|reading|reread\w*|finished|finishing|started)\b)"),
@@ -538,7 +555,7 @@ def praised(text, start, end):
     return bool(POSITIVE.search(text, left, right)) and not NEGATIVE.search(text, left, right) and text[right:right + 1] != "?"
 
 
-PRODROP = re.compile(r"[\W_]*(?i:(?:still|currently|just|finally|also|now|recently|been|really|absolutely|honestly) )*(?i:(love|loved|loving|enjoyed|enjoying|digging)|playing|played|replaying|replayed|finished|finishing|watching|watched|rewatching|rewatched|reading|rereading|listening to|listened to|started|bought)\b")
+PRODROP = scan(r"[\W_]*(?i:(?:still|currently|just|finally|also|now|recently|been|really|absolutely|honestly) )*(?i:(love|loved|loving|enjoyed|enjoying|digging)|playing|played|replaying|replayed|finished|finishing|watching|watched|rewatching|rewatched|reading|rereading|listening to|listened to|started|bought)\b")
 
 
 def engaged(text, start, end, attribute, popular, plain):
@@ -559,8 +576,8 @@ def engaged(text, start, end, attribute, popular, plain):
 
 
 BACKING = re.compile(r"(?i:\b(?:my|our|we|us|go|let'?s go|lets go|up the|c'?mon|come on|i (?:always |still |also |really |just |will always |have always |\w+ly )?(?:love|support|supported|root for|rooted for|cheer for|follow|followed)|i'?ve (?:always |also )?(?:supported|followed|rooted for)|fan of|rooting for|cheering for|supporter of|supporting|following)(?: the| my| our| beloved| boys)?\s*$)")
-BACKER = re.compile(r"(?i:\s*(?:nation|faithful|for life|forever|till i die|all the way)\b)")
-FANNED = re.compile(r"(?i:\s*(?:fan|supporter)\b)")
+BACKER = scan(r"(?i:\s*(?:nation|faithful|for life|forever|till i die|all the way)\b)")
+FANNED = scan(r"(?i:\s*(?:fan|supporter)\b)")
 AVOWED = re.compile(r"(?i:\b(?:i'?m|i am|as|been|being|be)\b[\w\s-]{0,20}$)")
 OWNED = re.compile(r"(?:my|our|we|us)\b")
 PEER = re.compile(r"(?i:\b(?:he|she|they|his|her|their|dad|mom|father|mother|brother|sister|wife|husband|son|daughter|friend|friends|boyfriend|girlfriend|partner|people|everyone|nobody|every)\b)")
@@ -590,7 +607,7 @@ def chosen(text, start, options, totals):
     return [option for score, option in scored if score or option[0] != "video_game"]
 
 
-FAVOURED = re.compile(r"(?i:fav(?<!least fav)(?<!\wfav)(?:ou?rites?|es?|s)?\b[^\n:]*:|\^\(likes?:)")
+FAVOURED = scan(r"(?i:fav(?<!least fav)(?<!\wfav)(?:ou?rites?|es?|s)?\b[^\n:]*:|\^\(likes?:)")
 
 
 def favoured(segments, start):

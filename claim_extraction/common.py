@@ -1,4 +1,7 @@
 import re
+from collections import defaultdict
+
+from .literals import scan
 
 FOLDED = str.maketrans({"’": "'", "‘": "'", "´": "'", "ʼ": "'", "＇": "'", "`": "'", "İ": "I"})
 MASKED = re.compile(r"https?://\S+|www\.\S+|\]\([^)\s]*\)|^[ \t]*(?:>|&gt;)[^\n]*", re.M)
@@ -10,7 +13,7 @@ SELF_HEDGE = re.compile(r"\b(?:if|would|wish|hope|imagine|pretend|unless|whether
 TAGGED = re.compile(r"$^")
 TAG = r"(?<![\w$#.,'/:+-])(?:(\d{2})\s?([mf])|([mf])\s?(\d{2}))(?![\w'%])"
 FOR = r"(?<![a-z0-9])(?:(\d{2})\s*)?[\[\(]?\s*(nb|[mf])[mf]?\s*4\s*(?:[mfatr]|me|r|nb)\w*\s*[\]\)]?(?:\s*[-–|:#]?\s*(\d{2})(?!\d))?"
-BOT_TEXT = re.compile(r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:make sure|include|read)\b|\bpost (?:has been |was )?removed\b|\bmust (?:include|contain)\b")
+BOT_TEXT = scan(r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:make sure|include|read)\b|\bpost (?:has been |was )?removed\b|\bmust (?:include|contain)\b")
 
 
 def prepared(text):
@@ -60,3 +63,14 @@ def fixed(result):
 
 def group(table, number=1):
     return lambda match: table.get(match.group(number))
+
+
+class Names:
+    def __init__(self, names):
+        self.index = defaultdict(list)
+        for name in names:
+            tokens = name.split(" ")
+            self.index[max(tokens, key=len)].append(frozenset(tokens))
+
+    def within(self, words):
+        return any(tokens <= words for word in self.index.keys() & words for tokens in self.index[word])

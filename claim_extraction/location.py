@@ -2,13 +2,14 @@ import re
 
 from .common import FOR, I, SELF_HEDGE, TAG, clause, needs, rule
 from .common import HEDGE as DOUBT
+from .literals import scan
 from .places import FOREIGN, NATIONS, PEOPLES, PLACES, REGION_CODES, TOKEN
 
 DIRECTIONS = "north south east west northern southern eastern western central upstate downstate rural coastal middle sw se nw ne northeast northwest southeast southwest downtown uptown metro inner outer far deep".split()
 LEXICON = {**{name: ("foreign", country, "", country, "") for name, country in FOREIGN.items()}, **{name + "s": ("nations", country, "", country, "") for name, country in NATIONS.items()}, **{name.removeprefix("the "): entry for name, entry in PLACES.items() if name not in DIRECTIONS}, **PEOPLES, **{name: ("nation", country, "", country, "") for name, country in NATIONS.items()}, **{name + suffix: ("nation", country, "", country, "") for name, country in NATIONS.items() for suffix in ("man", "woman", "men", "women")}}
 SQUASHED = {name.replace(" ", ""): entry for name, entry in LEXICON.items() if " " in name and entry[0] not in ("nation", "nations", "people")}
 PREFIXES = {" ".join(name.split()[:size]) for name in LEXICON for size in range(1, name.count(" ") + 1)}
-NATION = "|".join(sorted(map(re.escape, NATIONS), key=len, reverse=True))
+NATION = "|".join(sorted(map(re.escape, NATIONS), key=lambda word: (-len(word), word)))
 LANGUAGES = frozenset("english spanish french german italian portuguese dutch swedish norwegian danish finnish polish czech slovak hungarian romanian bulgarian greek croatian serbian "
                       "russian ukrainian turkish arabic hebrew persian farsi hindi urdu bengali punjabi tamil telugu marathi gujarati malayalam kannada chinese mandarin cantonese japanese "
                       "korean vietnamese thai tagalog filipino indonesian malay swahili afrikaans catalan basque icelandic estonian latvian lithuanian albanian".split())
@@ -19,20 +20,20 @@ ADVERB = r"(?:(?:currently|now|still|also|just|actually|already|really|basically
 WAY = r"(?:(?:just|right|somewhere|up|down|out|over|back|here|there|mostly)\s+)*(?:(?:north|south|east|west|northeast|northwest|southeast|southwest|outside|close to|next to|near)\s+(?:of\s+)?)?"
 PREP = r"(?:in|near|outside(?: of)?|around|by|at|out of)\s+"
 SUBJECT = r"(?:\bi|\bwe|\bme and my \w+|\bmy (?:wife|husband|partner|family|girlfriend|boyfriend|fiance|fiancee|kids|parents) and i)"
-LIVE = re.compile(rf"{SUBJECT}(?:\s+(?:currently|now|still|also|just|actually|already|really|recently|both|all|happily|finally))*(?:\s+(?:live|reside|moved|relocated|settled)|(?:'ve|\s+have)\s+(?:been\s+)?(?:lived|living|based|settled))\s+{ADVERB}{WAY}(?:{PREP}|to\s+|on\s+)?(?:(?!(?:a|an|the|my|our|with|and|but|for|of|to|in|by|near|at|from|this|that|fear|hope|peace|sin|denial)\b)[a-z]+\s+){{0,2}}?{END}")
+LIVE = scan(rf"{SUBJECT}(?:\s+(?:currently|now|still|also|just|actually|already|really|recently|both|all|happily|finally))*(?:\s+(?:live|reside|moved|relocated|settled)|(?:'ve|\s+have)\s+(?:been\s+)?(?:lived|living|based|settled))\s+{ADVERB}{WAY}(?:{PREP}|to\s+|on\s+)?(?:(?!(?:a|an|the|my|our|with|and|but|for|of|to|in|by|near|at|from|this|that|fear|hope|peace|sin|denial)\b)[a-z]+\s+){{0,2}}?{END}")
 BEING = re.compile(rf"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\biam|\bi (?:now|currently|still|also) am)(?:\s+(?:currently|now|still|also|just|actually|already|really|basically|technically|both|all|living|based|located|residing|settled|here|out|over|down|up|back|happily|permanently|right|somewhere))*\s+(?:{WAY}{PREP}|(?:(?:just|right)\s+)?(?:north|south|east|west|northeast|northwest|southeast|southwest|outside)\s+of\s+){END}")
-BARE = re.compile(rf"(?:^|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+|(?<![\w.$#'/:+-])\d{{2}}\s?[mf]?\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside)\s+(?:here\s+)?{PREP}{END}")
+BARE = scan(rf"(?:^|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+|(?<![\w.$#'/:+-])\d{{2}}\s?[mf]?\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside)\s+(?:here\s+)?{PREP}{END}")
 HERE = re.compile(rf"\b(?:here|over here|out here|down here|up here)\s+in\s+{END}|(?:^|[\n.!?,;:(]\s*|\b(?:for|of|to|with|among)\s+)(?:we|us)\s+(?:here\s+)?in\s+{END}|\b(?:greetings|hello|hi|hey|love|cheers|regards|blessings|hugs|howdy|saludos|grüße|grüsse)\s+from\s+{END}"
                   rf"|\b(?:my|our) (?:city|town|country|state|province|county|neighborhood|neighbourhood|island|village|area|house|building|apartment|flat)(?:\s*(?:of residence|of|,|:|-|\(|\.|is in|in))*\s*{END}")
-MOVED = re.compile(rf"(?:(?:^|[\n.!?;:(]\s*|\bthen\s+|\b\d{{2}}\s?[mf]\s+)(?:just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)|\bdecided to (?:move|relocate))\s+(?:back\s+)?(?:over\s+)?(?:here\s+)?to\s+{END}")
+MOVED = scan(rf"(?:(?:^|[\n.!?;:(]\s*|\bthen\s+|\b\d{{2}}\s?[mf]\s+)(?:just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)|\bdecided to (?:move|relocate))\s+(?:back\s+)?(?:over\s+)?(?:here\s+)?to\s+{END}")
 ABROAD = re.compile(rf"\b(?:vivo|vivimos|resido|radico|estoy|estamos|moro|moramos|wohne|wohnen|lebe|leben|j'habite|habite|je vis|je réside|j'vis|je me trouve|me trouve|abito|risiedo|woon|wonen)\s+(?:actualmente\s+|atualmente\s+|aktuell\s+|derzeit\s+|zurzeit\s+|actuellement\s+|attualmente\s+|nu\s+)?"
                     rf"(?:en|em|no|na|in|im|à|a|au|aux|dans le|dans la|dans les|dans|nel|nella|bei|nahe|cerca de|perto de|près de|vicino a|in der nähe von)\s+(?:el\s+|la\s+|o\s+|a\s+|der\s+|den\s+|le\s+|il\s+|het\s+)?\Z"
                     r"|\b(?:aquí|aqui|acá|hier|ici|qui)\s+(?:en|em|no|na|in|à|a)\s+\Z")
-FROM = re.compile(rf"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\bi come|\bwe come|\boriginally|\bbeing|\bme being)(?:\s+(?:currently|still|also|just|actually|originally|both|all|here|over|out|down|up|\w+ly))*\s+from\s+{END}"
+FROM = scan(rf"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\bi come|\bwe come|\boriginally|\bbeing|\bme being)(?:\s+(?:currently|still|also|just|actually|originally|both|all|here|over|out|down|up|\w+ly))*\s+from\s+{END}"
                   rf"|(?:^|[\s(\[])(?:\d{{2}}\s?[mfw]|[mfw]\s?\d{{2}}|cpl)(?:\s+here)?\s+from\s+{END}"
                   rf"|\b(?:i'm|im|i am)\s+(?:an?\s+)?\d{{2}}(?:\s*-?\s*(?:years?[- ]old|yo|y/o|[mf]))?(?:\s+[a-z]+){{0,3}}\s+from\s+{END}")
-GERMAN = re.compile(r"\b(?:ich\s+)?(?:komme|kommen|bin)\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z|(?:^|[,(\[/])\s*aus\s+\Z|\b(?:[mwf]\s?\d{2}|\d{2}\s?[mwf]|[mwf])\s+aus\s+\Z")
-LEFT = re.compile(r"\b(?:soy|somos|sou)\s+(?:de|del|da|do|originario de|originaria de|natural de)\s+(?:la\s+|el\s+|o\s+|a\s+)?\Z|\b(?:ich\s+)?stamme\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z"
+GERMAN = scan(r"\b(?:ich\s+)?(?:komme|kommen|bin)\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z|(?:^|[,(\[/])\s*aus\s+\Z|\b(?:[mwf]\s?\d{2}|\d{2}\s?[mwf]|[mwf])\s+aus\s+\Z")
+LEFT = scan(r"\b(?:soy|somos|sou)\s+(?:de|del|da|do|originario de|originaria de|natural de)\s+(?:la\s+|el\s+|o\s+|a\s+)?\Z|\b(?:ich\s+)?stamme\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z"
                   r"|\bje (?:suis|viens) (?:de|du|d')\s*\Z|\bsono di\s+\Z|\bvengo (?:de|da|dal|dalla)\s+\Z|\b(?:ik\s+)?kom (?:uit|van)\s+\Z")
 ORIGIN = re.compile(rf"(?:{SUBJECT}|\bas an? (?:person|guy|girl|woman|man|kid|someone) who)(?:\s+(?:was|were|got))?(?:\s+(?:\w+ly|also|both|all))*\s+(?:grew up|raised|born|brought up)(?:\s+and\s+(?:raised|bred))?\s+(?:in|on|near|outside(?: of)?|around)\s+{END}"
                     rf"|\bborn and (?:raised|bred) (?:in|on)\s+{END}|(?:^|[\n.!?(]\s*)(?:grew up|born|raised|born and raised) in\s+{END}"
@@ -44,7 +45,7 @@ LATER = re.compile(r"\s*(?:for\s+(?:(?:a|an|the|this|next|one|two|three|few|coup
 START = re.compile(r"(?:^|[\n.!?,;(:]\s*|\b(?:also|fellow|another|a|an|proud)\s+)\Z")
 PERSON_NOUN = r"(?:guy|girl|man|woman|boy|lady|dude|gal|person|couple|cpl|student|kid|teen|teenager|mom|mum|dad|father|mother|wife|husband|bro|native|immigrant|expat|top|bottom|vers|bear|twink|femboy|sub|dom|daddy|milf|bull|transfem|transmasc|nurse|doctor|engineer|teacher|developer|artist|writer|player|gamer)"
 PERSON = rf"{PERSON_NOUN}s?"
-HERE_AFTER = re.compile(rf"(?:\s+(?:{PERSON}|people|resident|local|area|family|fan|collector|redditor|user))?,?\s+here\b(?=\s*(?:$|[\n.!,;:)\-–—(&]|and\b|too\b|as well\b|lol|haha|so\b|but\b|with\b))")
+HERE_AFTER = scan(rf"(?:\s+(?:{PERSON}|people|resident|local|area|family|fan|collector|redditor|user))?,?\s+here\b(?=\s*(?:$|[\n.!,;:)\-–—(&]|and\b|too\b|as well\b|lol|haha|so\b|but\b|with\b))")
 SELF = re.compile(r"(?:\b(?:i'm|im|i am|we're|we are|am)\s+(?:an?\s+)?|^|[\n.!?,;]\s*)\Z")
 BORN = re.compile(r"(?:\b(?:i'm|im|i am|we're|we are|am|my|i was)\s+(?:an?\s+)?|^|[\n.!?,;(]\s*)\Z")
 PEOPLE = re.compile(r"\b(?:i'm|im|i am|iam|as|am|we're|we are|being)\s+(?:an?\s+)?(?:(?!not\b|never\b|half\b|part\b|quarter\b|mixed\b)\w+\s+)?\Z|\b(?:native|fellow)\s+\Z")
@@ -56,35 +57,35 @@ TAG_LEAD = re.compile(rf"(?:{FOR}|{TAG})\s*\Z")
 LAST = re.compile(r"[\W_]*\Z")
 NEAR = re.compile(r"\b(?:in|from|near|around|aus)\s+\Z")
 ASKING = re.compile(r"\b(?:for|looking|seeking|searching|want|wants|need|needs|into|with|like|likes|love|loves|any|anyone|you|you're|youre|your|if)\b")
-ADMINISTRATIVE = re.compile(r"\b(?:region|city|province|district|county|governorate|prefecture|department|municipality|oblast|division|capital)\b")
+ADMINISTRATIVE = scan(r"\b(?:region|city|province|district|county|governorate|prefecture|department|municipality|oblast|division|capital)\b")
 FEDERAL = frozenset({"united states", "canada", "australia", "india"})
 TITLE_REGIONS = FEDERAL | {"united kingdom"}
-LOOSE = re.compile(rf"\b(?:and|but|so)\s+(?:then\s+|just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)\s+(?:back\s+)?(?:here\s+)?to\s+{END}|(?<!be )(?<!it's )(?<!its )(?<!it )(?<!is )(?<!are )(?<!was )(?<!were )(?<!they're )\b(?:living|based|located|residing)\s+(?:here\s+)?{PREP}{END}|\b(?:currently|now)\s+(?:living\s+|based\s+)?in\s+{END}")
-SELF_FROM = re.compile(rf"\b(?:i'm|im|i am)\s+(?:(?!(?:with|to|for|about|of|in|on|at|and|or|but|that|who|my|his|her|their|our|your|the|this|it|is|was|not|never|from|away|far|apart|miles?|mi|km|hours?|hrs|minutes?|mins?|drive|walk|days?|weeks?|months?|back|home|free|safe|different|done|off|out|coming|moved|relocated|transferred|graduated|returned|retired|escaped|fled|immigrated|emigrated|banned|removed|separated|divorced|exiled|kicked|evacuated|deported|isolated|disconnected|\w+ing)\b)[\w'/-]+,?\s+){{1,8}}?from\s+{END}")
-TAG_FROM = re.compile(rf"(?:^|[\s(\[\]/|,-])(?:\d{{2}}|{PERSON}|male|female|[mft]4[mfatr]\w*)\s+from\s+{END}")
-AGED_IN = re.compile(rf"(?:{TAG}|\b\d{{2}}[- ]?(?:years?[- ]old|yrs?[- ]old|yo|y/o)\b)(?:\s+(?!(?:for|looking|seeking|want|wants|need|needs|into|with|like|likes|love|loves|any|anyone|you|your|if|visiting|going|travel|traveling|travelling|staying|stuck|be|will)\b)[\w'-]+){{0,5}}\s+in\s+{END}")
+LOOSE = scan(rf"\b(?:and|but|so)\s+(?:then\s+|just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)\s+(?:back\s+)?(?:here\s+)?to\s+{END}|(?<!be )(?<!it's )(?<!its )(?<!it )(?<!is )(?<!are )(?<!was )(?<!were )(?<!they're )\b(?:living|based|located|residing)\s+(?:here\s+)?{PREP}{END}|\b(?:currently|now)\s+(?:living\s+|based\s+)?in\s+{END}")
+SELF_FROM = scan(rf"\b(?:i'm|im|i am)\s+(?:(?!(?:with|to|for|about|of|in|on|at|and|or|but|that|who|my|his|her|their|our|your|the|this|it|is|was|not|never|from|away|far|apart|miles?|mi|km|hours?|hrs|minutes?|mins?|drive|walk|days?|weeks?|months?|back|home|free|safe|different|done|off|out|coming|moved|relocated|transferred|graduated|returned|retired|escaped|fled|immigrated|emigrated|banned|removed|separated|divorced|exiled|kicked|evacuated|deported|isolated|disconnected|\w+ing)\b)[\w'/-]+,?\s+){{1,8}}?from\s+{END}")
+TAG_FROM = scan(rf"(?:^|[\s(\[\]/|,-])(?:\d{{2}}|{PERSON}|male|female|[mft]4[mfatr]\w*)\s+from\s+{END}")
+AGED_IN = scan(rf"(?:{TAG}|\b\d{{2}}[- ]?(?:years?[- ]old|yrs?[- ]old|yo|y/o)\b)(?:\s+(?!(?:for|looking|seeking|want|wants|need|needs|into|with|like|likes|love|loves|any|anyone|you|your|if|visiting|going|travel|traveling|travelling|staying|stuck|be|will)\b)[\w'-]+){{0,5}}\s+in\s+{END}")
 ROLE = re.compile(rf"\b(?:i'm|im|i am)\s+an?\s+(?:(?!not\b|never\b)[\w-]+\s+){{1,4}}in\s+{END}")
 STOP = re.compile(r"[.!?\n]")
 OPENING = re.compile(r"(?:^|[.!?\n])[\s\"'*]*\Z")
-AREA = re.compile(r"\s+(?:area|county)\b", re.I)
-TRIP = re.compile(r"\b(?:visiting|business trip|road trip|(?<!come )(?<!can )(?<!you )travel(?:l?ing)? (?:to|through)|in town (?:for|this|until|till)|passing through|layover|on vacation|on holiday|checked into|hotel room|my hotel|coming (?:to|up to|down to)|heading to|will be in|going to be in)\b")
-TRADE = re.compile(r"[\w ,/-]{0,12}\]\s*\[h\]")
-COPULA = re.compile(r"(?<!no )(?<!não )(?<!nao )(?<!non )\b(?:soy|somos|sou|je suis|nous sommes|ich bin|bin|wir sind|sono|siamo|ik ben|wij zijn)\s+(?:(?:un|una|um|uma|ein|eine|re|muy|bien|très|tres|molto|sehr|auch|también|tambien|aussi|anche|também|tambem|ook)\s+)?\Z")
-OPENER = re.compile(rf"(?:^|[\n.!?]\s*)(?:originally\s+)?from\s+{END}")
+AREA = scan(r"\s+(?:area|county)\b", re.I)
+TRIP = scan(r"\b(?:visiting|business trip|road trip|(?<!come )(?<!can )(?<!you )travel(?:l?ing)? (?:to|through)|in town (?:for|this|until|till)|passing through|layover|on vacation|on holiday|checked into|hotel room|my hotel|coming (?:to|up to|down to)|heading to|will be in|going to be in)\b")
+TRADE = scan(r"[\w ,/-]{0,12}\]\s*\[h\]")
+COPULA = scan(r"(?<!no )(?<!não )(?<!nao )(?<!non )\b(?:soy|somos|sou|je suis|nous sommes|ich bin|bin|wir sind|sono|siamo|ik ben|wij zijn)\s+(?:(?:un|una|um|uma|ein|eine|re|muy|bien|très|tres|molto|sehr|auch|también|tambien|aussi|anche|também|tambem|ook)\s+)?\Z")
+OPENER = scan(rf"(?:^|[\n.!?]\s*)(?:originally\s+)?from\s+{END}")
 OPENER_END = re.compile(r"\s*(?:$|[.!,\n]|\s+(?:and|but|here|originally)\b)")
-WHERE = re.compile(r"\s*,?\s+(?:is |that's |which is )?where i(?:'m| am|'ve| have)?\s+(?:(live|living|reside|currently live|lived|now live|stay)|(?:originally )?(?:am |'m )?(from|come from)|(grew up|was born|was raised|was born and raised))\b")
-LOCAL = re.compile(r"\s+(native|local|resident)\b")
+WHERE = scan(r"\s*,?\s+(?:is |that's |which is )?where i(?:'m| am|'ve| have)?\s+(?:(live|living|reside|currently live|lived|now live|stay)|(?:originally )?(?:am |'m )?(from|come from)|(grew up|was born|was raised|was born and raised))\b")
+LOCAL = scan(r"\s+(native|local|resident)\b")
 LOCAL_LEAD = re.compile(rf"\b(?:i'm|im|i am|as|am)\s+an?\s+{ADVERB}(?:(?:{'|'.join(DIRECTIONS)})\s+)?\Z")
-CITIZEN_AFTER = re.compile(r"\.?\s+(?:citizen|national|passport holder)s?\b")
-HOME_COUNTRY = re.compile(r"(?:\b(?:my|our) (?:home |own |native )?country\s*(?:,|\(|:|-|is|of)?\s*|\b(?:i|i'm|im|i am|i was|me)\b[^.!?\n]*\bborn and (?:raised|bred) in (?:the )?"
+CITIZEN_AFTER = scan(r"\.?\s+(?:citizen|national|passport holder)s?\b")
+HOME_COUNTRY = scan(r"(?:\b(?:my|our) (?:home |own |native )?country\s*(?:,|\(|:|-|is|of)?\s*|\b(?:i|i'm|im|i am|i was|me)\b[^.!?\n]*\bborn and (?:raised|bred) in (?:the )?"
                           r"|(?:(?:^|[.!?]\s*)\d{2}\s*(?:years?[- ]old|yrs?[- ]old|yo|y/o)|\b(?:i'm|im|i am) (?:an? )?\d{2}(?:\s?[mf])?)\s*,?\s*(?:and\s+)?(?:i'm\s+|im\s+|i am\s+)?(?:originally\s+)?from\s+(?:the\s+)?)\Z", re.M)
-HOSTING = re.compile(rf"\b(?:hosting|can host|new)\s+(?:in|to)\s+{END}")
-HAILS = re.compile(rf"(?:\bhere|\bthis side|\b\d{{2}} years|(?:^|[\n.!?]\s*)am|\bcpl|\bcouple)\s+from\s+{END}")
-LOCATION = re.compile(r"(?:^|\n)[\W_]*(?:location|loc|based)[\W_]*[:=-][\W_]*\Z")
-HOMETOWN = re.compile(r"\s*[,.(-]?\s*(?:(?:it's|its|it is|is|was)\s+)?my\s+(?:hometown|home town|birthplace)\b")
-LIFE = re.compile(r"(?:,?\s+[a-z]+){0,2}?,?\s+(?:my|all my|for my) (?:entire |whole )?life\b")
-AUTOMATED = re.compile(r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:make sure|include)\b|\bpost (?:has been |was )?removed\b|\bmust (?:include|contain)\b")
-REPOST = re.compile(r"(?:original (?:post|text)|copy of (?:your|the) post|backup of your post|post body)[^\n:]{0,30}:[*\s]*")
+HOSTING = scan(rf"\b(?:hosting|can host|new)\s+(?:in|to)\s+{END}")
+HAILS = scan(rf"(?:\bhere|\bthis side|\b\d{{2}} years|(?:^|[\n.!?]\s*)am|\bcpl|\bcouple)\s+from\s+{END}")
+LOCATION = scan(r"(?:^|\n)[\W_]*(?:location|loc|based)[\W_]*[:=-][\W_]*\Z")
+HOMETOWN = scan(r"\s*[,.(-]?\s*(?:(?:it's|its|it is|is|was)\s+)?my\s+(?:hometown|home town|birthplace)\b")
+LIFE = scan(r"(?:,?\s+[a-z]+){0,2}?,?\s+(?:my|all my|for my) (?:entire |whole )?life\b")
+AUTOMATED = scan(r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:make sure|include)\b|\bpost (?:has been |was )?removed\b|\bmust (?:include|contain)\b")
+REPOST = scan(r"(?:original (?:post|text)|copy of (?:your|the) post|backup of your post|post body)[^\n:]{0,30}:[*\s]*")
 SUBJECTIVE = re.compile(r"\b(?:i|i'm|im|we|we're|me|as an?)\b")
 CHAIN = re.compile(r"[\s,(:–—-]*(?:(?:more\s+)?specifically|namely|in|near|around|outside(?: of)?|just outside(?: of)?|close to)?[\s,(:–—-]*(?:the\s+)?")
 
@@ -96,7 +97,7 @@ AS_NATION = rf"(?:\bas (?:an?|another|a fellow)(?: proud| native| born and raise
 AS_NATION_START = rf"(?:^|[.!?\n]\s*)as (?=\w+,){AS_TAIL}"
 LOOSE_NATION = rf"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent)\b)"
 NOUNS = r"teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent|dish|product|brand|movie|film|show|song|word|name|language|music|culture|history|government|team"
-GROUP = re.compile(r"(?:\b(?:we|us)(?: (?:fellow|proud|all))? \(?|\bwe(?:'re| are) (?:all |both )?|\bproud to be (?:an? )?|(?<!him )(?<!her )(?<!them )(?<!his )(?<!their )(?<!its )(?<!it )(?<!he )(?<!she )(?<!they )(?<!you )(?<!your )(?<!people )(?<!someone )(?<!to )(?<!with )(?<!just )(?<!while )\bbeing (?:an? )?)\Z")
+GROUP = scan(r"(?:\b(?:we|us)(?: (?:fellow|proud|all))? \(?|\bwe(?:'re| are) (?:all |both )?|\bproud to be (?:an? )?|(?<!him )(?<!her )(?<!them )(?<!his )(?<!their )(?<!its )(?<!it )(?<!he )(?<!she )(?<!they )(?<!you )(?<!your )(?<!people )(?<!someone )(?<!to )(?<!with )(?<!just )(?<!while )\bbeing (?:an? )?)\Z")
 GROUP_END = re.compile(rf"\)?(?=$|[\s.,!;:)])(?!\s+(?:{NOUNS})s?\b)")
 AGE_FRAME = rf"(?<![\w.$#'/:+-])\d\d(?<!my \d\d)(?<!a \d\d)(?<!an \d\d)(?<!the \d\d)(?<!her \d\d)(?<!his \d\d)(?<!our \d\d)[- ]?(?:years?[- ]old|yrs?[- ]old|yo|y/o)[\s,-]+(?:{BRIEF}){{0,2}}?({NATION})(?=$|[\s.,!;:)])"
 HELD_FRAME = rf"\b(?:my|have|hold|holding|got|own)\s+(?:an?\s+|dual\s+)?({NATION})\s+(?:passport|citizenship)\b|\bdual (?:citizenship|nationality|citizen|national)s?\s*[:,(-]?\s*({NATION})\b"
@@ -108,13 +109,13 @@ AS_WIDE = rf"\bas (?:an?|another) (?:[\w-]+ ){{1,3}}?({NATION})(?:[- ]born)?(?:\
 FRAMES = [(re.compile(frame, re.M), gates) for frame, gates in ((AGE_FRAME, ("y",)), (HELD_FRAME, ("passport", "citizenship", "dual")), (SELF_PAREN, ("(", "me,")), (LABEL_FRAME, ("nationality",)),
                                                                  (COMPOUND_FRAME, ("man", "men")), (AM_FRAME, ("am ", ",")), (AS_WIDE, ("as a",)))]
 SELF_LEAD = r"(?:(?<![\w.$#'/:+-])\d{2}(?:\s?(?:yo|y/o|m|f|years?(?: old)?))?|(?<![\w.$#'/:+-])[mf]\s?\d{2}s?|\bjust an?|\bi'?m an?|\bim an?|\bi am an?)[\s,/|)\]-]+(?:[a-z0-9']+\s+){0,3}?"
-SELF_DESCRIBED = re.compile(rf"{SELF_LEAD}({NATION})(?:\s+[a-z']+){{0,3}}?\s+(?:{PERSON_NOUN}|male|female|cuck|gentleman|lad|chick|hubby|here)\b")
-SELF_FROM_LEAD = re.compile(rf"{SELF_LEAD}from\s+(?:the\s+)?\Z")
+SELF_DESCRIBED = scan(rf"{SELF_LEAD}({NATION})(?:\s+[a-z']+){{0,3}}?\s+(?:{PERSON_NOUN}|male|female|cuck|gentleman|lad|chick|hubby|here)\b")
+SELF_FROM_LEAD = scan(rf"{SELF_LEAD}from\s+(?:the\s+)?\Z")
 TAG_BEFORE = re.compile(rf"(?:{TAG}|{FOR}|\A[^\w\n]*\d{{2}}|\b\d{{2}}\s?(?:yo|y/o|male|female)|^[^\w\n]*[mf])[\s,/|:()\[\]-]*\Z", re.M)
 TAG_AFTER = re.compile(rf"[\s,/|(\[-]*(?:{TAG}|\d{{2}}\s?(?:yo|y/o)\b|\d{{2}}\s*[)\]]|(?:m|f|male|female)\s*[,/|]\s*\d{{2}}\b)")
-NATION_HERE = re.compile(rf"(?:\s+(?:{PERSON}|fan|citizen|national))?(?:\s+(?:living in|based in|from)\s+[a-z]+(?: [a-z]+)?)?,?\s+(?:over |out |down |up )?here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b)")
+NATION_HERE = scan(rf"(?:\s+(?:{PERSON}|fan|citizen|national))?(?:\s+(?:living in|based in|from)\s+[a-z]+(?: [a-z]+)?)?,?\s+(?:over |out |down |up )?here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b)")
 OTHERS_LEAD = re.compile(r"\b(?:the|these|those|his|her|their|your|our|any|some|many|most|other|no|of|every|each|all)\s+\Z")
-CITIZEN_OF = re.compile(r"\b(?:i'm|im|i am|as|am|being)\s+(?:an?\s+)?(?:\w+\s+)?citizen of\s+(?:the\s+)?\Z")
+CITIZEN_OF = scan(r"\b(?:i'm|im|i am|as|am|being)\s+(?:an?\s+)?(?:\w+\s+)?citizen of\s+(?:the\s+)?\Z")
 SELF_IN_LEAD = re.compile(rf"{SELF_LEAD}(?:in|near|around)\s+(?:the\s+)?\Z")
 ASKED = FRAMES + [(re.compile(frame), ("",)) for frame in (LOOSE_NATION, AS_NATION, AS_NATION_START)]
 SPOKEN = (rf"\b{I} {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|too|myself|citizen|national|here|living|who|born|by|from|in|as|lol|haha|though|btw|with|not|or|mate|bro|guy|girl|man|woman|dude|male|female|person)\b)[a-z])"
@@ -150,6 +151,9 @@ def fits(entry, text, start, end):
     return True
 
 
+STARTS = frozenset(LEXICON.keys() | PREFIXES)
+
+
 def longest(words, index, lowered):
     name, size, best = words[index][2], 1, (0, None)
     while True:
@@ -165,8 +169,11 @@ def mentions(text, lowered):
     spots = []
     index = 0
     while index < len(words):
-        size, entry = longest(words, index, lowered)
         start = words[index][0]
+        if words[index][2] not in STARTS and not (start and lowered[start - 1] == "#"):
+            index += 1
+            continue
+        size, entry = longest(words, index, lowered)
         if not entry and start and lowered[start - 1] == "#" and (entry := SQUASHED.get(words[index][2])):
             size = 1
         end = words[index + size - 1][1] if entry else 0

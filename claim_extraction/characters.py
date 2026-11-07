@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .common import SELF_HEDGE, hedged
 from .fandom import CANDIDATE, CASED, COMMON, NAME, NEGATIVE, PLAIN, POSITIVE as LIKING, SELF, TRAILING
+from .literals import scan
 from .schema import fan_value
 
 KIND = r"(?:characters?|chars?|pokemon|pokémon|heroe?s?|heroines?|villains?|antagonists?|protagonists?|waifus?|husbandos?|girls?|boys?|champions?|champs?|agents?|operators?|legends?|survivors?|killers?|servants?|units?|fighters?|brawlers?|princess(?:es)?|princes?|digimon|starters?|legendar(?:y|ies)|gundams?|mobile suits?|mechs?|robots?|monsters?|bosses|boss|companions?|npcs?|ships?|couples?|pairings?|duos?|ninjas?|shadows?|mains?|5 stars?|5\*|4 stars?|4\*|warframes?|frames?|resonators?|valkyries?|idols?|trainers?|gym leaders?|members?|ocs?|dolls?|figures?)"
@@ -42,13 +43,13 @@ GENERIC = frozenset("i i'm im me my mine you your he him his she her they them t
 ROLES = frozenset("support supports tank tanks dps healer healers heal jungle jungler mid top adc bot carry assassin assassins mage mages marksman fighter fighters "
                   "melee ranged caster casters sniper snipers striker defender attacker sword spear bow gun guns hammer lance axe axes staff dagger daggers fist fists "
                   "random it them her him".split())
-STRONG = re.compile(r"(?i:\b(?:characters?|char|main|maining|mains|mained|waifu|husbando|ship|shipped|shipping|otp|arc|villain|protagonist|antagonist|cosplay|kit|banner|pulls?|pulled|lore|canon|fanart|fan art|"
+STRONG = scan(r"(?i:\b(?:characters?|char|main|maining|mains|mained|waifu|husbando|ship|shipped|shipping|otp|arc|villain|protagonist|antagonist|cosplay|kit|banner|pulls?|pulled|lore|canon|fanart|fan art|"
                     r"backstory|personality|design|voice lines?|skins?|pokemon|pokémon|hero|heroes|champions?|anime|manga|episode|season|chapter)\b)")
 ADJECTIVAL = r"(?:characters?|quests?|story|storyline|menu|thread|events?|reason|issues?|problems?|point|focus|goals?|cast|villains?|antagonists?|protagonists?|heroe?s?|heroines?|plot|themes?|road|street|entrance|course|dish|page|account|sub|line|stats?|weapons?|deck|team|job|class|game|mode|campaign|boss|area|hub|city|base|source|thing|things|part|parts|topic|topics|hobb(?:y|ies)|kinks?|car|language|value|tips?|riff|attraction|draw|selling point|ingredient|pon(?:y|ies))"
 POSITIVE = r"(?:good|great|cool|amazing|awesome|interesting|fun|compelling|lovable|loveable|likable|likeable|well[- ]written|underrated|beautiful|fantastic|wonderful|best|fascinating|incredible|complex|badass|hilarious|funny|sweet|cute|adorable|perfect|brilliant|iconic|memorable|relatable|unique|fire|peak|goated|elite|top tier|god tier|strong|nice|hot|sexy|fine|gorgeous|lovely|precious|baddest|coolest|hottest|cutest|greatest|realest|funniest)"
 MEDIA = r"(?i:series|movies?|films?|games?|franchise|books?|novels?|shows?|music|songs?|albums?|level design|scents?|lore|universe|trilogy|saga|comics?|manga|anime|cartoons?|era|style|soundtrack|ost|band|brand|products?|stuff|team|version|remake|reboot|episodes?|seasons?|chapters?)"
 NOUNS = rf"(?:{MEDIA}|ways?|things?|parts?|moments?|segments?|lines?|quotes?|scenes?|models?|builds?|places?|foods?|drinks?|colou?rs?|flavou?rs?|brands?|cars?|days?|times?|kinds?|types?|sets?|cards?|items?|weapons?|maps?|levels?|modes?|classes|races|factions?|guns?|looks?|players?|teams?|athletes?|drivers?|bands?|singers?|artists?|authors?|writers?|actors?|actress(?:es)?|youtubers?|streamers?|podcasts?|channels?)"
-ASPECT = re.compile(r"\s*(?i:character|design|personality|arc|voice|story|storyline|kit|outfit|look|vibe|energy|backstory|lines?|scenes?|moments?|dialogue|development|growth|fights?|theme|attitude|animations?|abilities|ability|skills|model|portrayal|combat|gameplay|playstyle|moveset|powers?|humou?r|relationship|dynamic|interactions?|expressions?|smile|face|hair|eyes|laugh|style|aesthetic|songs?|ult|ultimate|skins?|art|writing|journey|redemption|quotes?)\b")
+ASPECT = scan(r"\s*(?i:character|design|personality|arc|voice|story|storyline|kit|outfit|look|vibe|energy|backstory|lines?|scenes?|moments?|dialogue|development|growth|fights?|theme|attitude|animations?|abilities|ability|skills|model|portrayal|combat|gameplay|playstyle|moveset|powers?|humou?r|relationship|dynamic|interactions?|expressions?|smile|face|hair|eyes|laugh|style|aesthetic|songs?|ult|ultimate|skins?|art|writing|journey|redemption|quotes?)\b")
 DEAR = r"(?:king|queen|baby|babygirl|wife|husband|man|boy|girl|everything|beloved|goat|son|daughter|husbando|waifu|bae|crush|princess|prince|goddess|pookie|precious|love|one true love|comfort character)"
 
 
@@ -132,10 +133,8 @@ RULES = (
 )
 
 
-def rule(pattern, gate, needs):
+def rule(pattern, gate):
     def stage(text, found, lowered, words):
-        if any(words.isdisjoint(need) for need in needs):
-            return
         for match in pattern.finditer(text):
             index = next(number for number, group in enumerate(match.groups(), 1) if group)
             if match.group(index).endswith(("'s", "s'")) and match.end(index) == match.end() and not ASPECT.match(text, match.end()):
@@ -146,7 +145,7 @@ def rule(pattern, gate, needs):
 
 
 BLANK = re.compile(r"\n[ \t]*\n")
-REFERRED = re.compile(r"(?i:\bi (?:\w+ ){0,2}(?:love|adore|like|stan|loved|adored|liked|enjoy|miss|respect) (?:her|him)\b)")
+REFERRED = scan(r"(?i:\bi (?:\w+ ){0,2}(?:love|adore|like|stan|loved|adored|liked|enjoy|miss|respect) (?:her|him)\b)")
 PRONOUN_I = re.compile(r"I(?:'m|'ve|'d|'ll)?$")
 
 
@@ -208,7 +207,14 @@ def cheer(text, found, lowered, words):
             emit(match.group(1), found, text, match.start(), "known")
 
 
-STAGES = tuple((label, rule(pattern, gate, needs)) for label, pattern, gate, needs in RULES) + (("referred", referred), ("liked", liked), ("cheer", cheer))
+STAGES = tuple((rule(pattern, gate), needs) for label, pattern, gate, needs in RULES)
+NEEDED = {}
+for number, (_, needs) in enumerate(STAGES):
+    for part, need in enumerate(needs):
+        for word in need:
+            NEEDED.setdefault(word, set()).add((number, part))
+REQUIRED = [frozenset((number, part) for part in range(len(needs))) for number, (_, needs) in enumerate(STAGES)]
+UNNEEDED = frozenset(number for number, required in enumerate(REQUIRED) if not required)
 
 
 BARE = re.compile(r"(?:^|[^\w'-])(?i:the|a|an|to|this|that|some|any) $")
@@ -229,5 +235,11 @@ def characters(text, found):
     lowered = text.lower()
     words = set(WORD.findall(lowered))
     text = recased(text, words)
-    for _, stage in STAGES:
+    met = set()
+    for word in words & NEEDED.keys():
+        met |= NEEDED[word]
+    for number in sorted(UNNEEDED.union(number for number, _ in met)):
+        if REQUIRED[number] <= met:
+            STAGES[number][0](text, found, lowered, words)
+    for stage in (referred, liked, cheer):
         stage(text, found, lowered, words)
