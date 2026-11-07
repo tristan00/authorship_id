@@ -18,7 +18,7 @@ COUNTRY_ALIASES = {
 DEMONYMS = {
     "american": "united states", "canadian": "canada", "british": "united kingdom", "brit": "united kingdom", "english": "united kingdom", "scottish": "united kingdom",
     "welsh": "united kingdom", "irish": "ireland", "australian": "australia", "aussie": "australia", "kiwi": "new zealand", "new zealander": "new zealand",
-    "german": "germany", "french": "france", "spanish": "spain", "italian": "italy", "portuguese": "portugal", "dutch": "netherlands", "belgian": "belgium",
+    "german": "germany", "french": "france", "spanish": "spain", "spaniard": "spain", "italian": "italy", "portuguese": "portugal", "dutch": "netherlands", "belgian": "belgium",
     "swiss": "switzerland", "austrian": "austria", "swedish": "sweden", "swede": "sweden", "norwegian": "norway", "danish": "denmark", "dane": "denmark",
     "finnish": "finland", "icelandic": "iceland", "polish": "poland", "czech": "czech republic", "slovak": "slovakia", "hungarian": "hungary", "romanian": "romania",
     "bulgarian": "bulgaria", "greek": "greece", "croatian": "croatia", "serbian": "serbia", "slovenian": "slovenia", "bosnian": "bosnia and herzegovina",

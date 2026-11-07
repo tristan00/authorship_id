@@ -337,7 +337,7 @@ MENTAL = spread({
     "adhd": ["adhd", "adhd-pi", "adhd-c", "adhd-i", "adhd-h", "inattentive adhd", "combined adhd", "combined type adhd", "inattentive type adhd", "hyperactive adhd", "attention deficit disorder",
              "attention deficit hyperactivity disorder", "adult adhd", "severe adhd", "adhd combined type", "adhd inattentive type", "adhd-combined", "adhd-inattentive"],
     "autism": ["autism", "asd", "asperger's", "aspergers", "asperger", "asperger syndrome", "asperger's syndrome", "aspergers syndrome", "autism spectrum disorder", "level 1 autism", "level 2 autism",
-               "level 3 autism", "high functioning autism", "hfa", "autism level 1", "autism level 2", "autism spectrum condition", "asc"],
+               "level 3 autism", "high functioning autism", "hfa", "autism level 1", "autism level 2", "autism spectrum condition", "asc", "tism", "'tism"],
     "both adhd and autism": ["audhd", "au/dhd", "autism and adhd", "adhd and autism", "asd and adhd", "adhd and asd", "adhd + autism", "autism + adhd", "adhd/autism", "autism/adhd", "asd/adhd", "adhd/asd",
                              "adhd & autism", "autism & adhd", "adhd and aspergers", "adhd and asperger's"],
     "depression": ["depression", "major depressive disorder", "mdd", "clinical depression", "major depression", "severe depression", "chronic depression", "persistent depressive disorder", "dysthymia",
@@ -610,6 +610,16 @@ CONDITIONS = {name: value for name, value in inflected({**WORDNET_CONDITIONS, **
 STATES = {name: value for name, value in inflected(PHYSICAL_STATES).items() if name not in CONDITIONS and name not in POLYSEMOUS}
 MIND = inflected({**MIND_EXTRA, **MENTAL_LOOSE})
 MIND_STATES = {name: value for name, value in inflected(MENTAL_STATE_STRICT).items() if name not in MIND}
+PERSONAL_AD = r"[\[(]\s*(?:nb|[mf])[mf]?\s*4\s*(?:[mfatr]|me|nb)\w*\s*[\])][^\n]*?(?<![\w'-])({})(?![\w'-])"
+PERSONAL_MIND = {name: value for name, value in MENTAL_STATE_STRICT.items() if value in NEURO or value == "neurodivergent, unspecified"}
+SEEKING = re.compile(r"\b(?:no|not|non|looking for|seeking|want|wants|wanted|for|with|into|love|loves|like|likes)\W+(?:[\w'-]+\W+)?$")
+
+
+def advertised(table):
+    return lambda match: None if SEEKING.search(match.string, match.start(), match.start(1)) else table[match.group(1)]
+
+
+RULES += [rule("mental_condition", PERSONAL_AD.format(names(PERSONAL_MIND)), advertised(PERSONAL_MIND), TAGGED)]
 WORD = re.compile(r"[\w'/+-]+(?:\.\d+)?")
 STOP = rf"{PEOPLE}|not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|why|how|whether|than|to|in|on|about|like|for|from|at|by|into|of|with|without|is|was|are|were|be|it|this"
 FREE = rf"(?:(?!(?:{STOP})\b)(?![\w'-]*(?:ed|en)\b)[\w'/-]+,?\s+)"
@@ -632,6 +642,8 @@ HERE_BEFORE = re.compile(r"(?:^|[,;(|])\s*(?:an? )?(?:fellow |another |also |als
 HERE_AFTER = {"physical_condition": re.compile(r" (?:here|sufferer here|patient here|survivor here|warrior here|warrior|gang|squad|life|haver here|person here|club|crew|fam)\b"),
               "mental_condition": re.compile(r" (?:here|person here|haver here|sufferer here|survivor here|gal here|guy here|girl here|woman here|man here|mom here|mama here|dad here|adult here|"
                                              r"patient here|warrior|gang|squad|club|crew|fam)\b")}
+SELF_BEFORE = re.compile(rf"\b(?:i'm|im|i am|i was|i've been|ive been|i have been|me,?)(?: (?:also|just|still|now|currently|actually|basically|really))*(?:[\s,]+(?!(?:{STOP})\b)(?![\w'-]*ing\b)[\w'/-]+){{0,5}}?[\s,]+$")
+SELF_AFTER = re.compile(r" (?:person|woman|man|guy|girl|gal|lady|dude|boy|kid|teen|teenager|adult|individual|human|sufferer|survivor|patient|warrior|student|female|male)(?![\w'])(?=\s*(?:[,;:.!?)(/]|$|(?:and|but|so|who|that|with|here|myself|lol|too)\b))")
 def stating(being):
     return re.compile(rf"(?:\b(?:i'm|im|i am|i've been|ive been|i have been|i was born|i became|as(?: an?)?|{being}|me,?(?: an?)?|(?:a |as a |from a )?fellow|as someone (?:who|that)(?:'s| is))(?: (?:also|now|currently|still|technically|actually|literally|officially|"
                       rf"basically|completely|totally|profoundly|severely|mostly|partially|fully|medically|legally|kind of|kinda|just|really|so|recently|newly|permanently|chronically|clinically|"
@@ -639,8 +651,8 @@ def stating(being):
                       rf"unfortunately|apparently|obviously|functionally|genetically|naturally|definitely))*{LEAD}{FREE}{{0,2}})$")
 
 
-DUAL_CUE = re.compile(rf"\b(?:i'm|im|i am|i've been|ive been|i have been|i became)(?: (?:also|now|currently|still|actually|literally|officially|just|really|so|recently|newly|clinically|definitely))*{LEAD}{FREE}{{0,2}}$")
-CARRIER = rf"\bi(?<!\wi)(?:'m|m| am| have| do| was|'ve|ve)?(?: (?!(?:{PEOPLE}|we|it|it's|this|that|not|no|never|but|or|if|when|because|so|who|which|what)\b)[\w'-]+){{1,6}}?,? and (?:also |currently |still |now |even |i )?"
+DUAL_CUE = re.compile(rf"\b(?:i'm|im|i am|i've been|ive been|i have been|i became|being|myself as|identify as)(?: (?:also|now|currently|still|actually|literally|officially|just|really|so|recently|newly|clinically|definitely))*{LEAD}{FREE}{{0,2}}$")
+CARRIER = rf"\bi(?<!\wi)(?:'m|m| am| have| do| was|'ve|ve)?(?: (?!(?:{PEOPLE}|we|it|it's|this|that|not|no|never|but|or|if|when|because|so|who|which|what)\b)[\w'-]+){{1,6}}?(?:,? and|,) (?:also |currently |still |now |even |i )?"
 CARRIED = re.compile(rf"{CARRIER}(?:have|got|suffer from|struggle with|deal with|live with|am battling|am fighting|battling|fighting|am dealing with|dealing with|am living with|living with|am recovering from|recovering from|am suffering from|suffering from|got diagnosed with|was diagnosed with|diagnosed with){LEAD}{FREE}{{0,2}}$")
 CARRIED_STATE = re.compile(rf"(?:{CARRIER}(?:am |i'm |im )?(?:also |now |currently |still |actually |very |so |really |clinically |definitely )*|{CARRIER}am{LEAD}{FREE}{{0,2}})$")
 CLAUSE_END = re.compile(r"\s*(?:[,;:.!?)(/&+]|$|(?:and|but|so|with|too|as well|myself|lol)\b)")
@@ -729,8 +741,8 @@ def owned(lowered, sentence, found, families):
                 previous = None
                 continue
             left = part[max(0, start - 90):start]
-            here = HERE_AFTER[attribute].match(part, end) and HERE_BEFORE.search(left)
-            carried = attribute == "mental_condition" and " and " in left and (noun and CARRIED.search(left) or (dual or not noun) and CARRIED_STATE.search(left) and CLAUSE_END.match(part, end))
+            here = HERE_AFTER[attribute].match(part, end) and HERE_BEFORE.search(left) or attribute == "mental_condition" and SELF_AFTER.match(part, end) and SELF_BEFORE.search(left)
+            carried = attribute == "mental_condition" and (" and " in left or ", " in left) and (noun and CARRIED.search(left) or (dual or not noun) and CARRIED_STATE.search(left) and CLAUSE_END.match(part, end))
             cue = (noun_cue if noun else state_cue).search(left) or carried or dual and DUAL_CUE.search(left) or here or attribute == "physical_condition" and noun and nouns.get(name) != "unspecified" and (PAST_CUE.search(left) or caused(part, left, start))
             begin = start - len(cue.group()) if cue else 0 if (DROPPED if noun else DIAGNOSED).fullmatch(part, 0, start) else None
             chained = previous is not None and LINK.fullmatch(part, previous, start)
@@ -824,9 +836,10 @@ def foreign(lowered, found):
 
 def ailments(lowered, found):
     speaker = FIRST_PERSON.search(lowered)
-    moody = speaker and MOOD_NAMES.search(lowered)
+    mooded = MOOD_NAMES.search(lowered)
+    moody = speaker and mooded
     sick = speaker and AILMENT_NAMES.within(set(TOKEN.findall(lowered)))
-    named = sick or MOOD_NAMES.search(lowered) or any(suffix in lowered for suffix in SUFFIXES) or CONDITION_NAMES.within(set(RUNS.findall(lowered)))
+    named = sick or mooded or any(suffix in lowered for suffix in SUFFIXES) or CONDITION_NAMES.within(set(RUNS.findall(lowered)))
     spotted = lookup([(match.start(), match.end(), match.group()) for match in SPOTS.finditer(lowered)], AILMENT_KEYS, AILMENT_SPANS) if sick else iter(())
     upcoming = next(spotted, None)
     for sentence in re.finditer(r"[^.!?\n]+", lowered) if named else ():
@@ -842,12 +855,13 @@ def ailments(lowered, found):
             continue
         first = FIRST_PERSON.search(part)
         mood = first or moody and MOOD_NAMES.search(part)
-        if not (mood or here) or OTHER_PEOPLE.search(part) or not first and CROWD.search(part):
+        if not (mood or here) or not first and CROWD.search(part):
             continue
         hedge = HEDGE.search(part)
         addressed = ADDRESSED.search(part)
+        others = OTHER_PEOPLE.search(part)
         for start, end, name in here:
-            if addressed or hedge and hedge.end() <= start:
+            if others or addressed or hedge and hedge.end() <= start:
                 break
             if quoted(lowered, sentence.start() + start) or POSSESSOR.search(part, max(0, start - 50), start) or GENERIC.match(part, end) or TRAIL.match(part, end) or HEADS.match(part, end):
                 continue
@@ -855,9 +869,11 @@ def ailments(lowered, found):
         if not mood:
             continue
         for match in MOOD_NAMES.finditer(part):
-            if addressed and addressed.end() <= match.start() or hedge and hedge.end() <= match.start():
+            if others and others.start() < match.start() or addressed and addressed.end() <= match.start() or hedge and hedge.end() <= match.start():
                 break
             value, after = MOODS[match.group(1)], match.end()
+            if others and value not in NEURO:
+                continue
             if quoted(lowered, sentence.start() + match.start()) or POSSESSOR.search(part, max(0, match.start() - 50), match.start()) or TRAIL.match(part, after) or ASSESSED.match(part, after) or CAUSED.search(part, max(0, match.start() - 40), match.start()) or not first and value not in NEURO:
                 continue
             window = part[:match.start()]
@@ -868,8 +884,8 @@ def ailments(lowered, found):
         if len(values := {MOODS[match.group(1)] for match in MOOD_NAMES.finditer(lowered)}) == 1:
             found.setdefault(("mental_condition", values.pop()), unnamed.start())
     foreign(lowered, found)
-    if ASTROLOGY.search(lowered):
-        found.pop(("physical_condition", "cancer"), None)
+    if ("physical_condition", "cancer") in found and ASTROLOGY.search(lowered):
+        del found[("physical_condition", "cancer")]
     if (key := ("mental_condition", "both adhd and autism")) in found:
         position = found.pop(key)
         for part in AUDHD_PARTS:

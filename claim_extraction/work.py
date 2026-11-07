@@ -529,8 +529,8 @@ MENTIONS = [
     (r"(?:^|[.!?\n]\s*)((?:[\w'&/.+-]+ ){1,6}?)by (?:trade|profession)\b", here),
     (r"\b(?:we(?:'re| are)|and i are|and me are|and myself are) both ((?:[\w'&/.+-]+ ){0,3}?[\w'&/.+-]+s)\b", here),
 ]
-LEAD = (r"(?:^|\n)[ \t>*#\\-]*(?:(?:\d{2}\s?(?:yo|y/o|yrs? old|years? old)|\d{2}\s?[mf]?|[mf]\s?\d{2}|[\[(][\w /+-]{1,12}[\])]|#[\w/-]+|[-–—|,]+)[ \t]*)*+(?:(?:also|just|another|fellow|a|an) )*"
-        r"(?:(?:married|professional|licensed|certified|registered|senior|junior|qualified|experienced|freelance|hung|single|divorced|tired|exhausted) )*")
+LEAD = (r"(?:^|\n)[ \t>*#\\-]*+(?:(?:\d{2}\s?(?:yo|y/o|yrs? old|years? old)|\d{2}\s?[mf]?|[mf]\s?\d{2}|[\[(][\w /+-]{1,12}[\])]|#[\w/-]+|[-–—|,]+)[ \t]*)*+(?:(?:also|just|another|fellow|a|an) )*+"
+        r"(?:(?:married|professional|licensed|certified|registered|senior|junior|qualified|experienced|freelance|hung|single|divorced|tired|exhausted) )*+(?=[^\W_])")
 PERSONA = re.compile(r"\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\b[mf]4[a-z]+\b|\d{2}\s?(?:yo|y/o|yrs? old|years? old)\b")
 STRICT_END = re.compile(r"[ \t]*(?:$|[.,!;|(\n]|(?:and|by trade|by profession|here)\b)")
 PERSONA_END = re.compile(r"[ \t]*(?:$|[.,!;|(\n-]|(?:and|by trade|by profession|here|who|with|getting|looking|seeking|available|from|in)\b)")
@@ -539,11 +539,24 @@ PERSONA_END = re.compile(r"[ \t]*(?:$|[.,!;|(\n-]|(?:and|by trade|by profession|
 def fragment(match, titles=TITLES):
     text, lead = match.string, match.group()
     persona = PERSONA.search(lead)
+    if not persona and ((first := TOKEN.match(text, match.end())) is None or first.group() not in TITLE_HEADS):
+        return None
     if "hir" in lead or not (found := title(text, match.end(), 2 if persona else 0, titles=titles)) or question(text, found[1]):
         return None
     if persona:
         return found[0] if PERSONA_END.match(text, found[1]) else None
     return found[0] if STRICT_END.match(text, found[1]) and (SELF.search(text, found[1], found[1] + 120) or len(text) < 60) else None
+
+
+TAGGED_TITLE = r"(?<![\w$#])(?:\d{2}\s?[mf]|[mf]\s?\d{2})\b(?: and)?[ ,]+(?:an? )?|(?<![\w$#.,])\d{2},? and an? "
+
+
+def tagged(match, titles=TITLES):
+    text = match.string
+    found = title(text, match.end(), 2, titles=titles)
+    if not found or question(text, found[1]) or WANTED.search(text, match.start(), found[1]) or not PERSONA_END.match(text, found[1]):
+        return None
+    return found[0]
 
 
 CELL = r"[,|][ \t]*(?:an? )?"
@@ -735,7 +748,7 @@ UNABLE = [
     r"(?:check|checks|payments?|benefits|income|claim|award|hearing|case|application)\b",
 ]
 STUDENT = [
-    r"\b(?:i'm|im|i am) (?:almost |nearly |currently |now )?(?:in )?(?:my )?(?:1st|2nd|3rd|4th|first|second|third|fourth|final|last) year (?:of|in|at)\b|\bmy (?:bs|ba|bsc|major|course|courses|uni|thesis|dissertation|lecturer|lectures|semester|finals|coursework|midterms?|syllabus|campus|student id|student visa|transcript|academic advisor|class schedule)\b(?! (?:was|were) (?:great|fun|hard)\b)|"
+    r"\b(?:i'm|im|i am) (?:almost |nearly |currently |now )?(?:in )?(?:my )?(?:1st|2nd|3rd|4th|first|second|third|fourth|final|last) year (?:of|in|at)\b(?! (?:high ?school|hs)\b)|\bmy (?:bs|ba|bsc|major|course|courses|uni|thesis|dissertation|lecturer|lectures|semester|finals|coursework|midterms?|syllabus|campus|student id|student visa|transcript|academic advisor|class schedule)\b(?! (?:was|were) (?:great|fun|hard)\b)|"
     r"\b(?:i'?m|i am)(?: currently| still| also| now| actually)? (?:studying|in school|in college|in uni|at uni|at college|at university|in university|back in school|back at school)\b|\bwhile (?:i'm |im |i am )?studying\b|\bi study\b(?! (?:the|it|this|that|them|him|her|how|why|what)\b)",
     r"\b(?:i'm|im|i am|i'm currently|im currently|i am currently) (?:a |an )?(?:(?!(?:former|ex|old|past|of|the|my|his|her|their|to|with|for|and|that|who|not)\b)[\w'-]+ ){0,4}?(?:student|undergrad|undergraduate|freshman|sophomore|fresher|postgrad|uni student|phd student|"
     r"grad student|masters student|med student|law student|nursing student)\b|\bmy (?:semester|finals|midterm|midterms)\b",
@@ -756,7 +769,8 @@ PRO_STUDENT = (rf"\b(?:{I}|i'm currently|currently) (?:still |now |also )?(?:in|
                rf"\b(?:{I}|as) (?:an? |the )?(?:current |first[- ]year |second[- ]year |third[- ]year |fourth[- ]year |final[- ]year |\d(?:st|nd|rd|th)[- ]year )?{PRO_SCHOOL} student\b|"
                rf"\bmy (?:\w+ )?(?:year|semester) (?:of|in|at) {PRO_SCHOOL} school\b|\bi (?:go to|attend|started|start) {PRO_SCHOOL} school\b")
 HIGH_GRADE = r"\b(?:i'm|im|i am) (?:still |currently )?in (?:(?:9th|10th|11th|12th)(?: class| std)?|(?:grade|class) (?:9|10|11|12))\b|\b(?:grade|class|year) (?:9|10|11|12) student\b"
-HIGH_SCHOOL = r"\b(?:i'm|im|i am|just) (?:an? )?(?:[\w-]+ )?(?:high ?schooler|high-schooler|(?:\d+th|seventh|eighth|ninth|tenth|eleventh|twelfth) grader)\b|\b(?:i'm|im|i am) (?:still |currently )?in (?:high ?school|hs|(?:9th|10th|11th|12th) grade|year (?:9|10|11|12))\b|\b(?:high ?school|hs) (?:student|senior|junior|sophomore|freshman)\b|\b(?:i'm|im|i am) (?:a )?(?:senior|junior|sophomore|freshman) in (?:high ?school|hs)\b|\bmy (?:high school|highschool) (?:teacher|classes|graduation|exams)\b"
+HIGH_SCHOOL = (r"\b(?:i'm|im|i am|just) (?:an? )?(?:[\w-]+ )?(?:high ?schooler|high-schooler|(?:\d+th|seventh|eighth|ninth|tenth|eleventh|twelfth) grader)\b|\b(?:i'm|im|i am) (?:still |currently )?in (?:high ?school|hs|(?:9th|10th|11th|12th) grade|year (?:9|10|11|12))\b|\b(?:high ?school|hs) (?:student|senior|junior|sophomore|freshman)\b|\b(?:i'm|im|i am) (?:currently |still |now )?(?:a )?(?:senior|junior|sophomore|freshman) in (?:high ?school|hs)\b|\bmy (?:high school|highschool) (?:teacher|classes|graduation|exams)\b|"
+               r"\b(?:i'm|im|i am) (?:currently |now |still |about to start |entering |starting |going into )?(?:in )?my (?:freshman|sophomore|junior|senior|sr|final|last|first|second|third|fourth|1st|2nd|3rd|4th) year (?:of|in|at) (?:high ?school|hs)\b")
 COLLEGE = (r"\b(?:i'm|im|i am|this|just an?|\d{2}\s?[mf]?,?|[mf]4[a-z]+\]?) (?:(?!(?:former|ex|retired)\b)[\w-]+ ){0,2}?(?:college|uni) (?:boy|girl|guy|dude|bro|kid|twink|jock|athlete|lad|stud|frat)s?\b|\bstudent,? here\b|\bjust an? (?:\w+ )?student\b|"
            r"\b(?:my|next|this) (?:\w+ )?year (?:of|at|in) (?:uni|college|university)\b|\bi (?:take|am taking|'m taking|m taking) (?:\w+ )?(?:classes|courses|units|credits)\b")
 CAMPUS = (r"\bi (?:currently |now |still |also )?(?:go to|attend|am attending|'m attending|transferred to) (?:a |an |the )?(?:[\w'&.-]+ ){0,3}?(?:college|university|uni|community college|polytechnic)\b|"
@@ -844,6 +858,7 @@ RULES = [
     *(rule("occupation", pattern, occupied(after), TAGGED) for pattern in NAMED),
     *(rule("employment_status", pattern, employed(after), TAGGED) for pattern in NAMED),
     rule("occupation", CELL, occupied(celled), TAGGED),
+    said("occupation", TAGGED_TITLE, occupied(tagged)),
     *(rule("occupation", pattern, scoped(group(FIELDS if index == 0 else PLACES)), TAGGED) for index, pattern in enumerate(WORKPLACE)),
     *(rule("employment_status", pattern, scoped(fixed("employed")), TAGGED) for pattern in WORKPLACE),
     rule("occupation", WORKING_IN, scoped(group(FIELDS)), TAGGED),
@@ -1014,8 +1029,8 @@ def subject_before(text, start):
     return next((SUBJECTS[key] for size in (4, 3, 2, 1) if len(words) >= size and (key := " ".join(words[-size:])) in SUBJECTS), None)
 
 
-SUBJECT_LINE = r"(?:(?m:^)\W*|,[ \t]*)(?:(?:\d{2}\s?[mf]?|[mf]4[a-z]+|[mf]\s?\d{2}|[\[(][\w /+-]{1,12}[\])])[ \t,|-]*)*+(?:an? )?([\w'-]+(?: [\w'-]+){0,3}?) (?:student|major)\b"
-STUDYING_SUBJECT = rf"(?:^|[.,;!\n]\s*|\band )(?:currently |also |still |now )?(?:studying|majoring in) ({SUBJECT_NAMES})\b"
+SUBJECT_LINE = r"(?:(?m:^)\W*|[,|][ \t]*)(?:(?:\d{2}\s?[mf]?|[mf]4[a-z]+|[mf]\s?\d{2}|[\[(][\w /+-]{1,12}[\])])[ \t,|-]*)*+(?:an? )?([\w'-]+(?: [\w'-]+){0,3}?) (?:student|major)\b"
+STUDYING_SUBJECT = rf"(?:^|[.,;!\n]\s*[-*•]?\s*|\b(?:and|student|college|uni|university) )(?:currently |also |still |now )?(?:studying|majoring in) ({SUBJECT_NAMES})\b"
 FIELD_RULES = [
     rule("field_of_study", STUDYING_SUBJECT, group(SUBJECTS)),
     rule("field_of_study", rf"\bmy (?:\w+ )?({SUBJECT_NAMES}) (?:class|classes|course|courses|module|modules|lab|labs|lecture|lectures|lecturer|professor|professors|prof|exam|exams|"
@@ -1051,26 +1066,74 @@ FIELD_RULES += [
     rule("field_of_study", rf"\b(?:have|got|hold|earned|finished|completed|did|doing|pursuing|my|an?) (?:an? |my )?({DEGREE_FIELD_NAMES})\b|\b({DEGREE_FIELD_NAMES}) (?:student|graduate|grad|holder|hons)\b",
          lambda match: DEGREE_FIELDS[match.group(1) or match.group(2)] if match.group().startswith("my") or owned(match.string, match.start()) else None, SELF_HEDGE),
 ]
+AMBIGUOUS_SUBJECTS = frozenset({"it", "ai", "art", "design", "film", "music", "dance", "business", "management", "marketing", "history", "english", "photography", "drama", "religion",
+                                "nutrition", "med", "vet", "education", "commerce"})
 
-ANNUAL = frozenset({"year", "yr", "annum", "annually", "yearly", None})
+
+def anchored(text, start):
+    head = text[text.rfind("\n", 0, start) + 1:start].rstrip()
+    return (owned(text, start) or head.endswith((":", "|"))) and not ASPIRING.search(text, clause(text, start), start)
+
+
+def subject(match, block=frozenset()):
+    name = next(filter(None, match.groups()))
+    return None if name in block else SUBJECTS[name]
+
+
+YEAR_OF = (rf"\bmy (?:freshman|sophomore|junior|senior|first|second|third|fourth|fifth|final|last|\d(?:st|nd|rd|th)) (?:year|yr|semester|sem) (?:of|in) (?:an? |my )?({SUBJECT_NAMES})\b"
+           r"(?! (?:class|classes|course|courses|school|teacher|teachers|teaching)\b)")
+DEGREE_SUBJECT = (r"\b(?:b\. ?tech|btech|m\. ?tech|mtech|b\.? ?sc|m\.? ?sc|b\.e|m\.e|b\.s|b\.a|bs|ba|ma|ms|bba|bcom|b\.com|bca|mca|bachelor'?s? of|bachelors of|master'?s? of|masters of)\.?(?:'?\d\d)?"
+                  rf"(?: (?:of )?(?:science|arts|engineering) in)?[ -]+({SUBJECT_NAMES})\b")
+DOING_SUBJECT = (rf"\b(?:i'm|im|i am|student|currently) (?:currently |also |now |still )?(?:doing|taking) ({SUBJECT_NAMES})\b"
+                 r"(?! (?:class|classes|course|courses|exam|exams|module|modules|test|tests|lesson|lessons|homework|assignment|at|for|with|and)\b)")
+MAJOR_IS = (rf"\bmy (?:major|course|degree|program|programme|stream|branch|specialization|specialisation|field of study)(?: is| was|:| -)\s*(?:in )?({SUBJECT_NAMES})\b|"
+            rf"\b(?:chose|picked|chosen|declared) ({SUBJECT_NAMES}) as my (?:major|degree|course)\b")
+FIELD_RULES += [
+    said("field_of_study", YEAR_OF, lambda match: subject(match, {"it", "ai"})),
+    said("field_of_study", DEGREE_SUBJECT, lambda match: SUBJECTS[match.group(1)] if anchored(match.string, match.start()) else None, SELF_HEDGE),
+    said("field_of_study", DOING_SUBJECT, lambda match: subject(match, AMBIGUOUS_SUBJECTS), SELF_HEDGE),
+    said("field_of_study", MAJOR_IS, subject, SELF_HEDGE),
+]
+
+PER_YEAR = {"year": 1, "yr": 1, "annum": 1, "annually": 1, "yearly": 1, None: 1, "month": 12, "mo": 12, "monthly": 12, "week": 52, "wk": 52, "weekly": 52,
+            "hour": 2080, "hr": 2080, "hourly": 2080}
 SCALES = {"k": 1000, "thousand": 1000, "grand": 1000, "mil": 1_000_000, "million": 1_000_000, None: 1}
+MILESTONE = re.compile(r"\b(?:passed|hit|crossed|topped|clear|cleared)\b")
+COMPARED = re.compile(r"\s*(?:more|less|extra|higher|lower|raise|diff|differential)\b")
+ANNUAL = {name: times for name, times in PER_YEAR.items() if times == 1}
 
 
-def income(match):
-    amount = float(match.group(1).replace(",", "")) * SCALES[match.group(2)]
-    return str(int(amount)) if (match.group(3) or match.group(4)) in ANNUAL and 1000 <= amount <= 100_000_000 else None
+def income(match, periods=PER_YEAR):
+    times = periods.get(match.group(4) or match.group(5) or ("hourly" if "hourly" in match.group() else None))
+    if times is None or times > 1 and (MILESTONE.search(match.group()) or COMPARED.match(match.string, match.end())):
+        return None
+    amount = float(match.group(1).replace(",", "")) * SCALES[match.group(2) or match.group(3)] * times
+    return str(int(amount)) if 1000 <= amount <= 100_000_000 else None
 
 
 AMOUNT = (r"(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly |an? |approximately |approx |more than |barely |only |just |(?:a bit|a little|slightly) (?:over|under|more than|less than) |just shy of |upwards of |north of )?"
-          r"\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|grand|mil|million)?"
+          r"\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|grand|mil|million)?(?:\s*(?:-|–|to)\s*\$?\d[\d,]*(?:\.\d+)?\s*(k|thousand|grand|mil|million)?)?"
           r"\s*(?:(?:usd|cad|aud|eur|gbp|dollars|pounds|euros)\s*)?(?:(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b|(annually|yearly|monthly|hourly|weekly)\b|"
           r"(?=\s*(?:$|[.,!;)+]|before|after|pre|post|gross|net|base|salary|total|tc|as|currently|now|right now|working|plus|and|but|so|with|which)))")
-INCOME = [
-    rf"(?:\b(?:i|me) (?:currently |now |only |just |still )?(?:make|made|earn|earned|bring in|bring home|gross|grossed|net|netted|take home|clear|cleared|pull|pulled|pull in|get paid|got paid|passed|hit|crossed|topped)|"
+PAID = (rf"(?:\b(?:i|me) (?:currently |now |only |just |still )?(?:make|made|earn|earned|bring in|bring home|gross|grossed|net|netted|take home|clear|cleared|pull|pulled|pull in|get paid|got paid|passed|hit|crossed|topped)|"
     rf"\b(?:i'm|im|i am) (?:currently |now |only |just |still )?(?:making|earning|paid|getting paid|bringing in|bringing home|pulling in|clearing|netting|grossing|taking home|(?:on|at)(?=\s+(?:about |around |like |~)?\$|\s+\d[\d,.]*\s*k\b))|\bmy (?:salary|income|pay|base|base salary|base pay|tc|total comp|total compensation|"
-    rf"take home|take-home|take home pay|comp|annual salary|gross income|net income|household income|paycheck|wage|hourly rate|rate) (?:is|was|went up to|of|:|=|is now|just hit|is around|is about|is like))\s+{AMOUNT}",
+    rf"take home|take-home|take home pay|comp|annual salary|gross income|net income|household income|paycheck|wage|hourly rate|rate) (?:is|was|went up to|of|:|=|is now|just hit|is around|is about|is like))")
+INCOME = [
+    rf"{PAID}\s+{AMOUNT}",
     rf"(?:^|[.!?\n]\s*)(?:passed|cleared|hit|crossed|made|make|earn|earning|making|grossed|netted|took home|take home)\s+{AMOUNT}",
 ]
+EARNING = rf"\b(?<!from )(?:making|earning|earn|make|bringing in|pulling in|clearing)\s+{AMOUNT}"
+EARNERS = re.compile(rf"\b(?:{KIN}|parents|family|you|your|u|we|someone|anyone|everyone|people)\b")
+
+
+def earning(match):
+    text, start = match.string, match.start()
+    left = clause(text, start)
+    return income(match) if (owned(text, start) or PERSONA.search(text, left, start)) and not EARNERS.search(text, left, start) else None
+
+
+SIX_FIGURES = (rf"{PAID}\s+(?:(?:about|around|over|almost|nearly|just over|just under|close to|low|solid|a) )?(?:six|6)[- ]figures?\b(?! (?:range|total|net worth|in debt))|"
+               r"\bi(?:'ve| have)? (?:just |finally |recently |now )?(?:got|have|landed|make|earn) (?:a |my )(?:\w+ )?(?:six|6)[- ]figure (?:salary|income|job)\b")
 RULES += [
     *EDUCATION_RULES,
     said("employment_status", PURSUING, fixed("student"), SELF_HEDGE),
@@ -1078,7 +1141,9 @@ RULES += [
     said("employment_status", HIGH_SCHOOL, fixed("student"), SELF_HEDGE),
     *FIELD_RULES,
     *(rule("income", pattern, income, SELF_HEDGE) for pattern in INCOME),
-    *(rule("employment_status", pattern, lambda match: "employed" if income(match) else None, SELF_HEDGE) for pattern in INCOME),
+    rule("income", SIX_FIGURES, fixed("100000"), SELF_HEDGE),
+    said("income", EARNING, earning, SELF_HEDGE),
+    *(rule("employment_status", pattern, lambda match: "employed" if income(match, ANNUAL) else None, SELF_HEDGE) for pattern in INCOME),
 ]
 TERM = r"\b(?:this|next) (?:semester|quarter|sem)\b|\bcurrently (?:studying|pursuing|enrolled|doing (?:my|a|an) (?:degree|bachelor'?s|masters?|master's|bsc|ba|bs|btech|undergrad))\b"
 RULES += [

@@ -20,7 +20,7 @@ KIND_WORDS = "|".join(sorted(map(re.escape, KINDS), key=lambda word: (-len(word)
 LETTERS = re.compile(r"[^\W\d_]{2}")
 RULES = []
 FAVORITE = scan(rf"(?i:\b(?:one of )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|favs) ({KIND_WORDS})s?(?: of all time| ever| right now| atm| at the moment)? (?:is|has to be|would be|would have to be|was always|remains|are)\s+){NAME}")
-FAVORED = scan(rf"{NAME}(?i: (?:is|are|was|has always been|will always be) (?:still |definitely |probably |easily |honestly |hands down )?(?:one of )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|goat)s?(?: ({KIND_WORDS})s?)?\b)")
+FAVORED = scan(rf"{NAME}(?i: (?:is|are|was|has always been|have always been|will always be) (?:still |definitely |probably |easily |honestly |hands down )?(?:one of )?my (?:all[- ]time |absolute |personal |current |top |favou?rite |most favou?rite )*(?:favou?rite|fave|fav|goat)s?(?: ({KIND_WORDS})s?)?\b)")
 POSITIVE = scan(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |totally |seriously |genuinely |do |personally )?(?:love|loved|adore|adored|enjoy|enjoyed|like|liked|dig|recommend|second|rewatched|replayed)\b|"
                       r"\bi'?m (?:so |really |totally |kinda |completely )?(?:obsessed with|addicted to|into|a (?:huge |big )?fan of|hooked on|in love with)\b|\bcan'?t get enough of\b|"
                       r"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rites?|faves?|favs?)\b|\bfell in love with\b|"
@@ -51,6 +51,8 @@ COMMON = frozenset("i i'm im i've i'd i'll it it's its the this that these those
 
 
 def fandom(text, found):
+    if not POSITIVE.search(text):
+        return
     for sentence in re.finditer(r"[^.!?\n]+[.!?]*", text):
         part = sentence.group()
         if not (cue := POSITIVE.search(part)) or NEGATIVE.search(part):
@@ -100,6 +102,8 @@ GENERIC = frozenset("it this that these those him her them you me my your his th
 
 
 def adjacent(text, found):
+    if not ADJACENT.possible(text):
+        return
     lowered = text.lower()
     for match in ADJACENT.finditer(lowered):
         name = re.sub(r"^the ", "", match.group(1)).strip()
@@ -114,10 +118,10 @@ def adjacent(text, found):
 
 
 DEGREE = r"(?:huge|big|massive|die[- ]?hard|lifelong|life[- ]long|long[- ]?time|proud|loyal|true|real|giant|enormous|devoted|avid|hardcore|crazy|super|major|total|self[- ](?:admitted|proclaimed|confessed|described))"
-FAN = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|been|as|being) (?:an? )?(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)")
-TEAM_FAN = scan(rf"(?i:\b(?:(?:i'm|im|i am|i've been|ive been|been|as|being|from|become|became|becoming) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
-                      rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:fan|supporter)(?:s? (?:here|since|for life|all my life|my whole life|through and through)\b|(?=[,.!;:]|(?m:$))))")
-FAN_OF = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|i've always been|been|as) (?:also |still |definitely |honestly |really |such |always )?(?:an? |the )?(?:{DEGREE} )*(?:fan|supporter|admirer) of (?:the )?){NAME}")
+FAN = scan(rf"(?i:\b(?:i'm|im|i am|i was|i've been|ive been|been|as|being) (?:an? )?(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)")
+TEAM_FAN = scan(rf"(?i:\b(?:(?:i'm|im|i am|i was|i've been|ive been|been|as|being|from|become|became|becoming) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
+                      rf"(?:(?m:^)|(?<=[.!?] ))(?:[^\W\d_][\w'-]* ){{0,2}}?{NAME}(?i: (?:fan|supporter)(?:s? (?:here|since|for life|all my life|my whole life|through and through)\b|(?=[,.!;:]|(?m:$))))")
+FAN_OF = scan(rf"(?i:\b(?:i'm|im|i am|i was|i've been|ive been|i've always been|been|as) (?:also |still |definitely |honestly |really |such |always )?(?:an? |the )?(?:{DEGREE} )*(?:fan|supporter|admirer) of (?:the )?){NAME}")
 STAN = scan(rf"(?i:\bi (?:also |still |will always |literally |really )?stan ){NAME}")
 GOAT = scan(rf"(?i:\bmy (?:all[- ]time )?goat:? ){NAME}")
 GOATED = scan(rf"{NAME}(?i: (?:is|was|will always be|remains) (?:still |easily |honestly )?(?:the|my) goat\b| the goat\b)")
@@ -125,8 +129,10 @@ OBJECTS = {"music": "artist", "songs": "artist", "song": "artist", "album": "art
            "artwork": "artist", "movies": "celebrity", "films": "celebrity", "acting": "celebrity", "performance": "celebrity", "performances": "celebrity", "roles": "celebrity",
            "comedy": "celebrity", "standup": "celebrity", "specials": "celebrity", "videos": "creator", "video": "creator", "streams": "creator", "stream": "creator",
            "channel": "creator", "content": "creator", "podcast": "creator", "books": "author", "novels": "author", "writing": "author", "prose": "author"}
-LOVED = scan(rf"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally )*"
+LOVED = scan(rf"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally |\w+ly )*"
                    rf"(?:love|adore|loved|adored|enjoy|enjoyed|in love with|obsessed with) ){NAME}")
+DROPPED = scan(rf"(?:(?m:^)|(?<=[.!?] ))(?i:(?:really |absolutely |just |also |still |honestly |genuinely |totally |so |\w+ly )*(?:love|adore|loved|adored) ){NAME}")
+CRUSH = scan(rf"(?i:\bcrush(?:es)? on ){NAME}")
 LOWER_FAN = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|as|being) (?:an? )?(?:{DEGREE} )*)((?:[a-z][\w'-]* ){{0,2}}[a-z][\w'-]*) (?:fan|stan|supporter)\b")
 LIKED_PERSON = scan(rf"(?i:\bi (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |personally |kinda |always )*(?:like|liked) ){NAME}")
 CREATED = scan(rf"{NAME}(?:(?:'s|s'|’s) |(?<!'s)(?= (?i:youtube|yt|twitch|tiktok) ))(?i:(?: ?(?:youtube|yt|twitch|tiktok) )?(?:new |latest |recent |old |last |early )?(?:videos?|vids|streams?|vods?|channel|podcasts?|content|vlogs?)\b)")
@@ -153,6 +159,7 @@ PRONOUNS = frozenset({"i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you"
 PEOPLE = ("character", "artist", "athlete", "celebrity", "creator", "author")
 UNPRAISED = frozenset({"athlete", "celebrity", "author"})
 NAMED_ONLY = frozenset({"character", "athlete", "celebrity"})
+CRUSHED = NAMED_ONLY | {"artist"}
 SPELLED = frozenset({"athlete", "celebrity", "author", "creator"})
 GATED = frozenset({"artist", "author"})
 LISTED = re.compile(r"[\s,;/&*|>()\[\]^:.\d-]{1,12}|\s*(?:,\s*)?(?:and|or)\s+")
@@ -220,7 +227,7 @@ def favorites(text, found):
     for match in TEAM_FAN.finditer(text) if " fan" in lowered or " supporter" in lowered else ():
         if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
             for piece in parts(match.group(1) or match.group(2)):
-                if club := team(piece):
+                if club := next(filter(None, (team(piece.split(" ", drop)[-1]) for drop in range(min(3, piece.count(" ") + 1) if match.group(2) else 1))), None):
                     named("sports_team", club, found, match.start())
     for pattern in (FAN, FAN_OF, STAN, GOAT, GOATED, PRAISED):
         for match in pattern.finditer(text) if any(word in lowered for word in LITERALS.get(pattern, ("",))) else ():
@@ -230,19 +237,23 @@ def favorites(text, found):
                         named("sports_team", club, found, match.start())
                     elif (hit := classified(text, match.start(), piece, (*PEOPLE, "franchise", "video_game"))) and (pattern is not PRAISED or hit[0] not in UNPRAISED):
                         named(*hit, found, match.start())
-    for match in LOVED.finditer(text):
-        if hedged(lowered, match.start(), match.end(), SELF_HEDGE):
-            continue
-        name, mark, rest = match.group(1).partition("'s")
-        kind = OBJECTS.get(next(iter(WORD.findall(rest or text[match.end():match.end() + 20])), "").lower()) if mark else None
-        if kind:
-            named(kind, STOP.split(name)[0], found, match.start())
-        elif (hit := lexical(name)) and hit[0] in NAMED_ONLY:
+    for pattern in (LOVED, DROPPED) if "lov" in lowered or "ador" in lowered or "enjoy" in lowered or "obsess" in lowered else ():
+        for match in pattern.finditer(text):
+            if hedged(lowered, match.start(), match.end(), SELF_HEDGE):
+                continue
+            name, mark, rest = match.group(1).partition("'s")
+            kind = OBJECTS.get(next(iter(WORD.findall(rest or text[match.end():match.end() + 20])), "").lower()) if mark else None
+            if kind:
+                named(kind, STOP.split(name)[0], found, match.start())
+            elif (hit := lexical(name)) and hit[0] in NAMED_ONLY:
+                named(*hit, found, match.start())
+            elif not hit and pattern is LOVED:
+                for piece in parts(name):
+                    if hit := classified(text, match.start(), piece, PEOPLE):
+                        named(*hit, found, match.start())
+    for match in CRUSH.finditer(text) if "crush" in lowered else ():
+        if SELF.search(text, clause(text, match.start()), match.start()) and not hedged(lowered, match.start(), match.end(), SELF_HEDGE) and (hit := lexical(STOP.split(match.group(1))[0])) and hit[0] in CRUSHED:
             named(*hit, found, match.start())
-        elif not hit:
-            for piece in parts(name):
-                if hit := classified(text, match.start(), piece, PEOPLE):
-                    named(*hit, found, match.start())
     for match in LOWER_FAN.finditer(text) if " fan" in lowered or " stan" in lowered or " supporter" in lowered else ():
         if not hedged(lowered, match.start(), match.end(), SELF_HEDGE):
             if club := team(match.group(1)):
@@ -583,7 +594,7 @@ def engaged(text, start, end, attribute, popular, plain):
     return attribute not in CHEERED and bool(SELF.search(text, left, right) or dropped)
 
 
-BACKING = re.compile(r"(?i:\b(?:my|our|we|us|go|let'?s go|lets go|up the|c'?mon|come on|i (?:always |still |also |really |just |will always |have always |\w+ly )?(?:love|support|supported|root for|rooted for|cheer for|follow|followed)|i'?ve (?:always |also )?(?:supported|followed|rooted for)|fan of|rooting for|cheering for|supporter of|supporting|following)(?: the| my| our| beloved| boys)?\s*$)")
+BACKING = re.compile(r"(?i:\b(?:my|our|we|us|go|let'?s go|lets go|up the|c'?mon|come on|i (?:always |still |also |really |just |will always |have always |\w+ly )?(?:love|like|liked|support|supported|root for|rooted for|cheer for|follow|followed)|i'?ve (?:always |also )?(?:supported|followed|rooted for)|fan of|rooting for|cheering for|supporter of|supporting|following)(?: the| my| our| beloved| boys)?\s*$)")
 BACKER = scan(r"(?i:\s*(?:nation|faithful|for life|forever|till i die|all the way)\b)")
 FANNED = scan(r"(?i:\s*(?:fan|supporter)\b)")
 AVOWED = re.compile(r"(?i:\b(?:i'?m|i am|as|been|being|be)\b[\w\s-]{0,20}$)")

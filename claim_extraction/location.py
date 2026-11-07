@@ -92,7 +92,7 @@ CHAIN = re.compile(r"[\s,(:–—-]*(?:(?:more\s+)?specifically|namely|in|near|a
 
 BRIEF = r"(?!(?:sorry|sure|pretty|glad|afraid|aware|against|about|any|some|every|on|at|over|so|very|not|never|no|half|part|partly|quarter|mixed|fan|big|huge|of|in|to|from|with|the|for|into|like|than|fluent|native|married|probably|maybe|ex|former|formerly|called)\b)(?!\w+ing\b)[\w'-]+ "
 BELIEF = r"christian|muslim|jew|jewish|catholic|atheist|conservative|liberal|i|we|\w+ly"
-AS_TAIL = rf"({NATION})(?:[- ]born)?(?=$|[\s.,!;:)])(?![ \t]+(?!(?:and|but|so|myself|citizen|national|person|man|woman|guy|girl|dude|male|female|living|who|born|raised|here|in|from|it|there|that|by|expat|immigrant|veteran|mom|mother|dad|father|parent|voter|taxpayer|kid|child|adult|student|resident|native|lol|{BELIEF}|can|could|would|will|should|do|does|did|have|has|had|am|our|my|me|us|where|looking|with|this|you|though|too)\b)[a-z])"
+AS_TAIL = rf"({NATION})(?:[- ]born)?(?=$|[\s.,!;:)])(?![ \t]+(?!(?:and|but|so|myself|citizen|national|person|man|woman|guy|girl|dude|male|female|living|who|born|raised|here|in|from|it|its|there|that|by|expat|immigrant|veteran|mom|mother|dad|father|parent|voter|taxpayer|kid|child|adult|student|resident|native|lol|{BELIEF}|can|could|would|will|should|do|does|did|have|has|had|am|our|my|me|us|where|looking|with|this|you|though|too)\b)[a-z])"
 AS_NATION = rf"(?:\bas (?:an?|another|a fellow)(?: proud| native| born and raised)? |\bme as (?=\w+,)|\bas (?<!such as )(?<!same as )(?=\w+,?\s+(?:i|i'm|im|we|myself)\b)){AS_TAIL}"
 AS_NATION_START = rf"(?:^|[.!?\n]\s*)as (?=\w+,){AS_TAIL}"
 LOOSE_NATION = rf"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent)\b)"
@@ -114,6 +114,8 @@ SELF_FROM_LEAD = scan(rf"{SELF_LEAD}from\s+(?:the\s+)?\Z")
 TAG_BEFORE = re.compile(rf"(?:{TAG}|{FOR}|\A[^\w\n]*\d{{2}}|\b\d{{2}}\s?(?:yo|y/o|male|female)|^[^\w\n]*[mf])[\s,/|:()\[\]-]*\Z", re.M)
 TAG_AFTER = re.compile(rf"[\s,/|(\[-]*(?:{TAG}|\d{{2}}\s?(?:yo|y/o)\b|\d{{2}}\s*[)\]]|(?:m|f|male|female)\s*[,/|]\s*\d{{2}}\b)")
 NATION_HERE = scan(rf"(?:\s+(?:{PERSON}|fan|citizen|national))?(?:\s+(?:living in|based in|from)\s+[a-z]+(?: [a-z]+)?)?,?\s+(?:over |out |down |up )?here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b)")
+OPENS = re.compile(r"(?:^|[.!?\n]\s*)[\W_]*(?:(?:hi|hey|hello|yeah|yes|also|just|sadly|proudly|proud|nope|no|well|lol)[,.!]*\s+)*\Z")
+CLOSES = re.compile(rf"(?:\s+(?!couple|cpl){PERSON_NOUN})?(?:,?\s+(?:here|based|living|moving|looking|seeking)\b|[ \t]*,?[ \t]*\d\d(?![\w%]))(?![ \t]*(?:and|or|/|&)?[ \t]*(?:{NATION})\b)")
 OTHERS_LEAD = re.compile(r"\b(?:the|these|those|his|her|their|your|our|any|some|many|most|other|no|of|every|each|all)\s+\Z")
 CITIZEN_OF = scan(r"\b(?:i'm|im|i am|as|am|being)\s+(?:an?\s+)?(?:\w+\s+)?citizen of\s+(?:the\s+)?\Z")
 SELF_IN_LEAD = re.compile(rf"{SELF_LEAD}(?:in|near|around)\s+(?:the\s+)?\Z")
@@ -279,10 +281,12 @@ def places(text, lowered, found):
         return
     line_end = lowered.find("\n") % (len(lowered) + 1)
     tagged = line_end < 150 and bool(TITLE.search(lowered, 0, line_end))
-    residence, residence_from_origin, framed, peoples = [], [], [], set()
+    residence, residence_from_origin, framed, peoples, opened = [], [], [], set(), {}
     for start, end, entry in spots:
         if entry[0] == "nation" and (TAG_BEFORE.search(lowered, max(lowered.rfind("\n", 0, start) + 1, start - 16), start) or TAG_AFTER.match(lowered, end)) and not ASKING.search(lowered, lowered.rfind("\n", 0, start) + 1, start):
             framed.append((("nationality", entry[3]), start))
+        if entry[0] == "nation" and CLOSES.match(lowered, end) and OPENS.search(lowered, max(0, start - 40), start) and not asked(lowered, end):
+            opened.setdefault(entry[3], start)
         if entry[0] == "nation" and NATION_HERE.match(lowered, end) and not OTHERS_LEAD.search(lowered, max(0, start - 8), start):
             framed.append((("nationality", entry[3]), start))
         if entry[0] == "country" and CITIZEN_OF.search(lowered, max(lowered.rfind("\n", 0, start) + 1, start - 40), start):
@@ -373,6 +377,8 @@ def places(text, lowered, found):
         opening = max(lowered.rfind(mark, 0, match.start()) for mark in ".!?\n") + 1
         if not ASKING.search(lowered, opening, match.start(1)) and not DOUBT.search(lowered, opening, match.start(1)):
             framed.append((("nationality", NATIONS[match.group(1)]), match.start()))
+    if len(opened) == 1:
+        framed.extend((("nationality", country), start) for country, start in opened.items())
     for key, position in framed:
         found.setdefault(key, position)
 
