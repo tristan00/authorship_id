@@ -7,7 +7,8 @@ from .schema import canonical
 SINGLE = frozenset({"age", "gender"})
 RULES = [*demographics.RULES, *location.RULES, *life.RULES, *lifestyle.RULES, *work.RULES, *health.RULES, *fandom.RULES]
 BOT_SAFE = frozenset(attribute for attribute, *_ in (*demographics.RULES, *work.RULES)) | {"automated_account", "relationship_status", "parental_status"}
-PREFILTER = Prefilter([pattern.compiled if isinstance(pattern, Gated) else pattern for _, pattern, *_ in RULES])
+GATE_OF = {index: len(RULES) + number for number, index in enumerate(index for index, (_, pattern, *_) in enumerate(RULES) if isinstance(pattern, Gated))}
+PREFILTER = Prefilter([pattern.compiled if isinstance(pattern, Gated) else pattern for _, pattern, *_ in RULES] + [RULES[index][1].gate.__self__ for index in GATE_OF])
 build()
 
 
@@ -18,7 +19,8 @@ def positioned(raw):
     found = {}
     automatic = bool(BOT_TEXT.search(lowered))
     demographics.tags(text, lowered, found)
-    for index in sorted(PREFILTER.flagged(lowered)):
+    flagged = PREFILTER.flagged(lowered)
+    for index in sorted(index for index in flagged if index < len(RULES) and GATE_OF.get(index, index) in flagged):
         attribute, pattern, value, hedge = RULES[index]
         if automatic and attribute not in BOT_SAFE:
             continue
