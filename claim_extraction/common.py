@@ -1,6 +1,6 @@
 import re
 
-APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "´": "'", "ʼ": "'", "＇": "'", "`": "'"})
+FOLDED = str.maketrans({"’": "'", "‘": "'", "´": "'", "ʼ": "'", "＇": "'", "`": "'", "İ": "I"})
 MASKED = re.compile(r"https?://\S+|www\.\S+|\]\([^)\s]*\)|^[ \t]*(?:>|&gt;)[^\n]*", re.M)
 I = r"(?:i'm|im|i am|iam|i m|i'am|i'?ve been|i've always been)"
 HEDGE = re.compile(r"\b(?:if|would|wish|hope|imagine|pretend|unless|whether|wanna|want to|wants to|trying to|tryna|going to|gonna|might|maybe|someday|used to|"
@@ -14,7 +14,7 @@ BOT_TEXT = re.compile(r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:m
 
 
 def prepared(text):
-    text = text.translate(APOSTROPHES)
+    text = text.translate(FOLDED)
     return MASKED.sub(lambda match: " " * len(match.group()), text)
 
 
