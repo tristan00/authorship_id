@@ -115,7 +115,7 @@ def adjacent(text, found):
 
 DEGREE = r"(?:huge|big|massive|die[- ]?hard|lifelong|life[- ]long|long[- ]?time|proud|loyal|true|real|giant|enormous|devoted|avid|hardcore|crazy|super|major|total|self[- ](?:admitted|proclaimed|confessed|described))"
 FAN = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|been|as|being) (?:an? )?(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)")
-TEAM_FAN = scan(rf"(?i:\b(?:(?:i'm|im|i am|i've been|ive been|been|as|being|from) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
+TEAM_FAN = scan(rf"(?i:\b(?:(?:i'm|im|i am|i've been|ive been|been|as|being|from|become|became|becoming) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|"
                       rf"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:fan|supporter)(?:s? (?:here|since|for life|all my life|my whole life|through and through)\b|(?=[,.!;:]|(?m:$))))")
 FAN_OF = scan(rf"(?i:\b(?:i'm|im|i am|i've been|ive been|i've always been|been|as) (?:also |still |definitely |honestly |really |such |always )?(?:an? |the )?(?:{DEGREE} )*(?:fan|supporter|admirer) of (?:the )?){NAME}")
 STAN = scan(rf"(?i:\bi (?:also |still |will always |literally |really )?stan ){NAME}")
@@ -275,20 +275,27 @@ def favorites(text, found):
 
 
 ANSWER = re.compile(r"(?i:(?:(i'?d say|i'?d go with|i go with|easily|definitely|probably|obviously|prob|has to be|gotta be|got to be|clearly|always|me|mine|mine is|for me) )?(.+?)(,? (?:for me|for sure|defo|definitely|easily|100%|hands down|all day|obviously|by far|for now|all the way|of course|forever|always|imo|tbh|no question|no doubt|is the goat|my goat|the goat))?)")
-HEADERS = re.compile(r"(?:\s*\n|[*_#>\s]*\*[^*\n]+\*[*_ \t]*\n)*+")
-ANSWERED = ("athlete", "creator", "celebrity")
+HEADERS = re.compile(r"(?:\s*\n|[*_#>\s]*\*[^*\n]+\*[*_ \t]*\n|[ \t]*(?:!\[[^\]\n]*\]\([^)\n]*\)|https?://\S+)[ \t]*\n)*+")
+ANSWERED = ("athlete", "creator", "celebrity", "artist")
+MEDIA = re.compile(r"(?:\s*\n[ \t]*(?:!\[[^\]\n]*\]\([^)\n]*\)|https?://\S+)[ \t]*)+$")
+RIM = re.compile(r"[\W_]+")
 
 
 def answered(text, found):
-    head, _, last = text.strip().rpartition("\n")
+    body = text.strip()
+    head, _, last = (MEDIA.sub("", body) if "](" in body or "http" in body else body).rpartition("\n")
     if not last or head and not HEADERS.fullmatch(head + "\n"):
         return
-    core = last.strip("*_#>~ \t").rstrip(" .!,🐐👑")
-    match = ANSWER.fullmatch(core)
-    if not match or not (match.group(1) or match.group(3) or head):
+    lead, tail = RIM.match(last), RIM.match(last[::-1])
+    match = ANSWER.fullmatch(last[lead.end() if lead else 0:len(last) - (tail.end() if tail else 0)])
+    if not match:
         return
     name = match.group(2)
     single = " " not in name
+    if not (match.group(1) or match.group(3) or head):
+        if not single and name.count(" ") <= TEAM_SPAN and (not name.isascii() or " ".join(WORD.findall(name)).lower().removeprefix("the ") in TEAM_WORDS) and (club := team(name)):
+            named("sports_team", club, found, 0)
+        return
     if (club := team(name)) and not (single and "sports_team" not in {entry[0] for entry in PLAIN.get(name.lower(), ())}):
         named("sports_team", club, found, 0)
         return
@@ -448,6 +455,7 @@ def team_words():
 
 
 TEAM_WORDS = team_words()
+TEAM_SPAN = max(key.count(" ") + 1 for key in TEAM_WORDS)
 
 
 def team(name):

@@ -29,7 +29,7 @@ HAVE_NOW = (rf"{SUBJECT}(?:have|got|get|suffer from|suffer with|struggle with|de
             r"been suffering from|been suffering with|been treated for|been recovering from|developed|struggled with|dealt with|suffered from|suffered with|lived with|battled|fought|survived|beaten)"
             r"|i(?<!\wi)(?:'m|m| am) (?:also |currently |still |now |actually |officially |finally |recently |just |newly |personally |technically |literally |basically |definitely |unfortunately |apparently )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|suffering with|being treated for|recovering from|"
             r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)"
-            r"|i(?<!\wi) (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|(?:a(?<!\wa)s |i(?<!\wi)(?:'m |m | am ))(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal)) (?:who (?:also |still |too )?(?:has|has had|suffers from|struggles with|lives with|deals with)|living with|with)"
+            r"|i(?<!\wi) (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|(?:a(?<!\wa)s |i(?<!\wi)(?:'m |m | am ))(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal|patient)) (?:who(?:'s| has| is)? (?:also |still |too )?(?:has|has had|had|suffers from|struggles with|lives with|deals with|been diagnosed with|diagnosed with|dealt with|struggled with|lived with|suffered from)|living with|with)"
             r"|m(?<!\wm)y (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|d(?<!\wd)iagnosed me (?:with|as)")
 HAD = rf"{SUBJECT}(?:had|suffered from|struggled with|dealt with|lived with|battled|fought|beat|survived|overcame|was treated for|was dealing with|went through|got treated for)"
 HAVE = HAVE_NOW + "|" + HAD
@@ -38,7 +38,7 @@ MODIFIERS = (r"own|severe|mild|moderate|chronic|acute|stupid|damn|damned|fucking
              r"hereditary|early|late|new|old|primary|secondary|crippling|debilitating|terrible|horrible|awful|pretty bad|really bad|annoying|lovely|wonderful|recurring|recurrent|persistent|ongoing|"
              r"rare|treatment[- ]resistant|clinical|major|severe chronic|medicated|unmedicated|managed|controlled|uncontrolled|diet[- ]controlled|stage \w+|grade \w+|type \w+|level \w+|chronic severe|"
              r"intermittent|episodic|silent|mild case of|bit of|bit of an?|little|minor|slight|full blown|full-blown|high[- ]functioning|combined[- ]type|inattentive[- ]type|hyperactive[- ]type|"
-             r"inattentive|combined|hyperactive|textbook|diagnosed severe|late[- ]diagnosed|adult|childhood|postpartum|seasonal|crazy|insane|massive|huge|lingering|residual|newly diagnosed|"
+             r"inattentive|combined|hyperactive|textbook|diagnosed severe|late[- ]diagnosed|recently diagnosed|adult|childhood|postpartum|seasonal|crazy|insane|massive|huge|lingering|residual|newly diagnosed|"
              r"some|a lot of|lots of|serious|really|very|super|extreme|extremely|both|mostly|mainly|also")
 MOD = rf"(?:(?:{MODIFIERS})[\s,]+){{0,3}}"
 FOLLOWERS = r"(?! (?:friend|friends|kid|kids|son|daughter|brother|sister|partner|husband|wife|mom|dad|mother|father|patient|patients|client|clients|community|people|person|research|awareness|month|day|walk|charity|foundation|society|association|group|subreddit|sub|forum)s?\b)"
@@ -476,7 +476,9 @@ RULES += [
          fixed("addiction"), SELF_HEDGE),
     rule("mental_condition", r"i(?<!\wi)(?:'m|m| am|'ve been|ve been| got| became) (?:so |really |literally |kinda |pretty |super |very |totally |completely |still |seriously |severely )*addicted to\b",
          fixed("addiction"), OWN_HEDGE),
-    rule("mental_condition", r"m(?<!\wm)y (?:own )?(autistic|neurodivergent|adhd|audhd|dyslexic) (?:ass|self|brain|mind|side|butt|tendencies|traits|quirks)\b",
+    rule("mental_condition", r"i(?<!\wi)(?:'m|m| am)(?: also| currently| still| now| back)? on (?:my |prescription |prescribed |stimulant )?(?:adhd|add) (?:meds|medications?|medicine|stimulants)\b|i(?<!\wi)(?:'m| am)? (?:take|took|started|need|taking|started taking|stopped taking) (?:my )?(?:adhd|add) (?:meds|medications?|medicine)\b",
+         fixed("adhd"), OWN_HEDGE),
+    rule("mental_condition", r"m(?<!\wm)y (?:own )?(autistic|neurodivergent|adhd|audhd|dyslexic) (?:ass|self|brain|mind|side|butt|tendencies|traits|quirks|desire|desires|obsession|obsessions|experience|nature|needs|meltdowns?|hyperfixations?|hyperfocus|special interests?|stims?|stimming|logic|ways|moments?|struggles|symptoms|issues|habits)\b",
          group({"autistic": "autism", "neurodivergent": "neurodivergent, unspecified", "adhd": "adhd", "audhd": "both adhd and autism", "dyslexic": "dyslexia"}), OWN_HEDGE)]
 
 FOREIGN_AM = r"(?:soy|sou|je suis|ich bin|sono|jestem|ik ben|tengo|tenho|j'ai|ich habe|ho|mam|ik heb|con|com|avec|mit)\s+(?:(?:un|una|um|uma|une|ein|eine|einen|un'|een|tambien|también|também|aussi|auch|anche|też|ook|le|la|de|del|du)\s+|l')*"
@@ -561,6 +563,7 @@ MOODS = {"anxiety": "anxiety", "depression": "depression", "ocd": "ocd", "ptsd":
          "addiction": "addiction", "an addiction": "addiction", "alcoholism": "addiction"}
 MOOD_NAMES = scan(r"\b(" + names(MOODS) + r")\b")
 NEURO = ("adhd", "autism", "both adhd and autism")
+UNNAMED = scan(r"\bi(?<!\wi)(?:'m| am| was| got| have been|'ve been|ve been)(?: (?:officially|finally|formally|recently|just|only|also|then|eventually|late|properly))? (?:diagnosed|dx'?d)(?! (?:with|w/|as an?|as having|by|for)\b)|\bi(?<!\wi) (?:got|received|finally got|just got|recently got) (?:my|a|an|the) (?:official |formal |proper )?(?:diagnosis|dx)\b")
 AUDHD_PARTS = ("adhd", "autism")
 ASSESSED = scan(r"\s*(?:assessments?|evaluations?|diagnosis|diagnoses|traits|testing|tests?)\b")
 POSSESSOR = scan(rf"\b(?:{PEOPLE}|someone|anyone|somebody|anybody)(?: (?!(?:and|but|or|i|i'm|im|me|my)\b)\w+){{0,2}} (?:has|have|had|having|with|gets|got)(?: \w+){{0,2}} $")
@@ -630,13 +633,17 @@ HERE_AFTER = {"physical_condition": re.compile(r" (?:here|sufferer here|patient 
               "mental_condition": re.compile(r" (?:here|person here|haver here|sufferer here|survivor here|gal here|guy here|girl here|woman here|man here|mom here|mama here|dad here|adult here|"
                                              r"patient here|warrior|gang|squad|club|crew|fam)\b")}
 def stating(being):
-    return re.compile(rf"(?:\b(?:i'm|im|i am|i've been|ive been|i have been|i was born|i became|as(?: an?)?|{being}|me,?(?: an?)?|(?:a |as a |from a )?fellow)(?: (?:also|now|currently|still|technically|actually|literally|officially|"
+    return re.compile(rf"(?:\b(?:i'm|im|i am|i've been|ive been|i have been|i was born|i became|as(?: an?)?|{being}|me,?(?: an?)?|(?:a |as a |from a )?fellow|as someone (?:who|that)(?:'s| is))(?: (?:also|now|currently|still|technically|actually|literally|officially|"
                       rf"basically|completely|totally|profoundly|severely|mostly|partially|fully|medically|legally|kind of|kinda|just|really|so|recently|newly|permanently|chronically|clinically|"
 
                       rf"unfortunately|apparently|obviously|functionally|genetically|naturally|definitely))*{LEAD}{FREE}{{0,2}})$")
 
 
 DUAL_CUE = re.compile(rf"\b(?:i'm|im|i am|i've been|ive been|i have been|i became)(?: (?:also|now|currently|still|actually|literally|officially|just|really|so|recently|newly|clinically|definitely))*{LEAD}{FREE}{{0,2}}$")
+CARRIER = rf"\bi(?<!\wi)(?:'m|m| am| have| do| was|'ve|ve)?(?: (?!(?:{PEOPLE}|we|it|it's|this|that|not|no|never|but|or|if|when|because|so|who|which|what)\b)[\w'-]+){{1,6}}?,? and (?:also |currently |still |now |even |i )?"
+CARRIED = re.compile(rf"{CARRIER}(?:have|got|suffer from|struggle with|deal with|live with|am battling|am fighting|battling|fighting|am dealing with|dealing with|am living with|living with|am recovering from|recovering from|am suffering from|suffering from|got diagnosed with|was diagnosed with|diagnosed with){LEAD}{FREE}{{0,2}}$")
+CARRIED_STATE = re.compile(rf"(?:{CARRIER}(?:am |i'm |im )?(?:also |now |currently |still |actually |very |so |really |clinically |definitely )*|{CARRIER}am{LEAD}{FREE}{{0,2}})$")
+CLAUSE_END = re.compile(r"\s*(?:[,;:.!?)(/&+]|$|(?:and|but|so|with|too|as well|myself|lol)\b)")
 STATE_CUE = stating("being an?")
 MIND_STATE_CUE = stating("being(?: an?)?|of us")
 LINK = re.compile(rf"\s*(?:,|&|/|\+|\band\b|\bor\b|\bplus\b|\bas well as\b|\balong with\b|\bw/)(?:\s*(?:and|&)\b)?{LEAD}")
@@ -723,7 +730,8 @@ def owned(lowered, sentence, found, families):
                 continue
             left = part[max(0, start - 90):start]
             here = HERE_AFTER[attribute].match(part, end) and HERE_BEFORE.search(left)
-            cue = (noun_cue if noun else state_cue).search(left) or dual and DUAL_CUE.search(left) or here or attribute == "physical_condition" and noun and nouns.get(name) != "unspecified" and (PAST_CUE.search(left) or caused(part, left, start))
+            carried = attribute == "mental_condition" and " and " in left and (noun and CARRIED.search(left) or (dual or not noun) and CARRIED_STATE.search(left) and CLAUSE_END.match(part, end))
+            cue = (noun_cue if noun else state_cue).search(left) or carried or dual and DUAL_CUE.search(left) or here or attribute == "physical_condition" and noun and nouns.get(name) != "unspecified" and (PAST_CUE.search(left) or caused(part, left, start))
             begin = start - len(cue.group()) if cue else 0 if (DROPPED if noun else DIAGNOSED).fullmatch(part, 0, start) else None
             chained = previous is not None and LINK.fullmatch(part, previous, start)
             if ((begin is not None or chained) and (here or not noun or not TRAIL.match(part, end))
@@ -844,16 +852,21 @@ def ailments(lowered, found):
             if quoted(lowered, sentence.start() + start) or POSSESSOR.search(part, max(0, start - 50), start) or GENERIC.match(part, end) or TRAIL.match(part, end) or HEADS.match(part, end):
                 continue
             found.setdefault(("physical_condition", AILMENT_KEYS[name]), sentence.start() + start)
-        if hedge or addressed or not mood:
+        if not mood:
             continue
         for match in MOOD_NAMES.finditer(part):
+            if addressed and addressed.end() <= match.start() or hedge and hedge.end() <= match.start():
+                break
             value, after = MOODS[match.group(1)], match.end()
             if quoted(lowered, sentence.start() + match.start()) or POSSESSOR.search(part, max(0, match.start() - 50), match.start()) or TRAIL.match(part, after) or ASSESSED.match(part, after) or CAUSED.search(part, max(0, match.start() - 40), match.start()) or not first and value not in NEURO:
                 continue
             window = part[:match.start()]
-            if OTHERS.search(window, scoped(window)) or value in NEURO and (OWN_HEDGE.search(part) or GENERIC.match(part, after) or match.group(1) == "autistic" and ATTRIBUTIVE.match(part, after)):
+            if OTHERS.search(window, scoped(window)) or value in NEURO and (OWN_HEDGE.search(part, 0, match.start()) or not first and GENERIC.match(part, after) or match.group(1) == "autistic" and ATTRIBUTIVE.match(part, after)):
                 continue
             found.setdefault(("mental_condition", value), sentence.start() + match.start())
+    if moody and (unnamed := UNNAMED.search(lowered)) and not question(lowered, unnamed.end()) and not HEDGE.search(lowered, clause(lowered, unnamed.start()), unnamed.start()) and not quoted(lowered, unnamed.start()):
+        if len(values := {MOODS[match.group(1)] for match in MOOD_NAMES.finditer(lowered)}) == 1:
+            found.setdefault(("mental_condition", values.pop()), unnamed.start())
     foreign(lowered, found)
     if ASTROLOGY.search(lowered):
         found.pop(("physical_condition", "cancer"), None)

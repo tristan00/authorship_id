@@ -149,6 +149,11 @@ def expressions():
     return [re.compile("|".join(sorted(map(spelled, group)))) for _, group in OWNERS]
 
 
+def original(lowered):
+    (text, _), (primed, _) = INDEX[1]
+    return text if primed is lowered else None
+
+
 def prime(text, lowered, hits):
     slots = {slot for slot in {INDEX[0][ident] for ident in hits} if NEEDS[slot] <= hits}
     INDEX[1] = ((text, slots), (lowered, slots))
