@@ -10,3 +10,6 @@ BOT_SHARE = .2
 WORKERS = 20
 PARTS_PER_WORKER = 4
 INSERT_ROWS = 200_000
+WIDE = {"age": ("absolute", 5), "height": ("absolute", 5), "weight": ("relative", .15), "income": ("relative", .5)}
+GATE_COMPARISONS = 30
+GATE_SKILL = .25

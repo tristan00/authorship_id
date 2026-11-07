@@ -7,7 +7,7 @@ import torch
 from . import LOG, timed, write_json
 from .config import GPU_MEMORY, PARAMETERS, SEED, TUNE_ROUNDS, TUNE_SPACE, TUNE_TRIALS
 from .model import AttributeModel
-from .train import DEVICE, fit
+from .train import DEVICE, fit, load_data
 
 
 def architecture(parameters, manifest):
@@ -25,11 +25,11 @@ def attempt(targets, manifest, specs, data, parameters, epochs):
 
 
 @timed
-def tune(targets, load, directory, out):
+def tune(targets, directory, out):
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     out.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random(SEED)
-    manifest, specs, data = load(directory, targets)
+    manifest, specs, data = load_data(directory, targets)
     trials = [PARAMETERS] + [{**PARAMETERS, **{key: rng.choice(values) for key, values in TUNE_SPACE.items()}} for _ in range(TUNE_TRIALS - 1)]
     started, history = time.perf_counter(), []
     for round_number, epochs in enumerate(TUNE_ROUNDS):

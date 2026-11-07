@@ -262,12 +262,12 @@ def run_epochs(model, rows, parameters, loss_of, validate):
 
 
 @timed
-def train(directory, output, targets, parameters=PARAMETERS, loader=load_data):
+def train(directory, output, targets, parameters=PARAMETERS):
     targets = validate(targets)
     output = Path(output)
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     torch.manual_seed(SEED)
-    manifest, specs, data = loader(directory, targets)
+    manifest, specs, data = load_data(directory, targets)
     architecture = {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}, "features": manifest["features"]}
     model = AttributeModel(targets, specs, **architecture).to(DEVICE)
     best, history = fit(model, specs, data, parameters)

@@ -4,6 +4,8 @@ from claim_extraction.schema import BOT, decomposed, stored_field
 
 from .config import BOT_SHARE, BOT_TEXTS, CHILD_AGE, NOT_A_CHILD, NUMERIC, SHARE, TOLERANCE
 
+FLAIR = "flair"
+
 
 def close(attribute, left, right):
     kind, amount = TOLERANCE[attribute]
@@ -31,22 +33,26 @@ def plurality(best, support):
     return all(amount < support[best] for value, amount in support.items() if value != best)
 
 
-def evidence(rows):
+def evidence(rows, blocked=frozenset(), flairs=True):
     texts, flagged, found = set(), set(), defaultdict(lambda: defaultdict(set))
-    for attribute, value, digest, *_ in rows:
-        texts.add(digest)
-        if attribute == BOT:
-            flagged.add(digest)
+    for attribute, value, digest, created, subreddit, source in rows:
+        flair = source == FLAIR
+        if flair and not flairs:
             continue
+        if attribute == BOT:
+            if not flair:
+                texts.add(digest)
+                flagged.add(digest)
+            continue
+        if not flair:
+            texts.add(digest)
         for name, stated in decomposed(stored_field(attribute), value):
-            found[name][stated].add(digest)
+            if not (flair and (subreddit, name) in blocked):
+                found[name][stated].add(digest)
     return texts, flagged, found
 
 
-def consolidate(rows, need):
-    texts, flagged, found = evidence(rows)
-    if len(flagged) >= BOT_TEXTS and len(flagged) >= BOT_SHARE * len(texts):
-        return {}
+def decide(found, need):
     decided = {}
     for attribute, values in found.items():
         result = tally(attribute, values)
@@ -55,3 +61,17 @@ def consolidate(rows, need):
     if "age" in decided and float(decided["age"][0]) < CHILD_AGE and any(field in decided and decided[field][0] in values for field, values in NOT_A_CHILD.items()):
         del decided["age"]
     return decided
+
+
+def consolidate(rows, need, blocked=frozenset()):
+    texts, flagged, found = evidence(rows, blocked)
+    if len(flagged) >= BOT_TEXTS and len(flagged) >= BOT_SHARE * len(texts):
+        return {}
+    return decide(found, need)
+
+
+def audit(rows, need):
+    decided = {attribute: result[0] for attribute, result in decide(evidence(rows, flairs=False)[2], need).items()}
+    pairs = {(subreddit, name, stated) for attribute, value, digest, created, subreddit, source in rows if source == FLAIR
+             for name, stated in decomposed(stored_field(attribute), value) if name in decided}
+    return decided, [(subreddit, name, stated, decided[name]) for subreddit, name, stated in pairs]

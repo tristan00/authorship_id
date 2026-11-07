@@ -3,45 +3,30 @@ import shutil
 import time
 from pathlib import Path
 
-import lance
 import numpy as np
-import psycopg
 import pyarrow as pa
 import pyarrow.compute as pc
-from psycopg.rows import dict_row
-from pyarrow import csv
 
-from author_encoder.config import DIMENSIONS, VECTOR_STORE
-from author_encoder.index import PROTOCOL
-from author_encoder.lock import index_lock
 from claim_consolidation.config import NUMERIC
 from claim_extraction.schema import FLAIR_ATTRIBUTES
-from database import DSN
+from database import client
 
 from . import LOG, timed, write_json
-from .config import DEFAULTS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, check_targets, partition, validate
+from .config import DEFAULTS, DIMENSIONS, SPLITS, STRICT_SHARE, STRICT_SUPPORT, VALUE_AUTHORS, check_targets, partition, validate
 
-CLAIMS = "COPY (SELECT author, attribute, value, support, share FROM author_claims WHERE attribute = ANY(%s::claim_field[])) TO STDOUT (FORMAT CSV)"
+CLAIMS = "SELECT author, attribute, value, support, share FROM author_claims WHERE attribute IN {attributes:Array(String)}"
+VECTORS = "SELECT author, vector FROM author_vectors WHERE author IN labeled ORDER BY author"
 ARRAYS = ("users", "labels", "splits")
 SPREAD_ROWS = 1 << 20
 
 
-def source(conn):
-    months = {row["month"]: str(row["loaded_at"]) for row in conn.execute("SELECT month, loaded_at FROM months ORDER BY month")}
-    run = conn.execute("SELECT run_id::text FROM consolidation").fetchone()
-    if not run:
-        raise ValueError("Consolidation must finish before preparing model targets")
-    return {"months": months, "consolidation": run["run_id"], "protocol": json.loads(PROTOCOL)}
+def months(db):
+    return {month: str(loaded) for month, loaded in db.query("SELECT month, loaded_at FROM months ORDER BY month").result_rows}
 
 
 @timed
-def read_claims(conn, targets):
-    chunks = bytearray()
-    with conn.cursor().copy(CLAIMS, [list(targets)]) as copy:
-        for chunk in copy:
-            chunks += chunk
-    types = {"author": pa.string(), "attribute": pa.string(), "value": pa.string(), "support": pa.float32(), "share": pa.float32()}
-    table = csv.read_csv(pa.BufferReader(chunks), read_options=csv.ReadOptions(column_names=list(types)), convert_options=csv.ConvertOptions(column_types=types, strings_can_be_null=False))
+def read_claims(db, targets):
+    table = db.query_arrow(CLAIMS, parameters={"attributes": list(targets)})
     LOG.info("attribute claims rows=%d", table.num_rows)
     return table
 
@@ -59,29 +44,24 @@ def encode(values, name, kind):
 
 
 @timed
-def served(users, labeled, path):
-    names = users.to_table(columns=["author"], scan_in_order=True)["author"]
-    found = pc.fill_null(pc.index_in(names, value_set=labeled), -1).to_numpy()
-    places = np.flatnonzero(found >= 0)
-    position = np.full(len(labeled), -1, dtype=np.int64)
-    position[found[places]] = np.arange(len(places))
-    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(len(places), DIMENSIONS))
-    rows = np.empty(len(places), dtype=np.uint64)
-    scanned = kept = 0
-    started = time.perf_counter()
-    for batch in users.to_batches(columns=["vector", "sample_rows"], batch_size=65536, scan_in_order=True):
-        chosen = pa.array(np.flatnonzero(found[scanned:scanned + batch.num_rows] >= 0))
-        if len(chosen):
-            vectors[kept:kept + len(chosen)] = batch["vector"].take(chosen).flatten().to_numpy().reshape(-1, DIMENSIONS)
-            rows[kept:kept + len(chosen)] = pc.list_element(batch["sample_rows"].take(chosen), 0).to_numpy()
-            kept += len(chosen)
-        scanned += batch.num_rows
-        if scanned % (64 * 65536) < batch.num_rows:
-            LOG.info("served vectors scanned=%d kept_authors=%d seconds=%.1f", scanned, kept, time.perf_counter() - started)
-    if scanned != len(names) or kept != len(places):
-        raise ValueError("User store rows changed between the author and vector scans")
+def read_vectors(db, labeled, path):
+    db.command("CREATE TEMPORARY TABLE labeled (author String)")
+    db.insert_arrow("labeled", pa.table({"author": labeled}))
+    total = db.command("SELECT count() FROM author_vectors WHERE author IN labeled")
+    vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(total, DIMENSIONS))
+    authors, kept, started = [], 0, time.perf_counter()
+    with db.query_arrow_stream(VECTORS) as stream:
+        for batch in stream:
+            vectors[kept:kept + batch.num_rows] = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS)
+            authors += batch["author"].to_pylist()
+            kept += batch.num_rows
+            if kept // (1 << 20) != (kept - batch.num_rows) // (1 << 20):
+                LOG.info("labeled vectors kept=%d of %d seconds=%.1f", kept, total, time.perf_counter() - started)
+    db.command("DROP TEMPORARY TABLE labeled")
+    if kept != total:
+        raise ValueError("Author vectors changed while they were read")
     vectors.flush()
-    return vectors, rows, position, names.take(pa.array(places)).to_pylist()
+    return vectors, authors
 
 
 @timed
@@ -91,34 +71,30 @@ def prepare(directory, targets):
     staging = directory.with_name(directory.name + ".staging")
     if staging.exists():
         shutil.rmtree(staging)
-    with psycopg.connect(DSN, row_factory=dict_row) as conn:
-        expected = source(conn)
-    with index_lock(VECTOR_STORE), psycopg.connect(DSN) as conn:
-        users = lance.dataset(VECTOR_STORE)
-        metadata = users.schema.metadata
-        if metadata.get(b"protocol") != PROTOCOL.encode() or json.loads(metadata[b"source"])["months"] != expected["months"]:
-            raise ValueError("User vectors do not match the completed source months")
-        claims = read_claims(conn, targets)
-        names = pc.unique(claims["author"])
-        buckets = np.fromiter(map(partition, names.to_pylist()), dtype=np.uint8, count=len(names))
-        owner = pc.index_in(claims["author"], value_set=names).to_numpy()
-        evaluated = np.isin(buckets[owner], [bucket for name in ("validation", "calibration", "test") for bucket in SPLITS[name]])
-        judged = pc.and_(pc.greater_equal(claims["support"], STRICT_SUPPORT), pc.greater_equal(claims["share"], STRICT_SHARE))
-        strict = pc.or_(judged, pc.is_in(claims["attribute"], value_set=pa.array(list(FLAIR_ATTRIBUTES)))).to_numpy(zero_copy_only=False)
-        keep = ~evaluated | strict
-        stated = {name: owner[pc.equal(claims["attribute"], name).to_numpy(zero_copy_only=False)] for name in targets if name in DEFAULTS}
-        claims = claims.filter(pa.array(keep))
-        owner = owner[keep]
-        chosen = np.flatnonzero(np.bincount(owner, minlength=len(names)) > 0)
-        labeled = names.take(pa.array(chosen))
-        del names
-        remap = np.full(len(buckets), -1, dtype=np.int64)
-        remap[chosen] = np.arange(len(chosen))
-        owner = remap[owner]
-        stated = {name: remap[found][remap[found] >= 0] for name, found in stated.items()}
-        LOG.info("labeled authors=%d rows=%d", len(labeled), claims.num_rows)
-        staging.mkdir(parents=True)
-        vectors, rows, position, authors = served(users, labeled, staging / "users.npy")
+    db = client()
+    source = {"months": months(db)}
+    claims = read_claims(db, targets)
+    names = pc.unique(claims["author"])
+    buckets = np.fromiter(map(partition, names.to_pylist()), dtype=np.uint8, count=len(names))
+    owner = pc.index_in(claims["author"], value_set=names).to_numpy()
+    evaluated = np.isin(buckets[owner], [bucket for name in ("validation", "calibration", "test") for bucket in SPLITS[name]])
+    judged = pc.and_(pc.greater_equal(claims["support"], STRICT_SUPPORT), pc.greater_equal(claims["share"], STRICT_SHARE))
+    strict = pc.or_(judged, pc.is_in(claims["attribute"], value_set=pa.array(list(FLAIR_ATTRIBUTES)))).to_numpy(zero_copy_only=False)
+    keep = ~evaluated | strict
+    stated = {name: owner[pc.equal(claims["attribute"], name).to_numpy(zero_copy_only=False)] for name in targets if name in DEFAULTS}
+    claims = claims.filter(pa.array(keep))
+    owner = owner[keep]
+    chosen = np.flatnonzero(np.bincount(owner, minlength=len(names)) > 0)
+    labeled = names.take(pa.array(chosen))
+    del names
+    remap = np.full(len(buckets), -1, dtype=np.int64)
+    remap[chosen] = np.arange(len(chosen))
+    owner = remap[owner]
+    stated = {name: remap[found][remap[found] >= 0] for name, found in stated.items()}
+    LOG.info("labeled authors=%d rows=%d", len(labeled), claims.num_rows)
+    staging.mkdir(parents=True)
+    vectors, authors = read_vectors(db, labeled, staging / "users.npy")
+    position = pc.fill_null(pc.index_in(labeled, value_set=pa.array(authors, pa.string())), -1).to_numpy()
     placed = position[owner]
     present = placed >= 0
     labels = np.full((len(authors), len(targets)), np.nan, dtype=np.float32)
@@ -143,10 +119,9 @@ def prepare(directory, targets):
     features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
     np.save(staging / "labels.npy", labels)
     np.save(staging / "splits.npy", splits)
-    np.save(staging / "rows.npy", rows)
     write_json(staging / "authors.json", authors)
     counts = np.isfinite(labels).sum(0)
-    manifest = {"targets": targets, "catalogs": catalogs, "authors": len(authors), "source": expected, "features": features, "target_counts": {name: int(count) for name, count in zip(targets, counts)},
+    manifest = {"targets": targets, "catalogs": catalogs, "authors": len(authors), "source": source, "features": features, "target_counts": {name: int(count) for name, count in zip(targets, counts)},
                 "excluded_out_of_range": excluded, "numeric_ranges": {name: NUMERIC[name] for name, kind in targets.items() if kind == "numeric"}}
     write_json(staging / "manifest.json", manifest)
     del vectors
