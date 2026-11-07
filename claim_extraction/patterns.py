@@ -1,6 +1,6 @@
 from . import characters, demographics, fandom, health, life, lifestyle, location, timed, work
 from .common import BOT_TEXT, Gated, hedged, prepared
-from .literals import build, prime
+from .literals import expressions, prime
 from .prefilter import Prefilter
 from .schema import canonical
 
@@ -8,18 +8,18 @@ SINGLE = frozenset({"age", "gender"})
 RULES = [*demographics.RULES, *location.RULES, *life.RULES, *lifestyle.RULES, *work.RULES, *health.RULES, *fandom.RULES]
 BOT_SAFE = frozenset(attribute for attribute, *_ in (*demographics.RULES, *work.RULES)) | {"automated_account", "relationship_status", "parental_status"}
 GATE_OF = {index: len(RULES) + number for number, index in enumerate(index for index, (_, pattern, *_) in enumerate(RULES) if isinstance(pattern, Gated))}
-PREFILTER = Prefilter([pattern.compiled if isinstance(pattern, Gated) else pattern for _, pattern, *_ in RULES] + [RULES[index][1].gate.__self__ for index in GATE_OF])
-build()
+GROUPS = len(RULES) + len(GATE_OF)
+PREFILTER = Prefilter([pattern.compiled if isinstance(pattern, Gated) else pattern for _, pattern, *_ in RULES] + [RULES[index][1].gate.__self__ for index in GATE_OF] + expressions())
 
 
 def positioned(raw):
     text = prepared(raw)
     lowered = text.lower()
-    prime(text, lowered)
+    flagged = PREFILTER.flagged(lowered)
+    prime(text, lowered, {ident - GROUPS for ident in flagged if ident >= GROUPS})
     found = {}
     automatic = bool(BOT_TEXT.search(lowered))
     demographics.tags(text, lowered, found)
-    flagged = PREFILTER.flagged(lowered)
     for index in sorted(index for index in flagged if index < len(RULES) and GATE_OF.get(index, index) in flagged):
         attribute, pattern, value, hedge = RULES[index]
         if automatic and attribute not in BOT_SAFE:

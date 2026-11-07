@@ -1,8 +1,6 @@
 import re
 from re import _constants as C, _parser as parser
 
-import ahocorasick
-
 CAP = 64
 WIDTH = 3
 COMBINATIONS = 27
@@ -127,50 +125,33 @@ def requirements(pattern, cased, shortest):
     return sorted({group for group in (*groups, exact) if group is not None and usable(group) and min(map(strength, group)) >= shortest}, key=sorted)
 
 
-NEEDS = []
-INDEX = [None, (), (), ()]
+NEEDS, OWNERS = [], []
+INDEX = [None, ()]
+SPELLED = {"0": r"\d", " ": r"\s", "i": "[iıİ]", "k": "[kK]", "s": "[sſ]"}
 
 
 def register(groups):
+    if INDEX[0] is not None:
+        raise ValueError("scans must be created before their expressions are built")
     if not groups:
         return None
-    NEEDS.append(tuple(groups))
+    NEEDS.append(frozenset(range(len(OWNERS), len(OWNERS) + len(groups))))
+    OWNERS.extend((len(NEEDS) - 1, group) for group in groups)
     return len(NEEDS) - 1
 
 
-def build():
-    machine, keyed, groups = ahocorasick.Automaton(), {}, []
-    for slot, needed in enumerate(NEEDS):
-        for group in needed:
-            groups.append(slot)
-            for option in group:
-                keyed.setdefault(option, set()).add(len(groups) - 1)
-    keys = list(keyed)
-    for number, option in enumerate(keys):
-        machine.add_word(option, number)
-    machine.make_automaton()
-    single = [frozenset(groups[ident] for ident in keyed[option] if len(NEEDS[groups[ident]]) == 1) for option in keys]
-    multiple = [frozenset(ident for ident in keyed[option] if len(NEEDS[groups[ident]]) > 1) for option in keys]
-    owners = {}
-    for ident, slot in enumerate(groups):
-        if len(NEEDS[slot]) > 1:
-            owners.setdefault(slot, set()).add(ident)
-    INDEX[0], INDEX[2] = machine, (single, multiple, groups, {slot: frozenset(idents) for slot, idents in owners.items()})
+def spelled(option):
+    return "".join(SPELLED.get(char) or re.escape(char) for char in option)
 
 
-def passed(lowered):
-    single, multiple, groups, owners = INDEX[2]
-    keys = {number for _, number in INDEX[0].iter(lowered.translate(FOLD))}
-    slots = set().union(*[single[number] for number in keys])
-    hits = set().union(*[multiple[number] for number in keys])
-    slots.update(slot for slot in {groups[ident] for ident in hits} if owners[slot] <= hits)
-    return slots
+def expressions():
+    INDEX[0] = [slot for slot, _ in OWNERS]
+    return [re.compile("|".join(sorted(map(spelled, group)))) for _, group in OWNERS]
 
 
-def prime(text, lowered):
-    slots = passed(lowered)
+def prime(text, lowered, hits):
+    slots = {slot for slot in {INDEX[0][ident] for ident in hits} if NEEDS[slot] <= hits}
     INDEX[1] = ((text, slots), (lowered, slots))
-    return slots
 
 
 class Scan:

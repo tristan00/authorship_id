@@ -159,9 +159,12 @@ def longest(words, index, lowered):
     while True:
         if entry := LEXICON.get(name):
             best = size, entry
-        if name not in PREFIXES or index + size == len(words) or not GAP.fullmatch(lowered, words[index + size - 1][1], words[index + size][0]):
+        if name not in PREFIXES or index + size == len(words):
             return best
-        name, size = name + " " + words[index + size][2], size + 1
+        extended = name + " " + words[index + size][2]
+        if extended not in STARTS or not GAP.fullmatch(lowered, words[index + size - 1][1], words[index + size][0]):
+            return best
+        name, size = extended, size + 1
 
 
 def mentions(text, lowered):
