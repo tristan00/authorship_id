@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from .common import HEDGE, SELF_HEDGE, TAGGED, clause, fixed, group, rule
+from .common import HEDGE, SELF_HEDGE, TAGGED, clause, fixed, group, needs, rule
 
 ME = r"i(?<!\wi)(?:'m|m| am|am| m|'am|'?ve been|'ve always been)"
 NEAR = re.compile(r"\b(?:be|become|becoming|imagine|pretend|roleplay|rp|future|someday|dream|wish|if i (?:ever )?(?:had|have|get|got|find)|when i (?:have|get|find))[\s'\"*_]+(?:\w+[\s'\"*_]+)?$")
@@ -51,10 +51,11 @@ OPENING = r"(?:^\W*|[\n.!?]\s*|[\]\)]\s*|[-|:]\s+)"
 TAIL = (r"(?! (?:to (?:the|this|that|it|my (?:job|work|career))|by|about|in terms|aback|care|seriously|advantage|in (?:a|an|the|this|that|it|some|conversation|discussion|debate|activities|activity|work)|handedly|digit|file|minded|out|away|back|off|over|up|"
         r"with (?:the|this|that|it|work))\b)")
 KIN = r"(?:brother|sister|son|daughter|dad|mom|mum|father|mother|cousin|friend|friends|uncle|aunt|boss|neighbou?r|roommate|buddy|bro|sis|ex|former|future|dream|next|last|previous|first|late|dead|imaginary|fake|virtual|ai|old|then|best|own)"
-FOLLOW = (r"(?=\s*(?:[.,!;:)(/\n]|$|\d|(?:and|but|with|for|since|in|here|now|again|too|af|m|f|male|female|man|woman|guy|girl|gal|lady|dude|mom|mum|mother|dad|father|parent|bbw|milf|dilf|couple)\b"
+FOLLOW = (r"(?=\s*(?:[.,!;:)(/\n]|$|\d|[mf]\s?\d{2}\b|(?:and|but|with|for|since|in|here|now|again|too|af|m|f|male|female|man|woman|guy|girl|gal|lady|dude|mom|mum|mother|dad|father|parent|bbw|milf|dilf|couple)\b"
           r"|\w+ (?:with|and|from|in|looking|seeking|here|male|female|man|woman|guy|girl|mom|dad)\b))")
 
 
+THIRD = re.compile(r"\b(?:he|she|they|you|u|his|her|their|your|ur)\b")
 COUPLED = re.compile(r"\b(?:married|wife|husband|hubby|hotwife)\b")
 PAIRED = re.compile(r"\b(?:couple|we|our)\b")
 SELF = re.compile(r"\b(?:i|me|my|we|our|us|i'm|im|i've)\b")
@@ -138,6 +139,28 @@ COUPLE_ADS = (r"^\W*(?:(?:\d{2}\s*(?:[mf]\s*)?(?:/\s*\d{2}\s*(?:[mf]\s*)?)?)?[\[
               r"(?:couple(?<=\bcouple) here|we(?<=\bwe)(?:'re| are) an? (?:\w+ )?couple)\b(?! (?:of|days?|weeks?|months?|years?|hours?|minutes?|games?|more|points?|times?|steps?|levels?)\b)")
 
 
+UNPARTNERED = re.compile(r"\b(?:wife|husband|hubby|my bf|my gf|my boyfriend|my girlfriend|my partner|engaged|fianc[ée]e?)\b")
+NEVER_LEAD = re.compile(r"(?:^|[.!?\n,;(]|\band|\bbut|\bi|\bi've|\bi have|\bi'm|\bim|\bi am|\bstill)\s*$")
+BREAK_LEAD = re.compile(r"(?:^|[.!?\n]\s*)(?:i )?(?:just |recently |finally )?$")
+
+
+def unpartnered(match):
+    text = match.group()
+    lead = NEVER_LEAD if text.startswith("never") else BREAK_LEAD if text.startswith("broke up with") and not text.endswith(" me") else None
+    if lead and not lead.search(match.string, max(0, match.start() - 24), match.start()):
+        return None
+    return "single" if spoken(match) and not UNPARTNERED.search(match.string, match.end()) else None
+
+
+STATUS_LEAD = re.compile(r"(?:\b(?:as|being|i'm|im|i am|just|a fellow|as a fellow) an? |^\W*|[\n.!?]\s*|\b\d{2}\s*[mf]?\s*,?\s*|[\]\)]\s*)(?:(?!not|un|never|ex|former|soon|my|your|his|her|their|the|every|each|any|married)[\w-]+ ){0,2}$")
+
+
+def status_person(match):
+    if not STATUS_LEAD.search(match.string, max(0, match.start() - 60), match.start()) or THIRD.search(match.string, sentence(match)[0], match.start()):
+        return None
+    return stated(kept(STATUSES[match.group(1)]), FUTURE)(match)
+
+
 RELATIONSHIP = [
     rule("relationship_status", rf"(?:my(?<=\bmy)|our(?<=\bour))\s*(?:\(\d{{2}} ?[mf]?\) ?)?(?:{FOND}[ ,]+){{0,3}}{SPOUSE}(?:'s)?\b(?![- ]?to[- ]be|(?:'s)? (?:in crime|at the time|back then|in (?:high school|college)|died|passed)\b|(?<=partner) (?:subreddits?|subs|communit(?:y|ies)|sites?|compan(?:y|ies)|organi[sz]ations?|programs?|brands?|channels?|servers?|stores?|shops?|schools?|agenc(?:y|ies)|networks?|pages?|firms?|businesses|universit(?:y|ies)|institutions?)\b)", partnered, TAGGED),
     rule("relationship_status", rf"(?:^|[\n.!?]\s*|\]\s*){BARE_TAIL}", bare_spouse, TAGGED),
@@ -173,7 +196,7 @@ RELATIONSHIP = [
          r"|\bfellow married (?:man|guy|woman|lady|dad|mom|mum|father|mother|person|parent)\b", stated(kept(MARRIED), FUTURE), TAGGED),
     rule("relationship_status", r"\bmy (?:ex[- ]?(?:wife|husband|hubby|spouse|husbands|wifes)|divorce)\b|\b(?:after|since|during|before|post|through|finalized) (?:my|our|the) divorce\b|\b(?:i|we) (?:got|were|are|'re|am|'m) (?:\w+ )?divorced\b|\b(?:recently|newly|twice) divorced\b|\bdivorcee\b",
          fixed("divorced"), SCOPED),
-    rule("relationship_status", r"\b(?:recently|newly|happily|still|forever) single\b|\b(?:i have|i've got|i got|i'm|im|with) no (?:partner|gf|bf|girlfriend|boyfriend|wife|husband|relationship|spouse|so)\b"
+    rule("relationship_status", r"\b(?:recently|newly|happily|still|forever|freshly|blissfully|proudly|totally|currently) single\b|\b(?:i have|i've got|i got|i'm|im|with) no (?:partner|gf|bf|girlfriend|boyfriend|wife|husband|relationship|spouse|so)\b"
          r"|\b(?<![^,; ])(?<![^,;] )no (?:partner|gf|bf|girlfriend|boyfriend|wife|husband|spouse)\s*[,;&]|\b(?<!you )(?<!he )(?<!she )(?<!they )(?<!u )(?:don't|do not|dont) (?:currently |even |really )?have (?:a |an )?(?:girlfriend|boyfriend|gf|bf|partner|significant other|wife|husband|spouse)\b"
          r"|\b(?:у меня нет|я не) (?:сейчас )?(?:отношений|девушки|парня|жены|мужа|замужем|женат)", fixed("single"), CONDITIONAL),
     rule("relationship_status", r"\b(?:estoy|soy) (?:felizmente |recién |recien |ya |también |tambien |todavía |todavia |aún |aun )?(casad[oa]|solter[oa]|divorciad[oa]|comprometid[oa]|separad[oa]|viud[oa])\b|\bestoy (?:en una relación|de novi[oa])\b|\b(?:sou|estou) (?:felizmente |recém |recem |já |ja |também |tambem |ainda )?(casad[oa]|solteir[oa]|divorciad[oa]|noiv[oa]|separad[oa]|viúv[oa]|viuv[oa])\b|\bestou (?:numa|em uma) relação\b"
@@ -199,6 +222,15 @@ RELATIONSHIP = [
     rule("relationship_status", r"looking for (?<=\blooking for )(?:a |an |my )?(?:\w+ )?(?:ltr|long[- ]term relationship|relationship|girlfriend|boyfriend|gf|bf|wife|husband|soulmate|life partner)\b", seeking, SELF_HEDGE),
     rule("relationship_status", SOLO_AD, soliciting, TAGGED),
     rule("relationship_status", r"hub(?<![\w'-]hub)(?:by|bie)(?:'s)?(?![\w'-])(?! material| hole)|hubs and i\b", bare, SELF_HEDGE),
+    needs(rule("relationship_status", r"never (?<=\bnever )(?:been )?(?:married|dated)\b(?! (?:a|an|the|someone|anyone|him|her|them|my|your)\b)|broke up (?<=\bbroke up )w(?:ith (?:my|him|her)\b|(?:/|ith)? me\b)|(?:my(?<=\bmy)|our(?<=\bour)) (?:\w+ )?(?:gf|bf|girlfriend|boyfriend|partner|fianc[ée]e?) (?:of \w+ (?:years?|months?) )?(?:breaking up with|leaving|dumping) me\b",
+         unpartnered, TAGGED), "never", "broke up", "breaking up", "leaving me", "dumping me"),
+    needs(rule("relationship_status", r"\b(?:the |this )?(?:woman|man|girl|guy|person|lady|someone|gal|dude) (?:that |who )?(?:i'm|im|i am|i've been|i have been) (?:currently |now |casually )?(?:dating|seeing)\b",
+         lambda match: None if ENDED.search(match.string) or BROKEN.search(match.string) else stated(kept(DATING), FUTURE)(match), TAGGED), "dating", "seeing"),
+    needs(rule("relationship_status", r"\b(?:me and|me & ) my (?:man|girl|guy|woman|lady|boo|bae)\b|\bmy (?:man|girl|guy|woman|lady|boo|bae) (?:and|&) i\b", lambda match: None if BROKEN.search(match.string) else kept(DATING)(match), TAGGED), "me and", "me & ", " and i", " & i"),
+    needs(rule("relationship_status", r"(?:(?<=\w) ?\(|(?<=[\w)\]]),)\s*single\b(?=\s*[),.]|\s+and\b)", lambda match: None if ATTACHED.search(match.string) or THIRD.search(match.string, sentence(match)[0], match.start()) else kept("single")(match), TAGGED), "single"),
+    needs(rule("relationship_status", r"\bmy (?!future |soon )(?:\w+ )ex[- ]?(?:wife|husband|hubby|spouse)\b", lambda match: "divorced" if spoken(match) else None, TAGGED), "ex"),
+    needs(rule("relationship_status", r"\b(?:i'm|im|i am) (?:already|just|actually|technically|currently|recently|newly|happily|so|totally|definitely|very|completely|literally|basically) (engaged|separated|divorced|in a relationship|single)\b|\bmy (?:recent )?engagement\b(?! (?:ring|rings|photos?|party|shoot|announcement|ceremony)\b)", lambda match: stated(kept(STATUSES.get(match.group(1), ENGAGED)), FUTURE)(match), TAGGED), "engage", "separated", "divorced", "relationship", "single"),
+    needs(rule("relationship_status", r"\b(single|divorced|separated|widowed) (?:man|guy|woman|lady|dad|mom|mum|father|mother|person|male|female|gal|dude|parent|mama|daddy|mommy)\b(?!s\b|'s\b)", status_person, TAGGED), "single", "divorced", "separated", "widowed"),
 ]
 
 CHILD = (r"(sons?|daughters?|kids?|kiddos?|children|child|toddlers?|twins|triplets|step-?kids|step-?sons?|step-?daughters?|newborn|infant|teenagers?|teen|little ones?|babies|baby|bub|bubba|"
@@ -267,6 +299,28 @@ def child(match):
     return "has children"
 
 
+KID_NOUN = (r"(?:kids?|kiddos?|children|child|sons?|daughters?|toddlers?|teens|teenagers|newborn|infant|twins|triplets|stepkids|step-?sons?|step-?daughters?|grandkids|grandchildren|"
+            r"(?:1[0-7]|[1-9]|one|two|three|four|five|six|seven|eight|nine|ten)(?:[.,]5| 1/2| and a half)?[- ]?(?:years?|yrs?|y/o|yo|months?|mos?|weeks?|wks?)[- ]?olds?)")
+KID_COUNT = r"(?:(?:only |just )?(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|my|our|several|multiple) )?"
+KID_WORDS = r"(?:(?!(?:no|any|not|never|to|been|seen|met|heard|watched|known|taught|worked|told|asked|other|those|these|the|this|that|your|his|her|their|some|many|lots|plenty|more|enough|of|with|in|at|for|on|by|from|about|like|as|until|till|since|when|after|before|and|or|but|so|then|than)\b)(?![a-z]+ed\b)[a-z\d-]+ ){0,2}"
+KID_AFTER = r"\b(?!'s|'| (?:of|in law|in-law|in (?:my|the|our|his|her|class|school)|at|who|that|from|come|came|ask|asked|tell|told|say|said|walk|walked|run|ran|on|over|when|someday|before|edition|dogs?|cats?|pups?|puppy|car|house|laptop|phone)\b)"
+HAD_KIDS = re.compile(r"\b(?:you|u|he|she|they|who|people|parents|someone|her|him|his|their)\b")
+LEADING = re.compile(r"(?:^|[.!?\n,;]\s*|\band |\bbut )(?:also |now |still |already )?$")
+
+
+def raising(match):
+    if not match.group().startswith(("i", "we")) and not LEADING.search(match.string, max(0, match.start() - 16), match.start()):
+        return None
+    return None if HAD_KIDS.search(match.string, sentence(match)[0], match.start()) else stated(kept("has children"), FUTURE)(match)
+
+
+OTHERS_PARENT = re.compile(r"\b(?:my|his|her|their|your|our|the|whose|he|she|they|you)\b")
+
+
+def parent_label(match):
+    return None if OTHERS_PARENT.search(match.string, clause(match.string, match.start()), match.start()) else stated(kept("has children"), FUTURE)(match)
+
+
 PARENTAL = [
     rule("parental_status", rf"(?:my (?<=\bmy )|our (?<=\bour ))(?:{QUALIFIER}[- ,]+){{0,3}}{CHILD}(?:'s)?\b(?! (?:of|in law|in-law|self|selves|hood|years?|cups?|tits|boobs|sister|brother|face|fever|shower)\b)", child, TAGGED),
     rule("parental_status", rf"\b(?:my|our) (?!(?:future|dream|unborn|imaginary|dog|cat|pup|puppy|fur|furry|kitty|bunny|plant|pet|god|ex|friends?|neighbou?rs?|sisters?|brothers?|cousins?|boyfriends?|girlfriends?|wife|husband|partner|aunt|uncle|boss|inner|little|baby|big|good)\b)[a-z]+ "
@@ -281,11 +335,11 @@ PARENTAL = [
          stated(kept("has children"), FUTURE), TAGGED),
     rule("parental_status", rf"(?:{ME}|{AS}) (?:a|an) (?:(?!dog|cat|pet|plant|fur|cool|den|house|god|team|group|band|boat|bonus|stage|foster|wine|soccer|hockey|horse|bunny|plant|chicken)\w+ )?(?:mom|mum|mommy|mama|mother|dad|father|parent|single mom|single dad|stepmom|stepdad|grandma|grandpa|grandmother|grandfather|grandparent|nana|granny)\b"
          r"(?! (?:of|to) (?:a|my|\d+|two|three) (?:dogs?|cats?|pets?|plants?|fur)| figure| friend| to (?:my|a|all) (?:dogs?|cats?|pets?))", stated(kept("has children"), FUTURE), TAGGED),
-    rule("parental_status", r"(?<!dog )(?<!cat )(?<!fur )(?<!pet )(?<!plant )\b(?:mom|mum|mama|mommy|mother|dad|father|parent) (?:of|to) (?:\d+|one|two|three|four|five|six|seven|twins|triplets|a (?:\w+ )?(?:boy|girl|son|daughter|toddler|newborn|baby|teen|\d+))\b(?! (?:dogs?|cats?|pets?|fur))", stated(kept("has children"), FUTURE), TAGGED),
-    rule("parental_status", r"\b(?:married|single|divorced|working|busy|tired|new|young|proud|first[- ]time|exhausted|stay[- ]at[- ]home|full[- ]time|solo|widowed|separated|older|hot|bored|lonely|bi|pervy|horny|sexy|naughty|boy|girl|twin|homeschool(?:ing)?|toddler|teen|preemie|nicu|autism|special needs|military|working[- ]class) ?(?:dad|mom|mum|father|mother|mama|mommy|parent)\b(?!s| bod| jokes?| energy| vibes| groups?| friends?| life| figure)",
-         lambda match: stated(kept("has children"), FUTURE)(match) if PARENT_LEAD.search(match.string, max(0, match.start() - 60), match.start()) else None, TAGGED),
+    needs(rule("parental_status", r"(?<!dog )(?<!cat )(?<!fur )(?<!pet )(?<!plant )\b(?:mom|mum|mama|mommy|mother|dad|father|parent) (?:of|to) (?:\d+|one|two|three|four|five|six|seven|twins|triplets|a (?:\w+ )?(?:boy|girl|son|daughter|toddler|newborn|baby|teen|\d+))\b(?! (?:dogs?|cats?|pets?|fur))", stated(kept("has children"), FUTURE), TAGGED), "mom", "mum", "mama", "mother", "dad", "father", "parent"),
+    needs(rule("parental_status", r"\b(?:married|single|divorced|working|busy|tired|new|young|proud|first[- ]time|exhausted|stay[- ]at[- ]home|full[- ]time|solo|widowed|separated|older|hot|bored|lonely|bi|pervy|horny|sexy|naughty|boy|girl|twin|homeschool(?:ing)?|toddler|teen|preemie|nicu|autism|special needs|military|working[- ]class) ?(?:dad|mom|mum|father|mother|mama|mommy|parent)\b(?!s| bod| jokes?| energy| vibes| groups?| friends?| life| figure)",
+         lambda match: stated(kept("has children"), FUTURE)(match) if PARENT_LEAD.search(match.string, max(0, match.start() - 60), match.start()) else None, TAGGED), "dad", "mom", "mum", "father", "mother", "mama", "parent"),
     rule("parental_status", r"^\W*[\[\(]?(?:\d{2}\s*[mf]?|[mf]\s*\d{2})[\]\)]?\W*(?:(?!dog|cat|fur|plant|pet|bonus|step|soccer|hockey|boy|girl)\w+\s+){0,2}(?:mom|mum|mother|mommy|mama|dad|father)\b(?!s| bod| jeans| energy| vibes| jokes?)", kept("has children"), TAGGED),
-    rule("parental_status", rf"\b\d{{2}}\s*[mf]?\s*,?\s*(?:mom|mum|dad|mama|mother|father)\b(?!s| bod| jokes?| energy| vibes)|\bfellow (?:parent|mom|mum|dad|mother|father)s?\b|\b(?:my|our) (?:wife|husband|hubby|partner|spouse) (?:and|&) (?:our |my |the )?(?:\d+ |two |three |four )?{CHILD}\b"
+    rule("parental_status", rf"\b\d{{2}}\s*[mf]?\s*,?\s*(?:mom|mum|dad|mama|mother|father)\b(?!s| bod| jokes?| energy| vibes)|\bthe (?:kids|kiddos|children|twins|baby|little ones?) and (?:i|me)\b|\b(?:me|myself) (?:and|&) the (?:kids|kiddos|children|twins|baby|little ones?)\b|\bfellow (?:parent|mom|mum|dad|mother|father)s?\b|\b(?:my|our) (?:wife|husband|hubby|partner|spouse) (?:and|&) (?:our |my |the )?(?:\d+ |two |three |four )?{CHILD}\b"
          rf"|\b(?<![^\n.!? ])(?<![^\n.!?] )(?:the )?(?:wife|husband|hubby) (?:and|&) (?:the )?(?:\d+ |two |three )?(?:kids?|children|sons?|daughters?|boys|girls)\b|\b(?:i (?:do |also |already )?have|i've got|we (?:do |also |already )?have) (?:a|an|one|two|three|\d) (?:1[0-7]|\d|one|two|three|four|five|six|seven|eight|nine|ten)(?!\d)(?: 1/2| and a half)?[- ]?(?:year|yr|month)s?[- ]?olds?\b(?! (?:dog|cat|pup|puppy|kitten|horse|car|house|laptop|computer|phone))",
          kept("has children"), TAGGED),
     rule("parental_status", rf"\b(?:my|our) (\d+|one|two|three|four|five|six|seven|eight|nine|ten)[- ]?(yo|y/o|year[- ]old|yr[- ]old|month[- ]old|week[- ]old)s?(?= (?!(?:{NOT_CHILD})\b)[a-z]+\b|[.,!?;)])",
@@ -313,17 +367,24 @@ PARENTAL = [
     rule("parental_status", r"\bi (?:don't|do not|dont) have (?:any )?(?:kids|children|a kid|a child)\b|\b(?:i'm|im|i am|we're|we are|as an?) (?:\w+ )?child[- ]?free\b|\bno kids of my own\b|\bi(?:'ve| have) never had (?:kids|children)\b|\bwe (?:don't|do not|dont) have (?:any )?(?:kids|children)\b"
          r"|\b(?:i'm|im|i am) (?:not a (?:mom|mum|mother|dad|father|parent)|childless)\b|\bchild-?free (?:here|by choice)\b|\bno kids here\b|\bwe(?:'re| are) (?:a )?dinks?\b"
          r"|\b(?:i|we) (?:love |enjoy )?being (?:kid|child)[- ]?free\b|\b(?:i|we) (?:can't|cannot|can not|couldn't|could not|wasn't able to|weren't able to|was never able to|am not able to) (?:have (?:kids|children|a baby|babies|a child)|conceive)\b"
-         r"|\bneither of us (?:is|are|can|was|were) (?:able to )?(?:have|has) (?:kids|children)\b|\bi(?:'m| am) infertile\b|\b(?:ich habe|ich hab|wir haben) (?:noch |gar |auch )?keine? (?:kind|kinder)\b|\b(?:je n'ai|nous n'avons) pas d'enfants?\b|\bno (?:tengo|tenemos) hijos?\b|\bn[ãa]o (?:tenho|temos) filhos?\b|\bnon (?:ho|abbiamo) figli\b|\b(?:ik|wij|we) (?:heb|hebben) geen kinderen\b|\b(?:jeg|vi) har ingen børn\b|\b(?:jag|vi) har inga barn\b|\b(?:nemám|nemáme) (?:\w+ )?děti\b|\bděti nemám\b|\bje ne suis pas (?:père|mère)\b", fixed("no children"), CONDITIONAL),
+         r"|\bneither of us (?:is|are|can|was|were) (?:able to )?(?:have|has) (?:kids|children)\b|\bi(?:'m| am) infertile\b|\b(?:ich habe|ich hab|wir haben) (?:noch |gar |auch )?keine? (?:kind|kinder)\b|\b(?:je n'ai|nous n'avons) pas d'enfants?\b|\bno (?:tengo|tenemos) hijos?\b|\bn[ãa]o (?:tenho|temos) filhos?\b|\bnon (?:ho|abbiamo) figli\b|\b(?:ik|wij|we) (?:heb|hebben) geen kinderen\b|\b(?:jeg|vi) har ingen børn\b|\b(?:jag|vi) har inga barn\b|\b(?:nemám|nemáme) (?:\w+ )?děti\b|\bděti nemám\b|\bje ne suis pas (?:père|mère)\b"
+         r"|\bi (?:also |still |just |really |even |currently |personally |myself |actually )(?:don't|do not|dont) have (?:any )?(?:kids|children)\b|\bi (?:\w+ )?(?:don't|do not|dont|never) (?:ever )?want(?:ed)? (?:any )?(?:kids|children)\b|\bi (?:also )?never (?:married or )?had (?:any )?(?:kids|children)\b|\b(?:i'm|im|i am|i ain't|i aint) (?:not |never )having (?:any )?(?:kids|children)\b|\bno dependents\b", fixed("no children"), CONDITIONAL),
     rule("parental_status", r"\b(?:after|before|since) (?:i had|having) (?:my|our) (?:first|second|third|son|daughter|kids?|children|baby|babies)\b"
          r"|\bbefore i (?:got|became|was) pregnant (?:the first time|with (?:my|our))\b|\bafter my (?:first|second|third|last|previous|\d+(?:st|nd|rd|th)) pregnancy\b|\bwhen (?:i|we) had (?:my|our) (?:first|second|son|daughter|kids?|baby)\b", stated(kept("has children"), FUTURE), TAGGED),
     rule("parental_status", r"\b(?:after|since|before) (?:just )?having (?:a |my |our |\d |two |three |four |the )?(?:\w+ )?(?:baby|babies|kids?|children|child|twins|son|daughter)\b|\bafter (?:having )?baby\b|\bafter i had my (?:\w+ )?(?:baby|son|daughter|kids?|first|second|third|twins)\b"
          r"|\b\d+ ?(?:years?|yrs?) post[- ]?partum\b|\b(?:i'm|im|i am) \d+ ?(?:weeks?|months?|wks?|mos?) pp\b|\b(?:my|both of my|all of my|each of my|all my|both my) (?:\w+ )?pregnancies\b|\b(?:i|since i|after i|when i) (?:just |recently |finally )?became a (?:\w+ )?(?:mom|mum|mother|dad|father|parent)\b"
-         r"|\b(?:we|i) (?:just |recently )?had (?:a|our|my) (?:\w+ )?(?:baby|child|son|daughter)\b(?! (?:shower|of|in))|\b(?:married|divorced|single|separated|widowed) (?:with|w/) (?:(?:\d+|one|two|three|four|five|a|an) )?(?:(?!no\b)\w+ )?(?:kids?|children|child|sons?|daughters?|boys|girls)\b"
+         r"|\b(?:we|i) (?:just |recently )?had (?:a|our|my) (?:\w+ )?(?:baby|child|son|daughter)\b(?! (?:shower|of|in))|\b(?:married|divorced|single|separated|widowed) (?:with|w/) (?:(?:\d+|one|two|three|four|five|a|an) )?(?:(?!no\b)\w+ )?(?:kids?|kiddos?|children|child|sons?|daughters?|boys|girls|toddlers?|teens|babies|baby)\b"
          r"|\b(?<![^\n,;:(|/ ])(?<![^\n,;:(|/] )(?:\d|two|three|four|five) (?:kids|children|teens|kinder|kinderen|hijos|enfants|filhos|figli|børn|dzieci|děti)\b|\bkids\s*:\s*[1-9]"
          r"|\b(?:i was|i got|i had to be) induced\b|\bmy waters? broke\b|\bi was in labou?r\b|\b(?:both|all) (?:of )?my (?:births|deliveries|labou?rs)\b|\bi(?: had|'ve had| have had) (?:two |three |\d |a |an )?(?:c-?sections?|vaginal births?|home births?|natural births?|unmedicated births?)\b", stated(kept("has children"), FUTURE), TAGGED),
     rule("parental_status", r"(?:my (?<=\bmy )|our (?<=\bour ))(?:two|three|four|five|\d|twin|little|baby|eldest|oldest|youngest|middle|teenage|fourth|third|second|first) (boys|girls|boy|girl)\b", child, TAGGED),
     rule("parental_status", r"(?:baby|toddler|kiddo|lo|bub) (?:is|was|has|had|decided|needs|got|will|sleeps|slept|woke|wakes|just|still|started|loves|hates|refuses|won't|doesn't|did|turned|takes|eats|arrived|came)\b", parenting, TAGGED),
     rule("parental_status", rf"(?:my (?<=\bmy )|our (?<=\bour )){ORDINAL}(?: one| two| three)?(?=[.,!?;)]|$| (?:and|but|at|in|i|we|he|she|they|it|was|is|had|has|took|came|arrived|weighed|needed|cried|slept|sleeps|loved|hated|refused|turned|started|didn't|did|wasn't|isn't|got)\b)", birth_order, TAGGED),
+    needs(rule("parental_status", rf"(?:(?:i(?<=\bi)|we(?<=\bwe))(?:'ve| have)? (?:also |both |still |even |do |did |already |now |currently |usually |only )?(?:have|had|got|raised|birthed)"
+         rf"|(?:have|had|got|raised)(?<![\w'-]have)(?<![\w'-]had)(?<![\w'-]got)(?<![\w'-]raised)) {KID_COUNT}{KID_WORDS}{KID_NOUN}{KID_AFTER}", raising, TAGGED), "kid", "child", "son", "daughter", "toddler", "teen", "newborn", "infant", "twin", "triplet", "step", "grand", "old"),
+    needs(rule("parental_status", rf"{ME} (?:\w+,? ){{1,3}}and an? (?:(?!dog|cat|pet|plant|fur|god|team|house|den|foster|soccer|hockey|boat|band)\w+ )?(?:mom|mum|mother|dad|father|parent)\b(?! (?:of|to) (?:a |my |\d+ |two |three )?(?:dogs?|cats?|pets?|plants?|fur))|\b\d{{2}}\s*(?:yo|y/o|years? old|year-old|yr old|yrs old)\s*,?\s*(?:(?!dog|cat|pet|plant|fur|boy|girl)\w+ )?(?:mom|mum|dad|mama|mother|father)\b(?!s| bod| jokes?| energy| vibes)",
+         parent_label, TAGGED), "mom", "mum", "mother", "dad", "father", "parent", "mama"),
+    needs(rule("parental_status", r"\b(?:as|being) an? (?:(?!dog|cat|pet|plant|fur|god|team|house|den|foster|soccer|hockey|boat|band|bonus|future|good|bad)\w+ )?(?:mom|mum|mother|dad|father|parent|mama|mommy)\b(?! (?:of|to) (?:a |my |\d+ |two |three )?(?:dogs?|cats?|pets?|plants?|fur)| figure| friend)",
+         lambda match: parent_label(match) if SELF.search(match.string, *sentence(match)) else None, TAGGED), "mom", "mum", "mother", "dad", "father", "parent", "mama"),
 ]
 
 AKC_BREEDS = ("affenpinscher", "afghan hound", "airedale terrier", "akita", "alaskan klee kai", "alaskan malamute", "american bulldog", "american english coonhound", "american eskimo dog", "american foxhound", "american hairless terrier",
@@ -459,6 +520,13 @@ HOUSING = [
     rule("housing", r"\b(?:(bought|purchased|closed on|built) (?:a|my|our|the|this) (?:[\w-]+ ){0,2}(?:house|home|condo|townhouse|place|property)\b(?! (?:for|as an investment)\b)|(?:renting|leasing|rent|rented|lease|leased) (?:a|an|my|our|this|the) (?:[\w-]+ ){0,2}(?:apartment|apt|flat|room|house|home|place|studio|unit|condo|townhouse)\b(?! out\b))", tenure, SELF_HEDGE),
     rule("housing", r"\b(?:my|our) first (?:house|home|condo|townhouse)\b(?! (?:game|run|base|office|page|screen)\b)|\bmoved into (?:my|our) (?:new |current )?(?:house|home|condo)\b|\b(?:got|have|bought) (?:my|our) own (?:place|house|home)\b|\bin the process of (?:buying|purchasing|closing on)\b",
          lambda match: stated(kept("homeowner"), FUTURE)(match) if SELF.search(match.string, *sentence(match)) else None, TAGGED),
+    needs(rule("housing", r"(?:\b(?:i'm|im|i am|i've been|i was|we're|we are|as|being|and|also)(?: (?:a|an|the|now|also|still|currently|finally|proudly|happily|just))*(?: [\w-]+){0,2} |^\W*|[\n.!?(\[,]\s*)(home ?owners?|renters?)\b(?! (?:who|that|insurance|policy|association|associations|rights|protections?|credit|grant|programs?|market|groups?)\b)(?=\s*(?:[.,!;:)\]\n]|$|here|too|myself|and|but|with|in|for|since|now|so)\b|\s*[.,!;:)\]\n]|\s*$)",
+         lambda match: ("homeowner" if "own" in match.group(1) else "renter") if spoken(match) and not THIRD.search(match.string, sentence(match)[0], match.start()) and not MAYBE.search(match.string, sentence(match)[0], match.start()) else None, TAGGED), "owner", "renter"),
+    needs(rule("housing", r"\b(?:i|i'm|im|i am|i've been|i have been|i became|i ended up|i'm about to be|i am about to be|i'm going to be)(?: (?:just|now|currently|still|literally|basically|technically|actually|recently|already|officially|essentially|briefly|temporarily))? (?:became |become |ended up |end up |been )?homeless\b(?! (?:people|person|man|woman|guy|men|women|folks|shelters?|population|encampments?|camps?|kids|youth|veterans?)\b)"
+         r"|\bi (?:\w+ )?(?:live|living|lived) (?:in|out of) (?:a|my) (?:tent|car|van|vehicle|truck|shelter)\b|\bi(?:'m| am|'ve been| have been)? (?:\w+ )?unhoused\b", stated(kept("homeless"), FUTURE), TAGGED), "homeless", "tent", "car", "van", "vehicle", "truck", "shelter", "unhoused"),
+    needs(rule("housing", r"\b(?:i|we)(?:'ve| have)? (?:actually |also |already |finally |now |still |currently |just )?(?:own|owned) (?:a|my|our|\d|two|three) (?:[\w-]+ ){0,2}(?:house|home|condo|townhouse|townhome|place|flat|apartment|homes|houses|condos)\b(?! (?:for|as an investment|games?|office|gym|theater|theatre|network|page|screen)\b)"
+         r"|\b(?:i|we) (?:\w+ )?(?:live|living|lived) in (?:a|an) (?:\w+ )?rented (?:apartment|flat|house|room|place|home|condo|unit|studio)\b|\b(?:i|we)(?:'ve| have) (?:only |always |never |also )?(?:ever )?rented\b(?! (?:a car|cars?|out|it|them|movies?|equipment|tools?|bikes?|a truck|a van|boats?|kayaks?)\b)|\b(?:i|we)(?:'re| are|'m| am)? (?:about to be |being |getting |got |just got )evicted\b",
+         lambda match: stated(kept("renter" if "rent" in match.group() or "evict" in match.group() else "homeowner"), FUTURE)(match) if first_person(match) else None, TAGGED), "own", "rent", "evict"),
 ]
 
 RULES = [*RELATIONSHIP, *PARENTAL, *scoped_rules(PETS), *scoped_rules(LIVING), *HOUSING]

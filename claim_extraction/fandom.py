@@ -252,7 +252,8 @@ def favorites(text, found):
         if not hedged(lowered, match.start(), match.end(), SELF_HEDGE) and (hit := lexical(STOP.split(match.group(1))[0])) and hit[0] in NAMED_ONLY:
             named(*hit, found, match.start())
     for match in CHOICE.finditer(text):
-        if " " in (name := match.group(1).strip()) and (hit := lexical(name)):
+        name = match.group(1).strip()
+        if (hit := lexical(name) if " " in name else proper(name)) and (" " in name or hit[0] != "author"):
             named(*hit, found, match.start())
     for pattern in (CREATED, WATCHED):
         for match in pattern.finditer(text):
@@ -268,7 +269,33 @@ def favorites(text, found):
                     if not hit or hit[0] == "artist":
                         named("artist", hit[1] if hit else piece, found, match.start())
     authored(text, found)
+    answered(text, found)
     known(text, found)
+
+
+ANSWER = re.compile(r"(?i:(?:(i'?d say|i'?d go with|i go with|easily|definitely|probably|obviously|prob|has to be|gotta be|got to be|clearly|always|me|mine|mine is|for me) )?(.+?)(,? (?:for me|for sure|defo|definitely|easily|100%|hands down|all day|obviously|by far|for now|all the way|of course|forever|always|imo|tbh|no question|no doubt|is the goat|my goat|the goat))?)")
+HEADERS = re.compile(r"(?:\s*\n|[*_#>\s]*\*[^*\n]+\*[*_ \t]*\n)*+")
+ANSWERED = ("athlete", "creator", "celebrity")
+
+
+def answered(text, found):
+    head, _, last = text.strip().rpartition("\n")
+    if not last or head and not HEADERS.fullmatch(head + "\n"):
+        return
+    core = last.strip("*_#>~ \t").rstrip(" .!,🐐👑")
+    match = ANSWER.fullmatch(core)
+    if not match or not (match.group(1) or match.group(3) or head):
+        return
+    name = match.group(2)
+    single = " " not in name
+    if (club := team(name)) and not (single and "sports_team" not in {entry[0] for entry in PLAIN.get(name.lower(), ())}):
+        named("sports_team", club, found, 0)
+        return
+    hits = {attribute: value for attribute, start, end, value, _, common, links in mentions(name) if start == 0 and end == len(name) and not common and not (single and links < FAMOUS_SITELINKS)}
+    for attribute in ANSWERED:
+        if attribute in hits and (attribute != "celebrity" or len(hits) == 1):
+            named(attribute, hits[attribute], found, 0)
+            return
 
 
 def paragraph(text, start):
@@ -531,11 +558,11 @@ def engaged(text, start, end, attribute, popular, plain):
     return attribute not in CHEERED and bool(SELF.search(text, left, right) or dropped)
 
 
-BACKING = re.compile(r"(?i:\b(?:my|our|go|let'?s go|lets go|up the|c'?mon|come on|i (?:love|support|root for|cheer for|follow)|fan of|rooting for|cheering for|supporter of)(?: the| my| our| beloved| boys)?\s*$)")
+BACKING = re.compile(r"(?i:\b(?:my|our|we|us|go|let'?s go|lets go|up the|c'?mon|come on|i (?:always |still |also |really |just |will always |have always |\w+ly )?(?:love|support|supported|root for|rooted for|cheer for|follow|followed)|i'?ve (?:always |also )?(?:supported|followed|rooted for)|fan of|rooting for|cheering for|supporter of|supporting|following)(?: the| my| our| beloved| boys)?\s*$)")
 BACKER = re.compile(r"(?i:\s*(?:nation|faithful|for life|forever|till i die|all the way)\b)")
 FANNED = re.compile(r"(?i:\s*(?:fan|supporter)\b)")
-AVOWED = re.compile(r"(?i:\b(?:i'?m|i am|as|been|being)\b[\w\s-]{0,20}$)")
-OWNED = re.compile(r"(?:my|our)\b")
+AVOWED = re.compile(r"(?i:\b(?:i'?m|i am|as|been|being|be)\b[\w\s-]{0,20}$)")
+OWNED = re.compile(r"(?:my|our|we|us)\b")
 PEER = re.compile(r"(?i:\b(?:he|she|they|his|her|their|dad|mom|father|mother|brother|sister|wife|husband|son|daughter|friend|friends|boyfriend|girlfriend|partner|people|everyone|nobody|every)\b)")
 
 

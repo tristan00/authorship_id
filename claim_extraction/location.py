@@ -1,11 +1,11 @@
 import re
 
-from .common import FOR, I, SELF_HEDGE, TAG, clause, rule
+from .common import FOR, I, SELF_HEDGE, TAG, clause, needs, rule
 from .common import HEDGE as DOUBT
 from .places import FOREIGN, NATIONS, PEOPLES, PLACES, REGION_CODES, TOKEN
 
 DIRECTIONS = "north south east west northern southern eastern western central upstate downstate rural coastal middle sw se nw ne northeast northwest southeast southwest downtown uptown metro inner outer far deep".split()
-LEXICON = {**{name: ("foreign", country, "", country, "") for name, country in FOREIGN.items()}, **{name + "s": ("nations", country, "", country, "") for name, country in NATIONS.items()}, **{name.removeprefix("the "): entry for name, entry in PLACES.items() if name not in DIRECTIONS}, **PEOPLES, **{name: ("nation", country, "", country, "") for name, country in NATIONS.items()}}
+LEXICON = {**{name: ("foreign", country, "", country, "") for name, country in FOREIGN.items()}, **{name + "s": ("nations", country, "", country, "") for name, country in NATIONS.items()}, **{name.removeprefix("the "): entry for name, entry in PLACES.items() if name not in DIRECTIONS}, **PEOPLES, **{name: ("nation", country, "", country, "") for name, country in NATIONS.items()}, **{name + suffix: ("nation", country, "", country, "") for name, country in NATIONS.items() for suffix in ("man", "woman", "men", "women")}}
 SQUASHED = {name.replace(" ", ""): entry for name, entry in LEXICON.items() if " " in name and entry[0] not in ("nation", "nations", "people")}
 PREFIXES = {" ".join(name.split()[:size]) for name in LEXICON for size in range(1, name.count(" ") + 1)}
 NATION = "|".join(sorted(map(re.escape, NATIONS), key=len, reverse=True))
@@ -100,14 +100,23 @@ GROUP = re.compile(r"(?:\b(?:we|us)(?: (?:fellow|proud|all))? \(?|\bwe(?:'re| ar
 GROUP_END = re.compile(rf"\)?(?=$|[\s.,!;:)])(?!\s+(?:{NOUNS})s?\b)")
 AGE_FRAME = rf"(?<![\w.$#'/:+-])\d\d(?<!my \d\d)(?<!a \d\d)(?<!an \d\d)(?<!the \d\d)(?<!her \d\d)(?<!his \d\d)(?<!our \d\d)[- ]?(?:years?[- ]old|yrs?[- ]old|yo|y/o)[\s,-]+(?:{BRIEF}){{0,2}}?({NATION})(?=$|[\s.,!;:)])"
 HELD_FRAME = rf"\b(?:my|have|hold|holding|got|own)\s+(?:an?\s+|dual\s+)?({NATION})\s+(?:passport|citizenship)\b|\bdual (?:citizenship|nationality|citizen|national)s?\s*[:,(-]?\s*({NATION})\b"
-WIDE_START = re.compile(r"(?:^|[\n.!?,;(:—–/-]\s*|\b(?:also|fellow|another|a|an|proud|dual|half)\s+)\Z")
-WIDE_HERE = re.compile(r",?\s+here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b)")
-FRAMES = [re.compile(frame) for frame in (AGE_FRAME, HELD_FRAME)]
+SELF_PAREN = rf"\b(?:i|me|myself)\s*\(\s*(?:an?\s+)?({NATION})(?![\w'-])|\bme,\s+an?\s+({NATION})(?![\w'-])"
+LABEL_FRAME = rf"\bnationality(?: is)?[\W_]+(?:an?\s+)?({NATION})(?![\w'-])"
+COMPOUND_FRAME = rf"(?:\b{I}|\bas) (?:an? )?(?:\w+ )?({NATION})(?:wo)?m[ae]n\b"
+AM_FRAME = rf"(?:^|:\s*|\bbut )am (?:an? )?({NATION})(?![\w'/-])|\b{I} (?:also )?\d\d,\s*({NATION})(?![\w'-])"
+AS_WIDE = rf"\bas (?:an?|another) (?:[\w-]+ ){{1,3}}?({NATION})(?:[- ]born)?(?:\s+{PERSON})?(?=\s*[,.;!]|\s+(?:i|i'm|im|we|myself|it|this|that|there)\b)"
+FRAMES = [(re.compile(frame, re.M), gates) for frame, gates in ((AGE_FRAME, ("y",)), (HELD_FRAME, ("passport", "citizenship", "dual")), (SELF_PAREN, ("(", "me,")), (LABEL_FRAME, ("nationality",)),
+                                                                 (COMPOUND_FRAME, ("man", "men")), (AM_FRAME, ("am ", ",")), (AS_WIDE, ("as a",)))]
 SELF_LEAD = r"(?:(?<![\w.$#'/:+-])\d{2}(?:\s?(?:yo|y/o|m|f|years?(?: old)?))?|(?<![\w.$#'/:+-])[mf]\s?\d{2}s?|\bjust an?|\bi'?m an?|\bim an?|\bi am an?)[\s,/|)\]-]+(?:[a-z0-9']+\s+){0,3}?"
 SELF_DESCRIBED = re.compile(rf"{SELF_LEAD}({NATION})(?:\s+[a-z']+){{0,3}}?\s+(?:{PERSON_NOUN}|male|female|cuck|gentleman|lad|chick|hubby|here)\b")
 SELF_FROM_LEAD = re.compile(rf"{SELF_LEAD}from\s+(?:the\s+)?\Z")
+TAG_BEFORE = re.compile(rf"(?:{TAG}|{FOR}|\A[^\w\n]*\d{{2}}|\b\d{{2}}\s?(?:yo|y/o|male|female)|^[^\w\n]*[mf])[\s,/|:()\[\]-]*\Z", re.M)
+TAG_AFTER = re.compile(rf"[\s,/|(\[-]*(?:{TAG}|\d{{2}}\s?(?:yo|y/o)\b|\d{{2}}\s*[)\]]|(?:m|f|male|female)\s*[,/|]\s*\d{{2}}\b)")
+NATION_HERE = re.compile(rf"(?:\s+(?:{PERSON}|fan|citizen|national))?(?:\s+(?:living in|based in|from)\s+[a-z]+(?: [a-z]+)?)?,?\s+(?:over |out |down |up )?here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b)")
+OTHERS_LEAD = re.compile(r"\b(?:the|these|those|his|her|their|your|our|any|some|many|most|other|no|of|every|each|all)\s+\Z")
+CITIZEN_OF = re.compile(r"\b(?:i'm|im|i am|as|am|being)\s+(?:an?\s+)?(?:\w+\s+)?citizen of\s+(?:the\s+)?\Z")
 SELF_IN_LEAD = re.compile(rf"{SELF_LEAD}(?:in|near|around)\s+(?:the\s+)?\Z")
-ASKED = FRAMES + [re.compile(frame) for frame in (LOOSE_NATION, AS_NATION, AS_NATION_START)]
+ASKED = FRAMES + [(re.compile(frame), ("",)) for frame in (LOOSE_NATION, AS_NATION, AS_NATION_START)]
 SPOKEN = (rf"\b{I} {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|too|myself|citizen|national|here|living|who|born|by|from|in|as|lol|haha|though|btw|with|not|or|mate|bro|guy|girl|man|woman|dude|male|female|person)\b)[a-z])"
           rf"|\bas (?:an?|another|a fellow) ({NATION})(?:[- ]born)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|myself|citizen|national|person|man|woman|guy|girl|dude|male|female|living|who|born|raised|here|in|from|i|we|it|there|that|by|expat|immigrant|veteran|mom|mother|dad|father|parent|voter|taxpayer|kid|child|adult|student|resident|native|lol)\b)[a-z])")
 
@@ -121,8 +130,8 @@ RULES = [
     rule("nationality", AS_NATION, lambda match: NATIONS.get(match.group(1))),
     rule("nationality", AS_NATION_START, lambda match: NATIONS.get(match.group(1))),
     rule("native_language", SPOKEN, lambda match: spoken(match.group(1) or match.group(2))),
-    rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:language|tongue) is \**(\w+)\b|\b(\w+)\** is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) (?:also |actually )?(?:an? )?native \**(\w+)\** speaker\b|\bnative \**(\w+)\** speaker here\b|\b(?:i'm|im|i am|as) an? native speaker of \**(\w+)\b|\b(\w+)\**\s*\(native\)|\bnative(?: language)?\s*[:=-]\s*\**(\w+)\b",
-         lambda match: spoken(next(filter(None, match.groups())))),
+    needs(rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:language|tongue) is \**(\w+)\b|\b(\w+)\** is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) (?:also |actually )?(?:an? )?native \**(\w+)\** speaker\b|\bnative \**(\w+)\** speaker here\b|\b(?:i'm|im|i am|as) an? native speaker of \**(\w+)\b|\b(\w+)\**\s*\(native\)|\bnative(?: language)?\s*[:=-]\s*\**(\w+)\b",
+         lambda match: spoken(next(filter(None, match.groups())))), "native", "language", "tongue"),
     rule("native_language", r"\b(\w+) is the only language i (?:speak|know)\b|\bas (?:a )?native (\w+ )?speakers?\b", lambda match: spoken(match.group(1)) if match.group(1) else spoken(match.group(2).strip()) if match.group(2) else "english", SELF_HEDGE),
 ]
 
@@ -262,6 +271,12 @@ def places(text, lowered, found):
     tagged = line_end < 150 and bool(TITLE.search(lowered, 0, line_end))
     residence, residence_from_origin, framed, peoples = [], [], [], set()
     for start, end, entry in spots:
+        if entry[0] == "nation" and (TAG_BEFORE.search(lowered, max(lowered.rfind("\n", 0, start) + 1, start - 16), start) or TAG_AFTER.match(lowered, end)) and not ASKING.search(lowered, lowered.rfind("\n", 0, start) + 1, start):
+            framed.append((("nationality", entry[3]), start))
+        if entry[0] == "nation" and NATION_HERE.match(lowered, end) and not OTHERS_LEAD.search(lowered, max(0, start - 8), start):
+            framed.append((("nationality", entry[3]), start))
+        if entry[0] == "country" and CITIZEN_OF.search(lowered, max(lowered.rfind("\n", 0, start) + 1, start - 40), start):
+            framed.append((("nationality", entry[3]), start))
         if entry[0] in ("nation", "nations") and (lead := GROUP.search(lowered, max(0, start - 30), start)) and GROUP_END.match(lowered, end) and not DOUBT.search(lowered, max(clause(lowered, lead.start()), lead.start() - 40), lead.start()):
             framed.append((("nationality", entry[3]), lead.start()))
         if entry[0] == "nations":
@@ -279,8 +294,6 @@ def places(text, lowered, found):
             continue
         kind = stance(lowered, start, end, entry)
         if entry[0] == "nation":
-            if kind is None and WIDE_START.search(lowered, max(0, start - 12), start) and WIDE_HERE.match(lowered, end):
-                framed.append((("nationality", entry[3]), start))
             nation(lowered, start, end, entry, kind, line_end, tagged, found)
             continue
         if entry[0] == "people":
@@ -342,8 +355,8 @@ def places(text, lowered, found):
         placed("residence", entry, end, found, whole)
     if not any(attribute == "residence_country" for attribute, _ in found) and len(nations := {key[1] for key in found if key[0] == "nationality"} | peoples) == 1:
         found.setdefault(("residence_country", next(iter(nations))), 0)
-    for frame in ASKED if "?" in lowered else FRAMES:
-        for match in frame.finditer(lowered):
+    for frame, gates in ASKED if "?" in lowered else FRAMES:
+        for match in frame.finditer(lowered) if any(gate in lowered for gate in gates) else ():
             if not DOUBT.search(lowered, max(clause(lowered, match.start()), match.start() - 40), match.start()) and (country := NATIONS.get(next(filter(None, match.groups())))):
                 framed.append((("nationality", country), match.start()))
     for match in SELF_DESCRIBED.finditer(lowered):

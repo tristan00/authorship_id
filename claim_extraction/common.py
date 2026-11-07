@@ -37,6 +37,23 @@ def rule(attribute, pattern, value, hedge=HEDGE):
     return attribute, re.compile(pattern), value, hedge
 
 
+class Gated:
+    def __init__(self, compiled, gate):
+        self.compiled, self.gate, self.pattern = compiled, gate, compiled.pattern
+
+    def finditer(self, text):
+        return self.compiled.finditer(text) if self.gate(text) else iter(())
+
+
+def words(*anchors):
+    return re.compile("|".join(map(re.escape, anchors))).search
+
+
+def needs(entry, *anchors):
+    attribute, pattern, value, hedge = entry
+    return attribute, Gated(pattern, words(*anchors)), value, hedge
+
+
 def fixed(result):
     return lambda match: result
 

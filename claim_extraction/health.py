@@ -474,7 +474,9 @@ RULES += [
     rule("mental_condition", r"i(?<!\wi)(?:'m|m| am|'ve been| have been) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|several|many|over \d+|almost \d+|nearly \d+) (?:days?|weeks?|months?|years?|yrs?) (?:sober|clean|off (?:drugs|alcohol|heroin|meth|opiates|opioids|pills|booze|the booze|the drink|drinking))\b",
          fixed("addiction"), SELF_HEDGE),
     rule("mental_condition", r"i(?<!\wi)(?:'m|m| am|'ve been|ve been| got| became) (?:so |really |literally |kinda |pretty |super |very |totally |completely |still |seriously |severely )*addicted to\b",
-         fixed("addiction"), OWN_HEDGE)]
+         fixed("addiction"), OWN_HEDGE),
+    rule("mental_condition", r"m(?<!\wm)y (?:own )?(autistic|neurodivergent|adhd|audhd|dyslexic) (?:ass|self|brain|mind|side|butt|tendencies|traits|quirks)\b",
+         group({"autistic": "autism", "neurodivergent": "neurodivergent, unspecified", "adhd": "adhd", "audhd": "both adhd and autism", "dyslexic": "dyslexia"}), OWN_HEDGE)]
 
 FOREIGN_AM = r"(?:soy|sou|je suis|ich bin|sono|jestem|ik ben|tengo|tenho|j'ai|ich habe|ho|mam|ik heb|con|com|avec|mit)\s+(?:(?:un|una|um|uma|une|ein|eine|einen|un'|een|tambien|también|também|aussi|auch|anche|też|ook|le|la|de|del|du)\s+|l')*"
 FOREIGN_MIND_STATES = spread({"autism": ["autista", "autiste", "autist", "autistin", "autistisch", "autistico", "autistica", "autystą", "autystyczny", "autystyczna", "autismo", "autisme", "autismus", "autyzm"],
@@ -621,8 +623,8 @@ DROPPED = re.compile(rf"\W*(?:also |and |but |still |now |recently |just |newly 
 DIAGNOSED = re.compile(rf"\W*(?:recently |just |also |finally |newly |officially |formally )?(?:got |was |been )?(?:diagnosed|dx'?d)(?: as)?{LEAD}")
 CAUSE = re.compile(rf"(?:(?<=\bbecause )of|(?<=\bbc )of|(?<=\bdue )to|(?<=\bthanks )to|(?<=\bcaused )by){LEAD}{FREE}?$")
 KIN = re.compile(rf"\b(?:{PEOPLE}|we|us|our)\b")
-CANDIDATE = re.compile(r"\b(?:i|i'm|im|i've|ive|my|me|fellow|have|having|got|suffer|suffering|struggle|struggling|deal|dealing|live|living|recovering|battling|diagnosed|dx'?d|the|here|warrior|gang|squad|life|club|crew|fam)\b")
-HERE_BEFORE = re.compile(r"(?:^|[,;(|]\s*)(?:an? )?(?:fellow |another |also |also an? |proud |former |recovering |recovered )?$")
+CANDIDATE = re.compile(r"\b(?:someone|i|i'm|im|i've|ive|my|me|fellow|have|having|got|suffer|suffering|struggle|struggling|deal|dealing|live|living|recovering|battling|diagnosed|dx'?d|the|here|warrior|gang|squad|life|club|crew|fam)\b")
+HERE_BEFORE = re.compile(r"(?:^|[,;(|])\s*(?:an? )?(?:fellow |another |also |also an? |proud |former |recovering |recovered )?$")
 HERE_AFTER = {"physical_condition": re.compile(r" (?:here|sufferer here|patient here|survivor here|warrior here|warrior|gang|squad|life|haver here|person here|club|crew|fam)\b"),
               "mental_condition": re.compile(r" (?:here|person here|haver here|sufferer here|survivor here|gal here|guy here|girl here|woman here|man here|mom here|mama here|dad here|adult here|"
                                              r"patient here|warrior|gang|squad|club|crew|fam)\b")}
@@ -633,6 +635,7 @@ def stating(being):
                       rf"unfortunately|apparently|obviously|functionally|genetically|naturally|definitely))*{LEAD}{FREE}{{0,2}})$")
 
 
+DUAL_CUE = re.compile(rf"\b(?:i'm|im|i am|i've been|ive been|i have been|i became)(?: (?:also|now|currently|still|actually|literally|officially|just|really|so|recently|newly|clinically|definitely))*{LEAD}{FREE}{{0,2}}$")
 STATE_CUE = stating("being an?")
 MIND_STATE_CUE = stating("being(?: an?)?|of us")
 LINK = re.compile(rf"\s*(?:,|&|/|\+|\band\b|\bor\b|\bplus\b|\bas well as\b|\balong with\b|\bw/)(?:\s*(?:and|&)\b)?{LEAD}")
@@ -650,9 +653,9 @@ def spans(names):
     return longest
 
 
-FAMILIES = tuple((attribute, nouns, states, known, cue, state_cue, suffix, spans(known))
-                 for attribute, nouns, states, cue, state_cue, suffix in (("physical_condition", CONDITIONS, STATES, NOUN_CUE, STATE_CUE, ("itis", "other physical condition")),
-                                                                          ("mental_condition", MIND, MIND_STATES, MIND_CUE, MIND_STATE_CUE, ("phobia", "other mental health condition")))
+FAMILIES = tuple((attribute, nouns, states, known, cue, state_cue, suffix, spans(known), both)
+                 for attribute, nouns, states, cue, state_cue, suffix, both in (("physical_condition", CONDITIONS, STATES, NOUN_CUE, STATE_CUE, ("itis", "other physical condition"), CONDITIONS.keys() & inflected(PHYSICAL_STATES)),
+                                                                          ("mental_condition", MIND, MIND_STATES, MIND_CUE, MIND_STATE_CUE, ("phobia", "other mental health condition"), MIND.keys() & inflected(MENTAL_STATE_STRICT)))
                  for known in [{**nouns, **states}])
 
 
@@ -705,19 +708,20 @@ def owned(lowered, sentence, found, families):
     if not CANDIDATE.search(part):
         return
     words = [(match.start(), match.end(), match.group()) for match in WORD.finditer(part)]
-    for attribute, nouns, states, known, noun_cue, state_cue, suffix, longest in families:
+    for attribute, nouns, states, known, noun_cue, state_cue, suffix, longest, both in families:
         previous = None
         for start, end, name in lookup(words, known, longest, suffix[0]):
             noun = name not in states
+            dual = name in both
             if attribute == "physical_condition" and (mental := MENTAL_TAIL.search(part, max(0, start - 40), end)) and mental.start() < start:
                 previous = None
                 continue
             left = part[max(0, start - 90):start]
             here = HERE_AFTER[attribute].match(part, end) and HERE_BEFORE.search(left)
-            cue = (noun_cue if noun else state_cue).search(left) or here or attribute == "physical_condition" and noun and nouns.get(name) != "unspecified" and (PAST_CUE.search(left) or caused(part, left, start))
+            cue = (noun_cue if noun else state_cue).search(left) or dual and DUAL_CUE.search(left) or here or attribute == "physical_condition" and noun and nouns.get(name) != "unspecified" and (PAST_CUE.search(left) or caused(part, left, start))
             begin = start - len(cue.group()) if cue else 0 if (DROPPED if noun else DIAGNOSED).fullmatch(part, 0, start) else None
             chained = previous is not None and LINK.fullmatch(part, previous, start)
-            if ((begin is not None or chained) and (here or not TRAIL.match(part, end))
+            if ((begin is not None or chained) and (here or not noun or not TRAIL.match(part, end))
                     and (chained or unhedged(lowered, sentence.start() + begin)) and not quoted(lowered, sentence.start() + start)):
                 found.setdefault((attribute, nouns.get(name) or states.get(name) or suffix[1]), sentence.start() + start)
                 previous = end
