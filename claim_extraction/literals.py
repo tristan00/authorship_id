@@ -127,7 +127,7 @@ def requirements(pattern, cased, shortest):
 
 NEEDS, OWNERS = [], []
 INDEX = [None, ()]
-SPELLED = {"0": r"\d", " ": r"\s", "i": "[iıİ]", "k": "[kK]", "s": "[sſ]"}
+SPELLED = {"0": r"\d", " ": r"\s", "i": "[iı]", "s": "[sſ]"}
 
 
 def register(groups):

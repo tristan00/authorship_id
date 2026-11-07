@@ -3,17 +3,19 @@ import pickle
 import re
 import sys
 import unicodedata
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from re import _constants as C, _parser as parser
 
 import hyperscan
 
 from . import LOG, timed
-from .config import CACHE, WORKERS
+from .config import CACHE, CHUNKS, WORKERS
 
 FLAGS = hyperscan.HS_FLAG_PREFILTER | hyperscan.HS_FLAG_UTF8 | hyperscan.HS_FLAG_UCP | hyperscan.HS_FLAG_SINGLEMATCH | hyperscan.HS_FLAG_ALLOWEMPTY
 CLASSES = ("w", "d", "s")
 CODES = [code for code in range(0x80, 0x110000) if not 0xD800 <= code < 0xE000]
+VERSION = b"\0".join([hyperscan.__version__.encode(), unicodedata.unidata_version.encode(), sys.version.encode()])
 
 
 def mentioned(patterns):
@@ -48,30 +50,44 @@ def signature(char):
     return tuple(bool(re.fullmatch(rf"\{name}", char)) for name in CLASSES)
 
 
+def cached(name, key, build):
+    path = CACHE / f"{name}_{hashlib.sha256(key).hexdigest()[:24]}.pkl"
+    if path.exists():
+        return pickle.loads(path.read_bytes())
+    value = build()
+    CACHE.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(pickle.dumps(value))
+    return value
+
+
 def disagreeing():
     probe = hyperscan.Database()
     probe.compile(expressions=[rf"\A\{name}\z".encode() for name in CLASSES], ids=list(range(len(CLASSES))), elements=len(CLASSES),
                   flags=[hyperscan.HS_FLAG_UTF8 | hyperscan.HS_FLAG_UCP | hyperscan.HS_FLAG_SINGLEMATCH] * len(CLASSES))
     scratch = hyperscan.Scratch(probe)
-    found = {}
+    differing = set()
     for code in CODES:
-        char, seen = chr(code), set()
-        probe.scan(char.encode(), match_event_handler=lambda ident, start, end, flags, context: context.add(ident), context=seen, scratch=scratch)
-        found[code] = tuple(index in seen for index in range(len(CLASSES)))
-    return {code for code in CODES if found[code] != signature(chr(code))}, found
+        seen = set()
+        probe.scan(chr(code).encode(), match_event_handler=noted, context=seen, scratch=scratch)
+        if tuple(index in seen for index in range(len(CLASSES))) != signature(chr(code)):
+            differing.add(code)
+    return differing
 
 
+@timed
 def translation(patterns):
-    differing, seen = disagreeing()
+    differing = cached("classes", VERSION, disagreeing)
     used = mentioned(patterns)
-    stranded = differing & used
-    if stranded:
+    if stranded := differing & used:
         raise ValueError(f"patterns mention characters whose classes differ between python and hyperscan: {sorted(map(hex, stranded))[:20]}")
-    stand_ins = {}
+    needed = {code: signature(chr(code)) for code in differing}
+    stand_ins, wanted = {}, set(needed.values())
     for code in CODES:
-        if code not in differing and code not in used and (key := signature(chr(code))) not in stand_ins and seen[code] == key:
+        if code not in differing and code not in used and (key := signature(chr(code))) in wanted and key not in stand_ins:
             stand_ins[key] = chr(code)
-    return {code: stand_ins[signature(chr(code))] for code in differing}
+            if len(stand_ins) == len(wanted):
+                break
+    return {code: stand_ins[key] for code, key in needed.items()}
 
 
 def rejected(expression):
@@ -82,37 +98,43 @@ def rejected(expression):
     return None
 
 
+def chunk(entries):
+    failed = [ident for ident, expression in entries if rejected(expression)]
+    accepted = [(ident, expression) for ident, expression in entries if ident not in failed]
+    database = hyperscan.Database()
+    database.compile(expressions=[expression for _, expression in accepted], ids=[ident for ident, _ in accepted], elements=len(accepted), flags=[FLAGS] * len(accepted))
+    return {"database": hyperscan.dumpb(database), "failed": failed}
+
+
+def stored(entries):
+    return cached("prefilter", b"\0".join([VERSION, *(str(ident).encode() + b"=" + expression for ident, expression in entries)]), lambda: chunk(entries))
+
+
 @timed
 def compiled(patterns):
-    expressions = [pattern.pattern.encode() for pattern in patterns]
-    key = hashlib.sha256(b"\0".join([hyperscan.__version__.encode(), unicodedata.unidata_version.encode(), sys.version.encode(), *expressions])).hexdigest()[:24]
-    path = CACHE / f"prefilter_{key}.pkl"
-    if path.exists():
-        stored = pickle.loads(path.read_bytes())
-        return hyperscan.loadb(stored["database"], hyperscan.HS_MODE_BLOCK), stored["failed"], stored["translation"]
+    buckets = [[] for _ in range(CHUNKS)]
+    for ident, pattern in enumerate(patterns):
+        buckets[zlib.crc32(pattern.pattern.encode()) % CHUNKS].append((ident, pattern.pattern.encode()))
     with ThreadPoolExecutor(WORKERS) as pool:
-        failed = [index for index, error in enumerate(pool.map(rejected, expressions)) if error]
-    for index in failed:
-        LOG.info("prefilter rejected index=%d pattern=%.120r", index, patterns[index].pattern)
-    accepted = [index for index in range(len(expressions)) if index not in failed]
-    database = hyperscan.Database()
-    database.compile(expressions=[expressions[index] for index in accepted], ids=accepted, elements=len(accepted), flags=[FLAGS] * len(accepted))
-    table = translation(patterns)
-    CACHE.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(pickle.dumps({"database": hyperscan.dumpb(database), "failed": failed, "translation": table}))
-    LOG.info("prefilter compiled patterns=%d failed=%d translated=%d", len(accepted), len(failed), len(table))
-    return database, failed, table
+        parts = list(pool.map(stored, buckets))
+    failed = [ident for part in parts for ident in part["failed"]]
+    for ident in failed:
+        LOG.info("prefilter rejected index=%d pattern=%.120r", ident, patterns[ident].pattern)
+    return [hyperscan.loadb(part["database"], hyperscan.HS_MODE_BLOCK) for part in parts], failed
 
 
 class Prefilter:
     def __init__(self, patterns):
-        self.database, failed, self.translation = compiled(patterns)
+        self.databases, failed = compiled(patterns)
+        self.translation = translation(patterns)
         self.always = frozenset(failed)
-        self.scratch = hyperscan.Scratch(self.database)
+        self.scratches = [hyperscan.Scratch(database) for database in self.databases]
 
     def flagged(self, lowered):
         found = set(self.always)
-        self.database.scan((lowered if lowered.isascii() else lowered.translate(self.translation)).encode(), match_event_handler=noted, context=found, scratch=self.scratch)
+        data = (lowered if lowered.isascii() else lowered.translate(self.translation)).encode()
+        for database, scratch in zip(self.databases, self.scratches):
+            database.scan(data, match_event_handler=noted, context=found, scratch=scratch)
         return found
 
 
