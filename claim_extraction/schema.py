@@ -179,8 +179,6 @@ DIGITS = re.compile(r"[\d,]*\d(?:\.\d+)?")
 SQUEEZE = re.compile(r"[\W_]+")
 LETTERS = re.compile(r"[^\W\d_]")
 THOUSANDS = re.compile(r"\d\s*k\b")
-FIELD_TYPE = "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'claim_field') THEN CREATE TYPE claim_field AS ENUM ('" + BOT + "'); END IF; END $$;\n" + "".join(
-    f"ALTER TYPE claim_field ADD VALUE IF NOT EXISTS '{name}';\n" for name in dict.fromkeys((*EVIDENCE_FIELDS, *ALL_FIELDS, BOT)))
 
 
 def squeeze(text):

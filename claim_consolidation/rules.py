@@ -1,23 +1,14 @@
-import math
 from collections import defaultdict
 
-from claim_extraction.schema import BOT, decomposed
+from claim_extraction.schema import BOT, decomposed, stored_field
 
-from .config import BOT_PROBABILITY, BOT_SHARE, BOT_TEXTS, CHILD_AGE, FLAIR_STRENGTH, NOT_A_CHILD, NUMERIC, SHARE, TOLERANCE
+from .config import BOT_SHARE, BOT_TEXTS, CHILD_AGE, NOT_A_CHILD, NUMERIC, SHARE, TOLERANCE
 
 
 def close(attribute, left, right):
     kind, amount = TOLERANCE[attribute]
     left, right = float(left), float(right)
     return abs(left - right) <= (amount if kind == "absolute" else amount * max(left, right))
-
-
-def strength(probability):
-    return -math.log(1 - min(probability, .999))
-
-
-def flair_strength(need):
-    return max(need, FLAIR_STRENGTH)
 
 
 def plausible(attribute, value):
@@ -27,68 +18,40 @@ def plausible(attribute, value):
     return low <= float(value) <= high
 
 
-def tally(attribute, mentions):
-    amounts = defaultdict(list)
-    for value, amount in mentions:
-        if plausible(attribute, value):
-            amounts[value].append(amount)
-    if not amounts:
+def tally(attribute, texts):
+    support = {value: len(found) for value, found in texts.items() if plausible(attribute, value)}
+    if not support:
         return None
-    support = {value: math.fsum(found) for value, found in amounts.items()}
-    scores = {value: math.fsum(amount for other, amount in support.items() if close(attribute, value, other)) for value in support} if attribute in TOLERANCE else support
+    scores = {value: sum(amount for other, amount in support.items() if close(attribute, value, other)) for value in support} if attribute in TOLERANCE else support
     best = max(sorted(scores), key=lambda value: (scores[value], support[value]))
-    return best, scores[best], scores[best] / math.fsum(support.values()), support
+    return best, scores[best], scores[best] / sum(support.values()), support
 
 
-def decide(attribute, mentions, need):
-    found = tally(attribute, mentions)
-    if found is None or found[1] < need or found[2] <= SHARE:
-        return None
-    return found
+def plurality(best, support):
+    return all(amount < support[best] for value, amount in support.items() if value != best)
 
 
-def automated(texts, flagged):
-    return len(flagged) >= BOT_TEXTS and len(flagged) >= BOT_SHARE * len(texts)
-
-
-def distinct(rows):
-    seen = set()
-    for source, key, subreddit, field, value, probability, digest in rows:
-        identity = digest or key
-        for attribute, stated in decomposed(field, value):
-            if (identity, attribute, stated) not in seen:
-                seen.add((identity, attribute, stated))
-                yield source, key, subreddit, attribute, stated, probability, identity
-
-
-def consolidate(rows, need, blocked):
-    mentions, texts, flagged = defaultdict(list), set(), set()
-    for source, key, subreddit, field, value, probability, identity in distinct(rows):
-        if source == "flair":
-            flair = key.partition("/")[2]
-            if (subreddit, None, field) not in blocked and (subreddit, flair, field) not in blocked:
-                mentions[field].append((value, flair_strength(need)))
+def evidence(rows):
+    texts, flagged, found = set(), set(), defaultdict(lambda: defaultdict(set))
+    for attribute, value, digest, *_ in rows:
+        texts.add(digest)
+        if attribute == BOT:
+            flagged.add(digest)
             continue
-        texts.add(identity)
-        if field == BOT:
-            if probability >= BOT_PROBABILITY:
-                flagged.add(identity)
-        else:
-            mentions[field].append((value, strength(probability)))
-    if automated(texts, flagged):
+        for name, stated in decomposed(stored_field(attribute), value):
+            found[name][stated].add(digest)
+    return texts, flagged, found
+
+
+def consolidate(rows, need):
+    texts, flagged, found = evidence(rows)
+    if len(flagged) >= BOT_TEXTS and len(flagged) >= BOT_SHARE * len(texts):
         return {}
-    decided = {field: found for field, entries in mentions.items() if (found := decide(field, entries, need))}
+    decided = {}
+    for attribute, values in found.items():
+        result = tally(attribute, values)
+        if result and result[1] >= need and (result[2] > SHARE or plurality(result[0], result[3])):
+            decided[attribute] = result
     if "age" in decided and float(decided["age"][0]) < CHILD_AGE and any(field in decided and decided[field][0] in values for field, values in NOT_A_CHILD.items()):
         del decided["age"]
     return decided
-
-
-def audit(rows, need):
-    mentions, flairs = defaultdict(list), set()
-    for source, key, subreddit, field, value, probability, _ in distinct(rows):
-        if source == "flair":
-            flairs.add((subreddit, key.partition("/")[2], field, value))
-        elif field != BOT:
-            mentions[field].append((value, strength(probability)))
-    decided = {field: found[0] for field, entries in mentions.items() if (found := decide(field, entries, need))}
-    return decided, [(subreddit, flair, field, value, decided[field]) for subreddit, flair, field, value in flairs if field in decided]

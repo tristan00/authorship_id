@@ -1,213 +1,94 @@
+import json
 import multiprocessing
 import time
-import uuid
-from collections import Counter, defaultdict
 from itertools import groupby
 from operator import itemgetter
 
-import psycopg
-from psycopg.types.json import Jsonb
-
-from claim_extraction.schema import FIELD_TYPE
-from claim_flair.gate import blocked_scopes, gate, near
-from database import DSN, LOGS, NO_AUTHOR, SCAN_WORKERS, vacuum, within
+from claim_extraction.config import PARTS
+from database import NO_AUTHOR, client
 from reddit_dumps import setup_logging
 
 from . import LOG, timed
-from .config import BOT_AUTHORS, EVIDENCE_MEMORY, NEED, PARTS_PER_WORKER, WORKERS
-from .rules import audit
+from .config import BOT_AUTHORS, INSERT_ROWS, NEED, PARTS_PER_WORKER, WORKERS
 from .rules import consolidate as rules
 
-SCHEMA = """
-DROP TABLE IF EXISTS claim_evidence;
-DROP TABLE IF EXISTS consolidation;
-CREATE TABLE consolidation (run_id uuid PRIMARY KEY, months text[] NOT NULL, started_at timestamptz NOT NULL, finished_at timestamptz NOT NULL DEFAULT now(), base uuid, added text[]);
-"""
-CLAIMS = """
-DROP TABLE IF EXISTS author_claims_next;
-CREATE TABLE author_claims_next (author text NOT NULL, attribute claim_field NOT NULL, value text NOT NULL, support real NOT NULL, share real NOT NULL, candidates jsonb NOT NULL);
-"""
-SWAP = """
-ALTER TABLE author_claims_next ADD PRIMARY KEY (author, attribute);
-DROP TABLE IF EXISTS author_claims;
-ALTER TABLE author_claims_next RENAME TO author_claims;
-ALTER INDEX author_claims_next_pkey RENAME TO author_claims_pkey;
-"""
-TARGET = {False: "author_claims_next", True: "author_claims"}
-EVIDENCE = """
-SELECT t.author, 'text' AS source, t.record_id AS source_key, t.subreddit, c.field, c.value, c.probability, c.text_sha256
-FROM text_claims c JOIN records t USING (text_sha256) WHERE t.author <> ALL(%(no_author)s) AND {months}
-UNION ALL
-SELECT DISTINCT t.author, 'flair', t.subreddit || '/' || t.author_flair_text, t.subreddit, f.field, f.value, 1::real, NULL::bytea
-FROM records t JOIN flair_claims f ON f.subreddit = t.subreddit AND f.flair = t.author_flair_text WHERE t.author <> ALL(%(no_author)s) AND {months}
-"""
-ADDED = """
-ANALYZE claim_evidence_added;
-DELETE FROM claim_evidence_added n WHERE source = 'flair' AND EXISTS (SELECT FROM claim_evidence e
-    WHERE e.author = n.author AND e.field = n.field AND e.source = 'flair' AND e.source_key = n.source_key AND e.value = n.value);
-INSERT INTO claim_evidence SELECT * FROM claim_evidence_added;
-SET LOCAL enable_hashagg = off;
-CREATE UNLOGGED TABLE claim_authors AS SELECT DISTINCT author FROM claim_evidence_added;
-ANALYZE claim_authors;
-DELETE FROM author_claims WHERE author IN (SELECT author FROM claim_authors);
-"""
-NEEDED = "source, CASE WHEN source = 'flair' THEN source_key END, CASE WHEN source = 'flair' THEN subreddit END, field, value, probability, substring(text_sha256 for 8)"
-READ = {False: f"COPY (SELECT author, {NEEDED} FROM claim_evidence WHERE author >= %(low)s AND author < %(high)s ORDER BY author) TO STDOUT",
-        True: f"""COPY (SELECT author, {NEEDED} FROM claim_authors a JOIN claim_evidence e USING (author)
-                 WHERE author >= %(low)s AND author < %(high)s ORDER BY author) TO STDOUT"""}
-DISTINCT_ROWS = "SELECT DISTINCT ON (author, field, value, text_sha256, flair_key) author, source, source_key, subreddit, field, value, probability, text_sha256 FROM (SELECT *, CASE WHEN source = 'flair' THEN source_key END AS flair_key FROM ({rows}) unsorted) keyed ORDER BY author, field, value, text_sha256, flair_key"
-EDGES = "SELECT author FROM claim_evidence TABLESAMPLE SYSTEM (0.1) ORDER BY author"
+EVIDENCE = (
+    "CREATE TABLE author_evidence (author String, attribute LowCardinality(String), value String, created_utc DateTime('UTC'), subreddit String, "
+    "text_sha256 FixedString(32), position UInt32) ENGINE = MergeTree ORDER BY (author, attribute)"
+)
+FILL = (
+    "INSERT INTO author_evidence SELECT r.author, c.attribute, c.value, r.created_utc, r.subreddit, c.text_sha256, c.position "
+    "FROM records AS r INNER JOIN text_claims AS c ON r.text_sha256 = c.text_sha256 WHERE r.author NOT IN {excluded} "
+    "SETTINGS join_algorithm = 'grace_hash', grace_hash_join_initial_buckets = 64"
+)
+CLAIMS = (
+    "CREATE TABLE author_claims_next (author String, attribute LowCardinality(String), value String, support Float32, share Float32, candidates String) "
+    "ENGINE = MergeTree ORDER BY (author, attribute)"
+)
+COLUMNS = ("author", "attribute", "value", "support", "share", "candidates")
+READ = "SELECT author, attribute, value, text_sha256, created_utc, subreddit FROM author_evidence WHERE author >= {low:String} AND author < {high:String} ORDER BY author"
 LAST_AUTHOR = "\U0010FFFF"
-READ_TYPES = ("text", "text", "text", "text", "text", "text", "float4", "bytea")
-PARALLEL = (f"SET max_parallel_workers_per_gather = {SCAN_WORKERS}", "SET parallel_setup_cost = 0", "SET parallel_tuple_cost = 0", f"SET work_mem = '{EVIDENCE_MEMORY}'")
 
 
-def author_ranges(conn, parts):
-    authors = [row[0] for row in conn.execute(EDGES)]
+def ranges(db, parts):
+    authors = sorted(row[0] for row in db.query("SELECT DISTINCT author FROM author_evidence WHERE cityHash64(author) % 1000 = 0").result_rows)
     edges = sorted({authors[len(authors) * part // parts] for part in range(1, parts)})
     return list(zip(["", *edges], [*edges, LAST_AUTHOR]))
 
 
-def streamed(conn, touched, low, high):
-    with conn.cursor().copy(READ[touched], {"low": low, "high": high}) as copy:
-        copy.set_types(READ_TYPES)
-        for author, group in groupby(copy.rows(), key=itemgetter(0)):
-            yield author, [row[1:] for row in group]
-
-
-def inspect(low, high):
-    setup_logging(LOGS / "consolidation.log")
-    stats, base = {}, defaultdict(Counter)
-    with psycopg.connect(DSN) as conn:
-        for _, rows in streamed(conn, False, low, high):
-            decided, pairs = audit(rows, NEED)
-            for field, value in decided.items():
-                base[field][value] += 1
-            for subreddit, flair, field, value, written in pairs:
-                entry = stats.setdefault((subreddit, flair, field, value), [0, 0])
-                entry[0] += 1
-                entry[1] += near(field, value, written)
-    return stats, {field: dict(counted) for field, counted in base.items()}
-
-
-def work(low, high, touched, blocked):
+def work(low, high, need=NEED):
+    from database import LOGS
     setup_logging(LOGS / "consolidation.log")
     started = time.perf_counter()
-    decided = authors = 0
-    with psycopg.connect(DSN) as reader, psycopg.connect(DSN) as conn:
-        with conn.cursor().copy(f"COPY {TARGET[touched]} FROM STDIN") as copy:
-            for author, rows in streamed(reader, touched, low, high):
-                authors += 1
-                for attribute, (value, support, share, candidates) in rules(rows, NEED, blocked).items():
-                    ranked = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))
-                    copy.write_row((author, attribute, value, support, share, Jsonb([{"value": item, "support": round(amount, 3)} for item, amount in ranked])))
-                    decided += 1
-    LOG.info("consolidated from=%s authors=%s attributes=%s seconds=%.1f", low, authors, decided, time.perf_counter() - started)
+    db = client()
+    rows, authors, decided = [], 0, 0
+    with db.query_row_block_stream(READ, parameters={"low": low, "high": high}) as stream:
+        flat = (row for block in stream for row in block)
+        for author, group in groupby(flat, key=itemgetter(0)):
+            authors += 1
+            for attribute, (value, support, share, candidates) in rules([row[1:] for row in group], need).items():
+                ranked = sorted(candidates.items(), key=lambda item: (-item[1], item[0]))
+                rows.append((author, attribute, value, support, share, json.dumps([[item, amount] for item, amount in ranked], ensure_ascii=False)))
+                decided += 1
+            if len(rows) >= INSERT_ROWS:
+                db.insert("author_claims_next", rows, column_names=COLUMNS)
+                rows = []
+    if rows:
+        db.insert("author_claims_next", rows, column_names=COLUMNS)
+    LOG.info("consolidated from=%r authors=%d attributes=%d seconds=%.1f", low, authors, decided, time.perf_counter() - started)
     return decided
 
 
 @timed
-def evidence(conn):
-    for setting in PARALLEL:
-        conn.execute(setting)
-    rows = conn.execute(f"CREATE TABLE claim_evidence AS {DISTINCT_ROWS.format(rows=EVIDENCE.format(months='true'))}", {"no_author": [*NO_AUTHOR, *BOT_AUTHORS]}).rowcount
-    conn.execute("CREATE INDEX claim_evidence_author ON claim_evidence (author, field)")
-    conn.execute(f"ALTER TABLE claim_evidence SET (parallel_workers = {SCAN_WORKERS})")
-    conn.commit()
-    LOG.info("evidence rows=%s", rows)
+def evidence(db):
+    db.command("DROP TABLE IF EXISTS author_evidence")
+    db.command(EVIDENCE)
+    db.command(FILL.format(excluded=tuple([*NO_AUTHOR, *BOT_AUTHORS])))
+    LOG.info("evidence rows=%d", db.command("SELECT count() FROM author_evidence"))
 
 
 @timed
-def append(conn, added):
-    for setting in PARALLEL:
-        conn.execute(setting)
-    conn.execute("DELETE FROM consolidation")
-    conn.execute("DROP TABLE IF EXISTS claim_evidence_added, claim_authors")
-    query = EVIDENCE.format(months=within(added, "t.created_utc"))
-    rows = conn.execute(f"CREATE UNLOGGED TABLE claim_evidence_added AS {query}", {"no_author": [*NO_AUTHOR, *BOT_AUTHORS]}).rowcount
-    conn.execute(ADDED)
-    authors = conn.execute("SELECT count(*) FROM claim_authors").fetchone()[0]
-    conn.commit()
-    LOG.info("evidence added months=%s rows=%s authors=%s", added, rows, authors)
-
-
-def base(conn, loaded):
-    if conn.execute("SELECT to_regclass('consolidation')").fetchone()[0] is None:
-        return None
-    previous = conn.execute("SELECT run_id, months, started_at FROM consolidation").fetchone()
-    if previous is None:
-        return None
-    run_id, covered, started = previous
-    stamps = {month: max(loaded_at, extracted_at) for month, loaded_at, extracted_at in loaded}
-    added = sorted(stamps.keys() - set(covered))
-    if not added or not set(covered) <= stamps.keys() or any(stamps[month] >= started for month in covered):
-        return None
-    return run_id, added
-
-
-@timed
-def inspected(conn):
-    ranges = author_ranges(conn, WORKERS * PARTS_PER_WORKER)
-    stats, base = {}, defaultdict(Counter)
+def decide(db):
+    db.command("DROP TABLE IF EXISTS author_claims_next")
+    db.command(CLAIMS)
+    parts = ranges(db, WORKERS * PARTS_PER_WORKER)
     with multiprocessing.Pool(WORKERS) as pool:
-        for found, counted in pool.starmap(inspect, ranges):
-            for key, (count, hits) in found.items():
-                entry = stats.setdefault(key, [0, 0])
-                entry[0] += count
-                entry[1] += hits
-            for field, values in counted.items():
-                base[field].update(values)
-    return gate(conn, stats, base)
-
-
-@timed
-def decide(conn, touched, blocked):
-    ranges = author_ranges(conn, WORKERS * PARTS_PER_WORKER)
-    with multiprocessing.Pool(WORKERS) as pool:
-        return sum(pool.starmap(work, [(low, high, touched, blocked) for low, high in ranges]))
+        decided = sum(pool.starmap(work, parts))
+    db.command("CREATE TABLE IF NOT EXISTS author_claims AS author_claims_next")
+    db.command("EXCHANGE TABLES author_claims_next AND author_claims")
+    db.command("DROP TABLE author_claims_next")
+    LOG.info("author claims rows=%d", decided)
 
 
 @timed
 def consolidate():
-    run_id = str(uuid.uuid4())
-    with psycopg.connect(DSN) as conn:
-        started = conn.execute("SELECT now()").fetchone()[0]
-        loaded = conn.execute("SELECT month, loaded_at, extracted_at FROM months ORDER BY month").fetchall()
-        if unextracted := [month for month, _, extracted in loaded if extracted is None]:
-            raise ValueError(f"months {unextracted} have no claim extraction yet")
-        months = [month for month, _, _ in loaded]
-        previous, added = base(conn, loaded) or (None, None)
-        LOG.info("consolidation months=%s base=%s added=%s", months, previous, added)
-        if previous is None:
-            conn.execute(FIELD_TYPE)
-            conn.execute(SCHEMA)
-            conn.execute(CLAIMS)
-            conn.commit()
-            evidence(conn)
-        else:
-            append(conn, added)
-        attributes = decide(conn, previous is not None, inspected(conn) if previous is None else blocked_scopes(conn))
-        conn.execute("INSERT INTO consolidation (run_id, months, started_at, base, added) VALUES (%s, %s, %s, %s, %s)", [run_id, months, started, previous, added])
-        if previous is None:
-            conn.execute(SWAP)
-        else:
-            conn.execute("DROP TABLE claim_evidence_added, claim_authors")
-    vacuum("claim_evidence", "author_claims")
-    LOG.info("consolidated run=%s months=%s attributes=%s", run_id, months, attributes)
+    db = client()
+    if db.command("SELECT count() FROM extracted_parts") < PARTS:
+        raise ValueError("claim extraction has not finished every part")
+    evidence(db)
+    decide(db)
 
 
 @timed
 def redecide():
-    run_id = str(uuid.uuid4())
-    with psycopg.connect(DSN) as conn:
-        started = conn.execute("SELECT now()").fetchone()[0]
-        months = conn.execute("SELECT months FROM consolidation").fetchone()[0]
-        conn.execute(FIELD_TYPE)
-        conn.execute(CLAIMS)
-        conn.commit()
-        attributes = decide(conn, False, inspected(conn))
-        conn.execute("DELETE FROM consolidation")
-        conn.execute("INSERT INTO consolidation (run_id, months, started_at) VALUES (%s, %s, %s)", [run_id, months, started])
-        conn.execute(SWAP)
-    vacuum("author_claims")
-    LOG.info("redecided run=%s attributes=%s", run_id, attributes)
+    decide(client())

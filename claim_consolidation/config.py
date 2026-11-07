@@ -1,14 +1,12 @@
 TOLERANCE = {"age": ("absolute", 1), "height": ("absolute", 2), "weight": ("relative", .05), "income": ("relative", .1)}
 NUMERIC = {"age": (13, 100), "height": (120, 230), "weight": (30, 300), "income": (1000, 10_000_000)}
 SHARE = .5
-NEED = 1.5
-FLAIR_STRENGTH = 1.
+NEED = 1
 CHILD_AGE = 18
 NOT_A_CHILD = {"parental_status": ("has children",), "relationship_status": ("married", "separated", "divorced", "widowed"), "employment_status": ("retired",)}
 BOT_AUTHORS = ("AutoModerator",)
-BOT_PROBABILITY = .9
 BOT_TEXTS = 3
 BOT_SHARE = .2
 WORKERS = 20
-PARTS_PER_WORKER = 2
-EVIDENCE_MEMORY = "1GB"
+PARTS_PER_WORKER = 4
+INSERT_ROWS = 200_000
