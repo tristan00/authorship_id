@@ -50,8 +50,11 @@ def signature(char):
     return tuple(bool(re.fullmatch(rf"\{name}", char)) for name in CLASSES)
 
 
-def cached(name, key, build):
-    path = CACHE / f"{name}_{hashlib.sha256(key).hexdigest()[:24]}.pkl"
+def location(name, key):
+    return CACHE / f"{name}_{hashlib.sha256(key).hexdigest()[:24]}.pkl"
+
+
+def cached(path, build):
     if path.exists():
         return pickle.loads(path.read_bytes())
     value = build()
@@ -76,7 +79,7 @@ def disagreeing():
 
 @timed
 def translation(patterns):
-    differing = cached("classes", VERSION, disagreeing)
+    differing = cached(location("classes", VERSION), disagreeing)
     used = mentioned(patterns)
     if stranded := differing & used:
         raise ValueError(f"patterns mention characters whose classes differ between python and hyperscan: {sorted(map(hex, stranded))[:20]}")
@@ -106,8 +109,8 @@ def chunk(entries):
     return {"database": hyperscan.dumpb(database), "failed": failed}
 
 
-def stored(entries):
-    return cached("prefilter", b"\0".join([VERSION, *(str(ident).encode() + b"=" + expression for ident, expression in entries)]), lambda: chunk(entries))
+def stored(path, entries):
+    return cached(path, lambda: chunk(entries))
 
 
 @timed
@@ -115,8 +118,11 @@ def compiled(patterns):
     buckets = [[] for _ in range(CHUNKS)]
     for ident, pattern in enumerate(patterns):
         buckets[zlib.crc32(pattern.pattern.encode()) % CHUNKS].append((ident, pattern.pattern.encode()))
+    paths = [location("prefilter", b"\0".join([VERSION, *(str(ident).encode() + b"=" + expression for ident, expression in entries)])) for entries in buckets]
     with ThreadPoolExecutor(WORKERS) as pool:
-        parts = list(pool.map(stored, buckets))
+        parts = list(pool.map(stored, paths, buckets))
+    for path in set(CACHE.glob("prefilter_*.pkl")) - set(paths):
+        path.unlink()
     failed = [ident for part in parts for ident in part["failed"]]
     for ident in failed:
         LOG.info("prefilter rejected index=%d pattern=%.120r", ident, patterns[ident].pattern)
