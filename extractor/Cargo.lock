@@ -95,6 +95,8 @@ version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "claimcore",
+ "demographics",
+ "location",
  "rustc-hash",
  "unicode-normalization",
 ]
@@ -258,6 +260,7 @@ name = "location"
 version = "0.1.0"
 dependencies = [
  "claimcore",
+ "demographics",
  "unicode-normalization",
 ]
 

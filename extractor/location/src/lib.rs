@@ -2,7 +2,7 @@ mod lexicon;
 mod patterns;
 
 use claimcore::*;
-use lexicon::{entry, region_code, tokens, Entry, Node, LEXICON};
+use lexicon::{entry, region_code, tokens, Entry, Node, CONTINENTS, LEXICON};
 use patterns::*;
 use std::sync::LazyLock;
 
@@ -35,6 +35,12 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             |m| if m.nonempty(1).is_some() { spoken(m.group(1)) } else if let Some(two) = m.nonempty(2) { spoken(Some(strip_space(two))) } else { Some("english".to_string()) }, self_hedge()),
     ]
 });
+
+pub fn geographic(word: &str) -> bool {
+    CONTINENTS.split(' ').chain(LANGUAGES.split(' ')).any(|known| known == word)
+        || LEXICON.nations.contains_key(word)
+        || LEXICON.nodes.get(&chars(word)[..]).and_then(|node| node.entry).is_some_and(|entry| entry.kind == "country")
+}
 
 pub fn rules() -> &'static [Rule] {
     &RULES
@@ -91,7 +97,7 @@ fn fits(entry: &Entry, text: &[char], start: usize, end: usize) -> bool {
     if entry.flag == "code" {
         return isupper(&text[start..end]) && has_lower();
     }
-    if entry.flag == "town" && isupper(&text[start..end]) {
+    if isupper(&text[start..end]) && (entry.flag == "town" || end - start <= 3 && eq(&lower(&text[start..end]), entry.value)) {
         return false;
     }
     if entry.flag == "1" || entry.flag == "town" {

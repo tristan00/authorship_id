@@ -231,6 +231,7 @@ static FOREIGN_SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
     r"vielleicht|non|mai|forse|niet|geen|nooit|misschien|jeśli|może|chyba)(?![\w'])"
 )));
 pub static MENTAL_TAIL: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{})$", TABLES.mental.names())));
+static FIGURATIVE: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\n]*?(?:\b(?:lol|lmao|lmfao|rofl|xd|haha\w*|hehe\w*|clearly|apparently|i guess|i suppose|didn'?t see|did not see|didn'?t notice|missed (?:it|that|this|those|them))\b|[😅😂🤣🙈🤦])"));
 static SENSE: LazyLock<Re> = LazyLock::new(|| Re::new(r"deaf|blind|hearing|eye|sight|vision|ear\b"));
 static SEEKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:no|not|non|looking for|seeking|want|wants|wanted|for|with|into|love|loves|like|likes)\W+(?:[\w'-]+\W+)?$"));
 
@@ -270,7 +271,7 @@ pub const MODIFIERS: &str = concat!(
     r"inattentive|combined|hyperactive|textbook|diagnosed severe|late[- ]diagnosed|recently diagnosed|adult|childhood|postpartum|seasonal|crazy|insane|massive|huge|lingering|residual|newly diagnosed|",
     r"some|a lot of|lots of|serious|really|very|super|extreme|extremely|both|mostly|mainly|also"
 );
-pub const FOLLOWERS: &str = r"(?! (?:friend|friends|kid|kids|son|daughter|brother|sister|partner|husband|wife|mom|dad|mother|father|patient|patients|client|clients|community|people|person|research|awareness|month|day|walk|charity|foundation|society|association|group|subreddit|sub|forum)s?\b)";
+pub const FOLLOWERS: &str = r"(?! (?:friend|friends|kid|kids|son|daughter|brother|sister|partner|husband|wife|mom|dad|mother|father|mum|parent|parents|sibling|ex|boyfriend|girlfriend|bf|gf|fiance|fiancee|fiancé|spouse|roommate|coworker|boss|neighbor|neighbour|cousin|aunt|uncle|grandma|grandpa|grandmother|grandfather|niece|nephew|stepdad|stepmom|patient|patients|client|clients|community|people|person|research|awareness|month|day|walk|charity|foundation|society|association|group|subreddit|sub|forum)s?\b)";
 
 pub fn gap() -> String {
     format!(r"(?:(?!(?:{PEOPLE}|not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|than|to)\b)[\w'/-]+,?\s+){{0,3}}?")
@@ -357,7 +358,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     loose_states.extend(&t.mental_state_strict);
     let mut rules = vec![
         unquoted("physical_condition", &format!(
-            r"m(?<!\wm)y (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |\w+ (?:and )?)?({tool_names})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad)s?\b)"
+            r"m(?<!\wm)y (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |(?!(?:{PEOPLE})(?:'s|s)? )\w+ (?:and )?)?({tool_names})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad)s?\b)"
         ), move |m| {
             if let Some(mental) = MENTAL_TAIL.search(m.string, m.start(), m.end()) {
                 if (mental.start() as isize) < m.start_of(1) {
@@ -371,7 +372,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         ), by(tool_strict), own()),
         unquoted("physical_condition",
             r"i(?<!\wi)(?:'?m| am|'ve gone| have gone|'m going| am going)(?: (?:also|now|already|still|basically|practically|essentially|technically))* (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|i(?<!\wi) (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|i(?<!\wi) (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|i(?<!\wi) (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
-            |m| Some(if SENSE.test(m.text()) { "vision or hearing impairment" } else { "physical disability" }.to_string()), self_hedge()),
+            |m| if !SENSE.test(m.text()) { Some("physical disability".to_string()) } else if FIGURATIVE.at(m.string, m.end()).is_some() { None } else { Some("vision or hearing impairment".to_string()) }, self_hedge()),
         unquoted("physical_condition",
             r"i(?<!\wi)(?:(?:'?m| am|'ve been| have been)(?: (?:also|still|currently|now|basically|literally|just|pretty much))*(?: (?:always|often|constantly|permanently|chronically|perpetually|frequently|usually|almost always) in(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|much|constant|chronic|daily))*| in(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|much))* (?:constant|chronic|daily|ongoing|almost constant|nearly constant|perpetual|permanent|never[- ]?ending|endless|everyday|lifelong|persistent)(?: (?:severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating))*)| live(?: (?:always|constantly|daily))? (?:in|with)(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|constant|chronic|daily|ongoing))*) pain\b(?! (?:management|clinic|meds|medications?|killers?|relief|pills?|doctors?|specialists?)\b)",
             fixed("chronic pain or fibromyalgia"), self_hedge()),
@@ -381,7 +382,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             r"itchy|irritated|inflamed|congested|dehydrated|reactive|combination)\b"
         ), fixed("skin condition"), own()),
         unquoted("physical_condition", concat!(
-            r"m(?<!\wm)y (?:\w+ )?(?:back|knees?|hips?|joints|neck|shoulders?|wrists?|ankles?|feet|legs|hands|stomach|head) (?:still |always |really |constantly |also )?",
+            r"m(?<!\wm)y (?:\w+ )?(?:back|knees?|hips?|joints|neck|shoulders?|wrists?|ankles?|feet|legs|hands|stomach) (?:still |always |really |constantly |also )?",
             r"(?:hurts?|aches?|(?:is |are |has been |have been |keeps |keep )?(?:hurting|aching|killing me|sore|in pain))\b"
         ), fixed("unspecified"), own()),
         unquoted("mental_condition", &format!(r"(?:{have})\s+{modifier}(?:an? )?{gap}({loose})\b{FOLLOWERS}"), by(t.mental_loose.clone()), own()),

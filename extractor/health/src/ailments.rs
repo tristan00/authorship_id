@@ -10,7 +10,7 @@ fn stop() -> String {
 }
 
 fn free() -> String {
-    format!(r"(?:(?!(?:{})\b)(?![\w'-]*(?:ed|en)\b)[\w'/-]+,?\s+)", stop())
+    format!(r"(?:(?!(?:{})s?\b)(?![\w'-]*(?:ed|en)\b)[\w'/-]+,?\s+)", stop())
 }
 
 fn lead() -> String {
@@ -448,6 +448,11 @@ fn caused(part: &[char], left: &[char], start: usize) -> Option<usize> {
     }
 }
 
+re!(TRANSITIVE, r"\s+(?:it|them|this|that|these|those|the|my|your|his|her|their|all|both|some|any|its)\b");
+re!(COUNTED, r"\d\s*$");
+const ACUTE: [&str; 14] = ["stroke", "a stroke", "strokes", "a mini stroke", "aneurysm", "an aneurysm", "a brain aneurysm", "heart attack", "a heart attack", "heart attacks", "seizure", "a seizure", "seizures", "cardiac arrest"];
+re!(HYPERBOLE, r"\b(?:thought i|felt like|feel like|feels like|feeling like|give myself|giving myself|gave myself|give me|gives me|giving me|gave me)\b[^.!?\n]*$");
+
 fn size(m: Match) -> usize {
     m.end() - m.start()
 }
@@ -507,6 +512,9 @@ fn owned(lowered: &[char], origin: usize, part: &[char], found: &mut Found, fami
                 && (here.is_some() || !noun || TRAIL.at(part, end).is_none())
                 && (chained || unhedged(lowered, origin as isize + begin.unwrap()))
                 && !quoted(lowered, origin + start)
+                && !(physical && ACUTE.iter().any(|acute| eq(&name, acute)) && HYPERBOLE.test(left))
+                && !(physical && eq(&name, "disabled") && TRANSITIVE.at(part, end).is_some())
+                && !(physical && name.len() <= 3 && COUNTED.test(left))
             {
                 let value = family.nouns.get(&name).or_else(|| family.states.get(&name)).copied().unwrap_or(family.suffix.1);
                 found.set(family.attribute, value, origin + start);
@@ -734,7 +742,7 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
                 if others.is_some() || addressed.is_some() || hedge.map_or(false, |h| h <= start) {
                     break;
                 }
-                if quoted(lowered, origin + start) || POSSESSOR.test_in(part, start.saturating_sub(50), start) || GENERIC.at(part, end).is_some() || TRAIL.at(part, end).is_some() || HEADS.at(part, end).is_some() {
+                if quoted(lowered, origin + start) || POSSESSOR.test_in(part, start.saturating_sub(50), start) || GENERIC.at(part, end).is_some() || TRAIL.at(part, end).is_some() || HEADS.at(part, end).is_some() || name.len() <= 3 && COUNTED.test(&part[..start]) {
                     continue;
                 }
                 found.set("physical_condition", lexicons.ailment_keys[name], origin + start);

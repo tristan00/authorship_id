@@ -109,7 +109,9 @@ const CANADA_CODES: &[(&str, &str)] = &[("ab", "alberta"), ("bc", "british colum
 const AUSTRALIA_CODES: &[(&str, &str)] = &[("nsw", "new south wales"), ("vic", "victoria"), ("qld", "queensland"), ("sa", "south australia"), ("wa", "western australia"), ("tas", "tasmania"),
     ("nt", "northern territory"), ("act", "australian capital territory")];
 
-const DIRECTIONS: &str = "north south east west northern southern eastern western central upstate downstate rural coastal middle sw se nw ne northeast northwest southeast southwest downtown uptown metro inner outer far deep";
+pub const CONTINENTS: &str = "africa african america americas american antarctica asia asian europe european oceania";
+const DEITIES: &str = "god gods goddess jesus christ allah buddha heaven hell satan lord paradise";
+const DIRECTIONS: &str = "north south east west northern southern eastern western northeastern northwestern southeastern southwestern central upstate downstate rural coastal middle sw se nw ne northeast northwest southeast southwest downtown uptown metro inner outer far deep";
 
 fn region_codes() -> Vec<(&'static str, Vec<(&'static str, &'static str)>)> {
     vec![
@@ -263,6 +265,9 @@ fn gazetteer(strings: &mut Interner) -> Ordered {
             continue;
         }
         let fields: Vec<&str> = line.split('\t').collect();
+        if fields[1] == "country" && fields[0] != fields[2] && fields[2].split(' ').any(|word| word == fields[0]) {
+            continue;
+        }
         let kind = strings.get(fields[1]);
         let value = strings.get(&plain(fields[2]));
         let region = strings.get(&plain(fields[3]));
@@ -343,6 +348,8 @@ fn build() -> Lexicon {
         ordered
     };
     let directions: HashSet<&str> = DIRECTIONS.split(' ').collect();
+    let continents: HashSet<&str> = CONTINENTS.split(' ').collect();
+    let deities: HashSet<&str> = DEITIES.split(' ').collect();
     let mut lexicon = Ordered::default();
     for (name, country) in &foreign {
         lexicon.put(name.clone(), entry("foreign", country, "", country, ""));
@@ -351,8 +358,9 @@ fn build() -> Lexicon {
         lexicon.put(format!("{name}s"), entry("nations", country, "", country, ""));
     }
     for (name, value) in &places.items {
-        if !directions.contains(name.as_str()) {
-            lexicon.put(name.strip_prefix("the ").unwrap_or(name).to_string(), *value);
+        let bare = name.strip_prefix("the ").unwrap_or(name);
+        if !directions.contains(name.as_str()) && !deities.contains(bare) && !(matches!(value.kind, "city" | "region") && (continents.contains(bare) || demographics::ETHNICITIES.contains_key(bare))) {
+            lexicon.put(bare.to_string(), *value);
         }
     }
     for &(name, region) in US_STATE_DEMONYMS {

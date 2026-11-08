@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 claimcore = { workspace = true }
+location = { path = "../location" }
 unicode-normalization = "0.1"
 rustc-hash = "2"
 aho-corasick = "1"
+demographics = { path = "../demographics" }

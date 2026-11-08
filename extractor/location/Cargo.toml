@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 claimcore = { workspace = true }
 unicode-normalization = "0.1"
+demographics = { path = "../demographics" }

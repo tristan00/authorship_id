@@ -64,6 +64,7 @@ FILM_SOURCES = (Source("film", "P31", "Q11424", True, "franchise", 10),)
 CLUBS = Path(__file__).with_name("clubs.tsv")
 CLUB_SOURCES = (Source("sports team", "P31", "Q12973014", True, "sports_team", 20), Source("sports club", "P31", "Q847017", True, "sports_team", 20))
 NONWORD_TITLES = Path(__file__).with_name("nonword_titles.tsv")
+COMMON_WORDS = Path(__file__).with_name("common_words.tsv")
 TITLE_ATTRIBUTES = frozenset({"franchise", "video_game"})
 GAME_SERIES = Path(__file__).with_name("game_series.tsv")
 GAME_SOURCES = frozenset({"video game"})
@@ -220,10 +221,23 @@ def generate_nonword_titles(target=NONWORD_TITLES, lexicon=TARGET):
         for line in rows:
             key, attribute, value, links, surfaces, common = line.rstrip("\n").split("\t")
             if attribute in TITLE_ATTRIBUTES:
-                forms.update(form for surface in filter(None, surfaces.split("|")) if " " not in surface and (form := surface.lower()).capitalize() == surface and form not in dictionary)
+                forms.update(form for surface in filter(None, surfaces.split("|")) if " " not in surface and (form := surface.lower()).capitalize() == surface and form not in dictionary and nltk.corpus.wordnet.morphy(form) is None)
     with open(target, "w", encoding="utf-8", newline="\n") as out:
         out.write("form\n")
         out.writelines(form + "\n" for form in sorted(forms))
+
+
+@timed
+def generate_common_words(target=COMMON_WORDS):
+    nltk.download("wordnet", quiet=True)
+    common, proper = set(), set()
+    for synset in nltk.corpus.wordnet.all_synsets():
+        for lemma in synset.lemmas():
+            name = lemma.name()
+            (common if name.islower() else proper).add(name.lower())
+    with open(target, "w", encoding="utf-8", newline="\n") as out:
+        out.write("word\n")
+        out.writelines(word + "\n" for word in sorted(common - proper) if "_" not in word and WORD.fullmatch(word))
 
 
 if __name__ == "__main__":
@@ -233,3 +247,4 @@ if __name__ == "__main__":
     generate_films()
     generate_clubs()
     generate_nonword_titles()
+    generate_common_words()

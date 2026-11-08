@@ -179,9 +179,10 @@ pub struct Lexicon {
     pub series_of_game: Map<&'static str>,
     pub places: FxHashSet<&'static str>,
     pub nations: FxHashSet<&'static str>,
+    pub words: FxHashSet<&'static str>,
 }
 
-fn read(name: &str, plain: &mut Map<Vec<Entry>>, cased: &mut Map<Vec<Entry>>, order: &mut Vec<&'static str>) {
+fn read(name: &str, plain: &mut Map<Vec<Entry>>, cased: &mut Map<Vec<Entry>>, order: &mut Vec<&'static str>, words: &FxHashSet<&'static str>) {
     for line in rows(name) {
         let mut fields = line.split('\t');
         let key = fields.next().unwrap();
@@ -195,6 +196,9 @@ fn read(name: &str, plain: &mut Map<Vec<Entry>>, cased: &mut Map<Vec<Entry>>, or
             let keychars: Vec<char> = key.chars().collect();
             let entry = Entry { attribute, value, links, cased: true, common: common || size <= SHORT_KEY && !(has_digit(key) && two_letters(&keychars)) };
             for surface in surfaces.split('|') {
+                if words.contains(surface) {
+                    continue;
+                }
                 let list = cased.entry(surface).or_insert_with(|| {
                     order.push(surface);
                     Vec::new()
@@ -361,11 +365,12 @@ fn build() -> Lexicon {
     }
     let mut cased: Map<Vec<Entry>> = FxHashMap::default();
     let mut order: Vec<&'static str> = Vec::new();
-    read("knowledge.tsv", &mut plain, &mut cased, &mut order);
+    let words: FxHashSet<&'static str> = rows("common_words.tsv").collect();
+    read("knowledge.tsv", &mut plain, &mut cased, &mut order, &words);
     let mut film_plain: Map<Vec<Entry>> = FxHashMap::default();
     let mut film_cased: Map<Vec<Entry>> = FxHashMap::default();
     let mut film_order = Vec::new();
-    read("films.tsv", &mut film_plain, &mut film_cased, &mut film_order);
+    read("films.tsv", &mut film_plain, &mut film_cased, &mut film_order, &words);
     let nonword: FxHashSet<&'static str> = rows("nonword_titles.tsv").collect();
     let mut raised: Map<Vec<Entry>> = FxHashMap::default();
     let mut sentence_cased: Map<Vec<Entry>> = FxHashMap::default();
@@ -377,7 +382,7 @@ fn build() -> Lexicon {
         let surface_chars: Vec<char> = surface.chars().collect();
         let titles: Vec<Entry> = entries.iter().copied().filter(|e| TITLES.contains(&e.attribute) && !e.common).collect();
         let famous: Vec<Entry> = titles.iter().copied().filter(|e| e.links >= FAMOUS_SITELINKS).collect();
-        if !spaced && titled_first(surface) == surface && !famous.is_empty() {
+        if !spaced && titled_first(surface) == surface && !famous.is_empty() && !words.contains(low) {
             raised.insert(low, famous);
         } else if !spaced && has_digit(surface) && two_letters(&surface_chars) && !titles.is_empty() {
             raised.entry(low).or_insert(titles);
@@ -417,6 +422,7 @@ fn build() -> Lexicon {
             let fields: Vec<&'static str> = line.split('\t').collect();
             (fields[1] == "country" || fields[1] == "region" && fields[4] == "united states").then_some(fields[0])
         }).collect(),
+        words,
     };
     lexicon.team_words = team_words("clubs.tsv");
     lexicon.team_span = lexicon.team_words.keys().map(|k| k.matches(' ').count() + 1).max().unwrap_or(0);
@@ -447,6 +453,10 @@ pub const FILM_CASED: u8 = 3;
 impl Node {
     pub fn surface(&self, table: u8, surface: &str) -> Option<&'static Vec<Entry>> {
         self.surfaces.iter().find(|(t, s, _)| *t == table && *s == surface).map(|(_, _, e)| *e)
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = &'static Entry> + '_ {
+        self.plain.into_iter().flatten().chain(self.surfaces.iter().flat_map(|(_, _, e)| e.iter()))
     }
 }
 

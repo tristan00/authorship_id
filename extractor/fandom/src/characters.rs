@@ -23,10 +23,12 @@ playing play using use being having doing going getting watching reading such on
 perhaps sometimes always lately currently recently especially mostly mainly usually basically obviously clearly surely personally easily";
 const ROLES_WORDS: &str = "support supports tank tanks dps healer healers heal jungle jungler mid top adc bot carry assassin assassins mage mages marksman fighter fighters \
 melee ranged caster casters sniper snipers striker defender attacker sword spear bow gun guns hammer lance axe axes staff dagger daggers fist fists \
-random it them her him";
+random it them her him killer killers survivor survivors";
 const CUES_WORDS: &str = "love loved adore adored enjoy enjoyed like liked dig recommend second rewatched replayed obsessed addicted into fan hooked enough favorite favorites favourite favourites fave faves fav favs fell \
 good great amazing awesome excellent fantastic underrated underappreciated goated incredible perfect beautiful fun peak fire goat best jam banger bangers masterpiece classic brilliant phenomenal \
 gorgeous lovely wonderful playing watching listening reading bingeing binging replaying rewatching mine hands";
+
+const CALENDAR_WORDS: &str = "january february march april may june july august september october november december monday tuesday wednesday thursday friday saturday sunday today tonight tomorrow yesterday morning afternoon evening night noon midnight weekend week month year day hour minute second time season summer winter spring autumn fall christmas xmas halloween easter thanksgiving valentine valentines hanukkah ramadan diwali birthday holiday holidays";
 
 fn nouns() -> String {
     format!(r"(?:{MEDIA}|ways?|things?|parts?|moments?|segments?|lines?|quotes?|scenes?|models?|builds?|places?|foods?|drinks?|colou?rs?|flavou?rs?|brands?|cars?|days?|times?|kinds?|types?|sets?|cards?|items?|weapons?|maps?|levels?|modes?|classes|races|factions?|guns?|looks?|players?|teams?|athletes?|drivers?|bands?|singers?|artists?|authors?|writers?|actors?|actress(?:es)?|youtubers?|streamers?|podcasts?|channels?)")
@@ -36,10 +38,14 @@ pub struct Tables {
     characters: FxHashMap<&'static str, i64>,
     surfaces: FxHashMap<&'static str, i64>,
     lowercased: FxHashMap<String, &'static str>,
+    named: FxHashSet<String>,
+    plurals: FxHashSet<&'static str>,
+    initials: FxHashSet<&'static str>,
     others: FxHashSet<String>,
     generic: FxHashSet<&'static str>,
     roles: FxHashSet<&'static str>,
     cues: FxHashSet<&'static str>,
+    calendar: FxHashSet<&'static str>,
 }
 
 fn build() -> Tables {
@@ -47,9 +53,18 @@ fn build() -> Tables {
     let mut characters = FxHashMap::default();
     let mut surfaces: FxHashMap<&'static str, i64> = FxHashMap::default();
     let mut lowercased = FxHashMap::default();
+    let mut named = FxHashSet::default();
+    let mut plurals = FxHashSet::default();
+    let mut initials = FxHashSet::default();
     for line in data.lines().skip(1) {
         let fields: Vec<&'static str> = line.split('\t').collect();
-        let (key, links, cased, common) = (fields[0], fields[3].parse::<i64>().unwrap(), fields[4], fields[5]);
+        let (key, value, links, cased, common) = (fields[0], fields[2], fields[3].parse::<i64>().unwrap(), fields[4], fields[5]);
+        if key.chars().count() < 3 && key != value {
+            initials.insert(key);
+        }
+        if key.strip_suffix('s') == Some(value) {
+            plurals.insert(key);
+        }
         if cased.is_empty() {
             characters.insert(key, links);
             continue;
@@ -60,6 +75,9 @@ fn build() -> Tables {
             let chars = chars_of(surface);
             if links >= 3 && common.is_empty() && isalpha(&chars) && istitle(&chars) {
                 lowercased.insert(surface.to_lowercase(), surface);
+                if key == value {
+                    named.insert(surface.to_lowercase());
+                }
             }
         }
     }
@@ -81,10 +99,14 @@ fn build() -> Tables {
         characters,
         surfaces,
         lowercased,
+        named,
+        plurals,
+        initials,
         others,
         generic,
         roles: ROLES_WORDS.split_whitespace().collect(),
         cues: CUES_WORDS.split_whitespace().collect(),
+        calendar: CALENDAR_WORDS.split_whitespace().collect(),
     }
 }
 
@@ -114,6 +136,12 @@ re!(CLAUSE, r"[^.!?\n]+[.!?]*");
 re!(PARAGRAPH, r"(?:[^\n]|\n(?![ \t]*\n))+");
 re!(CHEER, format!(r"(?m:(?:^|[.!?]\s+)[\W_]*(?:(?i:absolutely |really |just |still |totally |fucking |fuckin |so |gotta |truly |honestly |)(?:[Ll]ove|LOVE|[Aa]dore|ADORE) |(?i:hell yeah|hell yes|let'?s go|justice for|respect for|protect|love for|all hail|long live|w) )){NAME}(?=[^\w\n]*(?:\n|$)|\s*[.!?,;:)]| (?i:so much|forever|always|tho|though|too)\b)"));
 re!(CHEERED, r"(?:[Ll]ove|LOVE|[Aa]dore|ADORE|(?i:hell yeah|hell yes|let'?s go|justice for|respect for|protect|all hail|long live|w)) (?:[Tt]he )?[A-Z0-9]");
+re!(HONORIFIC, r"^(?i:mr|mrs|ms|mx|dr|sr|jr|st|prof|sgt|lt|capt)\.?$");
+re!(NUMBERED, r"^(?i:(?:number|no\.?|#)\s*)?(?i:\d+|one|two|three|four|five|six|seven|eight|nine|ten|first|second|third|fourth|fifth|last)$");
+re!(INTERJECTION, r"^(?i:hell|heck|damn|dang|darn|gosh|jeez|geez|wow|omg|lol|lmao|haha|yay|ugh|oh|ah|hey|hi|thanks|please|sorry|yeah|yes|nope|nah|yep|welp|whoa|ouch|oops|bruh)$");
+re!(KINSHIP, r"^(?i:mom|mum|mommy|mummy|mother|dad|daddy|father|papa|mama|sister|sis|brother|bro|wife|husband|hubby|son|daughter|grandma|grandpa|granny|grandmother|grandfather|aunt|auntie|uncle|cousin|niece|nephew|boyfriend|girlfriend|bf|gf|kid|kids|kiddo|child|children|homie|buddy|friend|bestie)$");
+re!(ANIMAL, r"^(?i:cat|cats|kitty|kitten|kittens|dog|dogs|doggo|puppy|puppies|pup|bunny|rabbit|horse|pony|bird|fish|hamster|mouse|rat|snake|lizard|turtle|frog|duck|cow|pig|goat|sheep|chicken|fox|wolf|bear|lion|tiger|monkey|parrot)$");
+re!(CATEGORY, r"^(?i:pok[eé]mon|digimon)s?$");
 re!(BARE, r"(?:^|[^\w'-])(?i:the|a|an|to|this|that|some|any) $");
 
 #[derive(Clone, Copy, PartialEq)]
@@ -164,7 +192,8 @@ static STAGES: LazyLock<Vec<Stage>> = LazyLock::new(|| {
         stage(format!(r"(?:(?i:\b(?:an?|as an?|fellow|other|us|we|i'?m an?|im an?|i am an?|i'?m|i am|im|been an?|being an?|i play) ))({NAME}|[a-z][\w'-]*)(?i: (?:main|mains|one[- ]?trick|two[- ]?trick|otp)\b(?! {ADJECTIVAL}))"), Any, vec![v(MAINS)]),
         stage(format!(r"(?m:^[\W_]*){NAME}(?i: (?:main|mains|otp|one[- ]?trick)(?= here\b| btw\b| and\b| since\b| for\b| who\b|\s*[,.!:\n]|\s*$))"), Any, vec![v(MAINS)]),
         stage(format!(r"(?i:\bmy (?:current |new |og |first |only )?(?:mains?|main character|main girl|main boy|one[- ]?trick)(?: (?:is|are|was|has been|have been|include|includes|remains)|:)\s+){ANY}"), Any, vec![v(MY), v(MAINS)]),
-        stage(format!(r"(?i:\bi (?:mostly |usually |always |only |mainly |still |also |)(?:play|played|use|used) ){NAME}"), Known, vec![v(I_SET), vec!["play", "played", "use", "used"]]),
+        stage(format!(r"(?i:\bi (?:mostly |usually |always |only |mainly |still |also |)(?:play|played) ){NAME}"), Known, vec![v(I_SET), vec!["play", "played"]]),
+        stage(format!(r"(?i:\bi (?:mostly |usually |always |only |mainly |still |also |)(?:use|used) ){NAME}(?<! to)(?! (?i:to|for)\b)"), Known, vec![v(I_SET), vec!["use", "used"]]),
         stage(format!(r"(?i:\b(?:one of )?my {TIER}{FAVOURITE} (?:\w+ ){{0,2}}{KIND}(?: of all time| ever| right now| atm| at the moment| so far| by far| in the (?:game|show|series|anime|manga|book))? (?:is|has to be|would be|would have to be|remains|are|has always been|will always be|was|has got to be|gotta be|:)(?: (?:probably|definitely|easily|still|honestly|always|def|obviously|hands down|without a doubt|either|currently|now|tied between))?\s*){ANY}"), Any, vec![v(MY), v(FAVS)]),
         stage(format!(r"(?i:\b(?:one of )?my {TIER}{FAVOURITE}(?: of all time| ever| right now| atm| at the moment| so far| by far)? (?:is|has to be|would be|would have to be|remains|are|has always been|will always be|was|has got to be|gotta be|:)(?: (?:probably|definitely|easily|still|honestly|always|def|obviously|hands down|without a doubt|either|currently|now|tied between))?\s*|\b(?:other )?{FAVOURITE} of mine (?:are|include|is)\s+){NAME}"), Medium, vec![v(FAVS)]),
         stage(format!(r"{NAME}(?i: (?:is|are|was|were|has always been|will always be|remains|has become|became) (?:still |definitely |probably |easily |honestly |hands down |also |by far |absolutely |literally )*(?:one of |among )?my {TIER}{FAVOURITE} (?:\w+ ){{0,2}}{KIND}\b)"), Any, vec![v(MY), v(FAVS)]),
@@ -253,11 +282,15 @@ fn sentence(text: &[char], position: usize) -> (usize, usize) {
 fn emit(name: &[char], found: &mut Found, text: &[char], position: usize, gate: Gate, last: bool) {
     let tables = &*TABLES;
     for piece in pieces(name, last) {
+        let low = st(&lower(&piece));
+        if location::geographic(&low) || tables.calendar.contains(low.as_str()) || CATEGORY.test(&piece) || HONORIFIC.test(&piece) || NUMBERED.test(&piece) || INTERJECTION.test(&piece) || KINSHIP.test(&piece) || ANIMAL.test(&piece) || tables.plurals.contains(low.as_str()) || tables.initials.contains(low.as_str()) && { let (a, b) = sentence(text, position); !STRONG.test_in(text, a, b) } || demographics::ETHNICITIES.contains_key(low.as_str()) {
+            continue;
+        }
         match gate {
             Gate::Known if other(&piece) || !known(&piece, 1) => continue,
             Gate::Medium if !known(&piece, 0) && (foreign(&piece) || { let (a, b) = sentence(text, position); !STRONG.test_in(text, a, b) }) => continue,
             Gate::Named if foreign(&piece) => continue,
-            Gate::Rare if other(&piece) || !tables.lowercased.contains_key(&st(&lower(&piece))) => continue,
+            Gate::Rare if other(&piece) || !tables.named.contains(&st(&lower(&piece))) => continue,
             _ => {}
         }
         if let Some(value) = fan_value("character", &lower(&piece)) {

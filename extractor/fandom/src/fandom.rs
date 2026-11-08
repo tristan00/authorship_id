@@ -33,6 +33,28 @@ const GENERIC_WORDS: &str = "it this that these those him her them you me my you
 shows show movies movie films film books book reading watching playing food sex cock dick pussy ass porn people men women guys girls kids dogs cats animals life it's them. \
 him. you. that. this. here there out up down so very much more most doing going getting seeing playing talking working";
 
+const CALENDAR_WORDS: &str = "january february march april may june july august september october november december monday tuesday wednesday thursday friday saturday sunday \
+weekend weekday spring summer autumn fall winter halloween christmas xmas easter thanksgiving morning afternoon evening night tonight today tomorrow yesterday midnight noon day days week weeks \
+month months year years decade decades hour hours minute minutes second seconds new eve";
+const COLOUR_WORDS: &str = "red orange yellow green blue purple violet pink brown black white gray grey silver gold golden beige teal cyan magenta maroon navy crimson scarlet turquoise indigo lavender";
+const CONTINENTS: [&str; 13] = ["africa", "antarctica", "asia", "europe", "oceania", "america", "americas", "north america", "south america", "latin america", "central america", "middle east", "australia"];
+const DEMONYM_WORDS: &str = "american british english scottish welsh irish canadian australian aussie french german spanish italian portuguese dutch russian chinese japanese korean indian pakistani \
+mexican brazilian argentine argentinian arab arabic african asian european latin latina latino hispanic polish swedish norwegian danish finnish greek turkish persian israeli ukrainian filipino \
+vietnamese thai hindi urdu bengali cuban egyptian nigerian swiss austrian belgian hungarian czech romanian";
+const INTERJECTION_WORDS: &str = "lol lmao omg haha dude bro yeah yep nope ok okay hey wow damn tbh imo idk btw nah u ur ya know";
+const FILLER_WORDS: &str = "u ur ya y'all yall know mean let lots plenty every some most many few other such own here's there's what's let's gonna wanna gotta kinda sorta";
+const CREATOR_WORDS: &str = "youtube yt tiktok twitch kick reddit instagram insta twitter facebook snapchat podcast podcasts channel channels video videos vlog vlogs stream streams streaming streamer \
+streamers youtuber youtubers content ai watch watching watched subscribe";
+const PLATFORM_WORDS: &str = "switch nintendo playstation ps1 ps2 ps3 ps4 ps5 psp vita xbox wii gameboy 3ds steam amazon spotify itunes soundcloud bandcamp pandora youtube tiktok netflix hulu internet";
+const PLATFORM_PARTS: &str = "one deck store music prime video";
+const PLATFORM_TARGETS: [&str; 4] = ["artist", "celebrity", "athlete", "video_game"];
+const LOWERCASE_TARGETS: [&str; 1] = ["video_game"];
+const ALIASED: [&str; 5] = ["artist", "celebrity", "creator", "athlete", "author"];
+const CALENDAR_TARGETS: [&str; 6] = ["artist", "celebrity", "creator", "athlete", "author", "video_game"];
+const COLOUR_TARGETS: [&str; 5] = ["celebrity", "creator", "athlete", "author", "video_game"];
+const DEMONYM_TARGETS: [&str; 6] = ["artist", "creator", "athlete", "author", "video_game", "franchise"];
+const FILLER_TARGETS: [&str; 6] = ["celebrity", "creator", "athlete", "author", "video_game", "franchise"];
+const GENERIC_TARGETS: [&str; 4] = ["celebrity", "creator", "athlete", "author"];
 const PRONOUNS: [&str; 13] = ["i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you", "we", "he", "she", "they"];
 const PEOPLE: [&str; 6] = ["character", "artist", "athlete", "celebrity", "creator", "author"];
 const ALL_OPTIONS: [&str; 8] = ["character", "artist", "athlete", "celebrity", "creator", "author", "franchise", "video_game"];
@@ -57,8 +79,16 @@ fn word_set(words: &'static str) -> FxHashSet<&'static str> {
     words.split_whitespace().collect()
 }
 
+static CALENDAR: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(CALENDAR_WORDS));
+static COLOURS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(COLOUR_WORDS));
+static DEMONYMS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(DEMONYM_WORDS));
+static FILLER: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(FILLER_WORDS));
+static INTERJECTIONS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(INTERJECTION_WORDS));
+static CREATOR_TERMS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(CREATOR_WORDS));
 pub static COMMON: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(COMMON_WORDS));
 static EDGE: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(EDGE_WORDS));
+static PLATFORMS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(PLATFORM_WORDS));
+static PLATFORM_PART: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(PLATFORM_PARTS));
 static GENERIC: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(GENERIC_WORDS));
 
 fn py_escape(word: &str) -> String {
@@ -411,8 +441,15 @@ fn spread(words: &Words, index: usize, found: Found2, spans: &mut Vec<Mention>) 
     let (size, a, b) = found;
     let start = words.bounds[index].0;
     let end = words.bounds[index + size - 1].1;
+    let low = folded(&(index..index + size).map(|i| words.low(i)).collect::<Vec<_>>().join(" "));
+    let aliased = |e: &Entry| folded(&joined_words(&chars_of(e.value))) != low;
+    let short = tiny(&low);
+    let worded = size == 1 && LEXICON.words.contains(low.as_str());
+    let fictional = a.into_iter().flatten().chain(b.into_iter().flatten()).any(|e| e.attribute == "character" && !aliased(e));
     for e in a.into_iter().flatten().chain(b.into_iter().flatten()) {
-        spans.push(Mention { attribute: e.attribute, start, end, value: e.value, cased: e.cased, common: e.common, links: e.links });
+        let unnamed = (short && has(&ALIASED, e.attribute) || worded && e.attribute == "artist" || fictional && e.attribute != "athlete" && has(&ALIASED, e.attribute)) && aliased(e) && !named_in(words, e.value);
+        let value = if unnamed { "" } else { e.value };
+        spans.push(Mention { attribute: e.attribute, start, end, value, cased: e.cased, common: e.common, links: e.links });
     }
     size
 }
@@ -453,7 +490,7 @@ fn same_words(a: &[char], b: &[char]) -> bool {
 
 pub fn shown(surface: &[char], value: &str) -> Vec<char> {
     let value_chars = chars_of(value);
-    if surface.len() > SHORT_KEY && !same_words(&lower(surface), &value_chars) {
+    if !value.is_empty() && surface.len() > SHORT_KEY && !same_words(&lower(surface), &value_chars) {
         surface.to_vec()
     } else {
         value_chars
@@ -525,8 +562,54 @@ pub fn named(attribute: &str, name: &[char], found: &mut Found, position: usize)
         return;
     }
     if let Some(value) = fan_value(attribute, &low) {
-        found.set(attribute, st(&value), position);
+        let value = st(&value);
+        if !junk_value(attribute, &value) {
+            found.set(attribute, value, position);
+        }
     }
+}
+
+fn named_in(words: &Words, value: &str) -> bool {
+    let own: Vec<&str> = value.split(' ').filter(|w| w.chars().filter(|&c| is_letter(c)).count() >= 3).collect();
+    (0..words.bounds.len()).any(|i| own.contains(&words.low(i)))
+}
+
+fn labelled(attribute: &str, value: &str) -> bool {
+    match probe(value) {
+        Probe::Entry(node) => node.entries().any(|e| e.attribute == attribute && e.value == value),
+        _ => false,
+    }
+}
+
+fn tiny(value: &str) -> bool {
+    value.chars().filter(|&c| is_letter(c)).count() < 3 && !has_digit(value)
+}
+
+fn is_number(word: &str) -> bool {
+    !word.is_empty() && word.chars().all(|c| c.is_ascii_digit())
+}
+
+fn junk_value(attribute: &str, value: &str) -> bool {
+    let words: Vec<&str> = value.split(' ').filter(|w| !w.is_empty()).collect();
+    if words.is_empty() || attribute == "sports_team" {
+        return false;
+    }
+    let within = |set: &FxHashSet<&'static str>| words.iter().all(|w| set.contains(w) || is_number(w)) && words.iter().any(|w| set.contains(w));
+    let every = |test: &dyn Fn(&str) -> bool| words.iter().all(|w| test(w));
+    let folded_value = folded(value);
+    let generic = |w: &str| GENERIC.contains(w) || COMMON.contains(w) || EDGE.contains(w);
+    (has(&CALENDAR_TARGETS, attribute) && within(&CALENDAR))
+        || (has(&PLATFORM_TARGETS, attribute) && every(&|w| PLATFORMS.contains(w) || PLATFORM_PART.contains(w) || is_number(w)) && words.iter().any(|w| PLATFORMS.contains(w)))
+        || (has(&COLOUR_TARGETS, attribute) && every(&|w| COLOURS.contains(w)))
+        || LEXICON.nations.contains(folded_value.as_str())
+        || CONTINENTS.contains(&folded_value.as_str())
+        || (has(&DEMONYM_TARGETS, attribute) && every(&|w| DEMONYMS.contains(w)))
+        || (has(&FILLER_TARGETS, attribute) && every(&|w| COMMON.contains(w) || EDGE.contains(w) || FILLER.contains(w)))
+        || (has(&GENERIC_TARGETS, attribute) && every(&generic))
+        || (has(&LOWERCASE_TARGETS, attribute) && words.len() == 1 && LEXICON.words.contains(words[0]) && !capitalized(words[0]))
+        || (attribute == "artist" && every(&|w| INTERJECTIONS.contains(w)) && !words.iter().any(|w| capitalized(w)))
+        || (has(&ALIASED, attribute) && tiny(value) && !labelled(attribute, value))
+        || (attribute == "creator" && (every(&|w| CREATOR_TERMS.contains(w) || generic(w)) || matches!(words[words.len() - 1], "stream" | "streams")))
 }
 
 fn parts(name: &[char]) -> Vec<Vec<char>> {
@@ -561,7 +644,26 @@ fn bare_word_in(text: &[char], word: &[char]) -> bool {
     })
 }
 
+thread_local! {
+    static TEXT: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+fn remember(text: &[char]) {
+    TEXT.with(|t| t.set((text.as_ptr() as usize, text.len())));
+}
+
+fn capitalized(word: &str) -> bool {
+    let (pointer, size) = TEXT.with(|t| t.get());
+    if pointer == 0 {
+        return true;
+    }
+    let text = unsafe { std::slice::from_raw_parts(pointer as *const char, size) };
+    let target: Vec<char> = word.chars().collect();
+    word_spans(text).into_iter().any(|(a, b)| b - a == target.len() && text[a].is_uppercase() && lower(&text[a..b]) == target)
+}
+
 pub fn fandom(text: &[char], found: &mut Found) {
+    remember(text);
     if !cues_of(text).any(MASKS.POSITIVE) || positive_starts(text).is_empty() {
         return;
     }
@@ -619,6 +721,7 @@ pub fn fandom(text: &[char], found: &mut Found) {
 }
 
 pub fn adjacent(text: &[char], found: &mut Found) {
+    remember(text);
     let lowered = lower(text);
     let mut totals = Totals::new(text);
     for m in ADJACENT.iter(&lowered) {
@@ -660,6 +763,7 @@ fn first_word(s: &[char]) -> String {
 }
 
 pub fn favorites(text: &[char], found: &mut Found) {
+    remember(text);
     let lowered = lower(text);
     let cues = cues_of(text);
     let masks = &*MASKS;
