@@ -30,7 +30,11 @@ def tune(targets, directory, out):
     out.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random(SEED)
     manifest, specs, data = load_data(directory, targets)
-    trials = [PARAMETERS] + [{**PARAMETERS, **{key: rng.choice(values) for key, values in TUNE_SPACE.items()}} for _ in range(TUNE_TRIALS - 1)]
+    trials = [PARAMETERS]
+    while len(trials) < TUNE_TRIALS:
+        candidate = {**PARAMETERS, **{key: rng.choice(values) for key, values in TUNE_SPACE.items()}}
+        if candidate not in trials:
+            trials.append(candidate)
     started, history = time.perf_counter(), []
     for round_number, epochs in enumerate(TUNE_ROUNDS):
         scored = []
