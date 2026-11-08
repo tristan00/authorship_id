@@ -228,7 +228,7 @@ pub const JOBS: &[(&str, &str)] = &[
 pub const SKILL: &str = concat!("good|great|bad|decent|terrible|awful|amazing|better|best|worse|worst|home|amateur|hobby|hobbyist|aspiring|wannabe|wanna-be|future|former|ex|retired|noob|newbie|",
     "beginner|budding|failed|frustrated|would-be|prospective|fake|pretend|big|huge|massive|total|natural|born|picky|lazy|self-taught|shitty|crappy|mediocre|average|okay|ok|",
     "competent|excellent|fantastic|awesome|horrible|poor|weekend|backyard|armchair|bedroom|closet|student|wanna|sucky|lousy|messy|careful|safe|nervous|confident|avid");
-pub const BLOCK_WORDS: &str = "and or but with to of for in at on who that like this my your his her their our the a an not no than as is was";
+pub const BLOCK_WORDS: &str = "and or but with to of for in at on who that like this my your his her their our the a an not no than as is was can cant can't";
 pub const HEADS: &str = concat!("engineer|developer|dev|manager|officer|assistant|technician|tech|worker|analyst|specialist|consultant|nurse|scientist|designer|director|architect|administrator|",
     "operator|supervisor|coordinator|aide|teacher|artist|writer|editor|producer|agent|representative|rep|clerk|student|lead|instructor|therapist|counselor|counsellor|",
     "attorney|lawyer|driver|mechanic|inspector|owner|practitioner|apprentice|trainee|intern|major|graduate|grad|candidate|friend|fan|school|program|programme|degree|",

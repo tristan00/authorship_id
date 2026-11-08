@@ -22,6 +22,7 @@ static PERSONA: LazyLock<Re> = LazyLock::new(|| Re::new(r"\d{2}\s?[mf]\b|\b[mf]\
 static STRICT_END: LazyLock<Re> = LazyLock::new(|| Re::new(r"[ \t]*(?:$|[.,!;|(\n]|(?:and|by trade|by profession|here)\b)"));
 static PERSONA_END: LazyLock<Re> = LazyLock::new(|| Re::new(r"[ \t]*(?:$|[.,!;|(\n-]|(?:and|by trade|by profession|here|who|with|getting|looking|seeking|available|from|in)\b)"));
 static WANTED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:you|your|you're|u|ur|looking|seeking|want|wanted|wanting|prefer|preferably|ideally|bonus|like|into|for)\b"));
+static OBJECT: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s+(?:my|your|his|her|their|this|that|these|those|the|a|an|me|you|him|them|us|it|or|one|some|any)\b"));
 static ROLEPLAY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:rp|roleplay|role play|role-play|roleplaying|role playing)\b"));
 static GRADUATE_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:grad|graduate|phd|masters?|master's|doctoral|med|law|medical)\b"));
 static SCHOOL_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:high school|highschool|hs)\b"));
@@ -181,10 +182,15 @@ fn fragment(m: &Match) -> Option<&'static str> {
     }
 }
 
+fn retiree(m: &Match) -> Option<&'static str> {
+    let (value, end) = title(m.string, m.end(), Some(1), Use::Job)?;
+    if STRICT_END.at(m.string, end).is_some() { value } else { None }
+}
+
 fn tagged(m: &Match) -> Option<&'static str> {
     let text = m.string;
     let (value, end) = title(text, m.end(), Some(2), Use::Job)?;
-    if question(text, end) || WANTED.test_in(text, m.start(), end) || PERSONA_END.at(text, end).is_none() {
+    if question(text, end) || WANTED.test_in(text, m.start(), end) || OBJECT.at(text, end).is_some() {
         return None;
     }
     value
@@ -255,6 +261,16 @@ fn celled(m: &Match) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+fn personal(m: &Match) -> bool {
+    let text = m.string;
+    let start = m.start();
+    if !cached(text, |c| *c.persona.get_or_insert_with(|| maybe_persona(text) && PERSONA.test(text))) {
+        return false;
+    }
+    let (persona, wanted) = marks(text, line_of(text, start));
+    persona <= start && wanted >= start
 }
 
 fn roleplay(text: &[char]) -> bool {

@@ -94,7 +94,7 @@ pub fn build() -> Vec<Rule> {
     };
     let lead = [r"(?:^|\n)[ \t>*#\\-]*+(?:(?:\d{2}\s?(?:yo|y/o|yrs? old|years? old)|\d{2}\s?[mf]?|[mf]\s?\d{2}|[\[(][\w /+-]{1,12}[\])]|#[\w/-]+|[-–—|,]+)[ \t]*)*+(?:(?:also|just|another|fellow|a|an) )*+",
         r"(?:(?:married|professional|licensed|certified|registered|senior|junior|qualified|experienced|freelance|hung|single|divorced|tired|exhausted) )*+(?=[^\W_])"].concat();
-    let tagged_title = r"(?<![\w$#])(?:\d{2}\s?[mf]|[mf]\s?\d{2})\b(?: and)?[ ,]+(?:an? )?|(?<![\w$#.,])\d{2},? and an? ".to_string();
+    let tagged_title = r"(?<![\w$#])(?:\d{2}\s?[mf]|[mf]\s?\d{2})\b(?: and)?[ ,]+(?:an? )?|(?<![\w$#.,])\d{2},? and an? |(?<![\w$#])[\[(]?[mf]4[a-z]+[\])]?[ ,]+(?:an? )?|\(\d{2}\)[ ,]+(?:an? )?".to_string();
     let cell = r"[,|][ \t]*(?:an? )?".to_string();
     let workplace = [
         format!(r"(?:\bi(?:(?:(?:'ve| have) (?:been )?(?:currently |now |also |still |mostly |mainly |actually )?(?:work|working|worked)|(?:'m| am)? (?:currently |now |also |still |mostly |mainly |just started |started |actually )?(?:work|working|employed)) (?:(?:in|for) )?(?:the |an? )?(?:(?!(?:same|this|that|my|your|his|her|their|our|other|different|any|every|no)\b)[\w-]+ ){{0,2}}?|(?:'m| am|m|'ve been| have been) (?:currently |now |also |still |actually |mostly |mainly )?in (?:the )?)|\bas (?:someone|somebody) (?:who (?:also |currently |now |still |actually )?(?:works|has worked) |working )?in (?:the )?)({field_names})")
@@ -136,7 +136,7 @@ pub fn build() -> Vec<Rule> {
     let got_job = r"\b(?:got|landed|accepted|offered) the job\b";
     let working_role = r"working (?:mom|mum|mother|dad|father|parent|professional|adult|woman|man)\b(?! (?:to|on|in|at|for)\b)";
     let working_lines = [
-        format!(r"i(?<!\wi)(?:'m|m| am)(?: also| now| currently| just)? (?:an? )?(?:[\w-]+ ){{0,2}}?{working_role}"),
+        format!(r"i(?<!\wi)(?:'m|m| am)(?: also| now| currently| just)? (?:an? )?(?:[\w-]+ ){{0,4}}?{working_role}"),
         format!(r"(?:(?m:^)[ \t>*#\\-]*|,[ \t]*)(?:(?:\d{{2}}\s?[mf]?|[mf]4[a-z]+|[mf]\s?\d{{2}}|[\[(][\w /+-]{{1,12}}[\])])[ \t,|-]*)*+(?:an? )?(?:[\w-]+ ){{0,2}}?{working_role}"),
     ];
     let mut employed_patterns: Vec<String> = vec![
@@ -244,7 +244,7 @@ pub fn build() -> Vec<Rule> {
     let pro_student = format!(r"\b(?:{I}|i'm currently|currently) (?:still |now |also )?(?:in|at|attending|finishing) (?:my (?:\w+ )?(?:year|semester) (?:of|in|at) )?{PRO_SCHOOL} school\b|")
         + &format!(r"\b(?:{I}|as) (?:an? |the )?(?:current |first[- ]year |second[- ]year |third[- ]year |fourth[- ]year |final[- ]year |\d(?:st|nd|rd|th)[- ]year )?{PRO_SCHOOL} student\b|")
         + &format!(r"\bmy (?:\w+ )?(?:year|semester) (?:of|in|at) {PRO_SCHOOL} school\b|\bi (?:go to|attend|started|start) {PRO_SCHOOL} school\b");
-    let high_grade = r"\b(?:i'm|im|i am) (?:still |currently )?in (?:(?:9th|10th|11th|12th)(?: class| std)?|(?:grade|class) (?:9|10|11|12))\b|\b(?:grade|class|year) (?:9|10|11|12) student\b";
+    let high_grade = r"\b(?:i'm|im|i am|currently|still) (?:still |currently )?in (?:(?:9th|10th|11th|12th)(?: class| std)?|(?:grade|class) (?:9|10|11|12))\b|\b(?:grade|class|year) (?:9|10|11|12) student\b";
     let high_school = concat!(r"\b(?:i'm|im|i am|just) (?:an? )?(?:[\w-]+ )?(?:high ?schooler|high-schooler|(?:\d+th|seventh|eighth|ninth|tenth|eleventh|twelfth) grader)\b|\b(?:i'm|im|i am) (?:still |currently )?in (?:high ?school|hs|(?:9th|10th|11th|12th) grade|year (?:9|10|11|12))\b|\b(?:high ?school|hs) (?:student|senior|junior|sophomore|freshman)\b|\b(?:i'm|im|i am) (?:currently |still |now )?(?:a )?(?:senior|junior|sophomore|freshman) in (?:high ?school|hs)\b|\bmy (?:high school|highschool) (?:teacher|classes|graduation|exams)\b|",
         r"\b(?:i'm|im|i am) (?:currently |now |still |about to start |entering |starting |going into )?(?:in )?my (?:freshman|sophomore|junior|senior|sr|final|last|first|second|third|fourth|1st|2nd|3rd|4th) year (?:of|in|at) (?:high ?school|hs)\b");
     let college_pattern = concat!(r"\b(?:i'm|im|i am|this|just an?|\d{2}\s?[mf]?,?|[mf]4[a-z]+\]?) (?:(?!(?:former|ex|retired)\b)[\w-]+ ){0,2}?(?:college|uni) (?:boy|girl|guy|dude|bro|kid|twink|jock|athlete|lad|stud|frat)s?\b|\bstudent,? here\b|\bjust an? (?:\w+ )?student\b|",
@@ -315,6 +315,9 @@ pub fn build() -> Vec<Rule> {
         rules.push(rule("employment_status", pattern, employed(job(after)), TAGGED));
     }
     rules.push(rule("occupation", &cell, occupied(plain(celled)), TAGGED));
+    let retired_title = r"(?:(?:^|[.!?\n]\s*)(?:an? |just an? |also an? )?|\b(?:i'm|im|i am|as|being) an? (?:[\w-]+ )?)retired ";
+    rules.push(rule("occupation", retired_title, scoped(occupied(plain(retiree))), TAGGED));
+    rules.push(rule("occupation", r"\bi(?:'ve| have) (?:also |actually |always |previously )?worked as (?:an? |the )?", scoped(occupied(job(after))), TAGGED));
     rules.push(said("occupation", &tagged_title, occupied(plain(tagged)), &SELF_HEDGE));
     for (index, pattern) in workplace.iter().enumerate() {
         rules.push(rule("occupation", pattern, scoped(lookup(if index == 0 { &FIELD_MAP } else { &PLACE_MAP }, 1)), TAGGED));
@@ -354,6 +357,34 @@ pub fn build() -> Vec<Rule> {
     for pattern in &unemployed {
         rules.push(rule("employment_status", pattern, scoped_with(fixed("unemployed"), &CONDITIONAL, false), TAGGED));
     }
+    let jobless = [
+        r"(?<!my )(?<!the )\b(?:unemployed|jobless)\b(?! (?:people|persons?|folks|friends|men|women|guys|population|youth|workers|rate|benefits|insurance|check|office|line)\b)",
+        r"\b(?:looking|searching|hunting) for (?:a |an |any )?(?:(?:remote|entry[- ]level|stable|steady|proper|real|decent) )?(?:job|work|employment)\b",
+        r"\b(?:can't|cannot|couldn't|unable to|struggling to|failing to|failed to) (?:find|get|land|secure) (?:a |an |any |new |a new )?(?:job|jobs|work|employment)\b",
+        r"\b(?:fired|laid) me\b",
+    ];
+    let jobless_lead = [
+        r"(?:^|[.!?\n]\s*)(?:(?:\d{2}\s?[mf]|[mf]\s?\d{2})\s+)?(?:still |currently |now )?(?:looking|searching) for (?:a |any )?(?:job|work)\b",
+        r"(?:^|[.!?\n]\s*)(?:i've |ive |i have )?been (?:unemployed|out of work|jobless)\b",
+        r"\bi(?:'ve| have)? (?:not|never) (?:had a (?:\w+ )?job|been employed)\b|\bi (?:haven't|havent|hadn't|have not|had not) (?:had a (?:\w+ )?job|been employed)\b|\bhaven't had a job\b",
+    ];
+    for pattern in &jobless {
+        rules.push(rule("employment_status", pattern, scoped_with(mine(near(fixed("unemployed"))), if pattern.contains("find") { &CONDITIONAL } else { &SELF_HEDGE }, false), TAGGED));
+    }
+    for pattern in &jobless_lead {
+        rules.push(rule("employment_status", pattern, scoped_with(fixed("unemployed"), &CONDITIONAL, false), TAGGED));
+    }
+    let job_held = [
+        r"\b(?:a|two|2|three|3|one|both) (?:full|part)[- ]?time jobs?\b",
+        r"\bi(?:'ve| have) (?:just |recently |finally |now )?(?:started|landed|got|gotten) (?:a |my )?(?:new )?(?:job|position|role)\b(?! (?:hunt|search|application|interview|offer)\b)",
+        r"\bi(?:'ve| have) (?:also |now |actually )?worked (?:for|at) (?:the same|this|my current|\d+|over|almost|nearly|about|several|many|two|three|four|five|six|seven|eight|nine|ten)\b|\bi(?:'ve| have) been employed\b",
+    ];
+    for pattern in &job_held {
+        rules.push(rule("employment_status", pattern, scoped(mine(near(fixed("employed")))), TAGGED));
+    }
+    let persona_status = concat!(r"\b(?:(working from home|wfh|working remotely|working full[- ]?time|working part[- ]?time|full[- ]?time job|part[- ]?time job|working professional)|",
+        r"(stay[- ]at[- ]home (?:mom|mum|dad|parent|wife)|sahm|sahd|housewife|homemaker)|(neet(?! (?:pg|ug|exam|exams|prep|preparation|aspirant|aspirants|coaching|score|result|results|paper|mock|syllabus|cutoff))|jobless|unemployed)|(self[- ]employed|freelancer|small business owner|business owner|entrepreneur))\b");
+    rules.push(said("employment_status", persona_status, boxed(|m| if !personal(m) { None } else if m.nonempty(1).is_some() { Some("employed".to_string()) } else if m.nonempty(2).is_some() { Some("homemaker".to_string()) } else if m.nonempty(3).is_some() { Some("unemployed".to_string()) } else { Some(OWNER.to_string()) }), &SELF_HEDGE));
     for pattern in &retired {
         rules.push(rule("employment_status", pattern, scoped(fixed("retired")), TAGGED));
     }
@@ -402,7 +433,7 @@ pub fn build() -> Vec<Rule> {
     rules.push(said("education", graduate, fixed("graduate student"), sh));
     rules.push(said("education", &pro_student, fixed("graduate student"), sh));
     rules.push(said("education", r"\bmy residency\b|\b(?:i'm|im|i am) (?:in|doing|finishing|starting) (?:my )?residency\b", fixed("professional degree such as law or medicine"), sh));
-    rules.push(said("education", &format!(r"\b(?:i have|i've got|i got|i hold|i earned|i finished|i completed|i just finished|i just completed|i recently finished|i recently completed|i finally finished|i've done|i have done|i did|got|just got|have|with) (?:a |an |my |both |two )?(?:({long_degree_names})(?: degree| degrees| hons| in| from)?|({short_degree_names}) (?:degree|degrees|in|from))\b(?! (?:student|program|programme|candidate|course|class)\b)|\b({long_degree_names}) hons\b"),
+    rules.push(said("education", &format!(r"\b(?:i have|i've got|i got|i hold|i earned|i finished|i completed|i just finished|i just completed|i recently finished|i recently completed|i finally finished|i've done|i have done|i did|i've gotten|ive gotten|i have gotten|i obtained|i received|i've earned|i've completed|i've finished|got|just got|have|with) (?:a |an |my |both |two )?(?:({long_degree_names})(?: degree| degrees| hons| in| from)?|({short_degree_names}) (?:degree|degrees|in|from))\b(?! (?:student|program|programme|candidate|course|class)\b)|\b({long_degree_names}) hons\b"),
         boxed(|m| if m.text().first() == Some(&'i') || owned(m.string, m.start(), 50) { get(&DEGREE_MAP, m.first()) } else { None }), sh));
     rules.push(said("education", concat!(r"\b(?:i have|i've got|i hold|i earned|i got|i completed|i finished|i do have|i also have) (?:a |an |my |both |two )?",
         r"(?:(?!(?:associate'?s?|masters?|master's|phd|doctoral|online|honorary|useless|worthless|second|new)\b)[\w'-]+ ){0,3}?degrees?\b(?! (?:program|programme|course|apprenticeship)\b)|\b(?:college|university|uni)[- ]educated\b"),
@@ -414,6 +445,14 @@ pub fn build() -> Vec<Rule> {
     rules.push(said("education", r"\b(?:i )?(?:graduated|finished) (?:from )?high ?school\b|\bhigh ?school (?:graduate|diploma)\b|\bcompleted (?:my )?12th\b|\bpassed (?:my )?12th\b|\bi have (?:a|my) ged\b", fixed("high school diploma"), sh));
     rules.push(said("education", high_school, fixed("high school student"), sh));
     rules.push(said("education", high_grade, fixed("high school student"), sh));
+    let persona_school = r"\b(?:(college) (?:boy|girl|guy|dude|bro|kid|twink|jock|athlete|lad|stud|nerd|bwc|chick|babe|cutie|student|man)s?|high ?schoolers?|high-schoolers?)\b";
+    let school_student = r"\b(?:i'm|im|i am) an? school (?:student|boy|girl|kid)\b";
+    let grad_school = r"\b(?:i'm|im|i am|currently|now|i'm currently|i'm back|i am back|i'm now) (?:in|at|attending|starting) grad(?:uate)? school\b|\b(?:moving|moved|relocating|going back|back|here|starting|start) (?:[\w-]+ ){0,4}?(?:for|to) grad(?:uate)? school\b";
+    rules.push(said("education", persona_school, boxed(|m| if personal(m) { Some(if m.nonempty(1).is_some() { "college student" } else { "high school student" }.to_string()) } else { None }), sh));
+    rules.push(said("education", school_student, fixed("high school student"), sh));
+    rules.push(said("education", grad_school, mine(near(fixed("graduate student"))), sh));
+    rules.push(said("education", r"\b(?:a|an|my) (master'?s|masters|bachelor'?s|bachelors|doctorate|phd|associate'?s) degree\b", boxed(|m| if (owned(m.string, m.start(), 50) || personal(m)) && !ASPIRING.test_in(m.string, clause(m.string, m.start()), m.start()) { get(&DEGREE_MAP, m.group(1)) } else { None }), sh));
+    rules.push(said("education", r"(?:^|[.!?\n]\s*)(?:\d{2}\s?[mf]\s+)?(?:a )?(?:fresh|recent|new) (?:college )?grad(?:uate)? here\b", fixed("bachelor's degree"), sh));
     rules.push(said("education", r"\bi dropped out of (?:college|uni|university)\b|\bi have some college\b|\bi never finished (?:college|my degree)\b|\btransferred (?:to \w+ )?from a community college\b|\bput myself back in college\b|\bacademic(?:ally)? (?:dismissed|suspended|probation)\b", fixed("some college, no degree"), &UNLESS));
     rules.push(said("education", r"\bi dropped out of high ?school\b|\bi never finished high ?school\b|\bi didn't finish high ?school\b", fixed("no high school diploma"), &UNLESS));
     rules.push(said("education", r"\bi (?:have|got|earned) (?:an? )?associate'?s(?: degree)?\b|\bi went to (?:a )?trade school\b|\bi(?:'m| am) a (?:journeyman|licensed electrician|licensed plumber)\b", fixed("trade school or associate degree"), sh));
