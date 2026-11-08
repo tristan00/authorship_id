@@ -69,7 +69,7 @@ class AttributeModel(nn.Module):
                    "center": torch.tensor([specifications[index]["center"] for index in self.numeric], dtype=torch.float32),
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
-                   "weight": (stated := torch.tensor([float(spec["stated_labels"]) for spec in specifications])) / stated.mean(),
+                   "weight": (stated := torch.tensor([float(spec["stated_labels"]) for spec in specifications]).sqrt()) / stated.mean(),
                    "shift": torch.tensor(features["center"], dtype=torch.float32),
                    "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32)}
         for name, value in buffers.items():
