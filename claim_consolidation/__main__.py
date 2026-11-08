@@ -8,11 +8,10 @@ def main():
     parser = argparse.ArgumentParser(prog="claim_consolidation")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("consolidate")
-    commands.add_parser("redecide")
-    args = parser.parse_args()
+    parser.parse_args()
     setup_logging(LOGS / "consolidation.log")
-    from .consolidate import consolidate, redecide
-    {"consolidate": consolidate, "redecide": redecide}[args.command]()
+    from .consolidate import consolidate
+    consolidate()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,20 @@
+[package]
+name = "consolidator"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "consolidate"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
+mimalloc = { version = "0.1", default-features = false }
+ureq = { version = "2", default-features = false }
+crossbeam-channel = "0.5"
+
+[profile.release]
+opt-level = 3
+debug = false
+codegen-units = 16
+incremental = true
