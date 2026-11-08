@@ -1,0 +1,10 @@
+[package]
+name = "fandom"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+claimcore = { workspace = true }
+unicode-normalization = "0.1"
+rustc-hash = "2"
+aho-corasick = "1"
