@@ -11,14 +11,14 @@ from reddit_dumps.download import delete, download
 
 from . import LOG, timed
 
-EXTRACTOR = Path(__file__).parents[1] / "extractor"
+ROOT = Path(__file__).parents[1]
 
 
 @timed
-def claims(command):
-    subprocess.run(["cargo", "build", "--release"], cwd=EXTRACTOR, check=True)
-    with open(LOGS / "claim_extraction.log", "a", encoding="utf-8") as log:
-        subprocess.run([str(EXTRACTOR / "target" / "release" / "claims"), command, "--host", host(), "--threads", str(os.cpu_count() - 2)], check=True, stderr=log)
+def rust(crate, binary, command, log):
+    subprocess.run(["cargo", "build", "--release"], cwd=ROOT / crate, check=True)
+    with open(LOGS / log, "a", encoding="utf-8") as out:
+        subprocess.run([str(ROOT / crate / "target" / "release" / binary), command, "--host", host(), "--threads", str(os.cpu_count() - 2)], check=True, stderr=out)
 
 
 @timed
@@ -40,11 +40,10 @@ def derive():
     from attribute_model.train import train
     from author_encoder.predict import encode_store
     from author_encoder.store import build
-    from claim_consolidation.consolidate import consolidate
     targets = read_targets()
-    claims("run")
-    claims("flairs")
-    consolidate()
+    rust("extractor", "claims", "run", "claim_extraction.log")
+    rust("extractor", "claims", "flairs", "claim_extraction.log")
+    rust("consolidator", "consolidate", "run", "consolidation.log")
     build()
     subreddits()
     encode_store()

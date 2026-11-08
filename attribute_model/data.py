@@ -7,11 +7,10 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from claim_consolidation.config import NUMERIC
 from database import client
 
 from . import LOG, timed, write_json
-from .config import DEFAULTS, DIMENSIONS, SPLITS, VALUE_AUTHORS, check_targets, partition, validate
+from .config import DEFAULTS, DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_targets, partition, validate
 from .features import bags, vocabulary
 
 CLAIMS = "SELECT author, attribute, value, support, share FROM author_claims WHERE attribute IN {attributes:Array(String)}"
