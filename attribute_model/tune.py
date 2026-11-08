@@ -11,7 +11,7 @@ from .train import DEVICE, fit, load_data
 
 
 def architecture(parameters, manifest):
-    return {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}, "features": manifest["features"]}
+    return {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}, "features": manifest["features"], "subreddits": len(manifest["subreddits"]) + 1}
 
 
 def attempt(targets, manifest, specs, data, parameters, epochs):

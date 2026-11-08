@@ -10,6 +10,7 @@ from .config import DATA, MODEL, ROOT, TARGETS, TUNE, read_targets
 def main():
     parser = argparse.ArgumentParser(prog="attribute_model")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("subreddits")
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--data", type=Path, default=DATA)
     train = commands.add_parser("train")
@@ -29,8 +30,12 @@ def main():
     for command in (prepare, train, predict, user, table, tune):
         command.add_argument("--targets", type=Path, default=TARGETS)
     args = parser.parse_args()
-    targets = read_targets(args.targets)
     setup_logging(ROOT / "attribute_model.log")
+    if args.command == "subreddits":
+        from .features import build
+        print(json.dumps(build()))
+        return
+    targets = read_targets(args.targets)
     if args.command == "prepare":
         from .data import prepare
         result = prepare(args.data, targets)

@@ -4,10 +4,8 @@ import numpy as np
 from huggingface_hub import hf_hub_download
 from tokenizers import Tokenizer
 
-from . import clean, timed
-from .config import LUAR, MAX_LENGTH, TOKEN_BUDGET
-
-TOKENIZER = None
+from . import timed
+from .config import LUAR, MAX_LENGTH, TOKEN_BUDGET, TOKENIZE_TEXTS
 
 
 @timed
@@ -18,10 +16,11 @@ def load_tokenizer():
     return tokenizer
 
 
-def token_batches(tokenizer, texts, chunk=16384):
+@timed
+def token_batches(tokenizer, texts):
     lengths, flat = [], []
-    for start in range(0, len(texts), chunk):
-        ids = [encoding.ids for encoding in tokenizer.encode_batch(texts[start:start + chunk])]
+    for start in range(0, len(texts), TOKENIZE_TEXTS):
+        ids = [encoding.ids for encoding in tokenizer.encode_batch_fast(texts[start:start + TOKENIZE_TEXTS])]
         lengths.append(np.fromiter(map(len, ids), dtype=np.int64, count=len(ids)))
         flat.append(np.fromiter(chain.from_iterable(ids), dtype=np.int32, count=int(lengths[-1].sum())))
     lengths, flat = np.concatenate(lengths), np.concatenate(flat)
@@ -34,19 +33,3 @@ def token_batches(tokenizer, texts, chunk=16384):
         step = max(1, TOKEN_BUDGET // int(length))
         shapes.extend((min(step, int(size) - start), int(length)) for start in range(0, int(size), step))
     return order.astype(np.int32), tokens, shapes
-
-
-def start_worker():
-    global TOKENIZER
-    TOKENIZER = load_tokenizer()
-
-
-def prepare(batch):
-    authors, lengths, texts = [], [], []
-    for author, raw in batch:
-        cleaned = [text for text in map(clean, raw) if text]
-        if cleaned:
-            authors.append(author)
-            lengths.append(len(cleaned))
-            texts += cleaned
-    return authors, np.array(lengths, dtype=np.int64), token_batches(TOKENIZER, texts) if texts else None

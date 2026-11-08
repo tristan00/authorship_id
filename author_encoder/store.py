@@ -7,6 +7,10 @@ from .config import AUTHOR_PARTS, DIMENSIONS, TEXT_PARTS, TEXTS_PER_USER
 
 EXCLUDED = (*NO_AUTHOR, "AutoModerator")
 READABLE = ("available", "title_only")
+SPACE = r"\t\n\x{0b}\f\r \x{1c}-\x{1f}\x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}"
+QUOTE = "(?m)^[" + SPACE + r"]*>[^\n]*$"
+LINK = "(?i)https?://[^" + SPACE + "]+|www[.][^" + SPACE + "]+"
+MENTION = r"(?i)(^|[^\p{L}\p{N}_])/?[ur]/[\p{L}\p{N}_-]+"
 TABLES = (
     "CREATE TABLE IF NOT EXISTS author_texts (author String CODEC(ZSTD(1)), text String CODEC(ZSTD(3))) ENGINE = MergeTree ORDER BY author",
     "CREATE TABLE IF NOT EXISTS author_vectors (author String CODEC(ZSTD(1)), texts UInt16, vector Array(Float32)) ENGINE = MergeTree ORDER BY author",
@@ -24,6 +28,14 @@ def parts(db):
     return list(zip(lows, [*lows[1:], ""]))
 
 
+def literal(pattern):
+    return "'" + pattern.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+CLEAN = (f"trimBoth(replaceRegexpAll(replaceRegexpAll(replaceRegexpAll(replaceRegexpAll(normalizeUTF8NFKC(bodies.text), {literal(QUOTE)}, ''), {literal(LINK)}, ' URL '), "
+         f"{literal(MENTION)}, {literal(r'\1 MENTION ')}), {literal('[' + SPACE + ']+')}, ' '))")
+
+
 def span(low, high):
     return "author >= {low:String}" + (" AND author < {high:String}" if high else ""), {"low": low, "high": high}
 
@@ -37,8 +49,9 @@ def build():
     started, picks = time.perf_counter(), 0
     for part, (low, high) in enumerate(ranges, 1):
         where, parameters = span(low, high)
-        picks += db.command(f"INSERT INTO author_picks SELECT text_sha256, author FROM records WHERE {where} AND author NOT IN {EXCLUDED} AND text_status IN {READABLE} "
-                            f"GROUP BY author, text_sha256 ORDER BY author, cityHash64(text_sha256), text_sha256 LIMIT {TEXTS_PER_USER} BY author", parameters=parameters).written_rows
+        picks += db.command(f"INSERT INTO author_picks SELECT text_sha256, author FROM (SELECT author, arraySlice(arraySort(sha -> (cityHash64(sha), sha), groupUniqArray(text_sha256)), 1, {TEXTS_PER_USER}) AS picked "
+                            f"FROM records WHERE {where} AND author NOT IN {EXCLUDED} AND text_status IN {READABLE} GROUP BY author) ARRAY JOIN picked AS text_sha256 "
+                            "SETTINGS optimize_aggregation_in_order = 1", parameters=parameters).written_rows
         elapsed = time.perf_counter() - started
         LOG.info("picks parts=%d/%d rows=%d rate=%.0f eta_minutes=%.1f", part, len(ranges), picks, picks / elapsed, elapsed / part * (len(ranges) - part) / 60)
     db.command("DROP TABLE IF EXISTS author_texts_next")
@@ -46,8 +59,9 @@ def build():
     started, texts = time.perf_counter(), 0
     for part, (low, high) in enumerate(sha_ranges(TEXT_PARTS), 1):
         picked = f"SELECT text_sha256, author FROM author_picks WHERE {in_range('text_sha256', low, high)}"
-        texts += db.command(f"INSERT INTO author_texts_next SELECT picks.author, bodies.text FROM bodies INNER JOIN ({picked}) AS picks USING text_sha256 "
-                            f"WHERE {in_range('bodies.text_sha256', low, high)} AND bodies.text_sha256 IN (SELECT text_sha256 FROM ({picked}))").written_rows
+        texts += db.command(f"INSERT INTO author_texts_next (author, text) SELECT author, cleaned FROM (SELECT picks.author AS author, {CLEAN} AS cleaned FROM bodies "
+                            f"INNER JOIN ({picked}) AS picks USING text_sha256 WHERE {in_range('bodies.text_sha256', low, high)} "
+                            f"AND bodies.text_sha256 IN (SELECT text_sha256 FROM ({picked}))) WHERE cleaned != ''").written_rows
         elapsed = time.perf_counter() - started
         LOG.info("texts parts=%d/%d rows=%d rate=%.0f eta_minutes=%.1f", part, TEXT_PARTS, texts, texts / elapsed, elapsed / part * (TEXT_PARTS - part) / 60)
     db.command(TABLES[0])

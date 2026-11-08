@@ -1,23 +1,22 @@
 import hashlib
 import json
 import time
-from collections import deque
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from itertools import islice
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pyarrow as pa
-import torch
+import pyarrow.compute as pc
 
 from database import client
 
 from . import LOG, clean, timed
-from .config import BATCH_TEXTS, BATCH_USERS, DIMENSIONS, TEXTS_PER_USER, WORKERS
+from .config import BATCH_USERS, DIMENSIONS, TEXTS_PER_USER
 from .model import load_model
 from .store import TABLES, parts, span
-from .tokens import load_tokenizer, prepare, start_worker, token_batches
+from .tokens import load_tokenizer, token_batches
 
 
 def records(stream):
@@ -43,11 +42,7 @@ def records(stream):
 
 
 def vectors(model, batches, lengths):
-    features = model.features(batches, int(lengths.sum())).float()
-    present = np.arange(lengths.max()) < lengths[:, None]
-    starts = np.cumsum(lengths) - lengths
-    rows = torch.as_tensor(np.where(present, starts[:, None] + np.arange(lengths.max()), 0), device=features.device)
-    return model.users(features[rows] * torch.as_tensor(present[:, :, None], device=features.device), lengths)
+    return model.users(model.features(batches, int(lengths.sum())), lengths)
 
 
 @timed
@@ -79,59 +74,33 @@ def encode_file(source, output, device="cuda"):
     return {"users": count, "dimensions": DIMENSIONS, "output": str(output)}
 
 
-def author_batches(reader, where, parameters):
-    batch, count, current = [], 0, None
-    with reader.query_row_block_stream(f"SELECT author, text FROM author_texts WHERE {where} ORDER BY author", parameters=parameters) as stream:
-        for block in stream:
-            for author, text in block:
-                if author != current:
-                    if count >= BATCH_TEXTS:
-                        yield batch
-                        batch, count = [], 0
-                    current = author
-                    batch.append((author, []))
-                batch[-1][1].append(text)
-                count += 1
-    if batch:
-        yield batch
+@timed
+def load_part(reader, tokenizer, low, high):
+    where, parameters = span(low, high)
+    table = reader.query_arrow(f"SELECT author, text FROM author_texts WHERE {where} ORDER BY author", parameters=parameters)
+    authors = table["author"].combine_chunks()
+    if not len(authors):
+        return authors, np.zeros(0, dtype=np.int64), None
+    starts = np.flatnonzero(np.r_[True, pc.not_equal(authors[1:], authors[:-1]).to_numpy(zero_copy_only=False)])
+    lengths = np.diff(np.r_[starts, len(authors)])
+    return authors.take(pa.array(starts)), lengths, token_batches(tokenizer, table["text"].to_pylist())
 
 
 @timed
-def encode_part(db, reader, pool, model, part, low, high):
-    started = time.perf_counter()
+def store_part(writer, part, low, high, authors, lengths, found, seconds):
     where, parameters = span(low, high)
-    if db.command(f"SELECT count() FROM author_vectors WHERE {where}", parameters=parameters):
-        db.command(f"DELETE FROM author_vectors WHERE {where}", parameters=parameters)
-    authors, lengths, found, pending = [], [], [], deque()
-
-    def finish(future):
-        names, counts, batches = future.result()
-        if names:
-            found.append(vectors(model, batches, counts))
-            authors.extend(names)
-            lengths.append(counts)
-
-    for batch in author_batches(reader, where, parameters):
-        pending.append(pool.submit(prepare, batch))
-        if len(pending) > 2 * WORKERS:
-            finish(pending.popleft())
-    while pending:
-        finish(pending.popleft())
-    texts = int(sum(counts.sum() for counts in lengths))
-    if authors:
-        values = np.concatenate(found).astype(np.float32).ravel()
+    if writer.command(f"SELECT count() FROM author_vectors WHERE {where}", parameters=parameters):
+        writer.command(f"DELETE FROM author_vectors WHERE {where}", parameters=parameters)
+    if len(authors):
+        values = pa.array(found.astype(np.float32).ravel())
         offsets = pa.array(np.arange(0, len(values) + 1, DIMENSIONS, dtype=np.int32))
-        db.insert_arrow("author_vectors", pa.table({"author": pa.array(authors, pa.string()), "texts": pa.array(np.concatenate(lengths).astype(np.uint16)),
-                                                    "vector": pa.ListArray.from_arrays(offsets, pa.array(values))}))
-    seconds = time.perf_counter() - started
-    db.insert("encoded_parts", [(part, low, high, len(authors), texts, seconds)], column_names=("part", "low", "high", "authors", "texts", "seconds"))
-    LOG.info("part=%d authors=%d texts=%d seconds=%.1f texts_per_s=%.0f", part, len(authors), texts, seconds, texts / max(seconds, 1e-9))
-    return texts
+        writer.insert_arrow("author_vectors", pa.table({"author": authors.cast(pa.string()), "texts": pa.array(lengths.astype(np.uint16)), "vector": pa.ListArray.from_arrays(offsets, values)}))
+    writer.insert("encoded_parts", [(part, low, high, len(authors), int(lengths.sum()), seconds)], column_names=("part", "low", "high", "authors", "texts", "seconds"))
 
 
 @timed
 def encode_store(device="cuda", reset=False):
-    db, reader = client(), client()
+    db, reader, writer = client(), client(), client()
     if reset:
         db.command("DROP TABLE IF EXISTS author_vectors")
         db.command("DROP TABLE IF EXISTS encoded_parts")
@@ -142,12 +111,24 @@ def encode_store(device="cuda", reset=False):
     if any(part >= len(ranges) or ranges[part] != bounds for part, bounds in done.items()):
         raise ValueError("encoded_parts were written with other author ranges; rerun with --reset")
     todo = [part for part in range(len(ranges)) if part not in done]
-    LOG.info("encode parts=%d done=%d todo=%d workers=%d", len(ranges), len(done), len(todo), WORKERS)
+    LOG.info("encode parts=%d done=%d todo=%d", len(ranges), len(done), len(todo))
     model = load_model(device)
-    started, texts = time.perf_counter(), 0
-    with ProcessPoolExecutor(WORKERS, initializer=start_worker) as pool:
+    tokenizer = load_tokenizer()
+    started, texts, stored = time.perf_counter(), 0, None
+    with ThreadPoolExecutor(1) as loader, ThreadPoolExecutor(1) as saver:
+        pending = loader.submit(load_part, reader, tokenizer, *ranges[todo[0]]) if todo else None
         for index, part in enumerate(todo, 1):
-            texts += encode_part(db, reader, pool, model, part, *ranges[part])
+            tick = time.perf_counter()
+            authors, lengths, batches = pending.result()
+            if index < len(todo):
+                pending = loader.submit(load_part, reader, tokenizer, *ranges[todo[index]])
+            found = vectors(model, batches, lengths) if len(authors) else None
+            if stored is not None:
+                stored.result()
+            stored = saver.submit(store_part, writer, part, *ranges[part], authors, lengths, found, time.perf_counter() - tick)
+            texts += int(lengths.sum())
             elapsed = time.perf_counter() - started
-            LOG.info("progress parts=%d/%d texts=%d texts_per_s=%.0f eta_hours=%.1f", index, len(todo), texts, texts / elapsed, elapsed / index * (len(todo) - index) / 3600)
+            LOG.info("progress parts=%d/%d part=%d authors=%d texts=%d texts_per_s=%.0f eta_hours=%.2f", index, len(todo), part, len(authors), texts, texts / elapsed, elapsed / index * (len(todo) - index) / 3600)
+        if stored is not None:
+            stored.result()
     return {"parts": len(ranges), "encoded": len(todo), "texts": texts}

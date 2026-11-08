@@ -180,7 +180,7 @@ pub fn flairs(database: &Database, threads: usize) {
         timed("init", crate::init);
         database.command("TRUNCATE TABLE flair_claims");
         let started = Instant::now();
-        let mut stream = BufReader::with_capacity(1 << 20, database.stream("SELECT DISTINCT subreddit, author_flair_text FROM records WHERE author_flair_text != '' FORMAT RowBinary"));
+        let mut stream = BufReader::with_capacity(1 << 20, database.stream("SELECT DISTINCT subreddit, assumeNotNull(author_flair_text) FROM records WHERE author_flair_text != '' FORMAT RowBinary"));
         let (mut seen, mut claims, mut pending) = (0u64, 0u64, Vec::with_capacity(INSERT_BYTES + (1 << 20)));
         parallel(
             threads,

@@ -32,13 +32,14 @@ class LabelEmbedding(nn.Module):
 
 
 class AttributeModel(nn.Module):
-    def __init__(self, targets, specifications, width, depth, expand, dropout, rank, features):
+    def __init__(self, targets, specifications, width, depth, expand, dropout, rank, features, subreddits):
         super().__init__()
         targets = validate(targets)
         if [spec["name"] for spec in specifications] != list(targets) or any(spec["type"] != targets[spec["name"]] for spec in specifications):
             raise ValueError("Target specifications do not match the configured fields")
         self.specifications = specifications
         self.input = nn.Linear(features["dimensions"], width)
+        self.subreddits = nn.Embedding(subreddits, width, padding_idx=0)
         self.blocks = nn.Sequential(*(Block(width, expand, dropout) for _ in range(depth)))
         self.norm = nn.LayerNorm(width)
         self.numeric, self.categorical, self.embedding = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical", "embedding"))
@@ -48,6 +49,8 @@ class AttributeModel(nn.Module):
         self.head = nn.Linear(width, int(offsets[-1]))
         self.embeddings = nn.ModuleList(LabelEmbedding(width, len(specifications[index]["values"]), rank) for index in self.embedding)
         with torch.no_grad():
+            self.subreddits.weight.normal_(std=.05)
+            self.subreddits.weight[0].zero_()
             self.head.weight.normal_(std=.01)
             self.head.bias.zero_()
             for index in self.numeric:
@@ -73,8 +76,10 @@ class AttributeModel(nn.Module):
         self.widest = widest
         self.first_categorical = int(offsets[len(self.numeric)])
 
-    def forward(self, vectors):
-        return self.norm(self.blocks(self.input((vectors - self.shift) * self.factor)))
+    def forward(self, vectors, ids, weights):
+        weights = weights.float()
+        bag = (self.subreddits(ids) * weights[..., None]).sum(1) / weights.sum(1, keepdim=True).clamp_min(1)
+        return self.norm(self.blocks(self.input((vectors.float() - self.shift) * self.factor) + bag))
 
     def outputs(self, hidden):
         flat = self.head(hidden)
@@ -124,17 +129,10 @@ def numeric(output, spec):
     return output[:, 0].float() * spec["scale"] + spec["center"]
 
 
-def adjusted(probabilities, spec, tau):
-    scores = probabilities.clamp_min(1e-12).log() - tau * torch.as_tensor(spec["prior"], device=probabilities.device).log()
-    if spec["default"] is not None:
-        scores[:, spec["default"]] = -math.inf
-    return scores.argmax(1)
-
-
 def decide(probabilities, spec, fitted):
-    picks = adjusted(probabilities, spec, fitted["tau"])
     if spec["default"] is None:
-        return picks
+        return probabilities.argmax(1)
+    picks = probabilities.index_fill(1, torch.tensor([spec["default"]], device=probabilities.device), -1.).argmax(1)
     return torch.where(probabilities[:, spec["default"]] <= 1 - fitted["threshold"], picks, spec["default"])
 
 

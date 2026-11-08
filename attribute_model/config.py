@@ -18,11 +18,13 @@ PREDICTION_BATCH = 65536
 INSERT_ROWS = 1 << 20
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
 STRICT_SUPPORT = 2.
+TRAIN_SUPPORT = 1.
 STRICT_SHARE = .7
 VALUE_AUTHORS = 10
+SUBREDDITS_PER_AUTHOR = 32
+SUBREDDIT_AUTHORS = 100
 DEFAULTS = {"native_language": "english", "sexual_orientation": "straight", "parental_status": "no children", "military_status": "never served", "smoking": "non-smoker", "diet": "eats meat",
             **dict.fromkeys(BINARY, NO)}
-TAUS = tuple(step / 10 for step in range(16))
 TEMPERATURE_ROWS = 1 << 16
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "epochs": 6}
 TUNE_TRIALS = 18

@@ -35,6 +35,7 @@ def load(start, end):
 @timed
 def derive():
     from attribute_model.data import prepare
+    from attribute_model.features import build as subreddits
     from attribute_model.predict import predict_table
     from attribute_model.train import train
     from author_encoder.predict import encode_store
@@ -45,6 +46,7 @@ def derive():
     claims("flairs")
     consolidate()
     build()
+    subreddits()
     encode_store()
     prepare(DATA, targets)
     train(DATA, MODEL, targets)

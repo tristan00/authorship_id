@@ -11,7 +11,7 @@ from torch.nn import functional as F
 from transformers import AutoConfig, AutoModel
 
 from . import timed
-from .config import CPU_THREADS, CUDA_MEMORY, DIMENSIONS, LUAR, MODEL_FILES
+from .config import AGGREGATE_USERS, CPU_THREADS, CUDA_MEMORY, DIMENSIONS, LUAR, MODEL_FILES
 
 
 @timed
@@ -25,7 +25,8 @@ def load_model(device="cuda"):
     model = AuthorEncoder().to(device).eval().requires_grad_(False)
     if device == "cuda":
         torch.cuda.set_per_process_memory_fraction(CUDA_MEMORY / torch.cuda.get_device_properties(device).total_memory)
-        model.transformer.to(torch.bfloat16)
+        torch.backends.cuda.matmul.allow_fp16_accumulation = True
+        model.transformer.half()
     return model
 
 
@@ -69,32 +70,25 @@ class AuthorEncoder(nn.Module):
                 done, used = done + size, used + size * length
         return features
 
-    def host(self, features):
-        copy = torch.empty(features.shape, dtype=features.dtype, pin_memory=True).copy_(features, non_blocking=True)
-        done = torch.cuda.Event()
-        done.record()
-
-        def wait():
-            done.synchronize()
-            return copy.numpy()
-        return wait
-
     def aggregate(self, texts, lengths):
         present = torch.arange(texts.shape[1], device=texts.device) < lengths[:, None]
         scores = (texts @ texts.transpose(1, 2) / math.sqrt(texts.shape[-1])).masked_fill(~present[:, None, :], -math.inf)
         attended = (scores.softmax(-1) @ texts).masked_fill(~present[:, :, None], -math.inf)
         return F.normalize(self.linear(attended.amax(1)), dim=-1)
 
+    @timed
     def users(self, features, lengths):
-        if len(features) and not (1 <= lengths.min() and lengths.max() <= features.shape[1]):
-            raise ValueError("Each user needs between 1 and the padded width of texts")
-        device = self.linear.weight.device
+        if not len(lengths) or lengths.min() < 1 or lengths.sum() != len(features):
+            raise ValueError("Each user needs at least one text and the features must cover every text")
+        starts = np.cumsum(lengths) - lengths
+        found = []
         with torch.inference_mode():
-            vectors = self.aggregate(torch.as_tensor(features, device=device).float(), torch.as_tensor(lengths, device=device)).cpu().numpy()
-        if vectors.shape != (len(features), DIMENSIONS) or not np.isfinite(vectors).all() or not np.allclose(np.linalg.norm(vectors, axis=1), 1., atol=0.002):
+            for start in range(0, len(lengths), AGGREGATE_USERS):
+                counts = lengths[start:start + AGGREGATE_USERS]
+                width = np.arange(counts.max())
+                rows = torch.as_tensor(np.where(width < counts[:, None], starts[start:start + AGGREGATE_USERS, None] + width, 0), device=features.device)
+                found.append(self.aggregate(features[rows].float(), torch.as_tensor(counts, device=features.device)))
+            vectors = torch.cat(found).cpu().numpy()
+        if vectors.shape != (len(lengths), DIMENSIONS) or not np.isfinite(vectors).all() or not np.allclose(np.linalg.norm(vectors, axis=1), 1., atol=0.002):
             raise ValueError("Invalid author embeddings")
         return vectors
-
-    def project(self, features):
-        with torch.inference_mode():
-            return F.normalize(self.linear(features.float()), dim=-1)
