@@ -102,10 +102,11 @@ def spoken_batches(labels, stated, column, batch=8192):
 
 def numeric_report(model, inputs, labels, column, spec):
     output, target = collect(model, inputs, labels, column)
-    predicted = numeric(output, spec)
+    low, predicted, high = numeric(output, spec).unbind(1)
     error = predicted - target
     return {"n": len(error), "mae": float(error.abs().mean()), "median_baseline_mae": float((target - spec["center"]).abs().mean()), "rmse": float(error.pow(2).mean().sqrt()),
-            "correlation": float(torch.corrcoef(torch.stack([predicted, target]))[0, 1])}
+            "correlation": float(torch.corrcoef(torch.stack([predicted, target]))[0, 1]), "interval_coverage": float(((target >= low) & (target <= high)).float().mean()),
+            "interval_width": float((high - low).median())}
 
 
 @timed

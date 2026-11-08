@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .config import DEFAULTS, validate
+from .config import DEFAULTS, QUANTILES, validate
 
 
 class Block(nn.Module):
@@ -43,7 +43,7 @@ class AttributeModel(nn.Module):
         self.blocks = nn.Sequential(*(Block(width, expand, dropout) for _ in range(depth)))
         self.norm = nn.LayerNorm(width)
         self.numeric, self.categorical, self.embedding = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical", "embedding"))
-        sizes = [1] * len(self.numeric) + [len(specifications[index]["values"]) for index in self.categorical]
+        sizes = [len(QUANTILES)] * len(self.numeric) + [len(specifications[index]["values"]) for index in self.categorical]
         offsets = np.cumsum([0] + sizes)
         self.slices = dict(zip(self.numeric + self.categorical, zip(offsets[:-1].tolist(), offsets[1:].tolist())))
         self.head = nn.Linear(width, int(offsets[-1]))
@@ -64,7 +64,8 @@ class AttributeModel(nn.Module):
         widest = max((len(specifications[index]["values"]) for index in self.categorical), default=1)
         positions = [row * widest + offset for row, index in enumerate(self.categorical) for offset in range(len(specifications[index]["values"]))]
         buffers = {"numeric_targets": torch.tensor(self.numeric, dtype=torch.long), "categorical_targets": torch.tensor(self.categorical, dtype=torch.long),
-                   "numeric_columns": torch.tensor([self.slices[index][0] for index in self.numeric], dtype=torch.long), "positions": torch.tensor(positions, dtype=torch.long),
+                   "numeric_columns": torch.tensor([list(range(*self.slices[index])) for index in self.numeric], dtype=torch.long).view(len(self.numeric), len(QUANTILES)),
+                   "quantiles": torch.tensor(QUANTILES, dtype=torch.float32), "positions": torch.tensor(positions, dtype=torch.long),
                    "center": torch.tensor([specifications[index]["center"] for index in self.numeric], dtype=torch.float32),
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
@@ -105,7 +106,8 @@ class AttributeModel(nn.Module):
         overflow = torch.zeros((), dtype=torch.long, device=flat.device)
         if self.numeric:
             normalized = (filled[:, self.numeric_targets] - self.center) / self.scale
-            loss = (normalized - flat[:, self.numeric_columns]).abs()
+            error = normalized[..., None] - flat[:, self.numeric_columns]
+            loss = torch.maximum(self.quantiles * error, (self.quantiles - 1) * error).sum(-1)
             sums[self.numeric_targets] = (loss * present[:, self.numeric_targets]).sum(0)
         if self.categorical:
             padded = torch.full((len(flat), len(self.categorical) * self.widest), -math.inf, device=flat.device)
@@ -126,7 +128,7 @@ class AttributeModel(nn.Module):
 
 
 def numeric(output, spec):
-    return output[:, 0].float() * spec["scale"] + spec["center"]
+    return output.float().sort(1).values * spec["scale"] + spec["center"]
 
 
 def calibrated(output, fitted):

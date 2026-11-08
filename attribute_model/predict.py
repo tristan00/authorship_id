@@ -19,13 +19,13 @@ from .features import bags
 from .model import AttributeModel, calibrated, numeric
 
 KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)"}
-PROBABILITY = "_probability"
+EXTRAS = {"numeric": ("low", "high"), "categorical": ("probability",), "embedding": ("probability",)}
 VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE {where}) AS s USING author "
            "WHERE {where} ORDER BY author")
 
 
 def schema(artifact):
-    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" + ("" if kind == "numeric" else f", {quote_identifier(name + PROBABILITY)} Float32") for name, kind in artifact["targets"].items())
+    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" + "".join(f", {quote_identifier(name + '_' + extra)} Float32" for extra in EXTRAS[kind]) for name, kind in artifact["targets"].items())
     comment = json.dumps({key: artifact[key] for key in ("model_id", "source", "targets")})
     return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
 
@@ -52,10 +52,11 @@ def load_model(path, targets):
 def decided(artifact, outputs):
     for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
         if spec["type"] == "numeric":
-            yield spec, numeric(output, spec), None
+            low, value, high = numeric(output, spec).unbind(1)
+            yield spec, value, {"low": low, "high": high}
         else:
             probability, chosen = calibrated(output, fitted).max(1)
-            yield spec, chosen, probability
+            yield spec, chosen, {"probability": probability}
 
 
 def ranked(subreddits):
@@ -80,9 +81,9 @@ def predict(loaded, vectors, subreddits):
     result = [{} for _ in values]
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
-            for spec, chosen, probability in decided(artifact, model.outputs(model(*inputs(known, values[start:start + 1024], names[start:start + 1024], counts[start:start + 1024])))):
+            for spec, chosen, extras in decided(artifact, model.outputs(model(*inputs(known, values[start:start + 1024], names[start:start + 1024], counts[start:start + 1024])))):
                 for row, value in enumerate(chosen.tolist(), start):
-                    result[row][spec["name"]] = {"value": value} if probability is None else {"value": spec["values"][value], "probability": float(probability[row - start])}
+                    result[row][spec["name"]] = {"value": value if spec["type"] == "numeric" else spec["values"][value], **{key: float(found[row - start]) for key, found in extras.items()}}
     return result
 
 
@@ -90,13 +91,11 @@ def predict(loaded, vectors, subreddits):
 def infer(model, artifact, catalogs, known, batch, device):
     vectors = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()
     columns = {"author": batch["author"]}
-    for spec, chosen, probability in decided(artifact, model.outputs(model(*inputs(known, vectors, batch["subreddits"], batch["counts"], device)))):
+    for spec, chosen, extras in decided(artifact, model.outputs(model(*inputs(known, vectors, batch["subreddits"], batch["counts"], device)))):
         chosen = chosen.cpu().numpy()
-        if probability is None:
-            columns[spec["name"]] = pa.array(chosen.astype(np.float32))
-        else:
-            columns[spec["name"]] = catalogs[spec["name"]].take(chosen)
-            columns[spec["name"] + PROBABILITY] = pa.array(probability.float().cpu().numpy())
+        columns[spec["name"]] = pa.array(chosen.astype(np.float32)) if spec["type"] == "numeric" else catalogs[spec["name"]].take(chosen)
+        for key, found in extras.items():
+            columns[f"{spec['name']}_{key}"] = pa.array(found.float().cpu().numpy())
     return pa.table(columns)
 
 
