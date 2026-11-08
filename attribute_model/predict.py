@@ -24,10 +24,38 @@ VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER 
            "WHERE {where} ORDER BY author")
 
 
-def schema(artifact):
-    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" + "".join(f", {quote_identifier(name + '_' + extra)} Float32" for extra in EXTRAS[kind]) for name, kind in artifact["targets"].items())
+def schema(artifact, table="author_predictions_next", stated=False):
+    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" + (f", {quote_identifier(name + '_stated')} UInt8" if stated else "") + "".join(f", {quote_identifier(name + '_' + extra)} Float32" for extra in EXTRAS[kind])
+                      for name, kind in artifact["targets"].items())
     comment = json.dumps({key: artifact[key] for key in ("model_id", "source", "targets")})
-    return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
+    return f"CREATE TABLE {table} (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
+
+
+def profile_query(targets):
+    pivots, columns = [], []
+    for number, (name, kind) in enumerate(targets.items()):
+        field = quote_identifier(name)
+        pivots.append(f"anyIf(value, attribute = {format_str(name)}) AS v{number}, countIf(attribute = {format_str(name)}) > 0 AS s{number}")
+        claim = f"toFloat32OrZero(c.v{number})" if kind == "numeric" else f"c.v{number}"
+        columns.append(f"if(c.s{number}, {claim}, p.{field}) AS {field}, c.s{number} AS {quote_identifier(name + '_stated')}")
+        columns += [f"p.{quote_identifier(name + '_' + extra)}" for extra in EXTRAS[kind]]
+    return (f"INSERT INTO author_profiles_next SELECT p.author, {', '.join(columns)} FROM (SELECT * FROM author_predictions WHERE {{where}}) AS p "
+            f"LEFT JOIN (SELECT author, {', '.join(pivots)} FROM author_claims WHERE {{where}} GROUP BY author) AS c USING author")
+
+
+@timed
+def profiles(db, artifact):
+    db.command("DROP TABLE IF EXISTS author_profiles_next")
+    db.command(schema(artifact, "author_profiles_next", stated=True))
+    query, written = profile_query(artifact["targets"]), 0
+    for low, high in parts(db):
+        where, parameters = span(low, high)
+        written += db.command(query.format(where=where), parameters=parameters).written_rows
+    db.command("CREATE TABLE IF NOT EXISTS author_profiles AS author_profiles_next")
+    db.command("EXCHANGE TABLES author_profiles_next AND author_profiles")
+    db.command("DROP TABLE author_profiles_next")
+    LOG.info("author profiles rows=%d", written)
+    return written
 
 
 def build(artifact):
@@ -141,7 +169,7 @@ def predict_table(model_path, targets, device="cuda"):
     writer.command("CREATE TABLE IF NOT EXISTS author_predictions AS author_predictions_next")
     writer.command("EXCHANGE TABLES author_predictions_next AND author_predictions")
     writer.command("DROP TABLE author_predictions_next")
-    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["targets"]) + 1}
+    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["targets"]) + 1, "profiles": profiles(writer, artifact)}
 
 
 @timed
