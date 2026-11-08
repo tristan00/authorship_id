@@ -475,7 +475,7 @@ fn owned(lowered: &[char], origin: usize, part: &[char], found: &mut Found, fami
             let left = &part[start.saturating_sub(90)..start];
             let here = (if family.here_after.at(part, end).is_some() { HERE_BEFORE.find(left).map(size) } else { None })
                 .or_else(|| if mental && SELF_AFTER.at(part, end).is_some() { SELF_BEFORE.find(left).map(size) } else { None });
-            let carried = if mental && (contains(left, " and ") || contains(left, ", ")) {
+            let carried = if contains(left, " and ") || contains(left, ", ") {
                 (if noun { CARRIED.find(left).map(size) } else { None })
                     .or_else(|| if (dual || !noun) && CARRIED_STATE.test(left) { CLAUSE_END.at(part, end).map(size) } else { None })
             } else {
@@ -715,8 +715,9 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
                 cursor += 1;
             }
             let asked = close < lowered.len() && lowered[close] == '?';
-            if !asked || !ASKING.test(part) {
-                owned(lowered, origin, part, found, if asked { &lexicons.families[1..] } else { &lexicons.families[..] });
+            match if asked { ASKING.find(part) } else { None } {
+                Some(ask) => owned(lowered, origin, &part[..scoped(&part[..ask.start()])], found, &lexicons.families[..]),
+                None => owned(lowered, origin, part, found, if asked { &lexicons.families[1..] } else { &lexicons.families[..] }),
             }
             if asked {
                 continue;

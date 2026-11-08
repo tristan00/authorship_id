@@ -129,6 +129,7 @@ struct Stage {
     re: Re,
     gate: Gate,
     needs: Vec<Vec<&'static str>>,
+    avoids: &'static [&'static str],
 }
 
 const I_SET: &[&str] = &["i"];
@@ -140,13 +141,18 @@ const DEARS: &[&str] = &["king", "queen", "baby", "babygirl", "wife", "husband",
 const CHARMING: &[&str] = &["cute", "adorable", "hot", "sexy", "fine", "badass", "goated", "peak", "mommy", "daddy", "queen", "king", "girl", "boy", "precious", "lovable", "loveable", "baddie", "slay", "iconic", "underrated", "legend", "goat", "gorgeous", "beautiful", "stunning", "handsome", "cutest", "hottest", "sexiest", "prettiest", "sweetest", "coolest", "baddest", "cutie", "sweetheart", "menace", "wholesome", "endearing", "charming", "favorite", "fave", "fav", "favourite", "best", "greatest"];
 const HEARTS: &[&str] = &["<3", "❤", "♥", "💕", "💖", "💜", "💙", "💛", "💚", "🩷", "😍", "🥰"];
 const RARE: &[&str] = &[];
+const RANDOMIZER: &[&str] = &["roll", "rolled", "rolling", "random", "randomizer", "wheel", "spin", "spun"];
 
 fn with(base: &[&'static str], extra: &[&'static str]) -> Vec<&'static str> {
     base.iter().chain(extra.iter()).copied().collect()
 }
 
 fn stage(pattern: String, gate: Gate, needs: Vec<Vec<&'static str>>) -> Stage {
-    Stage { re: Re::new(&pattern), gate, needs }
+    Stage { re: Re::new(&pattern), gate, needs, avoids: &[] }
+}
+
+fn avoiding(stage: Stage, avoids: &'static [&'static str]) -> Stage {
+    Stage { avoids, ..stage }
 }
 
 static STAGES: LazyLock<Vec<Stage>> = LazyLock::new(|| {
@@ -187,6 +193,8 @@ static STAGES: LazyLock<Vec<Stage>> = LazyLock::new(|| {
         stage(format!(r"(?i:\bi (?:also |really |personally |honestly |just |always |)find ){NAME}(?i: (?:the |so |really |very |most |super |incredibly |extremely |)(?:attractive|hot|cute|sexy|adorable|interesting|fascinating|compelling|relatable|hilarious|funny|charming|endearing|gorgeous|beautiful)\b)"), Known, vec![v(I_SET), vec!["find"]]),
         stage(format!(r"(?i:\bi(?:'m| am) (?:also |definitely |firmly |always |still |)team ){NAME}"), Known, vec![v(I_SET), vec!["team"]]),
         stage(format!(r"(?i:\bmy ){NAME}(?i: cosplay)|{NAME}(?i: (?:cosplay|fan ?art|drawing) (?:by|from) me\b)|(?i:\bi (?:\w+ )?(?:made|did|finished|wore) (?:a|an|my) ){NAME}(?i: cosplay)|(?i:\bi(?:'m| am| was|'ve been)? (?:\w+ )?cosplay(?:ed|ing)? (?:as|of) ){NAME}"), Any, vec![vec!["cosplay", "cosplays", "cosplayed", "cosplaying", "cosplayer", "cosplayers", "fanart", "art", "drawing"]]),
+        stage(format!(r"\^\((?i:me):\s*{NAME}\)"), Known, vec![vec!["me"]]),
+        avoiding(stage(format!(r"(?i:\bi(?:'d|'ll| would| will)? (?:also |probably |personally |definitely |always |would |)(?:pick|picked|choose|chose|go with|went with) ){NAME}(?=\s*(?:[.,!;:)\n]|$| (?:because|cause|bc|since|for sure|every time|any day|hands down|easily|obviously)\b))"), Known, vec![v(I_SET), vec!["pick", "picked", "choose", "chose", "go", "went"]]), RANDOMIZER),
     ]
 });
 
@@ -447,7 +455,7 @@ pub fn characters(text: &[char], found: &mut Found) {
     let possible = cues_of(text).any(MASKS.POSITIVE);
     let text = recased(text, &words);
     for stage in STAGES.iter() {
-        let open = stage.needs.iter().all(|need| {
+        let open = disjoint(&words, stage.avoids) && stage.needs.iter().all(|need| {
             if need.is_empty() {
                 words.iter().any(|w| tables.lowercased.contains_key(*w))
             } else {

@@ -239,15 +239,16 @@ pub const SUBJECT: &str = r"i(?<!\wi) (?:also |still |do |actually |now |already
 pub fn have_now() -> String {
     [
         SUBJECT,
-        r"(?:have|got|get|suffer from|suffer with|struggle with|deal with|live with|battle|fight|manage|was born with|developed|contracted|have been diagnosed with|got diagnosed with|",
-        r"was (?:also |recently |officially |formally |finally |just |eventually |later |then |initially |first |since )?diagnosed with|have had|have got|am diagnosed with|am being treated for|",
+        r"(?:have|got|get|suffer from|suffer with|struggle with|deal with|live with|battle|fight|manage|was born with|developed|contracted|have been (?:diagnosed|dx'?d?) with|got (?:diagnosed|dx'?d?) with|",
+        r"was (?:also |recently |officially |formally |finally |just |eventually |later |then |initially |first |since )?(?:diagnosed|dx'?d?) with|have had|have got|am (?:diagnosed|dx'?d?) with|am being treated for|",
         r"am recovering from|am dealing with|am struggling with|am living with|am suffering from|am suffering with|am battling|am fighting)",
-        r"|i(?<!\wi)(?:'ve|ve| have) (?:also |always |recently |just |finally |officially |since |now |personally |actually |unfortunately |literally |basically |definitely |still |apparently |technically |long )*(?:had|got|been diagnosed with|been dealing with|been struggling with|been battling|been fighting|been living with|",
+        r"|i(?<!\wi)(?:'ve|ve| have) (?:also |always |recently |just |finally |officially |since |now |personally |actually |unfortunately |literally |basically |definitely |still |apparently |technically |long )*(?:had|got|been (?:diagnosed|dx'?d?) with|been dealing with|been struggling with|been battling|been fighting|been living with|",
         r"been suffering from|been suffering with|been treated for|been recovering from|developed|struggled with|dealt with|suffered from|suffered with|lived with|battled|fought|survived|beaten)",
-        r"|i(?<!\wi)(?:'m|m| am) (?:also |currently |still |now |actually |officially |finally |recently |just |newly |personally |technically |literally |basically |definitely |unfortunately |apparently )*(?:diagnosed with|dealing with|struggling with|living with|suffering from|suffering with|being treated for|recovering from|",
+        r"|i(?<!\wi)(?:'m|m| am) (?:also |currently |still |now |actually |officially |finally |recently |just |newly |personally |technically |literally |basically |definitely |unfortunately |apparently )*(?:(?:diagnosed|dx'?d?) with|dealing with|struggling with|living with|suffering from|suffering with|being treated for|recovering from|",
         r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)",
-        r"|i(?<!\wi) (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|(?:a(?<!\wa)s |i(?<!\wi)(?:'m |m | am ))(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal|patient)) (?:who(?:'s| has| is)? (?:also |still |too )?(?:has|has had|had|suffers from|struggles with|lives with|deals with|been diagnosed with|diagnosed with|dealt with|struggled with|lived with|suffered from)|living with|with)",
+        r"|i(?<!\wi) (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|(?:a(?<!\wa)s |i(?<!\wi)(?:'m |m | am ))(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal|patient)) (?:who(?:'s| has| is)? (?:also |still |too )?(?:has|has had|had|suffers from|suffers with|struggles with|lives with|deals with|been diagnosed with|diagnosed with|dealt with|struggled with|lived with|suffered from|suffered with)|(?:also |still )?(?:living with|with))",
         r"|m(?<!\wm)y (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|d(?<!\wd)iagnosed me (?:with|as)",
+        r"|(?<![\w.])(?:i'?m |i am )?(?:1[3-9]|[2-9]\d) ?(?:[mf]|yo|y/o|years? old)?\)?,? (?:with|w/)",
     ]
     .concat()
 }
@@ -289,6 +290,11 @@ const BOT_SELF: &str = concat!(
     r"(?:\bi(?:'m| am)[\s^]+a[\s^]+bot\b|\bthis is a bot\b|\bperformed[\s^]+automatically\b|\bsou um bot\b|\bsoy un bot\b|\bbeep boop\b|\bbleep bloop\b|",
     r"\bthis is an? (?:automated|automatic) (?:message|response|reply|comment|process)\b|\bthis message is an automat\w+ response\b)"
 );
+const BOT_OWN: &str = concat!(
+    r"(?:\bi[\s^]*(?:'m|[\s^]am)[\s^]+an?[\s^]+\[?bot\b(?![\s^]*,?[\s^]*and[\s^]+this[\s^]+action[\s^]+was[\s^]+performed)|\bthis is a bot\b|\bsou um bot\b|\bsoy un bot\b|\bbeep boop\b|\bbleep bloop\b|",
+    r"\bthis is an? (?:automated|automatic) (?:message|response|reply|comment|process)\b|\bthis message is an automat\w+ response\b)"
+);
+const BOT_WORDS: [&str; 6] = [" bot", "^bot", "[bot", "beep boop", "bleep bloop", "automat"];
 const MODERATION: &str = r"removed|remove|approv\w*|karma|locked|not allowed|bans?|bannable|banned|comments are disabled|filtered|blocked|block you|copy of (?:the|this|your) (?:original )?(?:post|submission)|post's original text|copia del post|salvo qui una copia";
 const PERSONAL_AD: &str = r"[\[(]\s*(?:nb|[mf])[mf]?\s*4\s*(?:[mfatr]|me|nb)\w*\s*[\])][^\n]*?(?<![\w'-])({})(?![\w'-])";
 pub const NEURO: [&str; 3] = ["adhd", "autism", "both adhd and autism"];
@@ -364,8 +370,11 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             r"i(?<!\wi)(?: (?:also |still |now |have to |had to |need to |always |usually |currently |sometimes |must )?(?:wear|need|use|carry|have|got|take|took|started|start|am on|was on|was put on|got put on|was prescribed|got prescribed|inject|do|did|go to|see|saw|visit)|'m (?:also |still |now |currently )?(?:on|taking|using)|'ve (?:been on|been taking|been using|started)) (?:a |an |my |the |two |both |prescription |daily )?({tool_rule_names})\b"
         ), by(tool_strict), own()),
         unquoted("physical_condition",
-            r"i(?<!\wi)'?m (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|i(?<!\wi) (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|i(?<!\wi) (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|i(?<!\wi) (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
+            r"i(?<!\wi)(?:'?m| am|'ve gone| have gone|'m going| am going)(?: (?:also|now|already|still|basically|practically|essentially|technically))* (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|i(?<!\wi) (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|i(?<!\wi) (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|i(?<!\wi) (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
             |m| Some(if SENSE.test(m.text()) { "vision or hearing impairment" } else { "physical disability" }.to_string()), self_hedge()),
+        unquoted("physical_condition",
+            r"i(?<!\wi)(?:(?:'?m| am|'ve been| have been)(?: (?:also|still|currently|now|basically|literally|just|pretty much))*(?: (?:always|often|constantly|permanently|chronically|perpetually|frequently|usually|almost always) in(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|much|constant|chronic|daily))*| in(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|much))* (?:constant|chronic|daily|ongoing|almost constant|nearly constant|perpetual|permanent|never[- ]?ending|endless|everyday|lifelong|persistent)(?: (?:severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating))*)| live(?: (?:always|constantly|daily))? (?:in|with)(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|constant|chronic|daily|ongoing))*) pain\b(?! (?:management|clinic|meds|medications?|killers?|relief|pills?|doctors?|specialists?)\b)",
+            fixed("chronic pain or fibromyalgia"), self_hedge()),
         unquoted("physical_condition", concat!(
             r"m(?<!\wm)y (?:face|skin|scalp|face skin|facial skin) (?:is|has been|gets|get|keeps|is always|is still|is getting|has gotten|tends to be|is naturally|is super|is very|is so|is really|is extremely|is quite|is pretty|is kinda|is a bit|always gets)* ?",
             r"(?:so |very |really |super |extremely |quite |pretty |kinda |a bit |naturally )?(?:dry|oily|sensitive|acne[- ]prone|prone to (?:acne|breakouts|redness|irritation)|breaking out|broken out|flaky|flaking|peeling|",
@@ -384,7 +393,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             by(t.mental.with(&[("add", "adhd"), ("bed", "eating disorder"), ("ied", "other mental health condition"), ("odd", "other mental health condition")])), own()),
         unquoted("mental_condition", &format!(r"m(?<!\wm)y {modifier}({loose})\b{FOLLOWERS}(?! (?:medication|meds)\b)"), by(t.mental_loose.clone()), own()),
         unquoted("mental_condition",
-            r"m(?<!\wm)y (?:own )?(adhd|autism|audhd|ocd|bpd|ptsd|cptsd|anxiety|depression|bipolar|ed|eating disorder|addiction|insomnia|tics|trich|did) (?:brain|meds|medication|diagnosis|symptoms|is|was|has|makes|gets|kicks|flares|got|took|and|so)\b",
+            r"m(?<!\wm)y (?:(?:own|official|formal|first|recent|new|adult|actual|initial|late) )*(adhd|autism|audhd|ocd|bpd|ptsd|cptsd|anxiety|depression|bipolar|ed|eating disorder|addiction|insomnia|tics|trich|did) (?:brain|meds|medication|diagnosis|symptoms|is|was|has|makes|gets|kicks|flares|got|took|and|so)\b",
             by(t.mental.with(&[("bipolar", "bipolar disorder"), ("ed", "eating disorder"), ("insomnia", "other mental health condition"), ("tics", "other mental health condition"),
                 ("trich", "other mental health condition"), ("did", "other mental health condition")])), own()),
         unquoted("mental_condition", &format!(
@@ -392,7 +401,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             t.mental_state_strict.names()
         ), by(loose_states), self_hedge()),
         unquoted("mental_condition", &format!(
-            r"i(?<!\wi)(?:'m|m| am| m|'ve been|ve been| have been| was| became|'m now|'m also|'m actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |so |really |too |super |just |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for|from|by|over|with)\b)",
+            r"i(?<!\wi)(?:'m|m| am| m|'ve been|ve been| have been| was| became|'m now|'m also|'m actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |so |really |too |super |just |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for(?! (?:a long time|a while|years|months|weeks|ages|decades|so long|most of my life|over|almost|nearly|the (?:past|last)|\d+))|from|by|over|with)\b)",
             feeling_states.names()
         ), by(feeling_states.clone()), own()),
         unquoted("mental_condition", &format!(
@@ -453,7 +462,9 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             r"i(?<!\wi) (?:also |still |do )?(?:have|have had|struggle with|deal with|live with)(?: an?)? ({})\b(?! (?:to|with|of|that|for|in)\b)",
             t.mental_words.names()
         ), by(t.mental.clone()), others()),
-        rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|automat|beep|bleep))(?![\s\S]*\b(?:{MODERATION})\b)(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_SELF}"), fixed("bot"), TAGGED),
+        needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|automat|beep|bleep))(?![\s\S]*\b(?:{MODERATION})\b)(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_SELF}"), fixed("bot"), TAGGED), &BOT_WORDS),
+        needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|beep|bleep|automat))(?![\s\S]*\b(?:{MODERATION})\b)[\s\S]*?{BOT_OWN}"), fixed("bot"), TAGGED), &BOT_WORDS),
+        needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|beep|bleep|automat))(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_OWN}"), fixed("bot"), TAGGED), &BOT_WORDS),
     ]);
     let personal = t.mental_state_strict.filter(|_, value| NEURO.contains(&value) || value == "neurodivergent, unspecified");
     let personal_lex = personal.lex();

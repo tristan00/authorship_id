@@ -1,4 +1,4 @@
-use crate::relationship::COUPLE_ADS;
+use crate::relationship::{COUPLE_ADS, SOLO_AD};
 use crate::shared::*;
 use claimcore::*;
 use std::collections::HashSet;
@@ -64,6 +64,8 @@ regex!(RENTING, r"\b(?:rent|rents|rented|renting|landlord|landlady|lease|leasing
 regex!(RENT_OUT, r"\brent(?:s|ed|ing)? (?:it |them |\w+ )?out\b|\b(?:my|our) tenants?\b");
 regex!(OTHER_PEOPLE, r"\b(?:he|she|they|his|her|their|them|him|people|someone|anyone|everyone|you|your|op)\b");
 regex!(MAYBE, r"\b(?:would|wish|if|could|might|should|maybe)\b");
+regex!(SPEAKER_WORD, r"\b(?:i|i'm|im|i've|me|my)\b");
+regex!(SOLO_HEAD, SOLO_AD);
 regex!(VEHICLE, r"\b(?:car|cars|vehicle|truck|ev|tesla|auto|mileage|miles|bmw|honda|toyota|lease deal|lease payment)\b");
 
 fn breeds() -> String {
@@ -120,6 +122,7 @@ pub fn pets() -> Vec<Rule> {
           |m| pet(m, if m.nonempty(1).is_some() { "dog" } else if m.nonempty(2).is_some() { "cat" } else { "other pet" }), self_hedge()), &["owner"]),
         r("pets", &format!(r"(?:{ME} an? |{AS} an? )(?:proud |crazy |\w+ )?(dog|cat) (?:mom|mum|dad|mama|daddy|parent|owner|lady|person)\b|\b(dog|cat) (?:mom|mum|dad|mama|parent) here\b|\b(dog|cat) (?:mom|mum|dad|mama|daddy|parent|owner)s? (?:of|to) (?:\d+|one|two|three|four|five|a|an)\b"),
           |m| { let word = m.nonempty(1).or(m.nonempty(2)).or(m.group(3)); pet(m, if word.map_or(false, |w| eq(w, "dog")) { "dog" } else { "cat" }) }, self_hedge()),
+        needs(r("pets", r"\b(?:my|our|i have|we have|i've got|we've got|i own|we own) (?:\w+ ){0,2}(?:(?:dogs?|pups?|puppy|puppies|doggos?) (?:and|&|\+) (?:a |an |my |our |\d+ |two |three |four |multiple |several )?(?:\w+ )?(?:cats?|kitt(?:y|ies|ens?))|(?:cats?|kitt(?:y|ies|ens?)) (?:and|&|\+) (?:a |an |my |our |\d+ |two |three |four |multiple |several )?(?:\w+ )?(?:dogs?|pups?|puppy|puppies|doggos?))\b", |m| pet(m, "dog and cat"), self_hedge()), &["dog", "pup", "doggo", "cat", "kitt"]),
         r("pets", concat!(r"\b(?:mi|mis) (perr[oa]s?|perrit[oa]s?|gat[oa]s?|gatit[oa]s?)\b|\b(?:meu|minha|meus|minhas) (cachorr[oa]s?|cadel[oa]s?|gat[oa]s?|gatinh[oa]s?)\b|\b(?:mon|ma|mes) (chien|chienne|chiens|chat|chatte|chats|chaton)\b|\b(?:mein|meine|meinen|meinem) (hund|hunde|hündin|katze|katzen|kater)\b",
           r"|\bmijn (hond|honden|kat|katten|poes)\b|\b(?:il mio|la mia|i miei|le mie) (cane|cani|cagnolino|gatto|gatta|gatti|gattino)\b|\b(?:mój|moja|moje) (pies|psy|piesek|kot|kotka|koty)\b|\b(köpeğim|kedim)\w*|\b(aso|pusa) ko\b"),
           |m| if free(m) { Some(if m.first().map_or(false, |w| FOREIGN_CAT.at(w, 0).is_some()) { "cat" } else { "dog" }) } else { None }, TAGGED),
@@ -129,13 +132,19 @@ pub fn pets() -> Vec<Rule> {
 
 pub fn living() -> Vec<Rule> {
     let mut rules = vec![
-        r("living_with", r"\bi (?:still )?live (?:all )?(?:alone|by myself|on my own)\b|\bliving (?:alone|by myself|on my own)\b|\bhappy alone\b|\bi'm (?:all )?alone\b|\bhome(?<!walking home)(?<!walk home)(?<!walked home)(?<!going home)(?<!go home)(?<!went home)(?<!come home)(?<!came home)(?<!coming home)(?<!drive home)(?<!driving home)(?<!drove home)(?<!get home)(?<!got home)(?<!getting home)(?<!ride home)(?<!riding home)(?<!head home)(?<!heading home)(?<!headed home) alone\b(?! (?:today|tonight|now|too|right now|this (?:weekend|week|morning|afternoon|evening)|all (?:day|night|week|weekend)|for (?:the|a) (?:day|night|week|weekend|few)|and horny|& horny|with)\b)|\balone at home\b(?! (?:today|tonight|now|too|right now|this (?:weekend|week|morning|afternoon|evening)|all (?:day|night|week|weekend)|and horny)\b)|\balleine? (?:zu ?hause|daheim)\b", constant("alone"), self_hedge()),
+        r("living_with", r"\bi (?:still )?live (?:all )?(?:alone|by myself|on my own)\b|\bliving (?:alone|by myself|on my own)\b|\bhappy alone\b|\b(?:i'm|i am|im) (?:all |completely |totally |currently |now |home )?(?:alone|by myself)\b|\bhome(?<!walking home)(?<!walk home)(?<!walked home)(?<!going home)(?<!go home)(?<!went home)(?<!come home)(?<!came home)(?<!coming home)(?<!drive home)(?<!driving home)(?<!drove home)(?<!get home)(?<!got home)(?<!getting home)(?<!ride home)(?<!riding home)(?<!head home)(?<!heading home)(?<!headed home) alone\b(?! (?:today|tonight|now|too|right now|this (?:weekend|week|morning|afternoon|evening)|all (?:day|night|week|weekend)|for (?:the|a) (?:day|night|week|weekend|few)|and horny|& horny|with)\b)|\balone at home\b(?! (?:today|tonight|now|too|right now|this (?:weekend|week|morning|afternoon|evening)|all (?:day|night|week|weekend)|and horny)\b)|\balleine? (?:zu ?hause|daheim)\b", constant("alone"), self_hedge()),
         r("living_with", r"\bi (?:have )?(?:lived|live|am living|still live) (?:at home )?with my (?:mom and dad|parents|mom|dad|mum|mother|father|folks|family|grandparents)\b|\bmy parents' (?:house|place|home)\b(?= where i)|\bi (?:still )?live at home\b|\bliving at home with\b",
           constant("parents"), self_hedge()),
         r("living_with", concat!(r"\bi live with my (?:wife|husband|partner|girlfriend|boyfriend|gf|bf|fianc\w*|kids|children|spouse|sister|brother|son|daughter|aunt|uncle|cousin)\b|\bwe live together\b",
           r"|\b(?:we|my (?:wife|husband|partner|girlfriend|boyfriend|gf|bf|fianc\w*) and i) (?:just |recently |finally )?moved in together\b|\bmoved in (?:with|together with) my (?:girlfriend|boyfriend|partner|gf|bf|fianc\w*)\b",
           r"|\bmy (?:wife|husband|partner|girlfriend|boyfriend|gf|bf|fianc\w*|spouse|hubby) and i (?:live|share (?:a|an|our)|rent|bought (?:a|our)|own (?:a|our)|have (?:a|an|our) (?:house|home|apartment|place|flat))\b|\bwho lives with me\b",
           r"|\b(?:our|my) (?:house|home|apartment|place)\b(?= with my (?:wife|husband|partner))"), constant("partner or family"), self_hedge()),
+        needs(r("living_with", r"\b(?:still |currently |now |also )?(?:live|living|stay|staying|moved back in|move back in|moving back in|moved in|moving in|back home) (?:with|w/?) (?:my|the) (?:(?!(?:friends?|boyfriend|girlfriend|partner|bf|gf)\b)\w+ )?(parents?|folks|mom and dad|mum and dad|grandparents|grandma|grandmother|mom|dad|mum|mother|father)\b|\b(?:i'm|im|i am)(?: still| currently| now)? living (at home)\b|\bliving in my (parents?)'?(?:'s)? (?:house|home|place|basement)\b|\b(?:i (?:\w+ )?live|i'm living|i am living|i've been living|we live|living) with (?:my|the) (?:\w+ )?(partner|man|boyfriend|girlfriend|bf|gf|so|fianc\w*|wife|husband|hubby|spouse|kids|children|son|daughter|sister|brother|family)\b|\bi (?:also |now |currently )?live with (someone|somebody)\b|(?:^|[.,;!\n]\s*|\band )(?:i )?(?:currently |still |now )?(?:live|living) (alone|solo|by myself|on my own)\b|\bliving (solo)\b|\bi (?:also |now |currently )?(?:have|got) (?:a |two |\d |some )?(roommates?|flatmates?|housemates?)\b|\bi(?:'m| am)? (?:also |now |currently )?(?:live|living) with (?:a |two |\d |some )?(friends?|roommates?|flatmates?|housemates?)\b(?! (?:who|that|and (?:family|their))\b)",
+          |m| {
+              if !SPEAKER_WORD.test_in(m.string, sentence(m).0, m.end()) && !SOLO_HEAD.test(m.string) || OTHER_PEOPLE.test_in(m.string, sentence(m).0, m.start()) { return None; }
+              let word = m.first().map(st).unwrap_or_default();
+              Some(if ["parents", "parent", "folks", "mom and dad", "mum and dad", "grandparents", "grandma", "grandmother", "mom", "dad", "mum", "mother", "father", "at home"].contains(&word.as_str()) { "parents" } else if ["roommate", "roommates", "flatmate", "flatmates", "housemate", "housemates", "friend", "friends"].contains(&word.as_str()) { "roommates" } else if ["alone", "solo", "by myself", "on my own"].contains(&word.as_str()) { "alone" } else { "partner or family" })
+          }, self_hedge()), &["live", "living", "stay", "moved", "move", "moving", "back home", "roommate", "flatmate", "housemate"]),
         r("living_with", r"\b(?:my|our) (?:\w+ ){0,2}(?:roommates?|roomates?|room mates?|flatmates?|housemates?|roomie|roomies)\b|\bi live with (?:\w+ )?(?:roommates?|flatmates?|housemates?)\b|\b(?:ner|einer) wg\b", constant("roommates"), self_hedge()),
     ];
     for pattern in &COUPLE_ADS[1..] {
@@ -182,5 +191,14 @@ pub fn housing() -> Vec<Rule> {
           r"|\b(?:i|we) (?:\w+ )?(?:live|living|lived) in (?:a|an) (?:\w+ )?rented (?:apartment|flat|house|room|place|home|condo|unit|studio)\b|\b(?:i|we)(?:'ve| have) (?:only |always |never |also )?(?:ever )?rented\b(?! (?:a car|cars?|out|it|them|movies?|equipment|tools?|bikes?|a truck|a van|boats?|kayaks?)\b)|\b(?:i|we)(?:'re| are|'m| am)? (?:about to be |being |getting |got |just got )evicted\b"),
           |m| if first_person(m) { let text = m.text(); stated(m, &FUTURE, || kept(m, if contains(text, "rent") || contains(text, "evict") { "renter" } else { "homeowner" })) } else { None }, TAGGED),
           &["own", "rent", "evict"]),
+        needs(r("housing", concat!(r"\bi (?:currently |still |just |now |also )rent\b(?! (?:a car|cars|out|movies|equipment|tools|bikes?|a truck|a van|a uhaul|boats?|kayaks?|skis?)\b)|\b(?:i|we)(?:'m| am|'re| are) (?:just |currently |still |now |only |also )renting\b(?! (?:a car|cars|out|it|them)\b)",
+          r"|\b(?:i|we)(?:'m| am|'re| are)?(?: \w+)? (?:live|living|lived|staying) in an? (?:\w+ )?(?:rented|rental) (?:apartment|flat|house|room|place|home|condo|unit|studio|property)\b"),
+          |m| if MAYBE.test_in(m.string, sentence(m).0, m.start()) { None } else { stated(m, &FUTURE, || kept(m, "renter")) }, TAGGED), &["rent"]),
+        needs(r("housing", r"\b(?:i'm|im|i am|we're|we are)(?: (?!(?:not|never|thinking|considering|planning|looking|going|trying|hoping)\b)\w+){0,3} renting (?:a|an|my|our) (?:[\w-]+ ){0,3}(?:apartment|apt|flat|room|house|home|place|studio|unit|condo|townhouse|bedroom)\b", |m| if MAYBE.test_in(m.string, sentence(m).0, m.start()) { None } else { stated(m, &FUTURE, || kept(m, "renter")) }, TAGGED), &["renting"]),
+        needs(r("housing", r"\b(?:i|we) (?:\w+ )?(?:spend|pay) (?:about |around |over |almost |nearly |roughly |like )?\$?\d[\d,.]*k? (?:\w+ ){0,2}(?:on|in|for) rent\b", |m| if first_person(m) { kept(m, "renter") } else { None }, TAGGED), &["rent"]),
+        needs(r("housing", concat!(r"\bown (?:my|our) own (?:place|house|home|flat|apartment|condo|property)\b|\b(?:lucky|fortunate|blessed) enough to own (?:a|my|our) (?:\w+ )?(?:house|home|place|condo|flat|apartment|property)\b",
+          r"|\bas (?:someone|somebody|a person|one|an? \w+) who owns? (?:a|my|an) (?:\w+ )?(?:house|home|condo|property)\b|(?:^|[\n,;:]\s*|\b(?:my|our) )(?:home|house) (?:is )?(?:fully |completely |now )?paid (?:off|for)\b"),
+          |m| if SELF.test(m.string) && !MAYBE.test_in(m.string, sentence(m).0, m.start()) { stated(m, &FUTURE, || kept(m, "homeowner")) } else { None }, TAGGED), &["own", "paid"]),
+        needs(r("housing", r"\b(?:my|this) (?:\w+ )?homeless ass\b|\b\d{2} and (?:about to be |now |currently )?homeless\b|^\W*homeless\b(?! (?:people|person|man|men|woman|women|shelters?|population|guy|guys|folks|kids|youth|veterans?|camps?|encampments?|crisis|problem|issue)\b)|(?:^|[\n.!?]\s*)(?:(?:i'm|im|i am|i've been|currently|now|still) )?(?:living |staying |sleeping )?in a (?:homeless |women's |family )?shelter\b", |m| kept(m, "homeless"), TAGGED), &["homeless", "shelter"]),
     ]
 }

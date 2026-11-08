@@ -38,7 +38,7 @@ const NOUNED: &str = r"(h(?<!\wh)(?:omme|ombre|omem)|f(?<!\wf)emme|m(?<!\wm)(?:u
 static BORN: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:(?<![^\W_])i was |(?<![^\W_])(?:^|[.!?\n]) *)$"));
 static CONFESSED: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"{IM} (?:just |also |kinda |a bit |a little |a |an )?$")));
 static CURIOUSLY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:guy|girl|man|woman|male|female|dude|bottom|top|vers|here|m\b|f\b|[,.!|/])"));
-static ASIDE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:looking|seeking|want|wants|than|taller|shorter|you|he|she|his|her|my|like|into|for)\b"));
+static ASIDE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:(?<!\bgood )(?<!\bgood-)looking|seeking|want|wants|than|taller|shorter|you|he|she|his|her|my|like|into|for)\b"));
 const PAIRED: &str = r"(?:^\W*|\b(?:i|me|ich|myself|moi|yo|i've|i'm|im|i am|i was)\s*)(?:[\[\(]\s*([mfw])\s*[,/]\s*(\d{2})\s*[\]\)]|[\[\(]\s*(\d{2})\s*[,/]\s*([mfw])\s*[\]\)])";
 const TRAILING: &str = r"(?:^|[\s.!?(\[])([mf])\s?(\d{2})\W*$|(?:^|[\s.!?(\[])(\d{2})(?:\s?(f)| (m))\W*$";
 static HAILED: LazyLock<Re> = LazyLock::new(|| {
@@ -174,8 +174,9 @@ fn age() -> Vec<Rule> {
     let pointed = pointed();
     let ethnic_names = &*ETHNIC_NAMES;
     vec![
-        said("age", &format!(r"{IM} (?:(?:only|just|now|turning|currently|also|still|already|literally|actually|finally|officially|technically|basically|a|an) )*(\d{{2}})(?:\s?(?:years? old|yo|y/o|yrs? old|yrs))?(?![\w%'/+-]|[.,:]\d)(?!\s*{UNITS}|\s*(?:and|or|-)\s*\d)"), age_of(&[1]), h()),
-        said("age", r"as(?<!\was) an? (\d{2})[- ]?(?:years?|yr)[- ]?old\b", age_of(&[1]), h()),
+        said("age", &format!(r"{IM} (?:(?:only|just|now|turning|currently|also|still|already|literally|actually|finally|officially|technically|basically|a|an) )*(\d{{2}})(?:\s?(?:years? old|yo|y/o|yrs? old|yrs|y))?(?![\w%'/+-]|[.,:]\d)(?!\s*{UNITS}|\s*(?:and|or|-)\s*\d)"), age_of(&[1]), h()),
+        said("age", r"as(?<!\was) an? (?:(?!(?:not|no|with|for|to|than|like|and|or|that|who)\b)[\w-]+ ){0,2}?(\d{2})(?:[- ]?(?:years?|yrs?|yr)[- ]?old|\s?(?:yo|y/o))\b", age_of(&[1]), h()),
+        said("age", r"\bthis (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:has|is|will|would|can|still|needs|wants|loves|could)\b|\bme,? an? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o)\b|\ban? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:[\w-]+ ){0,2}?like me\b", age_of(&[1, 2, 3]), h()),
         said("age", r"\b(?:(?:we're|we are) (?:both|only|just|now)|we both are|(?:my \w+|\w+) and i are(?: both)?|me and (?:my )?\w+ are(?: both)?) (\d{2})\b(?!\s*(?:and|or|-|&)\s*\d)(?!\s*(?:%|percent|minutes|mins|hours|days|weeks|months|years? (?:ago|in|into|of|together|married)|miles|km|feet|ft|lbs?|kg|dollars|bucks|k\b))", age_of(&[1]), h()),
         said("age", r"(?:\bi(?:'ve| have)? |^|[.!?] )(?:(?:just|recently|finally|also|only|officially) )*turned (\d{2})\b(?! (?:years|minutes|weeks|percent|%))", age_of(&[1]), h()),
         said("age", &format!(r"{IM} (?:a |an )?(?:(?!not\b|never\b)[a-z]+ ){{0,3}}?(\d{{2}})[\s-]?(?:yo|y/o|y\.o\.?|years? old|yr old|year-old)\b"), age_of(&[1]), h()),
@@ -257,7 +258,7 @@ fn gender() -> Vec<Rule> {
             |m: &Match| { let w = m.group(1).unwrap_or(&[]); Some(if ["woman", "girl", "female", "lady"].iter().any(|x| eq(w, x)) { "trans woman" } else { "trans man" }.to_string()) }, h()),
         said("gender", PAIRED, table_of(&POSTERS, &[1, 4]), TAGGED),
         said("gender", &format!(r"{IM} (?:(?:also|just|only|still|actually|literally|already|genuinely|honestly|proudly|really|definitely|obviously|basically|simply) )?(?:an? |the )?{ADJECTIVES}{gender_words}\b(?! (?:friend|friends|of|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff|dad|mom|mother|father|parent)\b)(?!'s)"), group(&GENDERS, 1), h()),
-        said("gender", &format!(r"{IM} (?:just |only |also |still |actually |literally |really |definitely |obviously |simply |basically )?(?:an? |the |one )(?:{FREE}|[\w'-]+, ){{0,4}}?{gender_words}\b(?! (?:friend|friends|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff|dad|mom|mother|father|parent|energy|moment|problem)\b)(?!'s)"), group(&GENDERS, 1), h()),
+        said("gender", &format!(r"{IM} (?:just |only |also |still |actually |literally |really |definitely |obviously |simply |basically )?(?:an? |the |one )(?:{FREE}|[\w'-]+, |and ){{0,6}}?{gender_words}\b(?! (?:friend|friends|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff|dad|mom|mother|father|parent|energy|moment|problem)\b)(?!'s)"), group(&GENDERS, 1), h()),
         said("gender", &format!(r"^(?:[^\w\[]*\[[^\]\n]*\])*+\W*(?:#\w+\W+)*(?!(?:the|this|that|any|every|a|an|my|your|his|her|our|their)\b)(?:[a-z]+ ){{0,3}}?{gender_words}\b(?= (?:here|looking|seeking|searching|for|4)\b)"), group(&GENDERS, 1), TAGGED),
         said("gender", &format!(r"{IM} (?:an? )?{FREE}{{0,3}}?in (his|her) (?:early |mid |late )?(?:\d0'?s|teens|twenties|thirties|forties|fifties|sixties|seventies)\b"),
             |m: &Match| m.group(1).map(|g| if eq(g, "his") { "male" } else { "female" }.to_string()), h()),
@@ -266,12 +267,12 @@ fn gender() -> Vec<Rule> {
         said("gender", &format!(r"(?=as )(?<!\byou )(?<!\bhim )(?<!\bher )(?<!\bthem )(?<!\bme )\bas an? (?:fully )?{ADJECTIVES}{gender_words}\b(?!'s| of\b)"), alone(group(&GENDERS, 1)), h()),
         said("gender", &format!(r"(?:(?:^|[.!?,;:(\n]) *|\b(?:i|me|myself|and|but|so|even)\s+)as an? {FREE}{{1,3}}?{gender_words}\b(?!'s| of\b)"), alone(group(&GENDERS, 1)), h()),
         said("gender", &format!(r"\bbeing an? {FREE}{{0,2}}?{gender_words},? (?:i|i'm|im|myself)\b|(?:^|[.!?\n] *)just (?:an?|your|ur|another|some) {FREE}{{0,3}}?{gender_words}(?: (?:with|who|from|in|trying|looking|that|next|doing|living|and)\b|\s*[.!?…,]|\s*$)"), table_of(&GENDERS, &[1, 2]), h()),
-        said("gender", r"i(?<!\wi)(?:'m|m| am) ([mf])(?=[\s,.!)/]|$)(?!\s*\*)|^\W*([mf]|male|female)\W*$", table_of(&GENDERS, &[1, 2]), TAGGED),
+        said("gender", r"i(?<!\wi)(?:'m|m| am) (?:an? \d{2}[ -]?(?:yo|y/o|years?[ -]old|yrs?[ -]old) )?([mf])(?=[\s,.!)/]|$)(?!\s*\*)|^\W*([mf]|male|female)\W*$", table_of(&GENDERS, &[1, 2]), TAGGED),
         said("gender", r"(?:^|[\s,(\]])(milf|hotwife|bull|twink|femboy|cougar|gilf|dilf|domme)(?: here| looking| seeking| loves| needs| wants| for| 4\b)", group(&GENDERS, 1), sh()),
         said("gender", &format!(r"(?:^|[.!?,;] *)(?:an? )?{FREE}{{0,2}}?{gender_words} here\b"), group(&GENDERS, 1), h()),
         said("gender", &format!(r#"(?<![\w.'\"/$#%+:-]){TALL}(?:\"|'')?(?: tall)?(?:{STAT_GAP}(?:and )?\d{{2,3}}\s?(?:lbs?|kg|pounds|#))?{STAT_GAP}(?:and )?(male|female)\b"#),
             alone(|m: &Match| if desired(m.string, m.start()) { None } else { get(&GENDERS, m.group(1)) }), sh()),
-        said("gender", r"(?:^|\n)[^\S\n]*(?:\\?[-*>]+[^\S\n]*)?(?:sex or gender|gender|sex)\s*[:=-]\s*(male|female|man|woman|m|f|non-binary|nonbinary)\b", group(&GENDERS, 1), TAGGED),
+        said("gender", r"(?:^|\n)[^\S\n]*(?:\\?[-*>]+[^\S\n]*)?(?:\*\*)?(?:\d+\.\s*)?(?:sex or gender|gender|sex)(?: (?:&|and|/) age)?(?:\*\*)?\s*[:=-]\s*(?:\*\*)?\s*(male|female|man|woman|m|f|non-binary|nonbinary)\b", group(&GENDERS, 1), TAGGED),
         said("gender", &format!(r"{IM} (?:also |just |still |actually )?(?:a |an )?(non-binary|nonbinary|enby|genderfluid|agender|genderqueer|trans woman|transwoman|trans girl|trans man|transman|trans guy|mtf|ftm)\b(?! (?:people|rights|friend|kids))"), group(&GENDERS, 1), h()),
         said("gender", r"(?:^|(?<=[\s,(\]]))[\(\[]\s*([mf])\s*[\)\]]", group(&GENDERS, 1), TAGGED),
         said("gender", r"[\(\[](?<![^\s,(\]][\(\[])(?<!\bthe [\(\[])(?<!\ba [\(\[])(?<!\ban [\(\[])\s*(male|female)\s*[\)\]]|i(?<!\wi) \((?:[\w ]+, )?(male|female)\)", mine(table_of(&GENDERS, &[1, 2])), TAGGED),
@@ -350,7 +351,7 @@ fn ethnicity() -> Vec<Rule> {
     };
     vec![
         said("ethnicity", &format!(r"{IM} [^.!?\n;]{{0,40}}?(?:,\s*(?:and\s+)?|\s+and\s+)({joined})(?=\s*(?:[,.!;&/)]|and\b|$))"), listed(group(&ETHNICITIES, 1)), sh()),
-        said("ethnicity", &format!(r"{IM} (?:an? (?:(?!(?:non|not|honorary|fan|huge|big|{ethnic_names})\b){FREE}){{0,3}}|half |half-|also |\d{{2}},? )?({joined})(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself|lady)|-american)?(?=$|[\s.,!;:)])(?! (?:people|folks|neighborhood|area|community|friends|culture|food|music|history|kids|family)\b)"), group(&ETHNICITIES, 1), h()),
+        said("ethnicity", &format!(r"{IM} (?:an? (?:(?!(?:non|not|honorary|fan|huge|big|{ethnic_names})\b){FREE}){{0,5}}|half |half-|also |\d{{2}},? )?({joined})(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself|lady)|-american)?(?=$|[\s.,!;:)])(?! (?:people|folks|neighborhood|area|community|friends|culture|food|music|history|kids|family)\b)"), group(&ETHNICITIES, 1), h()),
         said("ethnicity", &format!(r"(?=as )(?<!\bsuch )(?<!\bsame )(?<!\bdressed )(?<!\btreated )(?<!\bseen )\bas an? (?:(?!(?:non|not|honorary|{ethnic_names})\b)\w+ )?({joined})\b(?! (?:people|folks|community|communities|culture|food|neighborhood|area|country|family|friend|friends|men|women|guys|girls|kids|person's)\b)(?!'s)"), group(&ETHNICITIES, 1), h()),
         said("ethnicity", &format!(r"(?:i(?<!\wi)(?:'m|m| am)|a(?<!\wa)s) (?:just |also |only )?(?:a |an )?(?:(?!\w+ing\b){FREE}|an? ){{0,4}}?({joined}) (?:man|woman|guy|girl|person|male|female|dude|american|lady|mom|dad|mother|father|kid|teen|boy|bro|immigrant|canadian|british|australian|bottom|top|chub|bear|daddy|stud|bull|twink|femboy)\b"), group(&ETHNICITIES, 1), sh()),
         said("ethnicity", &format!(r"\b(?:i'm|im|i am|as an?|a)? ?half[- ]({joined})[,/ ]+(?:and )?half[- ]({joined})\b|\bethnically (?:{joined}) ?(?:/|and|&) ?(?:{joined})\b"), fixed("mixed"), h()),
@@ -423,7 +424,7 @@ fn body_type() -> Vec<Rule> {
     let body_words = &*BODY_WORDS;
     let stat = format!(r#"(?:\d{{2}}(?:\s?(?:yo|y/o|yrs?|years? old|[mf]))?|[mf]\s?\d{{2}}|{TALL}(?:\"|'')?|\d{{2,3}}\s?(?:lbs?|kg|pounds))"#);
     vec![
-        said("body_type", &format!(r"{IM} [^.!?\n;]{{0,40}}?(?:,\s*(?:and\s+)?|\s+and\s+)(?:am\s+)?(?:very |pretty |quite |kinda |kind of |a bit |a little |fairly |super )?({body_all})(?=\s*(?:[,.!;&/)]|and\b|but\b|af\b|asf\b|$|\n))"),
+        said("body_type", &format!(r"{IM} [^.!?\n;]{{0,40}}?(?:,\s*(?:and\s+)?|\s+and\s+)(?:am\s+)?(?:very |pretty |quite |kinda |kind of |a bit |a little |fairly |super )?({body_all})(?=\s*(?:[,.!;&/)]|and\b|but\b|af\b|asf\b|so\b|lol\b|my\b|i\b|$|\n))"),
             listed(|m: &Match| {
                 let (s1, _) = m.span(1)?;
                 let word = m.group(1)?;
@@ -439,7 +440,7 @@ fn body_type() -> Vec<Rule> {
                 let s1 = m.start_of(1) as usize;
                 if desired(m.string, s1) { None } else { bodied(m.string, s1, m.group(1)?) }
             }), TAGGED),
-        said("body_type", &format!(r"{IM} (?:(?:very|really|pretty|quite|a bit|kinda|kind of|super|too|so|a little|slightly|fairly|relatively|somewhat|reasonably|naturally|extremely|rather|extra|also|still|now|currently|a|an) )*(?:(?!average\b)({body_all})|(average)(?= (?:build|body|bod|size|weight|frame|shape)\b|\s*[,.!;)]|$| and\b))\b(?! (?:fan|deal|part|news|on|in|for|with|of|to|time|enough|mood|chance|mess|game|difference|problem|issue|plus|day|week|month|year|joe|student|height|person|amount|number|smoker|drinker|sleeper|user|eater|lifter|hitter|metal)s?\b)"),
+        said("body_type", &format!(r"{IM} (?:(?:very|really|pretty|quite|a bit|kinda|kind of|super|too|so|a little|slightly|fairly|relatively|somewhat|reasonably|naturally|extremely|rather|extra|also|still|now|currently|just|only|actually|literally|definitely|honestly|basically|always|a|an) )*(?:(?!average\b)({body_all})|(average)(?= (?:build|body|bod|size|weight|frame|shape)\b|\s*[,.!;)]|$| and\b))\b(?! (?:fan|deal|part|news|on|in|for|of|to|time|enough|mood|chance|mess|game|difference|problem|issue|plus|day|week|month|year|joe|student|height|amount|number|smoker|drinker|sleeper|user|eater|lifter|hitter|metal)s?\b)"),
             |m: &Match| {
                 let last = m.lastindex()?;
                 bodied(m.string, m.start_of(last) as usize, either(m, &[1, 2])?)
@@ -487,7 +488,7 @@ fn hair_color() -> Vec<Rule> {
                 }
                 HAIRS.get(&st(word).replace("blond", "blonde").replace("blondee", "blonde")).map(|v| v.to_string())
             }, h()), &["haired", "headed", "dyed my hair", "careca", "calv", "pelón", "pelona"]),
-        said("hair_color", &format!(r"{IM} (?:a |an |naturally |going )?(blonde|blond|brunette|redhead|a redhead|ginger|a ginger|bald|balding)\b(?! (?:joke|moment|people)\b)"), group(&HAIRS, 1), h()),
+        said("hair_color", &format!(r"{IM} (?:a |an |naturally |going |also |still |just |actually |really |completely |totally |literally |basically |already )*(blonde|blond|brunette|redhead|a redhead|ginger|a ginger|bald|balding)\b(?! (?:joke|moment|people)\b)"), group(&HAIRS, 1), h()),
         needs(said("hair_color", &format!(r"\b(?:i'm|im|i am|i m) (?:still |also |just |actually |really |naturally )?(?:a |an )?(?:(?!not\b|never\b|no\b)\w+ ){{0,2}}?(red ?head|redhead|ginger|blonde|blond|brunette)\b|(?:^|[\s,|/(])(red ?head|redhead|brunette)\b(?= (?:\w+ )?(?:here|bitch|boy|girl|guy|babe|milf|wife|mom|looking|f\b|m\b))|\b(?:i (?:actually |also |still |now )?have|i've got|i got|my) (?:long |short |thick |thin |curly |straight |wavy |natural |graying |greying |dark |light |bright |{FREE}){{0,3}}?(blonde?|brown|black|red|ginger|auburn|grey|gray|white|silver|pink|blue|purple|green|teal)(?: buzz cut| curly| wavy| straight)? hair\b"),
             alone(|m: &Match| HAIRS.get(&st(either(m, &[1, 2, 3])?).replace(' ', "")).map(|v| v.to_string())), sh()), &["red", "ginger", "blond", "brunette", "hair"]),
     ]

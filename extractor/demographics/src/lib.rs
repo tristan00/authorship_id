@@ -59,7 +59,7 @@ const BASE_ETHNICITIES: &[(&str, &str)] = &[
     ("vietnamese", "southeast asian"), ("thai", "southeast asian"), ("latino", "hispanic or latino"), ("latina", "hispanic or latino"), ("latinx", "hispanic or latino"),
     ("hispanic", "hispanic or latino"), ("mexican", "hispanic or latino"), ("arab", "middle eastern or north african"), ("middle eastern", "middle eastern or north african"),
     ("persian", "middle eastern or north african"), ("native american", "indigenous"), ("indigenous", "indigenous"), ("aboriginal", "indigenous"),
-    ("pacific islander", "pacific islander"), ("mixed", "mixed"), ("mixed race", "mixed"), ("biracial", "mixed"), ("multiracial", "mixed"), ("african", "black"),
+    ("pacific islander", "pacific islander"), ("mixed", "mixed"), ("mixed race", "mixed"), ("biracial", "mixed"), ("bi-racial", "mixed"), ("multiracial", "mixed"), ("multi-racial", "mixed"), ("multiethnic", "mixed"), ("multi-ethnic", "mixed"), ("mixed-race", "mixed"), ("african", "black"),
 ];
 const SPANISH_SPEAKING_AMERICA: &[&str] = &["argentine", "argentinian", "bolivian", "chilean", "colombian", "costa rican", "cuban", "dominican", "ecuadorian", "guatemalan", "honduran", "mexican", "nicaraguan", "panamanian", "paraguayan", "peruvian", "puerto rican", "salvadoran", "uruguayan", "venezuelan"];
 const ARAB_LEAGUE_AND_IRAN: &[&str] = &["algerian", "bahraini", "comorian", "djiboutian", "egyptian", "emirati", "iranian", "iraqi", "jordanian", "kuwaiti", "lebanese", "libyan", "mauritanian", "moroccan", "omani", "palestinian", "qatari", "saudi", "somali", "sudanese", "syrian", "tunisian", "yemeni"];
@@ -163,7 +163,7 @@ pub const LETTERED: &str = r"(?<![\w$£€#'/:+-])(?:\d{2}\s?[mf]|[mf]\s?\d{2})(
 pub static WEIGHED: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"(?<![\w.])\d{{2,3}}\s?(?:kg|kgs|kilos?|lbs?|pounds)\b|{LETTERED}")));
 pub static MEASURED: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"(?<![\w.$'])[4-7]\s?(?:'|ft|foot|feet)|(?<![\w.])(?:1[4-9]\d|2[01]\d)\s?cm\b|{LETTERED}|\bweight\s*[:=-]")));
 pub static SPEAKER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i|i'm|im|i am|me|my name is)\b"));
-pub static WORDED: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"(?=[\dmf])(?<![\w$#.,'/:+-])(?:(\d{{2}})\s?(?:yo|y/o|yrs?|years?(?: old)?)?[\s,]*{ADJECTIVES}\(?(male|female)\)?|(male|female)[\s,]*(\d{{2}}))(?![\w'%])")));
+pub static WORDED: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"(?=[\dmf])(?<![\w$#.,'/:+-])(?:(\d{{2}})\s?(?:yo|y/o|yrs?|years?(?: old)?)?(?:\s*/\s*|[\s,]*){ADJECTIVES}\(?(male|female)\)?|(male|female)(?:\s*/\s*|[\s,]*)(\d{{2}}))(?![\w'%])")));
 pub static BRACKETED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?=[\d(\[mf])(?<![\w$#.,'/:+-])(?:(\d{2})\s?[\(\[]\s*([mf])\s*[\)\]]|[\(\[](\d{2})[\)\]]\s?(m|f|male|female)\b|([mf])\s?[\(\[](\d{2})[\)\]]|[\(\[]([mf])[\)\]]\s?(\d{2})\b)"));
 pub static ANATOMY: LazyLock<Table> = LazyLock::new(|| table(&[
     ("cock", "male"), ("dick", "male"), ("penis", "male"), ("balls", "male"), ("foreskin", "male"), ("bwc", "male"), ("bbc", "male"), ("pussy", "female"), ("vagina", "female"), ("clit", "female"), ("tits", "female"), ("boobs", "female"), ("breasts", "female"), ("pregnant", "female"),

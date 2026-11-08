@@ -44,6 +44,7 @@ const GATED: [&str; 2] = ["artist", "author"];
 const LISTS: [&str; 3] = ["artist", "franchise", "video_game"];
 const LIKABLE: [&str; 2] = ["artist", "franchise"];
 const LOOSE: [&str; 1] = ["video_game"];
+const SHOWN: [&str; 2] = ["franchise", "video_game"];
 const BOOKISH: [&str; 9] = ["author", "novel", "writ", "wrote", "book", "read", "series", "trilogy", "saga"];
 const ANSWERED: [&str; 4] = ["athlete", "creator", "celebrity", "artist"];
 const CHEERED: [&str; 2] = ["celebrity", "creator"];
@@ -107,19 +108,20 @@ re!(ADJACENT, concat!(r"\b(?:i (?:really |absolutely |just |also |still |honestl
     r"((?:the )?[\w'&:.!+-]+(?: [\w'&:.!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|it|is|was|lol|too|again|right|atm|lately|recently|these|since|for|with|on|in|at|when|while|haha|tbh|honestly|now|today)\b)"));
 re!(FAN_CUE, r"(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)");
 re!(GOATED_CUE, r"(?i: (?:the|my) goat\b)");
-re!(FAN, format!(r"(?i:\b(?:i'm|im|i am|i was|i've been|ive been|been|as|being) (?:an? )?(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)"));
-re!(TEAM_FAN, format!(concat!(r"(?i:\b(?:(?:i'm|im|i am|i was|i've been|ive been|been|as|being|from|become|became|becoming) (?:an? )?|(?:fellow|{DEGREE}) )(?:{DEGREE} )*){NAME}(?i: (?:fan|supporter)s?\b)|",
-    r"(?:(?m:^)|(?<=[.!?] ))(?:[^\W\d_][\w'-]* ){{0,2}}?{NAME}(?i: (?:fan|supporter)(?:s? (?:here|since|for life|all my life|my whole life|through and through)\b|(?=[,.!;:]|(?m:$))))"), DEGREE = DEGREE, NAME = NAME));
+re!(FAN, format!(r"(?i:\b(?:i'm|im|i am|i was|i've been|ive been|been|as|being|become|became|becoming|grew up|growing up|raised) )(?:(?i:an? )(?:(?i:{DEGREE}) |(?!(?:not|never|no|an?|the|by|of|to) )[a-z][a-z'-]* ){{0,3}}|(?:(?i:{DEGREE}) ){{0,3}}){NAME}(?i: (?:fan|supporter|stan|enjoyer|fanboy|fangirl)s?\b)"));
+re!(TEAM_FAN, format!(concat!(r"(?i:\b(?:(?:i'm|im|i am|i was|i've been|ive been|been|as|being|from|become|became|becoming|grew up|growing up|raised|als) |(?:fellow|{DEGREE}) ))(?:(?i:an? )(?:(?i:{DEGREE}) |(?!(?:not|never|no|an?|the|by|of|to) )[a-z][a-z'-]* ){{0,3}}|(?:(?i:{DEGREE}) ){{0,3}}){NAME}(?i: (?:fan|supporter)s?\b)|",
+    r"(?:(?m:^)|(?<=[.!?] ))(?:[^\W\d_][\w'-]* ){{0,2}}?{NAME}(?i: (?:fan|supporter)(?:s? (?:here|since|for life|all my life|my whole life|through and through|lol|lmao|haha|tbh|btw|myself)\b|(?=[,.!;:]|(?m:$))))"), DEGREE = DEGREE, NAME = NAME));
+re!(OWN_TEAM, format!(r"{NAME}(?i: (?:is|are|was|were|has always been|have always been|will always be) (?:still |definitely |always |forever )?my (?:home |hometown |local |second |other |first |main |real |true |only )?team\b)|(?i:\bmy (?:home |hometown |local |second |other |first |main |real |true |only )?team (?:is|are|was|has always been|will always be) (?:still |always |forever )?(?:the )?){NAME}"));
 re!(FAN_OF, format!(r"(?i:\b(?:i'm|im|i am|i was|i've been|ive been|i've always been|been|as) (?:also |still |definitely |honestly |really |such |always )?(?:an? |the )?(?:{DEGREE} )*(?:fan|supporter|admirer) of (?:the )?){NAME}"));
 re!(STAN, format!(r"(?i:\bi (?:also |still |will always |literally |really )?stan ){NAME}"));
 re!(GOAT, format!(r"(?i:\bmy (?:all[- ]time )?goat:? ){NAME}"));
 re!(GOATED, format!(r"{NAME}(?i: (?:is|was|will always be|remains) (?:still |easily |honestly )?(?:the|my) goat\b| the goat\b)"));
-re!(LOVED, format!(concat!(r"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |so |personally |\w+ly )*",
+re!(LOVED, format!(concat!(r"(?i:\bi(?:'m| am)? (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |fucking |friggin |freaking |freakin |fricking |effing |actually |so |personally |\w+ly )*",
     r"(?:love|adore|loved|adored|enjoy|enjoyed|in love with|obsessed with) ){NAME}"), NAME = NAME));
 re!(DROPPED, format!(r"(?:(?m:^)|(?<=[.!?] ))(?i:(?:really |absolutely |just |also |still |honestly |genuinely |totally |so |\w+ly )*(?:love|adore|loved|adored) ){NAME}"));
 re!(CRUSH, format!(r"(?i:\bcrush(?:es)? on ){NAME}"));
 re!(LOWER_FAN, format!(r"(?i:\b(?:i'm|im|i am|i've been|ive been|as|being) (?:an? )?(?:{DEGREE} )*)((?:[a-z][\w'-]* ){{0,2}}[a-z][\w'-]*) (?:fan|stan|supporter)\b"));
-re!(LIKED_PERSON, format!(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |personally |kinda |always )*(?:like|liked) ){NAME}"));
+re!(LIKED_PERSON, format!(r"(?i:\bi (?:really |absolutely |just |also |still |honestly |genuinely |do |totally |personally |kinda |always |actually |\w+ly )*(?:like|liked) ){NAME}"));
 re!(CREATED, format!(r"{NAME}(?:(?:'s|s'|’s) |(?<!'s)(?= (?i:youtube|yt|twitch|tiktok) ))(?i:(?: ?(?:youtube|yt|twitch|tiktok) )?(?:new |latest |recent |old |last |early )?(?:videos?|vids|streams?|vods?|channel|podcasts?|content|vlogs?)\b)"));
 re!(WATCHED, format!(r"(?i:\b(?:i (?:\w+ )?(?:watch|watching|watched)|subscribed to|i follow|i'?ve been following) ){NAME}(?i: (?:on|'s) (?:youtube|twitch|tiktok|kick)\b)"));
 re!(LISTENED, format!(r"(?i:\b(?:i(?:'m| am|'ve been| have been)? (?:\w+ )?(?:listening to|listen to|listened to|jamming to|bumping)|been (?:listening to|bumping|jamming to)) ){NAME}"));
@@ -129,6 +131,7 @@ re!(PRAISED, format!(concat!(r"(?:(?m:^)|(?<=[.!?] )){NAME}(?i: (?:is|was|are|we
     r"(?:peak|goated|amazing|incredible|underrated|phenomenal|a masterpiece|a banger|fire|elite|god ?tier|top tier|the goat|the best\b|one of the best)\b)"), NAME = NAME));
 re!(FAVORITE_PLAIN, { let kind_words = &*KIND_WORDS; format!(r"\bmy (?:all[- ]time |absolute |personal |current |top )?(?:favou?rite|fave|fav) ({kind_words})s? (?:is|has to be|would be|was|are)\s+")
     + r"((?:the )?[\w'&:!+-]+(?: [\w'&:!+-]+){0,4}?)(?=\s*(?:[.,!?;:)\n]|$)| (?:and|but|so|because|lol|too|tbh|honestly|by far|hands down|of all time|ever|for sure)\b)" });
+re!(ANYTHING, format!(r"(?i:\b(?:anything|everything)(?: (?:else|ever|written|sung|made|done|released|recorded|produced|published))* (?:by|from) ){NAME}"));
 re!(WRITTEN_BY, format!(r"(?<!read )\bby {PERSON}"));
 re!(BLANK, r"\n[^\S\n]*\n");
 re!(ADVISED, r"(?i:\b(?:recommend\w*|suggest\w*|advise|try|check out)\b)");
@@ -147,6 +150,8 @@ re!(SELF, r"(?i:\b(?:i|i'm|im|i've|ive|i'd|i'll|my|me|mine|myself)\b)");
 re!(PRODROP, r"[\W_]*(?i:(?:still|currently|just|finally|also|now|recently|been|really|absolutely|honestly) )*(?i:(love|loved|loving|enjoyed|enjoying|digging)|playing|played|replaying|replayed|finished|finishing|watching|watched|rewatching|rewatched|reading|rereading|listening to|listened to|started|bought)\b");
 re!(BACKING, r"(?i:\b(?:my|our|we|us|go|let'?s go|lets go|up the|c'?mon|come on|i (?:always |still |also |really |just |will always |have always |\w+ly )?(?:love|like|liked|support|supported|root for|rooted for|cheer for|follow|followed)|i'?ve (?:always |also )?(?:supported|followed|rooted for)|fan of|rooting for|cheering for|supporter of|supporting|following)(?: the| my| our| beloved| boys)?\s*$)");
 re!(BACKER, r"(?i:\s*(?:nation|faithful|for life|forever|till i die|all the way)\b)");
+re!(SEASON, r"\s+(?:baseball|football|hockey|basketball|soccer|games?|season|gameday|matches|match)\b");
+re!(ATTENDED, r"\b(?:watch|watched|watching|went|go|going|been to|attend|attended|attending|tickets?|seats?)\b");
 re!(FANNED, r"(?i:\s*(?:fan|supporter)\b)");
 re!(AVOWED, r"(?i:\b(?:i'?m|i am|as|been|being|be)\b[\w\s-]{0,20}$)");
 re!(OWNED, r"(?:my|our|we|us)\b");
@@ -472,6 +477,15 @@ pub fn lexical(name: &[char]) -> Option<Hit> {
     Some((top.attribute, shown(surface, top.value)))
 }
 
+fn entitled(name: &[char], options: &[&str]) -> Option<Hit> {
+    let words: Vec<String> = split_ws(name).iter().map(|w| capitalize(&st(w))).collect();
+    let single = words.len() == 1;
+    let titled = chars_of(&words.join(" "));
+    let found = leading(&titled);
+    options.iter().find_map(|&attribute| found.iter().find(|m| m.start == 0 && m.end == titled.len() && m.attribute == attribute && !((single || m.common) && m.links < FAMOUS_SITELINKS)))
+        .map(|m| (m.attribute, chars_of(m.value)))
+}
+
 pub fn proper(name: &[char]) -> Option<Hit> {
     let words: Vec<String> = split_ws(name).iter().map(|w| capitalize(&st(w))).collect();
     let titled = chars_of(&words.join(" "));
@@ -705,6 +719,18 @@ pub fn favorites(text: &[char], found: &mut Found) {
             }
         }
     }
+    if contains(&lowered, "my") && contains(&lowered, " team") {
+        for m in OWN_TEAM.iter(text) {
+            if hedged(&lowered, m.start(), m.end(), hedge) {
+                continue;
+            }
+            for piece in parts(m.nonempty(1).or(m.group(2)).unwrap_or(&[])) {
+                if let Some(club) = team(&piece).filter(|c| !c.is_empty()) {
+                    named("sports_team", &chars_of(club), found, m.start());
+                }
+            }
+        }
+    }
     let literals: [&[&str]; 6] = [&[" fan", " supporter", " stan", " enjoyer"], &["fan of", "supporter of", "admirer of"], &["stan"], &["goat"], &["goat"], &[""]];
     for (index, pattern) in [&*FAN, &*FAN_OF, &*STAN, &*GOAT, &*GOATED, &*PRAISED].into_iter().enumerate() {
         if !literals[index].iter().any(|w| contains(&lowered, w)) || index == 5 && !cues.any(masks.PRAISED) {
@@ -721,6 +747,10 @@ pub fn favorites(text: &[char], found: &mut Found) {
                             named("sports_team", &chars_of(club), found, m.start());
                             continue;
                         }
+                    }
+                    if index == 0 && placed(&piece) && lexical(&piece).map_or(true, |(a, _)| a != "athlete") {
+                        named("sports_team", &piece, found, m.start());
+                        continue;
                     }
                 }
                 if let Some((a, v)) = classified(text, &mut totals, m.start(), &piece, &ALL_OPTIONS) {
@@ -785,7 +815,7 @@ pub fn favorites(text: &[char], found: &mut Found) {
             match team(group).filter(|c| !c.is_empty()) {
                 Some(club) => named("sports_team", &chars_of(club), found, m.start()),
                 None => {
-                    if let Some((a, v)) = proper(group) {
+                    if let Some((a, v)) = proper(group).or_else(|| entitled(group, &SHOWN)) {
                         named(a, &v, found, m.start());
                     }
                 }
@@ -839,9 +869,30 @@ pub fn favorites(text: &[char], found: &mut Found) {
             }
         }
     }
+    if contains(&lowered, "ything ") {
+        for m in ANYTHING.iter(text) {
+            let (left, right) = sentence(text, m.start(), m.end());
+            if !hedged(&lowered, m.start(), m.end(), hedge) && !NEGATIVE.test_in(text, left, right) {
+                let name = rstrip(first_piece(&STOP, m.group(1).unwrap_or(&[])), " .,!:");
+                let readings = leading(name);
+                let whole: Vec<&Mention> = readings.iter().filter(|r| r.start == 0 && r.end == name.len() && !r.common).collect();
+                for attribute in ["author", "artist"] {
+                    if let Some(reading) = whole.iter().find(|r| r.attribute == attribute) {
+                        named(attribute, &shown(name, reading.value), found, m.start());
+                        break;
+                    }
+                }
+            }
+        }
+    }
     authored(text, &lowered, &cues, found);
     answered(text, found);
     known(text, &lowered, &cues, found);
+}
+
+fn placed(name: &[char]) -> bool {
+    let joined = joined_words(&lower(&folded_chars(name)));
+    LEXICON.nations.contains(joined.strip_prefix("the ").unwrap_or(&joined))
 }
 
 fn split_tail(piece: &[char], drop: usize) -> &[char] {
@@ -975,7 +1026,11 @@ fn supported(text: &[char], lowered: &[char], start: usize, end: usize) -> bool 
             backed = None;
         }
     }
-    if !(backed.is_some() || BACKER.at(lowered, end).is_some() || (FANNED.at(lowered, end).is_some() && AVOWED.test_in(lowered, before, start))) {
+    let watched = || SEASON.at(lowered, end).is_some() && {
+        let (left, right) = sentence(text, start, end);
+        SELF.test_in(text, left, right) && ATTENDED.test_in(lowered, left, right)
+    };
+    if !(backed.is_some() || BACKER.at(lowered, end).is_some() || (FANNED.at(lowered, end).is_some() && AVOWED.test_in(lowered, before, start)) || watched()) {
         return false;
     }
     !PEER.test_in(lowered, clause(lowered, start), start) && !hedged(lowered, start, end, self_hedge())
@@ -1192,8 +1247,8 @@ pub fn init() {
         pattern(index);
     }
     for re in [&TRAILING, &FAVORITE, &FAVORED, &POSITIVE, &NEGATIVE, &CANDIDATE, &SENTENCE, &CODE, &ADJACENT, &FAN, &TEAM_FAN, &FAN_OF, &STAN, &GOAT, &GOATED, &LOVED, &DROPPED, &CRUSH,
-        &LOWER_FAN, &LIKED_PERSON, &CREATED, &WATCHED, &LISTENED, &ALBUM, &SEEN, &PRAISED, &FAVORITE_PLAIN, &WRITTEN_BY, &BLANK, &ADVISED, &WROTE, &CHOICE, &SPLIT, &POSSESSIVE, &STOP,
-        &LISTED, &ANSWER, &HEADERS, &MEDIA, &RIM, &LIKED, &SELF, &PRODROP, &BACKING, &BACKER, &FANNED, &AVOWED, &OWNED, &PEER, &FAVOURED, &DONE_GAME, &DONE_FRANCHISE, &DONE_ARTIST] {
+        &LOWER_FAN, &LIKED_PERSON, &OWN_TEAM, &CREATED, &WATCHED, &LISTENED, &ALBUM, &SEEN, &PRAISED, &FAVORITE_PLAIN, &WRITTEN_BY, &ANYTHING, &BLANK, &ADVISED, &WROTE, &CHOICE, &SPLIT, &POSSESSIVE, &STOP,
+        &LISTED, &ANSWER, &HEADERS, &MEDIA, &RIM, &LIKED, &SELF, &PRODROP, &BACKING, &BACKER, &SEASON, &ATTENDED, &FANNED, &AVOWED, &OWNED, &PEER, &FAVOURED, &DONE_GAME, &DONE_FRANCHISE, &DONE_ARTIST] {
         LazyLock::force(re);
     }
 }

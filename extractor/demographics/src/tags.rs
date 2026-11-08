@@ -12,11 +12,13 @@ static UNIT_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*{UNITS}
 static ADDRESSED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:you|your|u|ur)\b"));
 static LEADING_AGE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W{0,3}\d{2}(?![\d%.,'/:-])"));
 static LEADING_TAG: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W*\d{2},?\s|\W*[\[\(]\d{2}[\]\)]"));
-static RANGE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:-|–|to|or)\s*\d"));
+static RANGE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:-|–|to|or)\s*\d(?!\d)"));
+static BODILY: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:/\w+)? (?:facial|body|pubic|chest|arm|leg|beard)\b"));
+static HAIR_HINT: LazyLock<Re> = LazyLock::new(|| Re::new(r"hair|blond|brunette|redhead|ginger|bald|shaved head"));
 static CROWD_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r" (?:\w+ ){{0,2}}{CROWD}")));
 
 pub fn force() {
-    for re in [&SPOKEN, &MEASURE_AFTER, &HERE_AFTER, &THIS_BEFORE, &MY_BEFORE, &AGE_BEFORE, &UNIT_AFTER, &ADDRESSED, &LEADING_AGE, &LEADING_TAG, &RANGE_AFTER, &CROWD_AFTER] {
+    for re in [&SPOKEN, &MEASURE_AFTER, &HERE_AFTER, &THIS_BEFORE, &MY_BEFORE, &AGE_BEFORE, &UNIT_AFTER, &ADDRESSED, &LEADING_AGE, &LEADING_TAG, &RANGE_AFTER, &CROWD_AFTER, &BODILY, &HAIR_HINT] {
         LazyLock::force(re);
     }
 }
@@ -123,6 +125,24 @@ fn aged(lowered: &[char], automatic: bool, found: &mut Found) {
     }
 }
 
+fn haired(lowered: &[char], strict: bool, found: &mut Found) {
+    if !HAIR_HINT.test(lowered) {
+        return;
+    }
+    let played = if strict { GAME.find(lowered).map_or(lowered.len(), |m| m.start()) } else { lowered.len() };
+    for m in HAIRED.iter_in(lowered, 0, played) {
+        let start = m.start();
+        if strict && (BODILY.at(lowered, m.end()).is_some() || SELF_HEDGE.test_in(lowered, clause(lowered, start), start) || !(FIRST.test(&lowered[clause(lowered, start)..start]) || MEASURED.test(line(lowered, start))) || THIRD.test(tail_sentence(lowered, start, 80))) {
+            continue;
+        }
+        if !FOREIGN.test(&lowered[clause(lowered, start)..start]) && !unclaimed(lowered, start) {
+            if let Some(value) = get(&HAIRS, either(&m, &[1, 2])) {
+                found.set("hair_color", value, start);
+            }
+        }
+    }
+}
+
 pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
     if !DIGIT.test(lowered) && SPOKEN.at(lowered, 0).is_none() {
         return;
@@ -209,6 +229,7 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
         }
     }
     if !speaking {
+        haired(lowered, true, found);
         for m in METRIC.iter_in(lowered, 0, played) {
             let start = m.start();
             if (owned(lowered, start) || FIRST.test(sentence(lowered, start, m.end())) || WEIGHED.test(line(lowered, start)))
@@ -261,14 +282,7 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
                 }
             }
         }
-        for m in HAIRED.iter(lowered) {
-            let start = m.start();
-            if !FOREIGN.test(&lowered[clause(lowered, start)..start]) && !unclaimed(lowered, start) {
-                if let Some(value) = get(&HAIRS, either(&m, &[1, 2])) {
-                    found.set("hair_color", value, start);
-                }
-            }
-        }
+        haired(lowered, false, found);
         for m in METRIC.iter_in(lowered, 0, played) {
             let start = m.start();
             if !FOREIGN.test(tail_sentence(lowered, start, 25)) {

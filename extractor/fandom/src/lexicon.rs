@@ -178,6 +178,7 @@ pub struct Lexicon {
     pub author_of_book: Map<&'static str>,
     pub series_of_game: Map<&'static str>,
     pub places: FxHashSet<&'static str>,
+    pub nations: FxHashSet<&'static str>,
 }
 
 fn read(name: &str, plain: &mut Map<Vec<Entry>>, cased: &mut Map<Vec<Entry>>, order: &mut Vec<&'static str>) {
@@ -412,6 +413,10 @@ fn build() -> Lexicon {
         author_of_book: pairs("book_authors.tsv"),
         series_of_game: pairs("game_series.tsv"),
         places: rows("gazetteer.tsv").map(|line| line.split('\t').next().unwrap()).collect(),
+        nations: rows("gazetteer.tsv").filter_map(|line| {
+            let fields: Vec<&'static str> = line.split('\t').collect();
+            (fields[1] == "country" || fields[1] == "region" && fields[4] == "united states").then_some(fields[0])
+        }).collect(),
     };
     lexicon.team_words = team_words("clubs.tsv");
     lexicon.team_span = lexicon.team_words.keys().map(|k| k.matches(' ').count() + 1).max().unwrap_or(0);

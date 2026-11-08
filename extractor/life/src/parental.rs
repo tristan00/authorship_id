@@ -3,9 +3,9 @@ use claimcore::*;
 
 const CHILD: &str = concat!(
     r"(sons?|daughters?|kids?|kiddos?|children|child|toddlers?|twins|triplets|step-?kids|step-?sons?|step-?daughters?|newborn|infant|teenagers?|teen|little ones?|babies|baby|bub|bubba|",
-    r"first ?born|lo|dc|dcs|bio kids|youngest|oldest|eldest|middle child|offspring|bairns?|sprogs?|tweens?|preteens?|pre-teens?|preschoolers?|kindergart(?:e)?ners?|(?:\d(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth) graders?)"
+    r"first ?born|lo|dc|dcs|bio kids|step-?child(?:ren)?|newborns|youngest|oldest|eldest|middle child|offspring|bairns?|sprogs?|tweens?|preteens?|pre-teens?|preschoolers?|kindergart(?:e)?ners?|(?:\d(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth) graders?)"
 );
-const AGE: &str = r"(?:\d+|one|two|three|four|five|six)[- ]?(?:yo|y/o|yr|yrs|years?|months?|mo|m/o|weeks?|wk|wks)?(?:[- ]old)?";
+const AGE: &str = r"(?:\d+(?:\.\d+)?|one|two|three|four|five|six)[- ]?(?:yo|y/o|yr|yrs|years?|months?|mo|m/o|weeks?|wk|wks|y)?(?:[- ]old)?";
 const YEARS: &str = r"(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)";
 const NOT_CHILD: &str = concat!(
     r"(?:rescues?|fosters?|dogs?|cats?|pups?|puppy|puppies|kittens?|kitty|horses?|pony|birds?|cars?|trucks?|vans?|bikes?|house|home|laptop|computer|pc|phone|tv|account|self|body|brother|sister|cousin|nephew|niece|friend|student|students|",
@@ -18,7 +18,7 @@ const KID_NOUN: &str = concat!(
 );
 const KID_COUNT: &str = r"(?:(?:only |just )?(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|my|our|several|multiple) )?";
 const KID_WORDS: &str = r"(?:(?!(?:no|any|not|never|to|been|seen|met|heard|watched|known|taught|worked|told|asked|other|those|these|the|this|that|your|his|her|their|some|many|lots|plenty|more|enough|of|with|in|at|for|on|by|from|about|like|as|until|till|since|when|after|before|and|or|but|so|then|than)\b)(?![a-z]+ed\b)[a-z\d-]+ ){0,2}";
-const KID_AFTER: &str = r"\b(?!'s|'| (?:of|in law|in-law|in (?:my|the|our|his|her|class|school)|at|who|that|from|come|came|ask|asked|tell|told|say|said|walk|walked|run|ran|on|over|when|someday|before|edition|dogs?|cats?|pups?|puppy|car|house|laptop|phone)\b)";
+const KID_AFTER: &str = r"\b(?!'s|'| (?:of(?! (?:my|our) own)|in law|in-law|in (?:my|the|our|his|her|class|school)|at|who|that|from|come|came|ask|asked|tell|told|say|said|walk|walked|run|ran|on|over|when|someday|before|edition|dogs?|cats?|pups?|puppy|car|house|laptop|phone)\b)";
 
 regex!(INFANT, concat!(
     r"months? old|weeks? old|\d+ ?(?:mo|m/o|wks?)\b|nappies|nappy|diapers?|crib|cot\b|formula|feeds?\b|feeding|daycare|nursery|pediatrician|paediatrician|newborn|toddler|teething|breastfe|bottle|sleep regression|stroller|pram|onesie|bassinet|car seat|",
@@ -43,6 +43,7 @@ regex!(LEADING, r"(?:^|[.!?\n,;]\s*|\band |\bbut )(?:also |now |still |already )
 regex!(OTHERS_PARENT, r"\b(?:my|his|her|their|your|our|the|whose|he|she|they|you)\b");
 regex!(TEEN_AGE, r"\d|year");
 regex!(SIBLING, r"\s*(?:brother|sister|sibling|cousin|friend|aunt|uncle|niece|nephew|grand|memor|and)");
+regex!(KIDS_WORD, r"\b(?:kids|children|kid|child)\b");
 regex!(NO_MORE, r"(?:,| and|;) no\b");
 
 fn adult(number: Option<&[char]>, unit: Option<&[char]>) -> bool {
@@ -185,8 +186,8 @@ pub fn build() -> Vec<Rule> {
           r"|\bbefore i (?:got|became|was) pregnant (?:the first time|with (?:my|our))\b|\bafter my (?:first|second|third|last|previous|\d+(?:st|nd|rd|th)) pregnancy\b|\bwhen (?:i|we) had (?:my|our) (?:first|second|son|daughter|kids?|baby)\b"), has_children, TAGGED),
         r("parental_status", concat!(r"\b(?:after|since|before) (?:just )?having (?:a |my |our |\d |two |three |four |the )?(?:\w+ )?(?:baby|babies|kids?|children|child|twins|son|daughter)\b|\bafter (?:having )?baby\b|\bafter i had my (?:\w+ )?(?:baby|son|daughter|kids?|first|second|third|twins)\b",
           r"|\b\d+ ?(?:years?|yrs?) post[- ]?partum\b|\b(?:i'm|im|i am) \d+ ?(?:weeks?|months?|wks?|mos?) pp\b|\b(?:my|both of my|all of my|each of my|all my|both my) (?:\w+ )?pregnancies\b|\b(?:i|since i|after i|when i) (?:just |recently |finally )?became a (?:\w+ )?(?:mom|mum|mother|dad|father|parent)\b",
-          r"|\b(?:we|i) (?:just |recently )?had (?:a|our|my) (?:\w+ )?(?:baby|child|son|daughter)\b(?! (?:shower|of|in))|\b(?:married|divorced|single|separated|widowed) (?:with|w/) (?:(?:\d+|one|two|three|four|five|a|an) )?(?:(?!no\b)\w+ )?(?:kids?|kiddos?|children|child|sons?|daughters?|boys|girls|toddlers?|teens|babies|baby)\b",
-          r"|\b(?<![^\n,;:(|/ ])(?<![^\n,;:(|/] )(?:\d|two|three|four|five) (?:kids|children|teens|kinder|kinderen|hijos|enfants|filhos|figli|børn|dzieci|děti)\b|\bkids\s*:\s*[1-9]",
+          r"|\b(?:we|i) (?:just |recently )?had (?:a|our|my) (?:\w+ )?(?:baby|child|son|daughter)\b(?! (?:shower|of|in))|\b(?:married|divorced|single|separated|widowed) (?:for (?:\d+|a few|many|\w+) (?:years?|months?) )?(?:with|w/) (?:(?:\d+|one|two|three|four|five|a|an) )?(?:(?!no\b)\w+ )?(?:kids?|kiddos?|children|child|sons?|daughters?|boys|girls|toddlers?|teens|babies|baby)\b",
+          r"|\b(?<![^\n,;:(|/.!? ])(?<![^\n,;:(|/.!?] )(?:\d|two|three|four|five) (?:kids|children|teens|kinder|kinderen|hijos|enfants|filhos|figli|børn|dzieci|děti)\b|\bkids\s*:\s*[1-9]",
           r"|\b(?:i was|i got|i had to be) induced\b|\bmy waters? broke\b|\bi was in labou?r\b|\b(?:both|all) (?:of )?my (?:births|deliveries|labou?rs)\b|\bi(?: had|'ve had| have had) (?:two |three |\d |a |an )?(?:c-?sections?|vaginal births?|home births?|natural births?|unmedicated births?)\b"), has_children, TAGGED),
         r("parental_status", r"(?:my (?<=\bmy )|our (?<=\bour ))(?:two|three|four|five|\d|twin|little|baby|eldest|oldest|youngest|middle|teenage|fourth|third|second|first) (?:(?:little|teenage|baby|twin|young|younger|older|grown|adult) )?(boys|girls|boy|girl)\b", child, TAGGED),
         r("parental_status", r"(?:baby|toddler|kiddo|lo|bub) (?:is|was|has|had|decided|needs|got|will|sleeps|slept|woke|wakes|just|still|started|loves|hates|refuses|won't|doesn't|did|turned|takes|eats|arrived|came)\b", parenting, TAGGED),
@@ -198,5 +199,13 @@ pub fn build() -> Vec<Rule> {
           parent_label, TAGGED), &parents),
         needs(r("parental_status", r"\b(?:as|being) an? (?:(?!dog|cat|pet|plant|fur|god|team|house|den|foster|soccer|hockey|boat|band|bonus|future|good|bad)\w+ )?(?:mom|mum|mother|dad|father|parent|mama|mommy)\b(?! (?:of|to) (?:a |my |\d+ |two |three )?(?:dogs?|cats?|pets?|plants?|fur)| figure| friend)",
           |m| { let (a, b) = sentence(m); if SELF.test_in(m.string, a, b) { parent_label(m) } else { None } }, TAGGED), &parents),
+        needs(r("parental_status", concat!(r"\b(?:i|we)(?:'ve| have|'d| would)? (?:(?:also|still|just|really|even|currently|personally|myself|actually|honestly|definitely|absolutely|both|already|truly|simply|ever) ){0,2}(?:don't|do not|dont|never|won't|will not|wont) (?:(?:ever|even|really|actually|currently|plan to|intend to|wanna|want to|want|wanted) ){0,2}(?:have|want|wanted|plan on having) (?:any )?(?:nor want )?(?:kids|children|a kid|a child)\b",
+          r"|\b(?:i|we) (?:\w+ )?(?:enjoy|love|like|prefer|chose|choose|decided on) (?:not having|being without) (?:any )?(?:kids|children)\b|\band (?:i )?(?:also )?(?:don't|do not|dont) have (?:any )?(?:kids|children)\b"),
+          |m| if starts_at(m.text(), 0, "and") && !FIRST.test_in(m.string, sentence(m).0, m.start()) { None } else { Some("no children") }, Some(&*CONDITIONAL)), &["kid", "child"]),
+        needs(r("parental_status", r"(?:^|(?<=[\n.!?])\s*)no (?:kids|children)(?=\s*(?:[.,;!\n)]|$|and\b|but\b|yet\b))", |m| if SELF.test(m.string) { Some("no children") } else { None }, Some(&*CONDITIONAL)), &["no kids", "no children"]),
+        needs(r("parental_status", r"(?<![^\n,;:(|/ ])(?<![^\n,;:(|/] )(?:(?:\d|two|three|four|five) )?(?:grown|adult|young|teenage|little|small|older|younger) (?:kids|children)\b(?=\s*(?:[,;.)/&\n]|$|and\b))", |m| if SELF.test(m.string) { stated(m, &FUTURE, || kept(m, "has children")) } else { None }, TAGGED), &["kids", "children"]),
+        needs(r("parental_status", r"(?:^|(?<=[.!?\n])\s*)with (?:\d|two|three|four|five|six|my|our) (?:(?:young|little|small|teenage|grown|adult) )?(?:kids|children|boys|girls|toddlers|teens)\b|\bwith (?:a |my |the )?(?:wife|husband|hubby) (?:and|&) (?:(?:\d|two|three|four|five) )?(?:kids?|children|boys|girls|sons?|daughters?)\b", |m| if SELF.test(m.string) && !PRONOUN.test_in(m.string, sentence(m).0, m.start()) { stated(m, &FUTURE, || kept(m, "has children")) } else { None }, TAGGED), &["with"]),
+        needs(r("parental_status", r"\bi(?:'ve| have) not had (?:any )?(?:kids|children)\b|\b(?:don't|do not|dont) have any (?:of )?my own\b", |m| if contains(m.text(), "own") && !KIDS_WORD.test_in(m.string, sentence(m).0, m.start()) { None } else { Some("no children") }, Some(&*CONDITIONAL)), &["not had", "my own"]),
+        r("parental_status", r"(?:my (?<=\bmy )|our (?<=\bour ))(?:\d+ |two |three |four )?(teens|newborns|preschoolers|boys|girls)\b(?= (?:are|were|turned|just turned|is) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|both|now|almost|only)\b)|(?:my (?<=\bmy )|our (?<=\bour ))(?:\d+ |two |three |four )(teens|newborns|preschoolers)\b", child, TAGGED),
     ]
 }

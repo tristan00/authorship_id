@@ -327,6 +327,9 @@ fn stance(lowered: &[char], start: usize, end: usize, entry: &Entry) -> Option<&
     let mut froms = [opening; 13];
     froms[2] = start.saturating_sub(60);
     froms[AGED] = line_start(lowered, start).max(start.saturating_sub(70));
+    if entry.kind == "country" {
+        froms[11] = sentence(lowered, start);
+    }
     let mask = cued(lowered, &froms, start);
     for (index, (pattern, kind)) in stances.into_iter().enumerate() {
         if mask >> index & 1 == 0 {
@@ -498,7 +501,7 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         let country = current.country;
         let line = line_start(lowered, start);
         let is_nation = current.kind == "nation";
-        if is_nation
+        if (is_nation || current.kind == "country" && digit_in(lowered, line, line_end(lowered, end)))
             && (TAG_BEFORE.test_in(lowered, line.max(start.saturating_sub(16)), start) || TAG_AFTER.at(lowered, end).is_some())
             && !ASKING.test_in(lowered, line, start)
         {
