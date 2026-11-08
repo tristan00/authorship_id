@@ -15,8 +15,8 @@ from .config import DEFAULTS, DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_
 from .features import bags, vocabulary
 
 CLAIMS = "SELECT author, attribute, value, support, share FROM author_claims WHERE attribute IN {attributes:Array(String)}"
-VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE {where} AND author IN labeled) AS s USING author "
-           "WHERE {where} AND author IN labeled ORDER BY author")
+VECTORS = ("WITH picked AS (SELECT author FROM labeled WHERE {where}) SELECT author, vector, subreddits, counts FROM author_vectors "
+           "INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE {where} AND author IN picked) AS s USING author WHERE {where} AND author IN picked ORDER BY author")
 ARRAYS = ("users", "subreddits", "weights", "labels", "support", "share", "splits")
 SPREAD_ROWS = 1 << 20
 
@@ -46,7 +46,7 @@ def encode(values, name, kind):
 
 @timed
 def read_vectors(db, labeled, path):
-    db.command("CREATE TEMPORARY TABLE labeled (author String)")
+    db.command("CREATE TEMPORARY TABLE labeled (author String) ENGINE = MergeTree ORDER BY author")
     db.insert_arrow("labeled", pa.table({"author": labeled}))
     total = db.command("SELECT count() FROM author_vectors WHERE author IN labeled")
     vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(total, DIMENSIONS))
