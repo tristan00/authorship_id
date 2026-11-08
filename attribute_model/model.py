@@ -129,11 +129,8 @@ def numeric(output, spec):
     return output[:, 0].float() * spec["scale"] + spec["center"]
 
 
-def decide(probabilities, spec, fitted):
-    if spec["default"] is None:
-        return probabilities.argmax(1)
-    picks = probabilities.index_fill(1, torch.tensor([spec["default"]], device=probabilities.device), -1.).argmax(1)
-    return torch.where(probabilities[:, spec["default"]] <= 1 - fitted["threshold"], picks, spec["default"])
+def calibrated(output, fitted):
+    return (output.float() / fitted["temperature"] + torch.as_tensor(fitted["bias"], device=output.device)).softmax(1)
 
 
 def specifications(targets, catalogs, labels, training):

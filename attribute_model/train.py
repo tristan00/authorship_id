@@ -12,9 +12,9 @@ from torch.nn import functional as F
 from claim_extraction.schema import FLAIR_ATTRIBUTES
 
 from . import LOG, timed
-from .config import DEFAULTS, GPU_MEMORY, PARAMETERS, SEED, SPLITS, STRICT_SHARE, STRICT_SUPPORT, TEMPERATURE_ROWS, TRAIN_SUPPORT, validate
+from .config import DEFAULTS, GPU_MEMORY, PARAMETERS, SEED, SPLITS, STRICT_SHARE, STRICT_SUPPORT, TEMPERATURE_ROWS, CALIBRATION_ROWS, TRAIN_SUPPORT, validate
 from .data import load
-from .evaluate import DEVICE, collect, probabilities, report
+from .evaluate import DEVICE, collect, report
 from .model import AttributeModel, specifications
 
 INPUTS = ("users", "subreddits", "weights")
@@ -31,31 +31,28 @@ def score(model, inputs, labels, specs, batch=2048):
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
 
 
-def temperature(logits, target, batch=16384):
+def fit_calibration(logits, target, biased, batch=16384):
     log_t = torch.zeros(1, device=logits.device, requires_grad=True)
-    optimizer = torch.optim.LBFGS([log_t], lr=.1, max_iter=100)
+    bias = torch.zeros(logits.shape[1], device=logits.device, requires_grad=biased)
+    optimizer = torch.optim.LBFGS([log_t, bias] if biased else [log_t], lr=.1, max_iter=200)
 
     def closure():
         optimizer.zero_grad()
         total = torch.zeros((), device=logits.device)
         for start in range(0, len(logits), batch):
-            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp(), target[start:start + batch], reduction="sum") / len(logits)
+            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp() + bias, target[start:start + batch], reduction="sum") / len(logits)
             loss.backward()
             total += loss.detach()
         return total
     optimizer.step(closure)
-    return float(log_t.detach().exp())
+    return {"temperature": float(log_t.detach().exp()), "bias": bias.detach().cpu().tolist()}
 
 
 @timed
 def categorical(model, inputs, labels, column, spec):
-    sample, target = collect(model, inputs, labels, column, TEMPERATURE_ROWS)
-    fitted = {"temperature": temperature(sample, target.long())}
-    if spec["default"] is None:
-        return fitted
-    stated = 1 - spec["prior"][spec["default"]]
-    spreads = torch.cat([1 - scored[:, spec["default"]] for scored, _ in probabilities(model, inputs, labels, column, fitted, everyone=True)])
-    return fitted | {"threshold": float(spreads.kthvalue(max(1, round(len(spreads) * (1 - stated)))).values)}
+    biased = spec["type"] == "categorical"
+    sample, target = collect(model, inputs, labels, column, CALIBRATION_ROWS if biased else TEMPERATURE_ROWS)
+    return fit_calibration(sample, target.long(), biased)
 
 
 @timed

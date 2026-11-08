@@ -27,6 +27,7 @@ SUBREDDIT_AUTHORS = 100
 DEFAULTS = {"native_language": "english", "sexual_orientation": "straight", "parental_status": "no children", "military_status": "never served", "smoking": "non-smoker", "diet": "eats meat",
             **dict.fromkeys(BINARY, NO)}
 TEMPERATURE_ROWS = 1 << 16
+CALIBRATION_ROWS = 1 << 21
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "epochs": 6}
 TUNE_TRIALS = 18
 TUNE_ROUNDS = (2, 6, 12)

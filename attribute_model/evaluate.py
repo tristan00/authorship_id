@@ -2,20 +2,20 @@ import numpy as np
 import torch
 
 from . import timed
-from .model import decide, numeric
+from .model import calibrated, numeric
 
 DEVICE = "cuda"
 BINS = 15
 
 
-def streamed(model, inputs, labels, column, limit=None, batch=8192, everyone=False):
+def streamed(model, inputs, labels, column, limit=None, batch=8192):
     model.eval()
     taken = 0
     for start in range(0, len(labels), batch):
         if limit is not None and taken >= limit:
             return
         target = labels[start:start + batch, column].to(DEVICE)
-        present = torch.ones_like(target, dtype=torch.bool) if everyone else torch.isfinite(target)
+        present = torch.isfinite(target)
         with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
             output = model.output(model(*(part[start:start + batch].to(DEVICE)[present] for part in inputs)), column).float()
         taken += len(output)
@@ -27,9 +27,9 @@ def collect(model, inputs, labels, column, limit=None):
     return torch.cat(outputs), torch.cat(targets)
 
 
-def probabilities(model, inputs, labels, column, fitted, everyone=False):
-    for output, target in streamed(model, inputs, labels, column, everyone=everyone):
-        yield (output / fitted["temperature"]).softmax(1), target
+def probabilities(model, inputs, labels, column, fitted):
+    for output, target in streamed(model, inputs, labels, column):
+        yield calibrated(output, fitted), target
 
 
 def macro_f1(predicted, target, classes):
@@ -67,7 +67,7 @@ def categorical_report(model, inputs, labels, stated, column, spec, fitted):
     prior = torch.as_tensor(spec["prior"], device=DEVICE)
     for (scored, target), spoken in zip(probabilities(model, inputs, labels, column, fitted), spoken_batches(labels, stated, column), strict=True):
         target = target.long()
-        chosen.append(decide(scored, spec, fitted))
+        chosen.append(scored.argmax(1))
         targets.append(target)
         said.append(spoken)
         losses.append(-scored.gather(1, target[:, None]).squeeze(1).clamp_min(1e-12).log())
