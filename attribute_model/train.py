@@ -20,7 +20,7 @@ from .model import AttributeModel, specifications
 INPUTS = ("users", "subreddits", "weights")
 
 
-def score(model, inputs, labels, specs, batch=8192):
+def score(model, inputs, labels, specs, batch=2048):
     model.eval()
     sums = counts = 0
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
