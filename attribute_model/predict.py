@@ -10,6 +10,7 @@ import pyarrow as pa
 import torch
 from clickhouse_connect.driver.binding import format_str, quote_identifier
 
+from author_encoder.store import parts, span
 from database import client
 
 from . import LOG, timed
@@ -18,7 +19,8 @@ from .features import bags
 from .model import AttributeModel, decide, numeric
 
 KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)"}
-VECTORS = "SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN author_subreddits USING author SETTINGS join_algorithm = 'full_sorting_merge'"
+VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE {where}) AS s USING author "
+           "WHERE {where} ORDER BY author")
 
 
 def schema(artifact):
@@ -112,14 +114,17 @@ def predict_table(model_path, targets, device="cuda"):
         pending = pool.submit(writer.insert_arrow, "author_predictions_next", pa.concat_tables(buffered))
         buffered = []
 
-    with ThreadPoolExecutor(1) as pool, reader.query_arrow_stream(VECTORS, settings={"max_block_size": PREDICTION_BATCH}) as stream:
-        for batch in stream:
-            buffered.append(infer(model, artifact, catalogs, known, batch, device))
-            users += batch.num_rows
-            if sum(table.num_rows for table in buffered) >= INSERT_ROWS:
-                flush()
-                elapsed = time.perf_counter() - started
-                LOG.info("attribute predictions users=%d of %d rate=%.0f/s eta=%.0fs", users, total, users / elapsed, (total - users) * elapsed / users)
+    with ThreadPoolExecutor(1) as pool:
+        for low, high in parts(reader):
+            where, parameters = span(low, high)
+            with reader.query_arrow_stream(VECTORS.format(where=where), parameters=parameters, settings={"max_block_size": PREDICTION_BATCH}) as stream:
+                for batch in stream:
+                    buffered.append(infer(model, artifact, catalogs, known, batch, device))
+                    users += batch.num_rows
+                    if sum(table.num_rows for table in buffered) >= INSERT_ROWS:
+                        flush()
+                        elapsed = time.perf_counter() - started
+                        LOG.info("attribute predictions users=%d of %d rate=%.0f/s eta=%.0fs", users, total, users / elapsed, (total - users) * elapsed / users)
         if buffered:
             flush()
         pending.result()

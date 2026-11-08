@@ -7,6 +7,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from author_encoder.store import parts, span
 from database import client
 
 from . import LOG, timed, write_json
@@ -14,8 +15,8 @@ from .config import DEFAULTS, DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_
 from .features import bags, vocabulary
 
 CLAIMS = "SELECT author, attribute, value, support, share FROM author_claims WHERE attribute IN {attributes:Array(String)}"
-VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE author IN labeled) AS s USING author "
-           "WHERE author IN labeled ORDER BY author")
+VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE {where} AND author IN labeled) AS s USING author "
+           "WHERE {where} AND author IN labeled ORDER BY author")
 ARRAYS = ("users", "subreddits", "weights", "labels", "support", "share", "splits")
 SPREAD_ROWS = 1 << 20
 
@@ -50,15 +51,17 @@ def read_vectors(db, labeled, path):
     total = db.command("SELECT count() FROM author_vectors WHERE author IN labeled")
     vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(total, DIMENSIONS))
     authors, names, counts, kept, started = [], [], [], 0, time.perf_counter()
-    with db.query_arrow_stream(VECTORS) as stream:
-        for batch in stream:
-            vectors[kept:kept + batch.num_rows] = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS)
-            authors += batch["author"].to_pylist()
-            names.append(batch["subreddits"])
-            counts.append(batch["counts"])
-            kept += batch.num_rows
-            if kept // (1 << 20) != (kept - batch.num_rows) // (1 << 20):
-                LOG.info("labeled vectors kept=%d of %d seconds=%.1f", kept, total, time.perf_counter() - started)
+    for low, high in parts(db):
+        where, parameters = span(low, high)
+        with db.query_arrow_stream(VECTORS.format(where=where), parameters=parameters) as stream:
+            for batch in stream:
+                vectors[kept:kept + batch.num_rows] = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS)
+                authors += batch["author"].to_pylist()
+                names.append(batch["subreddits"])
+                counts.append(batch["counts"])
+                kept += batch.num_rows
+                if kept // (1 << 20) != (kept - batch.num_rows) // (1 << 20):
+                    LOG.info("labeled vectors kept=%d of %d seconds=%.1f", kept, total, time.perf_counter() - started)
     db.command("DROP TEMPORARY TABLE labeled")
     if kept != total:
         raise ValueError("Author vectors changed while they were read")
