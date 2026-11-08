@@ -1,16 +1,18 @@
 import csv
 import io
 import re
+import subprocess
 import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from . import health, timed
+from . import timed
 
 ENDPOINT = "https://query.wikidata.org/sparql"
 HEADERS = {"User-Agent": "authorship-id-lexicon/1.0", "Accept": "text/csv"}
 TARGET = Path(__file__).with_name("foreign_conditions.tsv")
+EXTRACTOR = Path(__file__).parents[1] / "extractor"
 LANGUAGES = ("es", "pt", "fr", "de", "it", "nl", "pl")
 CODES = ("P494", "P4229", "P7807", "P493", "P1692", "P663", "P1930")
 QUERY = ("SELECT DISTINCT ?en ?lang ?name ?kind WHERE {{ VALUES ?en {{ {names} }} ?item rdfs:label ?en . FILTER EXISTS {{ ?item {codes} ?code }} "
@@ -25,10 +27,12 @@ BATCH = 300
 
 
 def english():
+    subprocess.run(["cargo", "build", "--release", "-q"], cwd=EXTRACTOR, check=True)
+    listed = subprocess.run([str(EXTRACTOR / "target" / "release" / "claims"), "conditions"], capture_output=True, text=True, encoding="utf-8", check=True).stdout
     pairs = {}
-    for attribute, table in (("physical_condition", health.PHYSICAL), ("mental_condition", health.MENTAL_LOOSE), ("physical_condition", health.WORDNET_CONDITIONS)):
-        for name, value in table.items():
-            pairs.setdefault(re.sub(r"^(?:an?|the) ", "", name), set()).add((attribute, value))
+    for line in listed.splitlines():
+        attribute, name, value = line.split("\t")
+        pairs.setdefault(re.sub(r"^(?:an?|the) ", "", name), set()).add((attribute, value))
     return {name: values.pop() for name, values in pairs.items() if len(values) == 1}
 
 

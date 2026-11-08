@@ -175,6 +175,11 @@ fn main() {
     match args.get(1).map(String::as_str) {
         Some("extract") if args.len() >= 4 => extract(&args[2], &args[3], threads),
         Some("bench") if args.len() >= 3 => bench(&args[2]),
+        Some("conditions") => {
+            for (attribute, name, value) in health::english_conditions() {
+                println!("{attribute}	{name}	{value}");
+            }
+        }
         Some(command @ ("run" | "flairs")) => {
             let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
             if command == "run" {
@@ -184,7 +189,7 @@ fn main() {
             }
         }
         _ => {
-            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims run|flairs --host H [--port P] [--database D] --threads N [--reset]");
+            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims conditions | claims run|flairs --host H [--port P] [--database D] --threads N [--reset]");
             std::process::exit(2);
         }
     }

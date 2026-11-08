@@ -477,3 +477,16 @@ pub fn init() {
         ailments::init();
     });
 }
+
+pub fn english_conditions() -> Vec<(&'static str, String, &'static str)> {
+    let t = &*TABLES;
+    let mut known: HashSet<&str> = HashSet::default();
+    for table in [&t.physical, &t.physical_states, &t.physical_tools, &t.mental, &t.mental_states, &t.mind_extra] {
+        known.extend(table.keys.iter().map(|key| key.as_str()));
+    }
+    let wordnet: &'static str = Box::leak(data_file("wordnet_conditions.tsv").into_boxed_str());
+    let mut rows: Vec<(&'static str, String, &'static str)> = t.physical.iter().map(|(name, value)| ("physical_condition", name.clone(), value)).collect();
+    rows.extend(t.mental_loose.iter().map(|(name, value)| ("mental_condition", name.clone(), value)));
+    rows.extend(wordnet.lines().filter_map(|line| line.split_once('\t')).filter(|(name, _)| !known.contains(name)).map(|(name, value)| ("physical_condition", name.to_string(), value)));
+    rows
+}
