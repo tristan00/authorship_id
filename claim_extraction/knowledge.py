@@ -14,7 +14,6 @@ from pathlib import Path
 import nltk
 
 from . import timed
-from .schema import fan_value
 
 ENDPOINT = "https://query.wikidata.org/sparql"
 HEADERS = {"User-Agent": "authorship-id-lexicon/1.0", "Accept": "text/csv"}
@@ -53,6 +52,9 @@ HUMAN = "?item wdt:P31 wd:Q5 ."
 WORD = re.compile(r"\w+")
 SUFFIXES = frozenset({"jr", "sr", "ii", "iii", "iv"})
 BRACKETED = re.compile(r"\s*[(\[][^)\]]*[)\]]")
+TRAILING = re.compile(r"\s+[(\[][^)\]]*[)\]]?\s*$")
+CLUB = re.compile(r"\s+(?:football club|f\.?c\.?|a\.?f\.?c\.?|c\.?f\.?)$")
+VAGUE = frozenset("this that the these those my our his her their him them it its he she they one game games movie movies film films show shows book books series song songs album albums character characters team teams player players author authors artist artists band bands music".split())
 BOOK_AUTHORS = Path(__file__).with_name("book_authors.tsv")
 BOOK_SOURCES = frozenset({"novel", "book series"})
 SCREEN_AND_COMIC_CLASSES = ("Q21198342", "Q14406742", "Q196600", "Q24856", "Q5398426", "Q63952888", "Q11424")
@@ -128,6 +130,13 @@ def generate_relation(target, names, query, header, attributes, sources=SOURCES)
         for key, values in sorted(pairs.items()):
             if len(values) == 1:
                 out.write(f"{key}\t{next(iter(values))}\n")
+
+
+def fan_value(attribute, text):
+    text = TRAILING.sub("", text).removeprefix("the ")
+    if attribute == "sports_team":
+        text = CLUB.sub("", text)
+    return text if set(text.split()) - VAGUE else None
 
 
 @timed
