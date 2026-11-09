@@ -18,35 +18,28 @@ from .model import AttributeModel, specifications
 INPUTS = ("users",)
 
 
-def gathered(padded, rows):
-    return {column: table[slots[rows]] for column, (slots, table) in padded.items()}
+def member_columns(sets, specs):
+    return [(column, indptr, values, torch.arange(int((indptr[1:] - indptr[:-1]).max()), device=indptr.device), len(specs[column]["values"])) for column, indptr, values in sets]
 
 
-def padded_sets(sets, specs, rows, device):
+def gathered(columns, rows):
     result = {}
-    for column, indptr, values in sets:
-        size = len(specs[column]["values"])
-        indptr, values = np.asarray(indptr.cpu()), np.asarray(values.cpu())
-        lengths = np.diff(indptr)
-        stated = np.flatnonzero(lengths)
-        slots = np.full(rows, len(stated), dtype=np.int64)
-        slots[stated] = np.arange(len(stated))
-        width = int(lengths.max())
-        table = np.full((len(stated) + 1, width), size, dtype=np.int16 if size < np.iinfo(np.int16).max else np.int32)
-        owners = np.repeat(np.arange(len(stated)), lengths[stated])
-        table[owners, np.arange(len(values)) - np.repeat(indptr[stated], lengths[stated])] = values
-        result[column] = (torch.as_tensor(slots, device=device), torch.as_tensor(table, device=device))
+    for column, indptr, values, offsets, size in columns:
+        start = indptr[rows]
+        positions = start[:, None] + offsets
+        stated = offsets < (indptr[rows + 1] - start)[:, None]
+        result[column] = torch.where(stated, values[positions.clamp(max=len(values) - 1)], size)
     return result
 
 
-def score(model, inputs, labels, sets, specs, padded, batch=2048):
+def score(model, inputs, labels, sets, specs, columns, batch=2048):
     model.eval()
     sums = counts = 0
     with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
         for start in range(0, len(labels), batch):
             rows = torch.arange(start, min(start + batch, len(labels)), device=labels.device)
             target = labels[start:start + batch].to(DEVICE)
-            batch_sums, batch_counts, _ = model.terms(model(*(part[start:start + batch].to(DEVICE) for part in inputs)), target, gathered(padded, rows))
+            batch_sums, batch_counts, _ = model.terms(model(*(part[start:start + batch].to(DEVICE) for part in inputs)), target, gathered(columns, rows))
             sums, counts = sums + batch_sums, counts + batch_counts
     ratios = (sums / counts / model.baseline).tolist()
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
@@ -123,13 +116,13 @@ def subset(indptr, values, rows):
 
 
 @timed
-def resident(arrays):
-    return {name: np.array(array) for name, array in arrays.items()}
+def resident(arrays, sets):
+    return {name: np.array(array) for name, array in arrays.items()}, {name: (np.array(indptr), np.array(values)) for name, (indptr, values) in sets.items()}
 
 
 def load_splits(manifest, arrays, sets):
     targets = manifest["targets"]
-    arrays = resident(arrays)
+    arrays, sets = resident(arrays, sets)
     splits = arrays["splits"]
     selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
     labeled = {name: arrays["labels"][indices] for name, indices in selected.items()}
@@ -163,10 +156,10 @@ def capacities(model, specs, rows, batch):
 @timed
 def fit(model, specs, data, parameters):
     inputs, labels, sets = data["train"]
-    padded = {name: padded_sets(data[name][2], specs, len(data[name][1]), DEVICE) for name in ("train", "validation")}
+    columns = {name: member_columns(data[name][2], specs) for name in ("train", "validation")}
     capacity = capacities(model, specs, len(labels), parameters["batch"])
-    return run_epochs(model, len(labels), parameters, lambda index: model.loss(model(*(part[index] for part in inputs)), labels[index], gathered(padded["train"], index), capacity),
-                      lambda: score(model, *data["validation"], specs, padded["validation"]))
+    return run_epochs(model, len(labels), parameters, lambda index: model.loss(model(*(part[index] for part in inputs)), labels[index], gathered(columns["train"], index), capacity),
+                      lambda: score(model, *data["validation"], specs, columns["validation"]))
 
 
 def run_epochs(model, rows, parameters, loss_of, validate):
