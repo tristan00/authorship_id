@@ -116,16 +116,16 @@ def subset(indptr, values, rows):
 
 
 @timed
-def resident(arrays, sets):
-    return {name: np.array(array) for name, array in arrays.items()}, {name: (np.array(indptr), np.array(values)) for name, (indptr, values) in sets.items()}
+def resident(sets):
+    return {name: (np.array(indptr), np.array(values)) for name, (indptr, values) in sets.items()}
 
 
 def load_splits(manifest, arrays, sets):
     targets = manifest["targets"]
-    arrays, sets = resident(arrays, sets)
-    splits = arrays["splits"]
+    sets = resident(sets)
+    splits = np.asarray(arrays["splits"])
     selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
-    labeled = {name: arrays["labels"][indices] for name, indices in selected.items()}
+    labeled = {name: np.asarray(arrays["labels"][indices]) for name, indices in selected.items()}
     lists = {split: {name: subset(*sets[name], indices) for name in sets} for split, indices in selected.items()}
     specs = specifications(targets, manifest["catalogs"], labeled["train"], lists["train"])
     for name in ("validation", "calibration", "test"):
