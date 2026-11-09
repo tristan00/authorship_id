@@ -2,20 +2,20 @@ import numpy as np
 import torch
 
 from . import timed
-from .model import calibrated, numeric
+from .model import decide, numeric
 
 DEVICE = "cuda"
 BINS = 15
 
 
-def streamed(model, inputs, labels, column, limit=None, batch=8192):
+def streamed(model, inputs, labels, column, limit=None, batch=8192, everyone=False):
     model.eval()
     taken = 0
     for start in range(0, len(labels), batch):
         if limit is not None and taken >= limit:
             return
         target = labels[start:start + batch, column].to(DEVICE)
-        present = torch.isfinite(target)
+        present = torch.ones_like(target, dtype=torch.bool) if everyone else torch.isfinite(target)
         with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
             output = model.output(model(*(part[start:start + batch].to(DEVICE)[present] for part in inputs)), column).float()
         taken += len(output)
@@ -27,9 +27,9 @@ def collect(model, inputs, labels, column, limit=None):
     return torch.cat(outputs), torch.cat(targets)
 
 
-def probabilities(model, inputs, labels, column, fitted):
-    for output, target in streamed(model, inputs, labels, column):
-        yield calibrated(output, fitted), target
+def probabilities(model, inputs, labels, column, fitted, everyone=False):
+    for output, target in streamed(model, inputs, labels, column, everyone=everyone):
+        yield (output / fitted["temperature"]).softmax(1), target
 
 
 def macro_f1(predicted, target, classes):
@@ -67,7 +67,7 @@ def categorical_report(model, inputs, labels, stated, column, spec, fitted):
     prior = torch.as_tensor(spec["prior"], device=DEVICE)
     for (scored, target), spoken in zip(probabilities(model, inputs, labels, column, fitted), spoken_batches(labels, stated, column), strict=True):
         target = target.long()
-        chosen.append(scored.argmax(1))
+        chosen.append(decide(scored, spec, fitted))
         targets.append(target)
         said.append(spoken)
         losses.append(-scored.gather(1, target[:, None]).squeeze(1).clamp_min(1e-12).log())
@@ -102,11 +102,10 @@ def spoken_batches(labels, stated, column, batch=8192):
 
 def numeric_report(model, inputs, labels, column, spec):
     output, target = collect(model, inputs, labels, column)
-    low, predicted, high = numeric(output, spec).unbind(1)
+    predicted = numeric(output, spec)
     error = predicted - target
     return {"n": len(error), "mae": float(error.abs().mean()), "median_baseline_mae": float((target - spec["center"]).abs().mean()), "rmse": float(error.pow(2).mean().sqrt()),
-            "correlation": float(torch.corrcoef(torch.stack([predicted, target]))[0, 1]), "interval_coverage": float(((target >= low) & (target <= high)).float().mean()),
-            "interval_width": float((high - low).median())}
+            "correlation": float(torch.corrcoef(torch.stack([predicted, target]))[0, 1])}
 
 
 @timed

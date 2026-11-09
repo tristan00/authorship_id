@@ -16,46 +16,17 @@ from database import client
 from . import LOG, timed
 from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, SUBREDDITS_PER_AUTHOR, THREADS, check_targets, validate
 from .features import bags
-from .model import AttributeModel, calibrated, numeric
+from .model import AttributeModel, decide, numeric
 
 KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)"}
-EXTRAS = {"numeric": ("low", "high"), "categorical": ("probability",), "embedding": ("probability",)}
 VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE {where}) AS s USING author "
            "WHERE {where} ORDER BY author")
 
 
-def schema(artifact, table="author_predictions_next", stated=False):
-    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" + (f", {quote_identifier(name + '_stated')} UInt8" if stated else "") + "".join(f", {quote_identifier(name + '_' + extra)} Float32" for extra in EXTRAS[kind])
-                      for name, kind in artifact["targets"].items())
+def schema(artifact):
+    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" for name, kind in artifact["targets"].items())
     comment = json.dumps({key: artifact[key] for key in ("model_id", "source", "targets")})
-    return f"CREATE TABLE {table} (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
-
-
-def profile_query(targets):
-    pivots, columns = [], []
-    for number, (name, kind) in enumerate(targets.items()):
-        field = quote_identifier(name)
-        pivots.append(f"anyIf(value, attribute = {format_str(name)}) AS v{number}, countIf(attribute = {format_str(name)}) > 0 AS s{number}")
-        claim = f"toFloat32OrZero(c.v{number})" if kind == "numeric" else f"c.v{number}"
-        columns.append(f"if(c.s{number}, {claim}, p.{field}) AS {field}, c.s{number} AS {quote_identifier(name + '_stated')}")
-        columns += [f"p.{quote_identifier(name + '_' + extra)}" for extra in EXTRAS[kind]]
-    return (f"INSERT INTO author_profiles_next SELECT p.author, {', '.join(columns)} FROM (SELECT * FROM author_predictions WHERE {{where}}) AS p "
-            f"LEFT JOIN (SELECT author, {', '.join(pivots)} FROM author_claims WHERE {{where}} GROUP BY author) AS c USING author")
-
-
-@timed
-def profiles(db, artifact):
-    db.command("DROP TABLE IF EXISTS author_profiles_next")
-    db.command(schema(artifact, "author_profiles_next", stated=True))
-    query, written = profile_query(artifact["targets"]), 0
-    for low, high in parts(db):
-        where, parameters = span(low, high)
-        written += db.command(query.format(where=where), parameters=parameters).written_rows
-    db.command("CREATE TABLE IF NOT EXISTS author_profiles AS author_profiles_next")
-    db.command("EXCHANGE TABLES author_profiles_next AND author_profiles")
-    db.command("DROP TABLE author_profiles_next")
-    LOG.info("author profiles rows=%d", written)
-    return written
+    return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
 
 
 def build(artifact):
@@ -79,12 +50,7 @@ def load_model(path, targets):
 
 def decided(artifact, outputs):
     for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
-        if spec["type"] == "numeric":
-            low, value, high = numeric(output, spec).unbind(1)
-            yield spec, value, {"low": low, "high": high}
-        else:
-            probability, chosen = calibrated(output, fitted).max(1)
-            yield spec, chosen, {"probability": probability}
+        yield spec, numeric(output, spec) if spec["type"] == "numeric" else decide((output / fitted["temperature"]).softmax(1), spec, fitted)
 
 
 def ranked(subreddits):
@@ -109,9 +75,9 @@ def predict(loaded, vectors, subreddits):
     result = [{} for _ in values]
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
-            for spec, chosen, extras in decided(artifact, model.outputs(model(*inputs(known, values[start:start + 1024], names[start:start + 1024], counts[start:start + 1024])))):
+            for spec, chosen in decided(artifact, model.outputs(model(*inputs(known, values[start:start + 1024], names[start:start + 1024], counts[start:start + 1024])))):
                 for row, value in enumerate(chosen.tolist(), start):
-                    result[row][spec["name"]] = {"value": value if spec["type"] == "numeric" else spec["values"][value], **{key: float(found[row - start]) for key, found in extras.items()}}
+                    result[row][spec["name"]] = {"value": value if spec["type"] == "numeric" else spec["values"][value]}
     return result
 
 
@@ -119,11 +85,9 @@ def predict(loaded, vectors, subreddits):
 def infer(model, artifact, catalogs, known, batch, device):
     vectors = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()
     columns = {"author": batch["author"]}
-    for spec, chosen, extras in decided(artifact, model.outputs(model(*inputs(known, vectors, batch["subreddits"], batch["counts"], device)))):
+    for spec, chosen in decided(artifact, model.outputs(model(*inputs(known, vectors, batch["subreddits"], batch["counts"], device)))):
         chosen = chosen.cpu().numpy()
         columns[spec["name"]] = pa.array(chosen.astype(np.float32)) if spec["type"] == "numeric" else catalogs[spec["name"]].take(chosen)
-        for key, found in extras.items():
-            columns[f"{spec['name']}_{key}"] = pa.array(found.float().cpu().numpy())
     return pa.table(columns)
 
 
@@ -169,7 +133,7 @@ def predict_table(model_path, targets, device="cuda"):
     writer.command("CREATE TABLE IF NOT EXISTS author_predictions AS author_predictions_next")
     writer.command("EXCHANGE TABLES author_predictions_next AND author_predictions")
     writer.command("DROP TABLE author_predictions_next")
-    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["targets"]) + 1, "profiles": profiles(writer, artifact)}
+    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["targets"]) + 1}
 
 
 @timed
