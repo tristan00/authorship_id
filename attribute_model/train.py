@@ -68,17 +68,19 @@ def categorical(model, hidden, labels, column, spec):
 
 
 @timed
-def membership(model, hidden, labels, column, indptr, values):
-    pairs = torch.zeros(len(THRESHOLDS), 2, device=DEVICE)
+def membership(model, hidden, labels, column, spec, indptr, values):
+    prior = torch.as_tensor(spec["prior"], device=DEVICE)
+    pairs = torch.zeros(2, len(THRESHOLDS), 2, device=DEVICE)
     actual = 0
     for probabilities, truth in memberships(model, hidden, labels, column, indptr, values):
         for slot, threshold in enumerate(THRESHOLDS):
-            predicted = chosen(probabilities, threshold)
-            pairs[slot] += torch.stack([(predicted & truth).sum(), predicted.sum()])
+            for row, scored in enumerate((probabilities, prior.expand_as(probabilities))):
+                predicted = chosen(scored, threshold)
+                pairs[row, slot] += torch.stack([(predicted & truth).sum(), predicted.sum()])
         actual += int(truth.sum())
-    scores = 2 * pairs[:, 0] / (pairs[:, 1] + actual)
-    best = int(scores.argmax())
-    return {"threshold": THRESHOLDS[best], "f1": float(scores[best])}
+    scores = 2 * pairs[:, :, 0] / (pairs[:, :, 1] + actual)
+    best, prior_best = int(scores[0].argmax()), int(scores[1].argmax())
+    return {"threshold": THRESHOLDS[best], "f1": float(scores[0, best]), "prior_threshold": THRESHOLDS[prior_best], "prior_f1": float(scores[1, prior_best])}
 
 
 @timed
@@ -90,7 +92,7 @@ def calibrate(model, inputs, labels, sets, specs):
         if spec["type"] == "numeric":
             result.append({})
         elif spec["type"] == "set":
-            result.append(membership(model, hidden, labels, column, *lists[column]))
+            result.append(membership(model, hidden, labels, column, spec, *lists[column]))
         else:
             result.append(categorical(model, hidden, labels, column, spec))
         LOG.info("attribute model calibrated %s %s", spec["name"], json.dumps(result[-1]))

@@ -67,13 +67,13 @@ def set_report(model, hidden, labels, column, spec, fitted, indptr, values):
     sums = torch.zeros(6, dtype=torch.float64, device=DEVICE)
     for probabilities, truth in memberships(model, hidden, labels, column, indptr, values):
         predicted = chosen(probabilities, fitted["threshold"])
-        guessed = chosen(prior.expand_as(probabilities), fitted["threshold"])
+        guessed = chosen(prior.expand_as(probabilities), fitted["prior_threshold"])
         sums += torch.stack([torch.tensor(float(len(truth)), device=DEVICE), (predicted & truth).sum(), predicted.sum(), truth.sum(), (guessed & truth).sum(), guessed.sum()]).double()
     n, hits, predicted, actual, prior_hits, guessed = sums.tolist()
     precision, recall, f1 = micro(hits, predicted, actual)
     prior_precision, prior_recall, prior_f1 = micro(prior_hits, guessed, actual)
     return {"n": int(n), "pairs": int(actual), "precision": precision, "recall": recall, "f1": f1, "prior_precision": prior_precision, "prior_recall": prior_recall,
-            "prior_f1": prior_f1, "threshold": fitted["threshold"], "mean_size": spec["mean_size"]}
+            "prior_f1": prior_f1, "threshold": fitted["threshold"], "prior_threshold": fitted["prior_threshold"], "mean_size": spec["mean_size"]}
 
 
 def macro_f1(predicted, target, classes):
