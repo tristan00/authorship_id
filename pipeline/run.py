@@ -34,8 +34,10 @@ def load(start, end):
 
 @timed
 def derive():
+    from attribute_model.config import TEXT_DATA, TEXT_MODEL, TEXT_PARAMETERS
     from attribute_model.data import prepare
     from attribute_model.predict import predict_table
+    from attribute_model.text import prepare_text
     from attribute_model.train import train
     from author_encoder.predict import encode_store
     from author_encoder.store import build
@@ -47,6 +49,8 @@ def derive():
     prepare(DATA)
     train(DATA, MODEL)
     predict_table(MODEL)
+    prepare_text(TEXT_DATA, DATA)
+    train(TEXT_DATA, TEXT_MODEL, TEXT_PARAMETERS)
 
 
 @timed

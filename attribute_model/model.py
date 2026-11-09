@@ -43,6 +43,7 @@ class AttributeModel(nn.Module):
         self.norm = nn.LayerNorm(width)
         self.numeric, self.categorical = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical"))
         self.embedding = [index for index, spec in enumerate(specifications) if spec["type"] in ("embedding", "set")]
+        self.multiple = [specifications[index]["type"] == "set" for index in self.embedding]
         sizes = [1] * len(self.numeric) + [len(specifications[index]["values"]) for index in self.categorical]
         offsets = np.cumsum([0] + sizes)
         self.slices = dict(zip(self.numeric + self.categorical, zip(offsets[:-1].tolist(), offsets[1:].tolist())))
@@ -58,7 +59,8 @@ class AttributeModel(nn.Module):
             for index in self.categorical:
                 self.head.bias[slice(*self.slices[index])] = torch.tensor(specifications[index]["prior"]).log()
             for slot, index in enumerate(self.embedding):
-                self.embeddings[slot].bias.copy_(torch.tensor(specifications[index]["prior"]).log())
+                prior = torch.tensor(specifications[index]["prior"])
+                self.embeddings[slot].bias.copy_(prior.logit() if self.multiple[slot] else prior.log())
         buffers = {"numeric_targets": torch.tensor(self.numeric, dtype=torch.long), "categorical_targets": torch.tensor(self.categorical, dtype=torch.long),
                    "numeric_columns": torch.tensor([self.slices[index][0] for index in self.numeric], dtype=torch.long),
                    "center": torch.tensor([specifications[index]["center"] for index in self.numeric], dtype=torch.float32),
@@ -88,7 +90,7 @@ class AttributeModel(nn.Module):
             return F.linear(hidden, self.head.weight[start:end], self.head.bias[start:end])
         return self.embeddings[self.embedding.index(index)](hidden)
 
-    def terms(self, hidden, labels, capacity=None):
+    def terms(self, hidden, labels, members, capacity=None):
         flat = self.head(hidden).float()
         sums = torch.zeros(len(self.specifications), device=flat.device)
         present = torch.isfinite(labels)
@@ -104,14 +106,19 @@ class AttributeModel(nn.Module):
             sums = sums.index_copy(0, self.categorical_targets, torch.stack(nll))
         for slot, index in enumerate(self.embedding):
             rows = torch.arange(len(flat), device=flat.device) if capacity is None else torch.argsort((~present[:, index]).byte(), stable=True)[:capacity[slot]]
-            nll = F.cross_entropy(self.embeddings[slot](hidden[rows]).float(), filled[rows, index].long(), reduction="none")
+            logits = self.embeddings[slot](hidden[rows]).float()
+            if self.multiple[slot]:
+                stated = members[index][rows].long()
+                nll = F.softplus(logits).sum(1) - F.pad(logits, (0, 1)).gather(1, stated).sum(1)
+            else:
+                nll = F.cross_entropy(logits, filled[rows, index].long(), reduction="none")
             sums[index] = (nll * present[rows, index]).sum()
             if capacity is not None:
                 overflow += (counts[index] - capacity[slot]).clamp_min(0)
         return sums, counts, overflow
 
-    def loss(self, hidden, labels, capacity=None):
-        sums, counts, overflow = self.terms(hidden, labels, capacity)
+    def loss(self, hidden, labels, members, capacity=None):
+        sums, counts, overflow = self.terms(hidden, labels, members, capacity)
         return (sums / counts.clamp_min(1) / self.baseline * self.weight).mean(), overflow
 
 
@@ -141,11 +148,11 @@ def specifications(targets, catalogs, labels, sets):
         if kind == "set":
             indptr, members = sets[name]
             lengths = np.diff(indptr)
+            stated = int((lengths > 0).sum())
             counts = np.bincount(members, minlength=len(values))
-            prior = (counts + .5) / (counts.sum() + .5 * len(values))
-            share = np.repeat(1 / np.maximum(lengths, 1), lengths)
-            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "mean_size": float(lengths[lengths > 0].mean()),
-                     "baseline": float((-np.log(prior[members]) * share).sum() / (lengths > 0).sum())}
+            prior = (counts + .5) / (stated + 1)
+            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "mean_size": float(lengths[lengths > 0].mean()), "longest": int(lengths.max()),
+                     "baseline": float((counts * -np.log(prior) + (stated - counts) * -np.log1p(-prior)).sum() / stated)}
         else:
             counts = np.bincount(observed.astype(np.int64), minlength=len(values))
             prior = (counts + .5) / (counts.sum() + .5 * len(values))

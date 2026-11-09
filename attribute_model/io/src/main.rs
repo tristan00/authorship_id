@@ -4,6 +4,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 mod database;
 mod predict;
 mod prepare;
+mod texts;
 
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -30,8 +31,9 @@ fn main() {
     match args.get(1).map(String::as_str) {
         Some("prepare") => prepare::run(&database(), &args[2..]),
         Some("predict") => predict::run(&database(), &args[2..]),
+        Some("texts") => texts::run(&database(), &args[2..]),
         _ => {
-            eprintln!("usage: attribute_io prepare|predict ... --host HOST [--port 8123] [--database reddit]");
+            eprintln!("usage: attribute_io prepare|predict|texts ... --host HOST [--port 8123] [--database reddit]");
             std::process::exit(2);
         }
     }

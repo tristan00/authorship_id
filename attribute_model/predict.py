@@ -53,7 +53,7 @@ def decided(artifact, outputs):
         if spec["type"] == "numeric":
             yield spec, numeric(output, spec)
         elif spec["type"] == "set":
-            yield spec, chosen(output.float().softmax(1), fitted["threshold"])
+            yield spec, chosen(output.float().sigmoid(), fitted["threshold"])
         else:
             yield spec, output.argmax(1)
 

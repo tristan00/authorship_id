@@ -4,7 +4,7 @@ from pathlib import Path
 
 from reddit_dumps import setup_logging
 
-from .config import DATA, MODEL, ROOT
+from .config import DATA, MODEL, ROOT, TEXT_DATA, TEXT_MODEL
 
 
 def main():
@@ -24,6 +24,11 @@ def main():
     user.add_argument("--model", type=Path, default=MODEL)
     table = commands.add_parser("table")
     table.add_argument("--model", type=Path, default=MODEL)
+    commands.add_parser("prepare-text")
+    commands.add_parser("train-text")
+    text = commands.add_parser("text")
+    text.add_argument("text")
+    text.add_argument("--model", type=Path, default=TEXT_MODEL)
     args = parser.parse_args()
     setup_logging(ROOT / "attribute_model.log")
     if args.command == "prepare":
@@ -38,6 +43,16 @@ def main():
     elif args.command == "user":
         from .predict import predict_user
         result = predict_user(args.model, args.author)
+    elif args.command == "prepare-text":
+        from .text import prepare_text
+        result = prepare_text()
+    elif args.command == "train-text":
+        from .config import TEXT_PARAMETERS
+        from .train import train
+        result = train(TEXT_DATA, TEXT_MODEL, TEXT_PARAMETERS)
+    elif args.command == "text":
+        from .text import predict_text
+        result = predict_text(args.model, args.text)
     else:
         from .predict import predict_table
         result = predict_table(args.model)

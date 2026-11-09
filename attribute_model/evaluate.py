@@ -49,22 +49,26 @@ def memberships(model, inputs, labels, column, indptr, values, batch=4096):
         members = values[torch.repeat_interleave(starts - offsets, lengths) + torch.arange(int(lengths.sum()), device=lengths.device)]
         truth = torch.zeros(output.shape, dtype=torch.bool, device=DEVICE)
         truth[torch.repeat_interleave(torch.arange(len(rows), device=lengths.device), lengths).to(DEVICE), members.to(DEVICE)] = True
-        yield output.softmax(1), truth
+        yield output.sigmoid(), truth
+
+
+def micro(hits, predicted, actual):
+    precision, recall = hits / max(predicted, 1), hits / max(actual, 1)
+    return precision, recall, 2 * hits / max(predicted + actual, 1)
 
 
 def set_report(model, inputs, labels, column, spec, fitted, indptr, values):
     prior = torch.as_tensor(spec["prior"], device=DEVICE)
-    sums = torch.zeros(6, device=DEVICE)
+    sums = torch.zeros(6, dtype=torch.float64, device=DEVICE)
     for probabilities, truth in memberships(model, inputs, labels, column, indptr, values):
         predicted = chosen(probabilities, fitted["threshold"])
         guessed = chosen(prior.expand_as(probabilities), fitted["threshold"])
-        hits, sizes, members = (predicted & truth).sum(1).float(), predicted.sum(1).float(), truth.sum(1).float()
-        top = truth.gather(1, probabilities.topk(min(5, probabilities.shape[1]), 1).indices).sum(1).float()
-        sums += torch.stack([torch.ones_like(hits).sum(), (2 * hits / (sizes + members)).sum(), (hits / sizes).sum(), (hits / members).sum(), (top / members.clamp(max=5)).sum(),
-                             (2 * (guessed & truth).sum(1) / (guessed.sum(1) + members)).sum()])
-    n = float(sums[0])
-    return {"n": int(n), "f1": float(sums[1]) / n, "precision": float(sums[2]) / n, "recall": float(sums[3]) / n, "recall_at_5": float(sums[4]) / n, "prior_f1": float(sums[5]) / n,
-            "threshold": fitted["threshold"], "mean_size": spec["mean_size"]}
+        sums += torch.stack([torch.tensor(float(len(truth)), device=DEVICE), (predicted & truth).sum(), predicted.sum(), truth.sum(), (guessed & truth).sum(), guessed.sum()]).double()
+    n, hits, predicted, actual, prior_hits, guessed = sums.tolist()
+    precision, recall, f1 = micro(hits, predicted, actual)
+    prior_precision, prior_recall, prior_f1 = micro(prior_hits, guessed, actual)
+    return {"n": int(n), "pairs": int(actual), "precision": precision, "recall": recall, "f1": f1, "prior_precision": prior_precision, "prior_recall": prior_recall,
+            "prior_f1": prior_f1, "threshold": fitted["threshold"], "mean_size": spec["mean_size"]}
 
 
 def macro_f1(predicted, target, classes):
