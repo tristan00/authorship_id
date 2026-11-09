@@ -19,6 +19,7 @@ SPLIT_LABELS = 100
 CATEGORICAL_VALUES = 256
 TEMPERATURE_ROWS = 1 << 16
 THRESHOLDS = (.02, .05, .1, .15, .2, .3, .4, .5)
+PUBLISH_MARGIN = .05
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "epochs": 6}
 
 

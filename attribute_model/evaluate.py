@@ -114,6 +114,14 @@ def numeric_report(model, inputs, labels, column, spec):
             "correlation": float(torch.corrcoef(torch.stack([predicted, target]))[0, 1])}
 
 
+def improvement(fields):
+    if "mae" in fields:
+        return 1 - fields["mae"] / fields["median_baseline_mae"]
+    if "accuracy" in fields:
+        return (fields["accuracy"] - fields["majority_baseline_accuracy"]) / (1 - fields["majority_baseline_accuracy"])
+    return (fields["f1"] - fields["prior_f1"]) / (1 - fields["prior_f1"])
+
+
 @timed
 def report(model, inputs, labels, sets, specs, calibration):
     lists = {column: (indptr, values) for column, indptr, values in sets}
@@ -126,4 +134,5 @@ def report(model, inputs, labels, sets, specs, calibration):
                 result[spec["name"]] = set_report(model, inputs, labels, column, spec, fitted, *lists[column])
             else:
                 result[spec["name"]] = categorical_report(model, inputs, labels, column, spec, fitted)
+            result[spec["name"]]["improvement"] = improvement(result[spec["name"]])
     return result

@@ -22,8 +22,9 @@ VECTORS = "SELECT author, vector FROM author_vectors WHERE {where} ORDER BY auth
 
 
 def schema(artifact):
-    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" for name, kind in artifact["targets"].items())
-    comment = json.dumps({key: artifact[key] for key in ("model_id", "source", "targets")})
+    targets = {name: artifact["targets"][name] for name in artifact["published"]}
+    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" for name, kind in targets.items())
+    comment = json.dumps({"model_id": artifact["model_id"], "source": artifact["source"], "targets": targets, "not_predictive": artifact["not_predictive"]})
     return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
 
 
@@ -47,6 +48,8 @@ def load_model(path):
 
 def decided(artifact, outputs):
     for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
+        if spec["name"] not in artifact["published"]:
+            continue
         if spec["type"] == "numeric":
             yield spec, numeric(output, spec)
         elif spec["type"] == "set":
@@ -84,7 +87,9 @@ def infer(model, artifact, catalogs, batch, device):
         if spec["type"] == "numeric":
             columns[spec["name"]] = pa.array(decision.cpu().numpy().astype(np.float32))
         elif spec["type"] == "set":
-            columns[spec["name"]] = pa.array(named(spec, decision), pa.list_(pa.string()))
+            members = decision.nonzero().cpu().numpy()
+            offsets = np.concatenate(([0], np.cumsum(np.bincount(members[:, 0], minlength=len(decision))))).astype(np.int32)
+            columns[spec["name"]] = pa.ListArray.from_arrays(pa.array(offsets), catalogs[spec["name"]].take(pa.array(members[:, 1])))
         else:
             columns[spec["name"]] = catalogs[spec["name"]].take(decision.cpu().numpy())
     return pa.table(columns)
@@ -130,7 +135,7 @@ def predict_table(model_path, device="cuda"):
     writer.command("CREATE TABLE IF NOT EXISTS author_predictions AS author_predictions_next")
     writer.command("EXCHANGE TABLES author_predictions_next AND author_predictions")
     writer.command("DROP TABLE author_predictions_next")
-    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["targets"]) + 1}
+    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["published"]) + 1}
 
 
 @timed
