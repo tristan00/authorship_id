@@ -13,6 +13,8 @@ static SPEAKER_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^\W*|\b(?:so
 static NONSPACE: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\s,(|/]"));
 static POINTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:that|it|which|this)(?:'s| is| was)\s*$"));
 static ARROW: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:-+>|/)"));
+static LIKENED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:as \w+|(?:re[- ]?)?imagined|depicted|portrayed|drawn|written|cast|played|dressed|dressing|disguised|treated|seen|reborn|reincarnated|born|raised)\W*$"));
+static LEADING_OK: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*[,.!)\]]?\s*(?:\n|$)|\s*,|\s*[\[(#|/–&-]|\s*[.!]\s*(?:i|i'm|im)\b|[,\s]+(?:[\w/]+ ){{0,2}}(?:here|looking|seeking|lmk|hmu|dm|dms)\b|[,\s]+(?:i|i'm|im|i've|and|but|now|years?|yrs?|yo|y/o|år|ans|años|anos|jahre|anni|who|feeling|felt|need|needing|want|wanting|wanna|just|still|today|tonight|too|anyone|old|drop)\b|[,\s]+(?:[\w/]+ ){{0,2}}?(?:chub|hairy|masc|uncut|redhead|xxl|smooth|verbal|otter|hung|vers|inch|inches|single|married|bi|gay|straight|thick|horny|from|uk|usa|us|enby|nb|trans|ftm|mtf|slim|fit|skinny|chubby|curvy|tall|short|white|black|asian|latino|latina|hispanic|{PERSON})")));
 static HANDICAP: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:handicap|hcp|hdcp)\b"));
 static FOREIGN_GENDERS: LazyLock<Table> = LazyLock::new(|| {
     let mut map = Table::new();
@@ -125,6 +127,14 @@ pub(crate) fn alone(value: impl Fn(&Match) -> Option<String> + Send + Sync + 'st
     Box::new(move |m: &Match| if THIRD.test(tail_sentence(m.string, m.start(), 80)) { None } else { value(m) })
 }
 
+fn plain(value: impl Fn(&Match) -> Option<String> + Send + Sync + 'static) -> Value {
+    Box::new(move |m: &Match| if LIKENED.test(before(m.string, m.start(), 40)) { None } else { value(m) })
+}
+
+fn trailed(m: &Match) -> bool {
+    !GAME.test(m.string) && !m.text().contains(&'?') && !OTHERS.test(before(m.string, m.start() + 1, 24))
+}
+
 fn age_of(groups: &'static [usize]) -> impl Fn(&Match) -> Option<String> + Send + Sync + 'static {
     move |m: &Match| ages(either(m, groups))
 }
@@ -139,8 +149,9 @@ fn table_of(t: &'static LazyLock<Table>, groups: &'static [usize]) -> impl Fn(&M
 
 fn feet_inches(feet: Option<&[char]>, inches: Option<&[char]>) -> Option<String> {
     let inches = inches.filter(|i| !i.is_empty()).map_or(0, int);
-    if inches < 12 {
-        Some(rounded(((int(feet.unwrap_or(&[])) * 12 + inches) as f64) * 2.54))
+    let total = int(feet.unwrap_or(&[])) * 12 + inches;
+    if inches < 12 && total <= 86 {
+        Some(rounded(total as f64 * 2.54))
     } else {
         None
     }
@@ -188,11 +199,11 @@ fn age() -> Vec<Rule> {
         said("age", r"as(?<!\was) an? (?:(?!(?:not|no|with|for|to|than|like|and|or|that|who)\b)[\w-]+ ){0,2}?(\d{2})(?:[- ]?(?:years?|yrs?|yr)[- ]?old|\s?(?:yo|y/o))\b", age_of(&[1]), h()),
         said("age", r"\bthis (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:has|is|will|would|can|still|needs|wants|loves|could)\b|\bme,? an? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o)\b|\ban? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:[\w-]+ ){0,2}?like me\b", age_of(&[1, 2, 3]), h()),
         said("age", r"\b(?:(?:we're|we are) (?:both|only|just|now)|we both are|(?:my \w+|\w+) and i are(?: both)?|me and (?:my )?\w+ are(?: both)?) (\d{2})\b(?!\s*(?:and|or|-|&)\s*\d)(?!\s*(?:%|percent|minutes|mins|hours|days|weeks|months|years? (?:ago|in|into|of|together|married)|miles|km|feet|ft|lbs?|kg|dollars|bucks|k\b))", age_of(&[1]), h()),
-        said("age", r"(?:\bi(?:'ve| have)? |^|[.!?] )(?:(?:just|recently|finally|also|only|officially) )*turned (\d{2})\b(?! (?:years|minutes|weeks|percent|%))", age_of(&[1]), h()),
+        said("age", r"(?:\bi(?:'ve| have)? |^|[.!?\n] )(?:(?:just|recently|finally|also|only|officially) )*(?:turned|(?<![\w ])turning|(?<=[.!?\n] )turning) (\d{2})\b(?! (?:years|minutes|weeks|percent|%))", age_of(&[1]), h()),
         said("age", &format!(r"{IM} (?:a |an )?(?:(?!not\b|never\b)[a-z]+ ){{0,3}}?(\d{{2}})[\s-]?(?:yo|y/o|y\.o\.?|years? old|yr old|year-old)\b"), age_of(&[1]), h()),
         said("age", r"(?:^|[.!?\n] *)(\d{2}) (?:years? old|yo|y/o) (?:here|male|female|guy|girl|man|woman|m|f)\b", age_of(&[1]), h()),
         said("age", r"(?:^|[.!?\n] *)at (\d{2})(?: years? old)?,? (?:now|i|i'm|im)\b|\bfreshly (\d{2})\b", age_of(&[1, 2]), h()),
-        said("age", r"\bmy age is (\d{2})\b|\bage\s*[:=]\s*(\d{2})\b|(?=age\W)(?<!\bof )(?<!\bat )(?<!\bby )(?<!\buntil )(?<!\btill )(?<!\bsince )(?<!\bfrom )(?<!\bbefore )(?<!\bafter )(?<!\bto )(?<!@)(?<!\bover )(?<!\bunder )(?<!\blegal )(?<!\bsame )(?<!\bthe )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\btheir )\bage\s?[\(\[]?(\d{2})[\)\]]?(?![\w+-])(?!\s*(?:and|or|to|-|\+|/)\s*\d|\+|\s*(?:and|or) (?:up|older|over|above|under|below)\b)",
+        said("age", r"\bmy age (?:is |\(|of )(\d{2})\b|\bage\s*[:=]\s*(\d{2})\b(?!\s*[-–]\s*\d|\s+to\s+\d)|(?=age\W)(?<!\bof )(?<!\bat )(?<!\bby )(?<!\buntil )(?<!\btill )(?<!\bsince )(?<!\bfrom )(?<!\bbefore )(?<!\bafter )(?<!\bto )(?<!@)(?<!\bover )(?<!\bunder )(?<!\blegal )(?<!\bsame )(?<!\bthe )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\btheir )\bage\s?[\(\[]?(\d{2})[\)\]]?(?![\w+-])(?!\s*(?:and|or|to|-|\+|/)\s*\d|\+|\s*(?:and|or) (?:up|older|over|above|under|below)\b)",
             |m: &Match| if GAME.test(m.string) { None } else { ages(either(m, &[1, 2, 3])) }, h()),
         said("age", r"(\d{2}) here\b(?! (?:in|at|for|since|and|or|is|are|was)\b)", |m: &Match| if GREETED.test_in(m.string, m.start().saturating_sub(24), m.start()) { ages(m.group(1)) } else { None }, sh()),
         said("age", &format!(r"now(?<![a-z]now) (?:i'm |im |i am |(at) )?(\d{{2}})\b(?![\d%/'-]|[.,]\d)(?!\s*{UNITS})"),
@@ -212,17 +223,17 @@ fn age() -> Vec<Rule> {
                 None => Some((1900 + int(either(m, &[2, 3]).unwrap_or(&[]))).to_string()),
             }
         }, h()),
-        said("age", &format!(r"^(?=[\s\S]*?[^\W\d_])(?:(?![$#+£€'])\W){{0,2}}[\[\(]?(\d{{2}})[\]\)]?(?=[\s,.!\]…]|$|(?<=\))[a-z])(?!\s+(?!yrs?\b|years?\b|[a-z]+ous\b)[a-z]{{2,}}s\b|\s+(?:years?|yrs?|yr)\b(?!\s+old\b)|(?<=\d)\s+straight\b|\s*{UNITS}|[.,:/]\d|\s*[-–/x+]\s*\d|\s*(?:and|or|to|-)\s+\d|\.\s*\d|\s+(?:of|out|times|people|years? (?:ago|of)|is|was|isn't|wasn't|would|will|more|minutes|seconds|percent|k|point|points|roll|eur|euros?|usd|tl|rs|kr|pln|kilo|кило|лет|psi|cents?|g|mg|ml|hz|fps|gb|mb|tb|mm|rpm|bpm|ppm|dpo|total|million|mill|billion|thousand|gig|gigs|new|हज़ार|{MONTHS})\b)"),
-            |m: &Match| if GAME.test(m.string) { None } else { ages(m.group(1)) }, TAGGED),
+        said("age", &format!(r"^(?=[\s\S]*?[^\W\d_])(?:(?![$#+£€'.])\W){{0,2}}[\[\(]?(\d{{2}})[\]\)]?(?=[\s,.!\]…]|$|(?<=\))[a-z])(?!\s+[^\x00-\x{{24f}}]|!\?|\s+(?!yrs?\b|years?\b|[a-z]+ous\b)[a-z]{{2,}}s\b|\s+(?:years?|yrs?|yr)\b(?!\s+old\b)|(?<=\d)\s+straight\b|\s*{UNITS}|[.,:/]\d|\s*[-–/x+]\s*\d|\s*(?:and|or|to|-)\s+\d|\.\s*\d|\s+(?:of|out|times|people|years? (?:ago|of)|is|was|isn't|wasn't|would|will|more|minutes|seconds|percent|k|point|points|roll|eur|euros?|usd|tl|rs|kr|pln|kilo|кило|лет|psi|cents?|g|mg|ml|hz|fps|gb|mb|tb|mm|rpm|bpm|ppm|dpo|total|million|mill|billion|thousand|gig|gigs|new|हज़ार|{MONTHS})\b)"),
+            |m: &Match| if GAME.test(m.string) || !(AD.test_in(m.string, 0, 300) || m.text().iter().any(|c| *c == '(' || *c == '[') || LEADING_OK.at(m.string, m.end()).is_some()) { None } else { ages(m.group(1)) }, TAGGED),
         said("age", r"\b(?:i|me|i'm|im|i am|myself|ich)\b[^.!?\n()]{0,25}\((\d{2})[),]", age_of(&[1]), sh()),
-        said("age", r"(?=\d\d)(?<!\bis )(?<!\bwas )(?<!\bare )(?<!\bwere )(?<!\bof )(?<!\bthan )(?<!\bunder )(?<!\bover )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\bour )(?<!\btheir )(?<!\bthe )(?<!\ba )(?<!\ban )(?:^|(?<=[\s(\[,]))(\d{2})\s?(?:yo|y/o|y\.o\.?|yr old|year old|years old|yrs old)\b(?! (?:son|daughter|kid|brother|sister|girl|boy|cousin|nephew|niece|dog|cat|car|house|man|woman|guy|male|female|friend|wife|husband|girls|boys|guys|men|women|kids|people|and (?:above|up|over|older|under|below)|or (?:older|younger|above|over|under))\b)",
+        said("age", r"(?=\d\d)(?<!\bis )(?<!\bwas )(?<!\bare )(?<!\bwere )(?<!\bof )(?<!\bthan )(?<!\bunder )(?<!\bover )(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\bour )(?<!\btheir )(?<!\bthe )(?<!\ba )(?<!\ban )(?<!\bnearly )(?<!\balmost )(?<!\babout )(?<!\baround )(?<!\bthat )(?<!\bfamous )(?:^|(?<=[\s(\[,]))(\d{2})\s?(?:yo|y/o|y\.o\.?|yr old|year old|years old|yrs old)\b(?! (?:aunt|uncle|grandma|grandpa|grandmother|grandfather|film|movie|bottle|game|song|album|show|book|tree|building|son|daughter|kid|brother|sister|girl|boy|cousin|nephew|niece|dog|cat|car|house|man|woman|guy|male|female|friend|wife|husband|girls|boys|guys|men|women|kids|people|and (?:above|up|over|older|under|below)|or (?:older|younger|above|over|under))\b)",
             spoken(age_of(&[1])), sh()),
         said("age", r"(?:^|\n)[^\S\n]*[>*•\\-]{0,2}[^\S\n]*(\d{2})\s*,\s*(?:[mf]\b|male\b|female\b|[4-7]\s?['’]\s?\d|\d{2,3}\s?(?:lbs?|kg|cm)\b)|^\W*(\d{2})[- ]?jährige[rn]?\b", age_of(&[1, 2]), sh()),
         said("age", r"me(?<!\wme)\s*[:=-][^\S\n]*[>*•\\-]{0,2}[^\S\n]*(\d{2})\s*,\s*(?:[mf]\b|male\b|female\b|[4-7]\s?['’]\s?\d|\d{2,3}\s?(?:lbs?|kg|cm)\b)|me(?<!\wme)\s*[-:=]\s*(\d{2})\b(?!\s*(?:%|[-/:.]\d))", age_of(&[1, 2]), sh()),
-        said("age", r"mit(?<!\wmit) (\d{2}) jahren\b|(\d{2}) éves (?:vagyok|leszek)\b|a(?<!\wa) mis (\d{2})(?: años)?\b", first_age, sh()),
-        said("age", r"\b(?:tengo|tenho|j'ai) (\d{2})(?: (?:años|anos|ans))?\b|\bya[sş] ?:? ?(\d{2})\b|\b(\d{2}) jahre alt\b|\bich bin (\d{2})\b", first_age, sh()),
+        said("age", r"mit(?<!\wmit) (\d{2}) jahren\b|(\d{2}) éves (?:vagyok|leszek)\b|a(?<!\wa) mis (\d{2})(?: años)?\b(?! (?:jours|días|dias|minutes|heures|semaines|mois)\b)", first_age, sh()),
+        said("age", r"\b(?:tengo|tenho) (\d{2})(?: (?:años|anos))?\b|\bj'ai (\d{2})(?: ans)?\b(?!\s+(?!ans\b)[a-zà-ÿ]{2,})|\bya[sş] ?:? ?(\d{2})\b|\b(\d{2}) jahre alt\b|\bich bin (\d{2})\b", first_age, sh()),
         said("age", PAIRED, age_of(&[2, 3]), TAGGED),
-        said("age", TRAILING, age_of(&[2, 3]), TAGGED),
+        said("age", TRAILING, |m: &Match| if trailed(m) { ages(either(m, &[2, 3])) } else { None }, TAGGED),
         said("age", r"^\W*(\d{2})\s*,?\s+(?:(?:single|married|white|black|asian|latino|latina|hispanic|indian|tall|short|fit|chubby|bi|straight|gay|hung|older|young|discreet|horny|local|cute|shy|sexy|thick|petite|curvy|clean|ddf|attractive|handsome|hot) )*(?:male|female|guy|girl|man|woman|dude|lady|queen|king|bbw|milf|stud|bull|twink|femboy|daddy|bottom|top|sub|dom|cuck|virgin|couple)\b", age_of(&[1]), TAGGED),
         said("age", r"\b(?:ho|imam|mam|j'ai|tengo|tenho|jestem|tinc|heb) (\d{2}) ?(?:anni|godina|godine|lat|lata|ans|años|anos|jaar|anys)\b|(?:^|[.!?,\n] *)(?:homme|femme) de (\d{2}) ans\b|^\W*(\d{2}) ?(?:lat|lata|anni|ans|años|anos|godina|jahre)\b", first_age, TAGGED),
         needs(said("age", r"(?:soy|sou|sono|je suis|eu sou)\b[^.!?\n]{0,40}?\b(?:de|di) (\d{2}) (?:años|anos|ans|anni)\b|(?:hoje|agora|ahora|ya) (?:com|con|tengo|tenho) (\d{2}) (?:anos|años)\b|мне (\d{2})\b|(?:main|mai) (\d{2}) (?:saal |sal )?(?:ka|ki) (?:hoon|hu|hun|hoo)\b|ik ben (\d{2})(?: jaar)?\b(?! (?:kg|kilo|cm|euro|keer|minuten|uur))|(\d{2}) yaşındayım\b",
@@ -233,7 +244,7 @@ fn age() -> Vec<Rule> {
         said("age", COUPLED, age_of(&[1]), TAGGED),
         said("age", r"^\W{0,3}(\d{2}) ?(?:y|yr|yrs)\b(?!\s*(?:old|ago|of|later|in|and|or|to|-)\b)", age_of(&[1]), TAGGED),
         said("age", r"(?=\d\d ?y)(?<![\w$#.,'/:+-])(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\bthe )(?<!\bhis )(?<!\bher )(\d{2}) ?(?:y|yr|yrs) (?:guy|girl|man|woman|dude|male|female|bbc|bwc|m|f)\b", age_of(&[1]), sh()),
-        said("age", &format!(r#"^[^\n]{{0,80}}?(?=\d\d)(?<![\w$#£€.,'/:+*-])(?<!\bover )(?<!\bunder )(?<!\bfirst )(?<!\bthan )(?<!\blike )(?<!\bin )(?<!\bat )(?<!\bto )(?<!\bfor )(?<!\bwith )(?<!\bof )(?<!\bmax )(?<!\babout )(?<!\baround )(?<!\blast )(?<!\bnext )(?<!\bevery )(?<!\bonly )(?<!\btop )(?<!\bthe )(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bis )(?<!\bare )(?<!\bwas )(?<!\bby )(?<!\bfrom )(?<!\bafter )(?<!\bsince )(\d{{2}})(?![\w%'/:+*-]|[.,]\d|\s*{UNITS}|\s*(?:-|to|or|and)\s*\d|\s*(?:inch|in\b|\"|”|cm|mm|lbs?|kg|min|mins|k\b|m\b|hr|hrs|yrs? ago|guys|people|men|women|girls|hours|years|nudes|pics|videos|times|days|weeks|months|users|members|followers|upvotes|likes|million|billion|thousand|transactions|trades|dms|messages|followers|1st|2nd|3rd))"#),
+        said("age", &format!(r#"^[^\n]{{0,80}}?(?=\d\d)(?<![\w$#£€.,'/:+*-])(?<!\bover )(?<!\bunder )(?<!\bfirst )(?<!\bthan )(?<!\blike )(?<!\bin )(?<!\bat )(?<!\bto )(?<!\bfor )(?<!\bwith )(?<!\bof )(?<!\bmax )(?<!\babout )(?<!\baround )(?<!\blast )(?<!\bnext )(?<!\bevery )(?<!\bonly )(?<!\btop )(?<!\bthe )(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bis )(?<!\bare )(?<!\bwas )(?<!\bby )(?<!\bfrom )(?<!\bafter )(?<!\bsince )(\d{{2}})(?![\w%'/:+*-]|[.,]\d|\s*{UNITS}|\s*(?:-|to|or|and)\s*\d|\s*(?:inch|in\b|\"|”|cm|mm|lbs?|kg|min|mins|k\b|m\b|hr|hrs|yrs? ago|guys|people|men|women|girls|hours|years|nudes|pics|videos|times|days|weeks|months|users|members|followers|upvotes|likes|million|billion|thousand|transactions|trades|dms|messages|followers|usd|eur|gbp|budget|1st|2nd|3rd))"#),
             |m: &Match| {
                 let text = m.string;
                 let first = &text[..line_end(text, 0)];
@@ -274,13 +285,13 @@ fn gender() -> Vec<Rule> {
         said("gender", PAIRED, table_of(&POSTERS, &[1, 4]), TAGGED),
         said("gender", &format!(r"{IM} (?:(?:also|just|only|still|actually|literally|already|genuinely|honestly|proudly|really|definitely|obviously|basically|simply) )?(?:an? |the )?{ADJECTIVES}{gender_words}\b(?! (?:friend|friends|of|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff|dad|mom|mother|father|parent)\b)(?!'s)"), group(&GENDERS, 1), h()),
         said("gender", &format!(r"{IM} (?:just |only |also |still |actually |literally |really |definitely |obviously |simply |basically )?(?:an? |the |one )(?:{FREE}|[\w'-]+, |and ){{0,6}}?{gender_words}\b(?! (?:friend|friends|enough|up|down|cave|crush|power|bun|time|code|scout|band|group|thing|stuff|dad|mom|mother|father|parent|energy|moment|problem)\b)(?!'s)"), group(&GENDERS, 1), h()),
-        said("gender", &format!(r"^(?:[^\w\[]*\[[^\]\n]*\])*+\W*(?:#\w+\W+)*(?!(?:the|this|that|any|every|a|an|my|your|his|her|our|their)\b)(?:[a-z]+ ){{0,3}}?{gender_words}\b(?= (?:here|looking|seeking|searching|for|4)\b)"), group(&GENDERS, 1), TAGGED),
+        said("gender", &format!(r"^(?:[^\w\[]*\[[^\]\n]*\])*+\W*(?:#\w+\W+)*(?:(?!(?:the|this|that|any|every|a|an|my|your|his|her|our|their|some|dated|date|dating|met|meet|seeing|with|for|looking|seeking|want|wants|need|needs)\b)[a-z]+ ){{0,3}}?{gender_words}\b(?= (?:here|looking|seeking|searching|for|4)\b)"), group(&GENDERS, 1), TAGGED),
         said("gender", &format!(r"{IM} (?:an? )?{FREE}{{0,3}}?in (his|her) (?:early |mid |late )?(?:\d0'?s|teens|twenties|thirties|forties|fifties|sixties|seventies)\b"),
             |m: &Match| m.group(1).map(|g| if eq(g, "his") { "man" } else { "woman" }.to_string()), h()),
         needs(said("gender", r"\b(?:an? |for an? )?(?:[\w'-]+ )?(girl|guy|woman|man|lady|gal|dude|bloke|women|men|ladies|girls|guys|dudes) like (?:me|myself|us)\b|\bhelp an? (?:\w+ )?(girl|gal|guy|dude|lady|bro|sister|sis) out\b",
             alone(table_of(&GENDERS, &[1, 2])), TAGGED), &["like me", "like myself", "like us", "help a"]),
-        said("gender", &format!(r"(?=as )(?<!\byou )(?<!\bhim )(?<!\bher )(?<!\bthem )(?<!\bme )\bas an? (?:fully )?{ADJECTIVES}{gender_words}\b(?!'s| of\b)"), alone(group(&GENDERS, 1)), h()),
-        said("gender", &format!(r"(?:(?:^|[.!?,;:(\n]) *|\b(?:i|me|myself|and|but|so|even)\s+)as an? {FREE}{{1,3}}?{gender_words}\b(?!'s| of\b)"), alone(group(&GENDERS, 1)), h()),
+        said("gender", &format!(r"(?=as )(?<!\byou )(?<!\bhim )(?<!\bher )(?<!\bthem )(?<!\bme )\bas an? (?:fully )?{ADJECTIVES}{gender_words}\b(?!'s| of\b)"), alone(plain(group(&GENDERS, 1))), h()),
+        said("gender", &format!(r"(?:(?:^|[.!?,;:(\n]) *|\b(?:i|me|myself|and|but|so|even)\s+)as an? {FREE}{{1,3}}?{gender_words}\b(?!'s| of\b)"), alone(plain(group(&GENDERS, 1))), h()),
         said("gender", &format!(r"\bbeing an? {FREE}{{0,2}}?{gender_words},? (?:i|i'm|im|myself)\b|(?:^|[.!?\n] *)just (?:an?|your|ur|another|some) {FREE}{{0,3}}?{gender_words}(?: (?:with|who|from|in|trying|looking|that|next|doing|living|and)\b|\s*[.!?…,]|\s*$)"), table_of(&GENDERS, &[1, 2]), h()),
         said("gender", r"i(?<!\wi)(?:'m|m| am) (?:an? \d{2}[ -]?(?:yo|y/o|years?[ -]old|yrs?[ -]old) )?([mf])(?=[\s,.!)/]|$)(?!\s*\*)|^\W*([mf]|male|female)\W*$", table_of(&GENDERS, &[1, 2]), TAGGED),
         said("gender", r"(?:^|[\s,(\]])(milf|hotwife|bull|twink|femboy|cougar|gilf|dilf|domme)(?: here| looking| seeking| loves| needs| wants| for| 4\b)", group(&GENDERS, 1), sh()),
@@ -289,9 +300,11 @@ fn gender() -> Vec<Rule> {
             alone(|m: &Match| if desired(m.string, m.start()) { None } else { get(&GENDERS, m.group(1)) }), sh()),
         said("gender", r"(?:^|\n)[^\S\n]*(?:\\?[-*>]+[^\S\n]*)?(?:\*\*)?(?:\d+\.\s*)?(?:sex or gender|gender|sex)(?: (?:&|and|/) age)?(?:\*\*)?\s*[:=-]\s*(?:\*\*)?\s*(male|female|man|woman|m|f|non-binary|nonbinary)\b", group(&GENDERS, 1), TAGGED),
         said("gender", &format!(r"{IM} (?:also |just |still |actually )?(?:a |an )?(non-binary|nonbinary|enby|genderfluid|agender|genderqueer|trans woman|transwoman|trans girl|trans man|transman|trans guy|mtf|ftm)\b(?! (?:people|rights|friend|kids))"), transgender, h()),
-        said("gender", r"(?:^|(?<=[\s,(\]]))[\(\[]\s*([mf])\s*[\)\]]", group(&GENDERS, 1), TAGGED),
-        said("gender", r"[\(\[](?<![^\s,(\]][\(\[])(?<!\bthe [\(\[])(?<!\ba [\(\[])(?<!\ban [\(\[])\s*(male|female)\s*[\)\]]|i(?<!\wi) \((?:[\w ]+, )?(male|female)\)", mine(table_of(&GENDERS, &[1, 2])), TAGGED),
-        said("gender", r"(?<![\w'])[\(\[]?(female|male|guy|girl|woman|man|dude|lady|f|m)(?: in (?:my |her |his )?(?:early |mid |late )?\d0'?s)? here\b|\bfellow (?:\w+ )?(dude|guy|woman|man|lady|girl|mom|dad) here\b", table_of(&GENDERS, &[1, 2]), TAGGED),
+        said("gender", r"(?:^|(?<=[\s,(\]]))(?<!\bis )(?<!\bwas )(?<!\bsize )[\(\[]\s*([mf])\s*[\)\]]", group(&GENDERS, 1), TAGGED),
+        said("gender", r"[\(\[](?<![^\s,(\]][\(\[])(?<!\bthe [\(\[])(?<!\ba [\(\[])(?<!\ban [\(\[])\s*(male|female)\s*[\)\]]|\b(?:i|me|myself)\s*\((?:an? )?(?:[\w ]+, )?(male|female|guy|girl|man|woman|dude|lady)\)", mine(table_of(&GENDERS, &[1, 2])), TAGGED),
+        said("gender", r"(?=\d\d)(?<![\w$#.,'/:+-])(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\bour )(?<!\btheir )(?<!\bthe )(?<!\ba )(?<!\ban )(\d{2})[ -]?(?:years?[ -]old|yrs?[ -]old|yo|y/o) (male|female|man|woman|guy|girl|dude|lady)\b(?! (?:friend|friends|coworker|patient|client|customer|relative|cousin|neighbor|neighbour)\b)",
+            spoken(|m: &Match| if ages(m.group(1)).is_some() { get(&GENDERS, m.group(2)) } else { None }), sh()),
+        said("gender", r"(?<![\w'])(?<!\bthe )(?<!\bthis )(?<!\bthat )(?<!\bfor )(?<!\bmarried )(?<!\bany )(?<!\bevery )[\(\[]?(female|male|guy|girl|woman|man|dude|lady|f|m)(?: in (?:my |her |his )?(?:early |mid |late )?\d0'?s)? here\b|\bfellow (?:\w+ )?(dude|guy|woman|man|lady|girl|mom|dad) here\b", |m: &Match| if desired(m.string, m.start()) { None } else { get(&GENDERS, either(m, &[1, 2])) }, TAGGED),
         said("gender", r"^\W*\d{2}\s*,?\s+(?:(?:single|married|white|black|asian|latino|latina|hispanic|indian|tall|short|fit|chubby|bi|straight|gay|hung|older|young|discreet|horny|local|cute|shy|sexy|thick|petite|curvy|clean|ddf|attractive|handsome|hot|bicurious|curious|dl|masc|fem|hairy|smooth|bearded|tattooed|inked|muscular|athletic|slim|skinny|average|kinky|naughty|lonely|bored|verbal) )*(male|female|guy|girl|man|woman|dude|lady|queen|king|bbw|milf|stud|bull|twink|femboy|daddy|bro|boy|boi|jock|bear|cub|dad)\b", group(&GENDERS, 1), TAGGED),
         said("gender", r"(?:^|[\s,(\[])(t4[mfat]|ts girl|tgirl|trans girl|transgirl|mtf|ftm|trans guy|transman|transwoman)\b|^\W*(agender|non-?binary|enby|genderfluid|genderqueer)\b|\b(domme|dominatrix|mistress)\b(?= (?:here|looking|seeking|available|for)\b)",
             alone(mine(|m: &Match| {
@@ -308,17 +321,12 @@ fn gender() -> Vec<Rule> {
             })), sh()),
         said("gender", r"(?:^|\n)\W*(?:1[3-9]|[2-9]\d)(?: ?(?:yo|y/o|yrs?(?: old)?|years? old))?[\s,.]+(?:(?!(?:not|no|with|for|to|than|like|and|or|that|who|this|the|my|his|her|your|their|our|a|an|in|on|at|from|about|by|into|of)\b)[a-z'-]+,? ){0,4}?(guy|man|dude|male|boy|lad|bloke|woman|girl|female|lady|gal|chick|twink|femboy|bro|jock|cub|daddy|dad|milf|wife|husband|hubby|mom)\b(?= (?:here|looking|seeking|for|from|in|into|needs?|wants?|with)\b|\s*[,.!]|\s*$)",
             |m: &Match| if AD.test_in(m.string, 0, 300) { get(&GENDERS, m.group(1)) } else { None }, TAGGED),
-        said("gender", TRAILING, table_of(&GENDERS, &[1, 4, 5]), TAGGED),
+        said("gender", TRAILING, |m: &Match| if trailed(m) { get(&GENDERS, either(m, &[1, 4, 5])) } else { None }, TAGGED),
         said("gender", &format!(r"[^\w-](?=[sjiaeymckяاأ])(?:{foreign_self}|(erkeğim|kadınım)(?![\w-]))"), |m: &Match| get(&FOREIGN_GENDERS, m.first()), h()),
         said("gender", &format!(r"^\W*(?:{foreign_self}|(erkeğim|kadınım)(?![\w-])|(vrouw|homme|femme|mujer|hombre|chica|chico|frau|mann|mulher|homem)\W{{1,3}}\d{{2}}\b)"), |m: &Match| get(&FOREIGN_GENDERS, m.first()), h()),
         said("gender", NOUNED, |m: &Match| if OPENED.test(&m.string[..m.start()]) { get(&FOREIGN_GENDERS, m.group(1)) } else { None }, h()),
         said("gender", HOMBRE, |m: &Match| if ages(m.group(1)).is_some() && ROMANCE.test(m.string) && SPEAKER_BEFORE.test(&m.string[..m.start()]) { Some("man".to_string()) } else { None }, TAGGED),
         said("gender", r"\b(?:we|us|we're|we are) (?:as |fellow |other |older |younger |black |white |gay |straight |trans |single |married |tall |short )?(men|women|guys|girls|ladies|dudes|females|males|moms|dads|mothers|fathers|wives|husbands)\b", group(&GENDERS, 1), h()),
-        said("gender", r"i(?<!\wi)(?: have| got|'ve got| ve got|'ve| have got) (?:an? )?(?:[\w-]+,? ){0,3}?(cock|dick|penis|pussy|vagina|clit|tits|boobs|breasts)\b", group(&ANATOMY, 1), h()),
-        said("gender", r"my(?<!\wmy) (?:(?!(?:wife|wifes|husband|hubby|gf|bf|girlfriend|boyfriend|partner|friend|friends|sister|brother|mom|dad|son|daughter|girl|guy|man|woman|lady|ex|and|or|with|in|on|to|your|his|her)\b)[\w-]+,? ){0,3}?(cock|dick|penis|balls|foreskin|bwc|bbc|pussy|vagina|clit|tits|boobs|breasts)\b",
-            |m: &Match| if question(m.string, m.end()) { None } else { get(&ANATOMY, m.group(1)) }, h()),
-        said("gender", r"my(?<!\wmy) (?:\w+ )?(?:period|periods|hysterectomy|c-section|pregnancy|pregnancies|miscarriage|miscarriages|uterus|ovaries|cervix|ovulation|menstrual cycle|menopause|postpartum)\b|i(?<!\wi)(?: had an?| had my| got my|'ve had an?) (?:\w+ )?(?:period|periods|hysterectomy|c-section|pregnancy|pregnancies|miscarriage|miscarriages|uterus|ovaries|cervix|ovulation|menstrual cycle|menopause|postpartum)\b|i(?<!\wi) (?:gave birth|am breastfeeding|'m breastfeeding|breastfeed|am nursing my|'m nursing my|was pregnant|got pregnant|have pcos|have endometriosis)\b|i(?<!\wi)(?:'m|m| am) (?:currently |now |still )?(?:\d{1,2} (?:weeks?|months?) )?pregnant\b",
-            fixed("woman"), h()),
         said("gender", r"^\W*([mf])(?:\s*[|/\\]\s*(?=\w)|\s+(?:for [mf]\b|looking|seeking))", group(&GENDERS, 1), TAGGED),
         said("gender", &pointed, |m: &Match| if ages(m.group(1)).is_some() { get(&GENDERS, m.group(2)) } else { None }, sh()),
         said("gender", COUPLED, |m: &Match| if ages(m.group(1)).is_some() { get(&POSTERS, m.group(2)) } else { None }, TAGGED),
@@ -328,7 +336,7 @@ fn gender() -> Vec<Rule> {
                 let text = m.string;
                 let first = &text[..line_end(text, 0)];
                 let from = (m.end_of(1) as usize - m.start()).min(first.len());
-                if AD.test_in(text, 0, 300) && !LETTER_AFTER.test(&first[from..]) && !GAME.test(text) { get(&GENDERS, m.group(1)) } else { None }
+                if AD.test_in(text, 0, 300) && !LETTER_AFTER.test(&first[from..]) && !GAME.test(text) && !desired(text, m.start_of(1) as usize) { get(&GENDERS, m.group(1)) } else { None }
             }, TAGGED),
     ]
 }
@@ -364,11 +372,11 @@ fn ethnicity() -> Vec<Rule> {
     };
     vec![
         said("ethnicity", &format!(r"{IM} [^.!?\n;]{{0,40}}?(?:,\s*(?:and\s+)?|\s+and\s+)({joined})(?=\s*(?:[,.!;&/)]|and\b|$))"), listed(group(&ETHNICITIES, 1)), sh()),
-        said("ethnicity", &format!(r"{IM} (?:an? (?:(?!(?:non|not|honorary|fan|huge|big|{ethnic_names})\b){FREE}){{0,5}}|half |half-|also |\d{{2}},? )?({joined})(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself|lady)|-american)?(?=$|[\s.,!;:)])(?! (?:people|folks|neighborhood|area|community|friends|culture|food|music|history|kids|family)\b)"), group(&ETHNICITIES, 1), h()),
-        said("ethnicity", &format!(r"(?=as )(?<!\bsuch )(?<!\bsame )(?<!\bdressed )(?<!\btreated )(?<!\bseen )\bas an? (?:(?!(?:non|not|honorary|{ethnic_names})\b)\w+ )?({joined})\b(?! (?:people|folks|community|communities|culture|food|neighborhood|area|country|family|friend|friends|men|women|guys|girls|kids|person's)\b)(?!'s)"), group(&ETHNICITIES, 1), h()),
+        said("ethnicity", &format!(r"{IM} (?:an? (?:(?!(?:non|not|honorary|fan|huge|big|{ethnic_names})\b){FREE}){{0,5}}|half |half-|also |\d{{2}},? )?({joined})(?: (?:man|woman|guy|girl|person|male|female|dude|american|myself|lady)|-american)?(?=$|[\s.,!;:)])(?! (?:people|folks|neighborhood|area|community|friends|culture|food|music|history|kids|family|bag|over|about|feelings|up|with)\b)"), group(&ETHNICITIES, 1), h()),
+        said("ethnicity", &format!(r"(?=as )(?<!\bsuch )(?<!\bsame )(?<!\bdressed )(?<!\btreated )(?<!\bseen )\bas an? (?:(?!(?:non|not|honorary|{ethnic_names})\b)\w+ )?({joined})\b(?!-)(?! (?:people|folks|community|communities|culture|food|neighborhood|area|country|family|friend|friends|men|women|guys|girls|kids|person's)\b)(?!'s)"), group(&ETHNICITIES, 1), h()),
         said("ethnicity", &format!(r"(?:i(?<!\wi)(?:'m|m| am)|a(?<!\wa)s) (?:just |also |only )?(?:a |an )?(?:(?!\w+ing\b){FREE}|an? ){{0,4}}?({joined}) (?:man|woman|guy|girl|person|male|female|dude|american|lady|mom|dad|mother|father|kid|teen|boy|bro|immigrant|canadian|british|australian|bottom|top|chub|bear|daddy|stud|bull|twink|femboy)\b"), group(&ETHNICITIES, 1), sh()),
         said("ethnicity", &format!(r"\b(?:i'm|im|i am|as an?|a)? ?half[- ]({joined})[,/ ]+(?:and )?half[- ]({joined})\b|\bethnically (?:{joined}) ?(?:/|and|&) ?(?:{joined})\b"), fixed("mixed"), h()),
-        said("ethnicity", r"\bwe (black|white|asian|latina|latino|hispanic|indian|desi|arab|indigenous|native) (?:women|men|people|folks|girls|guys)\b|\b(?:soy|sou|je suis) (?:una? (?:mujer|hombre|chica|chico|homem|mulher) |uma? (?:mulher|homem) |une? (?:femme|homme|fille|mec) )?(latino|latina|negro|negra|blanco|blanca|branco|branca|preto|preta|blanc|blanche|noir|noire)\b|\b(white) ?boi\b|\b(?:i'm|im|i am|i m) (?:(?!(?:not|so|very|too|pretty|a|an|the|all|just|also|still|really|more|less|half|like|fully|mostly|part)\b)[a-z]+ )?(?<!\beast )(?<!\bsouth )(?<!\bsoutheast )(black|white|asian|latina|latino|hispanic|mixed|biracial|desi)(?=$|[\s.,!;:)])(?! (?:people|folks|neighborhood|area|community|friends|culture|food|music|history|kids|family|and \w+ing)\b)",
+        said("ethnicity", r"\bwe (black|white|asian|latina|latino|hispanic|indian|desi|arab|indigenous|native) (?:women|men|people|folks|girls|guys)\b|\b(?:soy|sou|je suis) (?:una? (?:mujer|hombre|chica|chico|homem|mulher) |uma? (?:mulher|homem) |une? (?:femme|homme|fille|mec) )?(latino|latina|negro|negra|blanco|blanca|branco|branca|preto|preta|blanc|blanche|noir|noire)\b|\b(white) ?boi\b|\b(?:i'm|im|i am|i m) (?:(?!(?:not|so|very|too|pretty|a|an|the|all|just|also|still|really|more|less|half|like|fully|mostly|part)\b)[a-z]+ )?(?<!\beast )(?<!\bsouth )(?<!\bsoutheast )(black|white|asian|latina|latino|hispanic|mixed|biracial|desi)(?=$|[\s.,!;:)])(?! (?:people|folks|neighborhood|area|community|friends|culture|food|music|history|kids|family|bag|over|about|feelings|up|with|and \w+ing)\b)",
             |m: &Match| {
                 let word = m.first()?;
                 fixed_map(&[("negro", "black"), ("negra", "black"), ("preto", "black"), ("preta", "black"), ("noir", "black"), ("noire", "black"), ("blanco", "white"), ("blanca", "white"), ("branco", "white"), ("branca", "white"), ("blanc", "white"), ("blanche", "white"), ("native", "indigenous")], word)
@@ -377,7 +385,7 @@ fn ethnicity() -> Vec<Rule> {
         said("ethnicity", &format!(r"^(?:[^\w\[]*\[[^\]\n]*\])*+\W*(?:#\w+\W+)*(?:[a-z]+ ){{0,2}}?({joined}) (?:[a-z]+ ){{0,2}}?(?:girl|guy|woman|man|boy|boi|bro|lady|gal|chick|dude|male|female|milf|mom|wife|dad|daddy|bottom|top|sub|dom|twink|femboy|bull|stud|slut|babe|teen|queen|king|bbw|cuck|couple|body|bod|ass|booty|butt|tits|boobs)\b(?! (?:\w+ )?(?:cock|dick))(?=(?: \w+)? (?:here|looking|seeking|wanting|needing|for|ready|with|needs|wants|available)\b|\s*[,.!]|\s*$)"), group(&ETHNICITIES, 1), TAGGED),
         needs(said("ethnicity", r"here\b(?<=\bhere)", |m: &Match| HAILED.search(m.string, m.start().saturating_sub(40), m.start()).and_then(|named| get(&ETHNICITIES, named.group(1))), h()), &anchors),
         needs(said("ethnicity", r"like(?<=\blike) (?:me|myself|us)\b", |m: &Match| ALIKE.search(m.string, m.start().saturating_sub(50), m.start()).and_then(|named| get(&ETHNICITIES, named.group(1))), TAGGED), &anchors),
-        said("ethnicity", &format!(r#"(?<![\w.'\"/$#%+:-]){stat}{STAT_GAP}(?:(?!(?:non|not|and|or|to|with|for|of|in|at|from|south|east|southeast|middle|native|pacific|half|long|short|dark|light)\b)[a-z]+ )?({ethnic_names})(?![\w-])(?!\s*/\s*(?:{ethnic_names})\b| (?:{ethnic_names}|hair|eyes|skin|haired|eyed|skinned)\b)(?! (?:\w+ ){{0,2}}(?:guys|girls|women|men|ladies|people|couples|cock|dick|cocks|dicks|tops|bottoms|bulls|only|preferred|pref)\b)"#),
+        said("ethnicity", &format!(r#"(?<![\w.'\"/$#%+:-]){stat}{STAT_GAP}(?:(?!(?:non|not|and|or|to|with|for|of|in|at|from|the|a|an|my|your|his|her|their|our|south|east|southeast|middle|native|pacific|half|long|short|dark|light)\b)[a-z]+ )?({ethnic_names})(?![\w-])(?! (?:\w+ )?{PARTNERS})(?!\s*/\s*(?:{ethnic_names})\b| (?:{ethnic_names}|hair|eyes|skin|haired|eyed|skinned)\b)(?! (?:\w+ ){{0,2}}(?:guys|girls|women|men|ladies|people|couples|cock|dick|cocks|dicks|tops|bottoms|bulls|only|preferred|pref)\b)"#),
             alone(|m: &Match| if desired(m.string, m.start_of(1) as usize) { None } else { get(&ETHNICITIES, m.group(1)) }), TAGGED),
         said("ethnicity", &format!(r#"(?:^|[\n,|]|\s-)\s*({ethnic_names})(?![\w-])(?!\s*/\s*(?:{ethnic_names})\b){STAT_GAP}{stat}(?![\w'\"%])"#),
             alone(|m: &Match| if desired(m.string, m.start_of(1) as usize) { None } else { get(&ETHNICITIES, m.group(1)) }), TAGGED),
@@ -507,7 +515,7 @@ fn hair_color() -> Vec<Rule> {
 }
 
 pub fn force() {
-    for re in [&HANDICAP, &BUMP, &RETURNED, &OPENED_LINE, &TWO_DIGITS, &LETTER_AFTER, &SPEAKER_BEFORE, &NONSPACE, &POINTER, &ARROW, &ROMANCE, &OPENED, &BORN, &CONFESSED, &CURIOUSLY, &ASIDE, &HAILED, &ALIKE] {
+    for re in [&LEADING_OK, &LIKENED, &HANDICAP, &BUMP, &RETURNED, &OPENED_LINE, &TWO_DIGITS, &LETTER_AFTER, &SPEAKER_BEFORE, &NONSPACE, &POINTER, &ARROW, &ROMANCE, &OPENED, &BORN, &CONFESSED, &CURIOUSLY, &ASIDE, &HAILED, &ALIKE] {
         LazyLock::force(re);
     }
     LazyLock::force(&FOREIGN_GENDERS);

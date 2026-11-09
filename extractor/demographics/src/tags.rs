@@ -3,7 +3,7 @@ use claimcore::*;
 use std::sync::LazyLock;
 
 static SPOKEN: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W*(?:i'm|im|i am)\b"));
-static MEASURE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*(?:(?!in\b){UNITS}\b|\d{{1,2}}\s?s\b|(?:a|per) (?:year|season|week|month)\b|away\b)")));
+static MEASURE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*(?:(?!in\b){UNITS}\b|\d{{1,2}}\s?s\b|(?:a|per) (?:year|season|week|month)\b|away\b|(?:fee|fees|deal|transfer|contract|budget|views|plays|streams|subscribers|followers)\b)")));
 static HERE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W{0,2}(?:here|hmu|lmk|dm me)\b"));
 static THIS_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bthis $"));
 static MY_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bmy\s?[\(\[]$"));
@@ -18,10 +18,27 @@ static HAIR_HINT: LazyLock<Re> = LazyLock::new(|| Re::new(r"hair|blond|brunette|
 static BALD_PART: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:\w+\s+)?(?:pussy|cunt|cock|dick|balls|penis|vagina|kitty|snatch|ass|asshole|hole|crotch|pubes|pubic|groin|mound|taint|tires?|eagle|spot|spots|patch|patches|head of|lie)\b"));
 static BALD_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:[,;|/)\n.!&+]|$|and\b|with\b|w/|(?:\w+ )?(?:guy|man|dude|male|daddy|dad|bear|head|headed|white|black|asian|latino|bearded|chubby|fat|bi|gay|straight|married|top|bottom|here|m|f)\b)"));
 static BALD_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:go|going|gone|goes|went|to|be|being|getting|get|gets|or|keep|keeping|turn|turning|almost|half|partially|not|never|starting)\W+$"));
+static DEGREES: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:\(\s*-?\d|°|degrees\b)|\s+(?:there|outside|inside|indoors)\b"));
+static FLAIR: LazyLock<Re> = LazyLock::new(|| Re::new(r"^(?:r/\w+:\s*)?([^\n?]{1,60})$"));
+static FLAIR_WORD: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![\w-])(non[- ]?binary|enby|agender|genderfluid|genderqueer|demigirl|demiboy|bigender|transfem|transmasc|trans (?:woman|girl|man|guy|frau)|transwoman|transman|mtf|ftm|male|female|lesbian|gay|bisexual|bi|pansexual|asexual|aroace|queer|demisexual|omnisexual|sapphic)(?![\w-])"));
+static FLAIR_TOKEN: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\W\d_]+"));
+static FLAIR_FILLER: LazyLock<Re> = LazyLock::new(|| Re::new(r"^(?:non|binary|enby|agender|genderfluid|genderqueer|demigirl|demiboy|bigender|transfem|transmasc|trans|transgender|woman|girl|man|guy|frau|transwoman|transman|mtf|ftm|male|female|lesbian|gay|bisexual|bi|pansexual|asexual|aroace|ace|aro|queer|demisexual|omnisexual|sapphic|fem|femme|masc|cis|he|him|his|she|her|they|them|it|its|any|all|pronouns|xe|xem|flag|pride|irl|lurker|and|or|also|proud|i|im|m|am)$"));
+static FLAIR_GENDERS: LazyLock<Table> = LazyLock::new(|| table(&[
+    ("nonbinary", "nonbinary"), ("non-binary", "nonbinary"), ("non binary", "nonbinary"), ("enby", "nonbinary"), ("agender", "agender"), ("genderfluid", "genderfluid"), ("genderqueer", "genderqueer"),
+    ("demigirl", "demigirl"), ("demiboy", "demiboy"), ("bigender", "bigender"), ("transfem", "transfem"), ("transmasc", "transmasc"), ("trans woman", "trans woman"), ("trans girl", "trans woman"),
+    ("trans frau", "trans woman"), ("transwoman", "trans woman"), ("mtf", "trans woman"), ("trans man", "trans man"), ("trans guy", "trans man"), ("transman", "trans man"), ("ftm", "trans man"),
+    ("male", "man"), ("female", "woman"),
+]));
+static FLAIR_ORIENTATIONS: LazyLock<Table> = LazyLock::new(|| table(&[
+    ("lesbian", "lesbian"), ("gay", "gay"), ("bisexual", "bisexual"), ("bi", "bisexual"), ("pansexual", "pansexual"), ("asexual", "asexual"), ("aroace", "asexual"), ("queer", "queer"),
+    ("demisexual", "demisexual"), ("omnisexual", "omnisexual"), ("sapphic", "sapphic"),
+]));
 static CROWD_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r" (?:\w+ ){{0,2}}{CROWD}")));
 
 pub fn force() {
-    for re in [&SPOKEN, &MEASURE_AFTER, &HERE_AFTER, &THIS_BEFORE, &MY_BEFORE, &AGE_BEFORE, &UNIT_AFTER, &ADDRESSED, &LEADING_AGE, &LEADING_TAG, &RANGE_AFTER, &CROWD_AFTER, &BODILY, &HAIR_HINT, &BALD_PART, &BALD_AFTER, &BALD_BEFORE] {
+    LazyLock::force(&FLAIR_GENDERS);
+    LazyLock::force(&FLAIR_ORIENTATIONS);
+    for re in [&FLAIR, &FLAIR_WORD, &FLAIR_TOKEN, &FLAIR_FILLER, &DEGREES, &SPOKEN, &MEASURE_AFTER, &HERE_AFTER, &THIS_BEFORE, &MY_BEFORE, &AGE_BEFORE, &UNIT_AFTER, &ADDRESSED, &LEADING_AGE, &LEADING_TAG, &RANGE_AFTER, &CROWD_AFTER, &BODILY, &HAIR_HINT, &BALD_PART, &BALD_AFTER, &BALD_BEFORE] {
         LazyLock::force(re);
     }
 }
@@ -85,26 +102,15 @@ fn looking(lowered: &[char], automatic: bool, found: &mut Found) {
         if let Some(age) = &age {
             found.set("age", age, start);
         }
-        let poster = m.group(2).unwrap_or(&[]);
-        let extra = m.nonempty(3).is_some();
-        let target = m.group(4).unwrap_or(&[]);
-        if !automatic && eq(poster, "m") && !extra && eq(target, "m") && !CURIOUS.test_in(lowered, 0, 1500) {
-            found.set("sexual_orientation", "gay", start);
-        }
-        if !automatic && age.is_some() && (eq(poster, "m") || eq(poster, "f")) && !extra {
-            let (other, opposite) = if eq(poster, "m") { ("f", &*OPPOSITE_M) } else { ("m", &*OPPOSITE_F) };
-            if eq(target, other) && !QUEER.test_in(lowered, 0, 1500) && opposite.test_in(lowered, m.end(), 1500) {
-                found.set("sexual_orientation", "straight", start);
-            }
-        }
     }
 }
 
 fn aged(lowered: &[char], automatic: bool, found: &mut Found) {
     let Some(paired) = PAIR.find(lowered) else { return };
-    for m in AGED.iter_in(lowered, paired.start().saturating_sub(8), lowered.len()) {
+    let played = GAME.find(lowered).map_or(lowered.len(), |m| m.start());
+    for m in AGED.iter_in(lowered, paired.start().saturating_sub(8), played) {
         let start = m.start();
-        if m.group(2).map_or(false, |g| eq(g, "m")) && MEASURE_AFTER.at(&lowered[m.end()..], 0).is_some() {
+        if (m.group(2).map_or(false, |g| eq(g, "m")) && MEASURE_AFTER.at(&lowered[m.end()..], 0).is_some()) || DEGREES.at(&lowered[m.end()..], 0).is_some() {
             continue;
         }
         let (age, letter) = if m.nonempty(1).is_some() { (m.group(1), m.group(2)) } else { (m.group(4), m.group(3)) };
@@ -151,8 +157,29 @@ fn haired(lowered: &[char], strict: bool, found: &mut Found) {
     }
 }
 
+fn flaired(lowered: &[char], found: &mut Found) {
+    let Some(flair) = FLAIR.at(lowered, 0) else { return };
+    let (start, end) = flair.span(1).unwrap();
+    let tokens: Vec<_> = FLAIR_TOKEN.iter_in(lowered, start, end).collect();
+    if tokens.len() > 5 || tokens.iter().any(|token| !FLAIR_FILLER.test(token.text())) {
+        return;
+    }
+    for m in FLAIR_WORD.iter_in(lowered, start, end) {
+        let word = st(m.group(1).unwrap());
+        if let Some(value) = FLAIR_GENDERS.get(&word) {
+            found.set("gender", *value, m.start());
+        }
+        if let Some(value) = FLAIR_ORIENTATIONS.get(&word) {
+            found.set("sexual_orientation", *value, m.start());
+        }
+    }
+}
+
 pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
     crate::traits::listed(lowered, found);
+    if !BOT_TEXT.test(lowered) {
+        flaired(lowered, found);
+    }
     if !DIGIT.test(lowered) && SPOKEN.at(lowered, 0).is_none() {
         return;
     }
@@ -220,7 +247,7 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
             let (s1, e1) = m.span(1).unwrap();
             let word = m.group(1).unwrap();
             let before_word = before(lowered, s1, 24);
-            if (STURDY.contains(st(word).as_str()) || !(GIRTH.test(before_word) || PHALLIC.at(lowered, e1).is_some())) && !PARTY.test(before_word) && !desired(lowered, s1) {
+            if (STURDY.contains(st(word).as_str()) || !(GIRTH.test(before_word) || PHALLIC.at(lowered, e1).is_some())) && !PARTY.test(before_word) && !desired(lowered, s1) && !THIRD.test(tail_sentence(lowered, s1, 80)) {
                 if let Some(value) = bodied(lowered, s1, word) {
                     found.set("body_type", value, m.start());
                 }
@@ -230,6 +257,7 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
             let (s1, e1) = m.span(1).unwrap();
             let word = m.group(1).unwrap();
             if !WANTED.test_in(lowered, m.start().saturating_sub(20), m.start())
+                && !THIRD.test(tail_sentence(lowered, s1, 80))
                 && (STURDY.contains(st(word).as_str()) || !(GIRTH.test(before(lowered, s1, 24)) || PHALLIC.at(lowered, e1).is_some()))
                 && !desired(lowered, s1)
             {
@@ -254,7 +282,7 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
             let start = m.start();
             let Some(inches) = m.nonempty(2).or(m.nonempty(3)) else { continue };
             let inches = int(inches);
-            if inches < 12
+            if inches < 12 && int(m.group(1).unwrap()) * 12 + inches <= 86
                 && (owned(lowered, start) || FIRST.test(sentence(lowered, start, m.end())) || WEIGHED.test(line(lowered, start)))
                 && !desired(lowered, start)
                 && !COMPARED.test(tail_sentence(lowered, start, 25))
@@ -267,7 +295,7 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
         if tagged && !automatic {
             for m in ORIENTED.iter_in(lowered, 0, 1500) {
                 let start = m.start();
-                if !desired(lowered, start) && !PARTY.test(before(lowered, start, 24)) && CROWD_AFTER.at(&lowered[m.end()..], 0).is_none() {
+                if !desired(lowered, start) && !PARTY.test(before(lowered, start, 24)) && !THIRD.test(tail_sentence(lowered, start, 80)) && CROWD_AFTER.at(&lowered[m.end()..], 0).is_none() {
                     if let Some(value) = get(&ORIENTATIONS, m.group(1)) {
                         found.set("sexual_orientation", value, start);
                     }
@@ -277,19 +305,12 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
         if signed {
             for m in ETHNIC.iter(lowered) {
                 let start = m.start();
-                if !PARTY.test(before(lowered, start, 24)) && !desired(lowered, start) {
+                if !PARTY.test(before(lowered, start, 24)) && !desired(lowered, start) && !THIRD.test(tail_sentence(lowered, start, 80)) {
                     let key = either(&m, &[1, 2]).map(st).unwrap_or_default();
                     let value = ETHNICITIES.get(&key).or_else(|| m.group(2).and_then(|g| COLORS.get(&st(g))));
                     if let Some(value) = value {
                         found.set("ethnicity", *value, start);
                     }
-                }
-            }
-            for m in HUNG.iter(lowered) {
-                let start = m.start();
-                if owned(lowered, start) && !PARTY.test(before(lowered, start, 24)) && !desired(lowered, start) {
-                    let value = if eq(m.group(1).unwrap(), "bwc") { "white" } else { "black" };
-                    found.set("ethnicity", value, start);
                 }
             }
         }
@@ -303,7 +324,7 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
         for m in STATURE.iter_in(lowered, 0, played) {
             let start = m.start();
             let inches = m.nonempty(2).or(m.nonempty(3)).map_or(0, int);
-            if inches < 12 && !FOREIGN.test(tail_sentence(lowered, start, 25)) {
+            if inches < 12 && int(m.group(1).unwrap()) * 12 + inches <= 86 && !FOREIGN.test(tail_sentence(lowered, start, 25)) {
                 found.set("height", height(m.group(1).unwrap(), inches), start);
             }
         }
