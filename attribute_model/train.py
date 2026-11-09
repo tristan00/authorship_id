@@ -17,7 +17,7 @@ from .data import load
 from .evaluate import DEVICE, collect, probabilities, report
 from .model import AttributeModel, specifications
 
-INPUTS = ("users", "subreddits", "weights")
+INPUTS = ("users", "subreddits", "weights", "activity")
 
 
 def score(model, inputs, labels, specs, batch=2048):
@@ -190,16 +190,13 @@ def run_epochs(model, rows, parameters, loss_of, validate):
     return best, history
 
 
+def architecture(parameters, manifest):
+    return {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank", "activity")}, "features": manifest["features"], "subreddits": len(manifest["subreddits"]) + 1}
+
+
 @timed
-def train(directory, output, targets, parameters=PARAMETERS):
-    targets = validate(targets)
+def finish(model, manifest, specs, data, parameters, best, history, output):
     output = Path(output)
-    torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
-    torch.manual_seed(SEED)
-    manifest, specs, data = load_data(directory, targets)
-    architecture = {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}, "features": manifest["features"], "subreddits": len(manifest["subreddits"]) + 1}
-    model = AttributeModel(targets, specs, **architecture).to(DEVICE)
-    best, history = fit(model, specs, data, parameters)
     authors = {name: len(split[1]) for name, split in data.items()}
     del data["train"]
     calibration = calibrate(model, *data["calibration"][:2], specs)
@@ -207,9 +204,9 @@ def train(directory, output, targets, parameters=PARAMETERS):
     for name, fields in evaluation.items():
         LOG.info("attribute model test %s %s", name, json.dumps(fields))
     model_id = str(uuid.uuid4())
-    artifact = {"model_id": model_id, "targets": targets, "specifications": specs, "architecture": architecture, "subreddits": manifest["subreddits"], "parameters": parameters, "model": {name: value.cpu() for name, value in model.state_dict().items()},
-                "calibration": calibration, "evaluation": evaluation, "history": history, "validation_score": best, "source": manifest["source"],
-                "authors": authors, "splits": SPLITS}
+    artifact = {"model_id": model_id, "targets": manifest["targets"], "specifications": specs, "architecture": architecture(parameters, manifest), "subreddits": manifest["subreddits"], "parameters": parameters,
+                "model": {name: value.cpu() for name, value in model.state_dict().items()}, "calibration": calibration, "evaluation": evaluation, "history": history, "validation_score": best,
+                "source": manifest["source"], "authors": authors, "splits": SPLITS}
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -220,4 +217,15 @@ def train(directory, output, targets, parameters=PARAMETERS):
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    return {"model": str(output), "model_id": model_id, "validation_score": best, "evaluation": evaluation}
+    return {"model": str(output), "model_id": model_id, "parameters": parameters, "validation_score": best, "evaluation": evaluation}
+
+
+@timed
+def train(directory, output, targets, parameters=PARAMETERS):
+    targets = validate(targets)
+    torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
+    torch.manual_seed(SEED)
+    manifest, specs, data = load_data(directory, targets)
+    model = AttributeModel(targets, specs, **architecture(parameters, manifest)).to(DEVICE)
+    best, history = fit(model, specs, data, parameters)
+    return finish(model, manifest, specs, data, parameters, best, history, output)

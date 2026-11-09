@@ -10,11 +10,17 @@ from database import client
 from . import LOG, timed
 from .config import SUBREDDIT_AUTHORS, SUBREDDITS_PER_AUTHOR
 
-TABLE = ("CREATE TABLE author_subreddits_next (author String CODEC(ZSTD(1)), subreddits Array(String) CODEC(ZSTD(1)), counts Array(UInt32) CODEC(ZSTD(1))) "
-         "ENGINE = MergeTree ORDER BY author")
-FILL = ("INSERT INTO author_subreddits_next SELECT author, arrayMap(pair -> pair.1, picked), arrayMap(pair -> pair.2, picked) FROM "
+HOURS = 24
+WEEKDAYS = 7
+ACTIVITY = HOURS + WEEKDAYS + 2
+TABLE = ("CREATE TABLE author_subreddits_next (author String CODEC(ZSTD(1)), subreddits Array(String) CODEC(ZSTD(1)), counts Array(UInt32) CODEC(ZSTD(1)), "
+         "hours Array(UInt32) CODEC(ZSTD(1)), weekdays Array(UInt32) CODEC(ZSTD(1)), posts UInt32 CODEC(ZSTD(1))) ENGINE = MergeTree ORDER BY author")
+FILL = ("INSERT INTO author_subreddits_next SELECT author, arrayMap(pair -> pair.1, picked), arrayMap(pair -> pair.2, picked), hours, weekdays, posts FROM "
         f"(SELECT author, arraySlice(arraySort(pair -> (-pair.2, pair.1), groupArray((subreddit, toUInt32(texts)))), 1, {SUBREDDITS_PER_AUTHOR}) AS picked FROM "
-        f"(SELECT author, subreddit, count() AS texts FROM records WHERE {{where}} AND author NOT IN {EXCLUDED} GROUP BY author, subreddit) GROUP BY author)")
+        f"(SELECT author, subreddit, count() AS texts FROM records WHERE {{where}} AND author NOT IN {EXCLUDED} GROUP BY author, subreddit) GROUP BY author) AS s INNER JOIN "
+        f"(SELECT author, sumForEach(arrayMap(h -> toUInt32(toHour(created_utc) = h), range({HOURS}))) AS hours, "
+        f"sumForEach(arrayMap(d -> toUInt32(toDayOfWeek(created_utc) = d), range(1, {WEEKDAYS + 1}))) AS weekdays, toUInt32(countIf(record_type = 'post')) AS posts "
+        f"FROM records WHERE {{where}} AND author NOT IN {EXCLUDED} GROUP BY author) AS a USING author")
 
 
 @timed
@@ -52,3 +58,15 @@ def bags(names, counts, known):
     ids[parent[seen], slot[seen]] = found[seen] + 1
     weights[parent[seen], slot[seen]] = np.log1p(pc.list_flatten(counts).to_numpy()[seen])
     return ids, weights
+
+
+def matrix(values, width):
+    return pc.list_flatten(values).to_numpy(zero_copy_only=False).reshape(-1, width).astype(np.float32)
+
+
+def activity(hours, weekdays, posts):
+    hours, weekdays = matrix(hours, HOURS), matrix(weekdays, WEEKDAYS)
+    total = hours.sum(1, keepdims=True)
+    if (total < 1).any():
+        raise ValueError("Every author needs at least one counted text")
+    return np.hstack([hours / total, weekdays / total, np.log1p(total), np.asarray(posts, dtype=np.float32)[:, None] / total])

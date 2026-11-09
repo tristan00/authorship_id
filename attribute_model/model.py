@@ -6,6 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .config import DEFAULTS, validate
+from .features import ACTIVITY
 
 
 class Block(nn.Module):
@@ -32,7 +33,7 @@ class LabelEmbedding(nn.Module):
 
 
 class AttributeModel(nn.Module):
-    def __init__(self, targets, specifications, width, depth, expand, dropout, rank, features, subreddits):
+    def __init__(self, targets, specifications, width, depth, expand, dropout, rank, activity, features, subreddits):
         super().__init__()
         targets = validate(targets)
         if [spec["name"] for spec in specifications] != list(targets) or any(spec["type"] != targets[spec["name"]] for spec in specifications):
@@ -40,6 +41,7 @@ class AttributeModel(nn.Module):
         self.specifications = specifications
         self.input = nn.Linear(features["dimensions"], width)
         self.subreddits = nn.Embedding(subreddits, width, padding_idx=0)
+        self.activity = nn.Linear(ACTIVITY, width) if activity else None
         self.blocks = nn.Sequential(*(Block(width, expand, dropout) for _ in range(depth)))
         self.norm = nn.LayerNorm(width)
         self.numeric, self.categorical, self.embedding = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical", "embedding"))
@@ -61,25 +63,25 @@ class AttributeModel(nn.Module):
                 self.head.bias[slice(*self.slices[index])] = torch.tensor(specifications[index]["prior"]).log()
             for slot, index in enumerate(self.embedding):
                 self.embeddings[slot].bias.copy_(torch.tensor(specifications[index]["prior"]).log())
-        widest = max((len(specifications[index]["values"]) for index in self.categorical), default=1)
-        positions = [row * widest + offset for row, index in enumerate(self.categorical) for offset in range(len(specifications[index]["values"]))]
         buffers = {"numeric_targets": torch.tensor(self.numeric, dtype=torch.long), "categorical_targets": torch.tensor(self.categorical, dtype=torch.long),
-                   "numeric_columns": torch.tensor([self.slices[index][0] for index in self.numeric], dtype=torch.long), "positions": torch.tensor(positions, dtype=torch.long),
+                   "numeric_columns": torch.tensor([self.slices[index][0] for index in self.numeric], dtype=torch.long),
                    "center": torch.tensor([specifications[index]["center"] for index in self.numeric], dtype=torch.float32),
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
                    "weight": (stated := torch.tensor([float(spec["stated_labels"]) for spec in specifications])) / stated.mean(),
                    "shift": torch.tensor(features["center"], dtype=torch.float32),
-                   "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32)}
+                   "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32),
+                   "activity_shift": torch.tensor(features["activity_center"], dtype=torch.float32),
+                   "activity_factor": 1 / torch.tensor(features["activity_spread"], dtype=torch.float32)}
         for name, value in buffers.items():
             self.register_buffer(name, value, persistent=False)
-        self.widest = widest
-        self.first_categorical = int(offsets[len(self.numeric)])
 
-    def forward(self, vectors, ids, weights):
+    def forward(self, vectors, ids, weights, activity):
         weights = weights.float()
-        bag = (self.subreddits(ids) * weights[..., None]).sum(1) / weights.sum(1, keepdim=True).clamp_min(1)
-        return self.norm(self.blocks(self.input((vectors.float() - self.shift) * self.factor) + bag))
+        hidden = self.input((vectors.float() - self.shift) * self.factor) + (self.subreddits(ids) * weights[..., None]).sum(1) / weights.sum(1, keepdim=True).clamp_min(1)
+        if self.activity is not None:
+            hidden = hidden + self.activity((activity.float() - self.activity_shift) * self.activity_factor)
+        return self.norm(self.blocks(hidden))
 
     def outputs(self, hidden):
         flat = self.head(hidden)
@@ -108,10 +110,8 @@ class AttributeModel(nn.Module):
             loss = (normalized - flat[:, self.numeric_columns]).abs()
             sums[self.numeric_targets] = (loss * present[:, self.numeric_targets]).sum(0)
         if self.categorical:
-            padded = torch.full((len(flat), len(self.categorical) * self.widest), -math.inf, device=flat.device)
-            padded = padded.index_copy(1, self.positions, flat[:, self.first_categorical:]).view(len(flat), len(self.categorical), self.widest)
-            nll = -padded.log_softmax(-1).gather(2, filled[:, self.categorical_targets].long()[..., None]).squeeze(2)
-            sums[self.categorical_targets] = (nll * present[:, self.categorical_targets]).sum(0)
+            nll = [(F.cross_entropy(flat[:, slice(*self.slices[index])], filled[:, index].long(), reduction="none") * present[:, index]).sum() for index in self.categorical]
+            sums = sums.index_copy(0, self.categorical_targets, torch.stack(nll))
         for slot, index in enumerate(self.embedding):
             rows = torch.arange(len(flat), device=flat.device) if capacity is None else torch.argsort((~present[:, index]).byte(), stable=True)[:capacity[slot]]
             nll = F.cross_entropy(self.embeddings[slot](hidden[rows]).float(), filled[rows, index].long(), reduction="none")

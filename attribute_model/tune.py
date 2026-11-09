@@ -5,45 +5,34 @@ import time
 import torch
 
 from . import LOG, timed, write_json
-from .config import GPU_MEMORY, PARAMETERS, SEED, TUNE_ROUNDS, TUNE_SPACE, TUNE_TRIALS
+from .config import GPU_MEMORY, PARAMETERS, SEED, TUNE_SPACE, TUNE_TRIALS, validate
 from .model import AttributeModel
-from .train import DEVICE, fit, load_data
-
-
-def architecture(parameters, manifest):
-    return {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}, "features": manifest["features"], "subreddits": len(manifest["subreddits"]) + 1}
-
-
-def attempt(targets, manifest, specs, data, parameters, epochs):
-    torch.manual_seed(SEED)
-    model = AttributeModel(targets, specs, **architecture(parameters, manifest)).to(DEVICE)
-    try:
-        return fit(model, specs, data, {**parameters, "epochs": epochs})[0]
-    finally:
-        del model
-        torch.cuda.empty_cache()
+from .train import DEVICE, architecture, finish, fit, load_data
 
 
 @timed
-def tune(targets, directory, out):
+def tune(targets, directory, account, output):
+    targets = validate(targets)
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
-    out.parent.mkdir(parents=True, exist_ok=True)
+    account.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random(SEED)
     manifest, specs, data = load_data(directory, targets)
     trials = [PARAMETERS] + [{**PARAMETERS, **{key: rng.choice(values) for key, values in TUNE_SPACE.items()}} for _ in range(TUNE_TRIALS - 1)]
-    started, history = time.perf_counter(), []
-    for round_number, epochs in enumerate(TUNE_ROUNDS):
-        scored = []
-        for parameters in trials:
-            tick = time.perf_counter()
-            score = attempt(targets, manifest, specs, data, parameters, epochs)
-            scored.append((score, parameters))
-            history.append({"round": round_number, "epochs": epochs, "score": score, "parameters": parameters, "seconds": time.perf_counter() - tick})
-            LOG.info("tune round=%d epochs=%d score=%.5f seconds=%.1f elapsed=%.0f parameters=%s", round_number, epochs, score, history[-1]["seconds"], time.perf_counter() - started, json.dumps(parameters))
-            write_json(out, history)
-        scored.sort(key=lambda item: item[0])
-        trials = [parameters for _, parameters in scored[:max(1, len(scored) // 3)]]
-    winner = min(history, key=lambda item: item["score"])
-    best = {**winner["parameters"], "epochs": winner["epochs"]}
-    LOG.info("tune best score=%.5f parameters=%s", winner["score"], json.dumps(best))
-    return {"score": winner["score"], "parameters": best}
+    started, history, leader = time.perf_counter(), [], None
+    for number, parameters in enumerate(trials):
+        tick = time.perf_counter()
+        torch.manual_seed(SEED)
+        model = AttributeModel(targets, specs, **architecture(parameters, manifest)).to(DEVICE)
+        score, curve = fit(model, specs, data, parameters)
+        history.append({"trial": number, "score": score, "parameters": parameters, "curve": curve, "seconds": time.perf_counter() - tick})
+        LOG.info("tune trial=%d score=%.5f seconds=%.1f elapsed=%.0f parameters=%s", number, score, history[-1]["seconds"], time.perf_counter() - started, json.dumps(parameters))
+        write_json(account, history)
+        if leader is None or score < leader[0]:
+            leader = (score, parameters, curve, {name: value.cpu() for name, value in model.state_dict().items()})
+        del model
+        torch.cuda.empty_cache()
+    score, parameters, curve, state = leader
+    LOG.info("tune best score=%.5f parameters=%s", score, json.dumps(parameters))
+    model = AttributeModel(targets, specs, **architecture(parameters, manifest))
+    model.load_state_dict(state)
+    return finish(model.to(DEVICE), manifest, specs, data, parameters, score, curve, output)

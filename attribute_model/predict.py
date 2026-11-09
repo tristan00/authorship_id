@@ -15,12 +15,12 @@ from database import client
 
 from . import LOG, timed
 from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, SUBREDDITS_PER_AUTHOR, THREADS, check_targets, validate
-from .features import bags
+from .features import HOURS, WEEKDAYS, activity, bags
 from .model import AttributeModel, decide, numeric
 
 KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)"}
-VECTORS = ("SELECT author, vector, subreddits, counts FROM author_vectors INNER JOIN (SELECT author, subreddits, counts FROM author_subreddits WHERE {where}) AS s USING author "
-           "WHERE {where} ORDER BY author")
+VECTORS = ("SELECT author, vector, subreddits, counts, hours, weekdays, posts FROM author_vectors "
+           "INNER JOIN (SELECT author, subreddits, counts, hours, weekdays, posts FROM author_subreddits WHERE {where}) AS s USING author WHERE {where} ORDER BY author")
 
 
 def schema(artifact):
@@ -59,23 +59,33 @@ def ranked(subreddits):
     return sorted(subreddits.items(), key=lambda item: (-item[1], item[0]))[:SUBREDDITS_PER_AUTHOR]
 
 
-def inputs(known, vectors, names, counts, device="cpu"):
+def inputs(known, vectors, names, counts, active, device="cpu"):
     ids, weights = bags(names, counts, known)
-    return tuple(torch.from_numpy(array).to(device) for array in (vectors, ids, weights))
+    return tuple(torch.from_numpy(array).to(device) for array in (vectors, ids, weights, active))
+
+
+def checked(record):
+    hours, weekdays, posts = record.get("hours"), record.get("weekdays"), record.get("posts")
+    if not (isinstance(hours, list) and len(hours) == HOURS and isinstance(weekdays, list) and len(weekdays) == WEEKDAYS and isinstance(posts, int)
+            and all(isinstance(count, int) and count >= 0 for count in hours + weekdays) and sum(hours) == sum(weekdays) >= max(1, posts) and posts >= 0):
+        raise ValueError(f"activity needs {HOURS} hour counts, {WEEKDAYS} weekday counts with the same total, and a post count within it")
+    return hours, weekdays, posts
 
 
 @timed
-def predict(loaded, vectors, subreddits):
+def predict(loaded, vectors, subreddits, activities):
     model, artifact, known = loaded
     values = np.asarray(vectors, dtype=np.float32)
     if values.ndim != 2 or values.shape[1] != model.input.in_features or not np.isfinite(values).all():
         raise ValueError(f"Expected finite {model.input.in_features}-dimensional inputs")
     pairs = [ranked(found) for found in subreddits]
     names, counts = pa.array([[name for name, _ in found] for found in pairs], pa.list_(pa.string())), pa.array([[count for _, count in found] for found in pairs], pa.list_(pa.uint32()))
+    hours, weekdays, posts = zip(*map(checked, activities))
+    active = activity(pa.array(hours, pa.list_(pa.uint32())), pa.array(weekdays, pa.list_(pa.uint32())), posts)
     result = [{} for _ in values]
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
-            for spec, chosen in decided(artifact, model.outputs(model(*inputs(known, values[start:start + 1024], names[start:start + 1024], counts[start:start + 1024])))):
+            for spec, chosen in decided(artifact, model.outputs(model(*inputs(known, values[start:start + 1024], names[start:start + 1024], counts[start:start + 1024], active[start:start + 1024])))):
                 for row, value in enumerate(chosen.tolist(), start):
                     result[row][spec["name"]] = {"value": value if spec["type"] == "numeric" else spec["values"][value]}
     return result
@@ -85,7 +95,7 @@ def predict(loaded, vectors, subreddits):
 def infer(model, artifact, catalogs, known, batch, device):
     vectors = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()
     columns = {"author": batch["author"]}
-    for spec, chosen in decided(artifact, model.outputs(model(*inputs(known, vectors, batch["subreddits"], batch["counts"], device)))):
+    for spec, chosen in decided(artifact, model.outputs(model(*inputs(known, vectors, batch["subreddits"], batch["counts"], activity(batch["hours"], batch["weekdays"], batch["posts"].to_numpy()), device)))):
         chosen = chosen.cpu().numpy()
         columns[spec["name"]] = pa.array(chosen.astype(np.float32)) if spec["type"] == "numeric" else catalogs[spec["name"]].take(chosen)
     return pa.table(columns)
@@ -148,11 +158,11 @@ def predict_file(model_path, targets, input_path, output_path):
             if line.strip():
                 record = json.loads(line)
                 if not isinstance(record, dict) or not isinstance(record.get("vector"), list) or not isinstance(record.get("subreddits"), dict):
-                    raise ValueError(f"Line {number} needs a vector array and a subreddits object")
+                    raise ValueError(f"Line {number} needs a vector array, a subreddits object, hours, weekdays and posts")
                 records.append((number, record))
     if not records:
         raise ValueError("Input contains no vectors")
-    predictions = predict(loaded, [record["vector"] for _, record in records], [record["subreddits"] for _, record in records])
+    predictions = predict(loaded, [record["vector"] for _, record in records], [record["subreddits"] for _, record in records], [record for _, record in records])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -169,8 +179,9 @@ def predict_file(model_path, targets, input_path, output_path):
 
 @timed
 def predict_user(model_path, targets, author):
-    found = client().query("SELECT texts, vector, subreddits, counts FROM author_vectors INNER JOIN author_subreddits USING author WHERE author = {author:String}", parameters={"author": author}).result_rows
+    found = client().query("SELECT texts, vector, subreddits, counts, hours, weekdays, posts FROM author_vectors INNER JOIN author_subreddits USING author WHERE author = {author:String}",
+                           parameters={"author": author}).result_rows
     if not found:
         raise ValueError(f"No author vector and subreddits for {author}")
-    texts, vector, names, counts = found[0]
-    return {"author": author, "texts": texts, "attributes": predict(load_model(model_path, targets), [vector], [dict(zip(names, counts))])[0]}
+    texts, vector, names, counts, hours, weekdays, posts = found[0]
+    return {"author": author, "texts": texts, "attributes": predict(load_model(model_path, targets), [vector], [dict(zip(names, counts))], [{"hours": hours, "weekdays": weekdays, "posts": posts}])[0]}

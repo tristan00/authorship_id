@@ -27,6 +27,7 @@ def main():
     table.add_argument("--model", type=Path, default=MODEL)
     tune = commands.add_parser("tune")
     tune.add_argument("--data", type=Path, default=DATA)
+    tune.add_argument("--output", type=Path, default=MODEL)
     for command in (prepare, train, predict, user, table, tune):
         command.add_argument("--targets", type=Path, default=TARGETS)
     args = parser.parse_args()
@@ -53,7 +54,7 @@ def main():
         result = predict_table(args.model, targets)
     else:
         from .tune import tune as run
-        result = run(targets, args.data, TUNE / "account.json")
+        result = run(targets, args.data, TUNE / "account.json", args.output)
     print(json.dumps(result))
 
 
