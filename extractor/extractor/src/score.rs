@@ -10,6 +10,9 @@ use std::io::{BufWriter, Write};
 const EXAMPLES: usize = 25;
 const SNIPPET: usize = 400;
 const OPEN: &str = "*";
+const FRAMES: [(&str, &str); 12] = [("location", "i live in {}."), ("nationality", "i am {}."), ("heritage", "my family is {}."), ("native_language", "my native language is {}."),
+    ("other_languages", "i speak {}."), ("occupation", "i work as a {}."), ("field_of_study", "i study {}."), ("school_attended", "i go to {}."), ("medications", "i take {}."),
+    ("sports_teams", "i am a {} fan."), ("time_zone", "my timezone is {}."), ("accent", "i have a {} accent.")];
 
 #[derive(Deserialize)]
 struct Text {
@@ -33,6 +36,8 @@ struct Tally {
     values: BTreeMap<String, [usize; 3]>,
     false_positives: Vec<Value>,
     false_negatives: Vec<Value>,
+    value_hits: usize,
+    value_conflicts: Vec<Value>,
 }
 
 fn answers(directory: &str) -> HashMap<String, String> {
@@ -115,6 +120,33 @@ fn grouped(claims: &[(String, String)], shown: &mut Shown) -> Vec<(String, Strin
         }
     }
     out
+}
+
+fn words(value: &str) -> Vec<String> {
+    value.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|word| !word.is_empty()).map(str::to_string).collect()
+}
+
+fn within(inner: &[String], outer: &[String]) -> bool {
+    !inner.is_empty() && inner.iter().all(|word| outer.contains(word))
+}
+
+fn canonical(attribute: &str, value: &str) -> Vec<String> {
+    let Some((_, frame)) = FRAMES.iter().find(|(name, _)| *name == attribute) else {
+        return Vec::new();
+    };
+    let known = SCHEMA.attribute(attribute).unwrap();
+    positioned(&frame.replace("{}", value)).into_iter().filter(|(name, _, _)| name == attribute).filter_map(|(_, found, _)| known.normal(&found)).collect()
+}
+
+fn agreeing(attribute: &str, emitted: &[String], said: &[String]) -> bool {
+    said.iter().any(|label| {
+        let label_words = words(label);
+        let forms = canonical(attribute, label);
+        emitted.iter().any(|rule| {
+            let rule_words = words(rule);
+            within(&rule_words, &label_words) || within(&label_words, &rule_words) || forms.contains(rule)
+        })
+    })
 }
 
 fn displayed(shown: &Shown, attribute: &str, value: &str) -> String {
@@ -206,6 +238,14 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
                 if count >= agree {
                     tally.hits += 1;
                     tally.values.entry(value.clone()).or_default()[0] += 1;
+                    if value == OPEN {
+                        if agreeing(attribute, &emitted[attribute], &said[attribute]) {
+                            tally.value_hits += 1;
+                        } else if tally.value_conflicts.len() < EXAMPLES {
+                            tally.value_conflicts.push(json!({"id": text.id.get().trim_matches('"'), "rules": emitted[attribute], "labels": said[attribute],
+                                                              "text": text.text.chars().take(SNIPPET).collect::<String>()}));
+                        }
+                    }
                 } else {
                     tally.wrong += 1;
                     tally.values.entry(value.clone()).or_default()[1] += 1;
@@ -221,10 +261,20 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
             .map(|(name, tally)| {
                 let precision = tally.hits as f64 / (tally.hits + tally.wrong).max(1) as f64;
                 let recall = tally.hits as f64 / (tally.hits + tally.missed).max(1) as f64;
-                log(&format!("score {name} labels={} hits={} wrong={} missed={} precision={precision:.3} recall={recall:.3}", tally.hits + tally.missed, tally.hits, tally.wrong, tally.missed));
+                let value_precision = tally.value_hits as f64 / (tally.hits + tally.wrong).max(1) as f64;
+                let value_recall = tally.value_hits as f64 / (tally.hits + tally.missed).max(1) as f64;
+                let valued = if open(name) { format!(" value_hits={} value_precision={value_precision:.3} value_recall={value_recall:.3}", tally.value_hits) } else { String::new() };
+                log(&format!("score {name} labels={} hits={} wrong={} missed={} precision={precision:.3} recall={recall:.3}{valued}", tally.hits + tally.missed, tally.hits, tally.wrong, tally.missed));
                 let values: BTreeMap<&String, Value> = if closed(name) { tally.values.iter().map(|(value, [hits, wrong, missed])| (value, json!({"hits": hits, "wrong": wrong, "missed": missed}))).collect() } else { BTreeMap::new() };
-                (name, json!({"labels": tally.hits + tally.missed, "hits": tally.hits, "wrong": tally.wrong, "missed": tally.missed, "precision": precision, "recall": recall,
-                              "votes": tally.votes, "values": values, "false_positives": tally.false_positives, "false_negatives": tally.false_negatives}))
+                let mut out = json!({"labels": tally.hits + tally.missed, "hits": tally.hits, "wrong": tally.wrong, "missed": tally.missed, "precision": precision, "recall": recall,
+                                     "votes": tally.votes, "values": values, "false_positives": tally.false_positives, "false_negatives": tally.false_negatives});
+                if open(name) {
+                    out["value_hits"] = json!(tally.value_hits);
+                    out["value_precision"] = json!(value_precision);
+                    out["value_recall"] = json!(value_recall);
+                    out["value_conflicts"] = json!(tally.value_conflicts);
+                }
+                (name, out)
             })
             .collect();
         let report = json!({
