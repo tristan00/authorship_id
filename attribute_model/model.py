@@ -128,8 +128,9 @@ def numeric(output, spec):
 
 def specifications(targets, catalogs, labels, sets):
     result = []
+    columns = np.ascontiguousarray(np.asarray(labels).T)
     for column, (name, kind) in enumerate(validate(targets).items()):
-        observed = np.asarray(labels[:, column])
+        observed = columns[column]
         observed = observed[np.isfinite(observed)]
         if len(observed) < 2:
             raise ValueError(f"{name}: fewer than two training labels")
