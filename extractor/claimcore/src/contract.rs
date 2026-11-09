@@ -54,6 +54,17 @@ pub fn squeeze(text: &str) -> String {
     text.trim().trim_matches(|c: char| "*_`\"'".contains(c)).to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+const UNIT_ALIASES: [(&str, &[&str]); 5] =
+    [("centimetres", &["cm", "centimeters"]), ("kilograms", &["kg", "kgs", "kilos"]), ("years", &["yo", "y/o", "yrs", "years old"]), ("inches", &["in", "inch", "\""]), ("gb", &["gb ram"])];
+
+fn feet(value: &str) -> Option<f64> {
+    let marked = value.replace(['’', '′'], "'").replace(['”', '″'], "\"").replace("''", "\"").replace("feet", "'").replace("ft", "'").replace("inches", "\"").replace("in", "\"");
+    let (whole, rest) = marked.split_once('\'')?;
+    let rest = rest.trim().trim_end_matches('"').trim();
+    let inches = if rest.is_empty() { 0.0 } else { rest.parse::<f64>().ok()? };
+    Some(whole.trim().parse::<f64>().ok()? * 12.0 + inches)
+}
+
 fn key(name: &str) -> String {
     squeeze(name).replace([' ', '-'], "_")
 }
@@ -75,6 +86,31 @@ impl Attribute {
             return (!value.is_empty()).then_some(value);
         }
         self.values.iter().find(|allowed| **allowed == value).cloned()
+    }
+
+    fn answered(&self, value: &str) -> Option<String> {
+        if let Some(normal) = self.normal(value) {
+            return Some(normal);
+        }
+        let value = squeeze(value);
+        if self.kind == "number" {
+            let unit = self.unit.as_deref().unwrap().to_lowercase();
+            let aliases = UNIT_ALIASES.iter().find(|(name, _)| *name == unit).map_or(&[][..], |(_, aliases)| aliases);
+            let converted = match unit.as_str() {
+                "centimetres" => feet(&value).map(|inches| inches * 2.54),
+                "kilograms" => ["lbs", "lb", "pounds"].iter().find_map(|suffix| value.strip_suffix(suffix)).and_then(|number| number.trim().parse::<f64>().ok()).map(|pounds| pounds * 0.453_592_37),
+                _ => None,
+            };
+            if let Some(number) = converted {
+                return self.normal(&number.to_string());
+            }
+            return std::iter::once(unit.as_str()).chain(aliases.iter().copied()).find_map(|alias| value.strip_suffix(alias)).and_then(|number| self.normal(number));
+        }
+        let mut owners = self.values.iter().filter(|allowed| allowed.split(" / ").any(|part| part.split(" (").next().unwrap().trim() == value));
+        match (owners.next(), owners.next()) {
+            (Some(only), None) => Some(only.clone()),
+            _ => None,
+        }
     }
 
     fn line(&self) -> String {
@@ -168,7 +204,7 @@ impl Schema {
                 parsed.rejected.push("attribute");
                 continue;
             };
-            let Some(value) = attribute.normal(parts[1]) else {
+            let Some(value) = attribute.answered(parts[1]) else {
                 parsed.rejected.push("value");
                 continue;
             };
