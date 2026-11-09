@@ -10,7 +10,7 @@ const PARTS: usize = 256;
 const BATCH: usize = 1024;
 const INSERT_BYTES: usize = 64 << 20;
 const TABLES: [&str; 4] = [
-    "CREATE TABLE IF NOT EXISTS claim_attributes (attribute String, kind String, anchor String, precision Float64) ENGINE = MergeTree ORDER BY attribute",
+    "CREATE TABLE IF NOT EXISTS claim_attributes (attribute String, kind String, anchor String, precision Float64, unit String) ENGINE = MergeTree ORDER BY attribute",
     "CREATE TABLE IF NOT EXISTS text_claims (text_sha256 FixedString(32), attribute LowCardinality(String), value String, position UInt32) ENGINE = MergeTree ORDER BY (text_sha256, attribute)",
     "CREATE TABLE IF NOT EXISTS flair_claims (subreddit String, flair String, attribute LowCardinality(String), value String) ENGINE = MergeTree ORDER BY (subreddit, flair)",
     "CREATE TABLE IF NOT EXISTS extracted_parts (part UInt16, texts UInt64, claims UInt64, seconds Float32, build String, finished_at DateTime('UTC') DEFAULT now()) ENGINE = MergeTree ORDER BY part",
@@ -235,16 +235,17 @@ pub fn flairs(database: &Database, threads: usize) {
 
 pub fn attributes(database: &Database) {
     timed("attributes", || {
+        database.command("DROP TABLE IF EXISTS claim_attributes");
         database.command(TABLES[0]);
-        database.command("TRUNCATE TABLE claim_attributes");
         let mut out = Vec::new();
         for attribute in &claimcore::contract::SCHEMA.attributes {
             put_string(&mut out, &attribute.name);
             put_string(&mut out, &attribute.kind);
             put_string(&mut out, attribute.anchor.as_deref().unwrap_or(""));
             out.extend_from_slice(&attribute.precision.unwrap_or(f64::NAN).to_le_bytes());
+            put_string(&mut out, attribute.unit.as_deref().unwrap_or(""));
         }
-        database.insert("claim_attributes (attribute, kind, anchor, precision)", &out);
+        database.insert("claim_attributes (attribute, kind, anchor, precision, unit)", &out);
         log(&format!("attributes={}", claimcore::contract::SCHEMA.attributes.len()));
     });
 }

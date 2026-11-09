@@ -17,6 +17,16 @@ pub struct Attribute {
     pub kind: String,
     pub anchor: String,
     pub precision: f64,
+    pub unit: String,
+}
+
+fn years_per(attribute: &Attribute) -> f64 {
+    match attribute.unit.as_str() {
+        "years" => 1.0,
+        "months" => 1.0 / 12.0,
+        "days" => 1.0 / 365.25,
+        unit => panic!("{} anchors to {} but counts {unit:?}, not years, months or days", attribute.name, attribute.anchor),
+    }
 }
 
 fn year_of(seconds: u32) -> i64 {
@@ -69,6 +79,7 @@ pub struct Vocabulary {
     set: Vec<bool>,
     marker: Vec<bool>,
     anchor: Vec<Option<u32>>,
+    elapsed: Vec<f64>,
     years: Vec<u32>,
     numbers: Vec<Option<f64>>,
     claim_ids: HashMap<Vec<u8>, u32>,
@@ -86,6 +97,7 @@ impl Vocabulary {
             set: Vec::new(),
             marker: Vec::new(),
             anchor: Vec::new(),
+            elapsed: Vec::new(),
             years: Vec::new(),
             numbers: Vec::new(),
             claim_ids: HashMap::new(),
@@ -105,6 +117,7 @@ impl Vocabulary {
                     .then(|| *vocabulary.names.ids.get(&attribute.anchor).unwrap_or_else(|| panic!("{} anchors to unknown attribute {}", attribute.name, attribute.anchor)))
             })
             .collect();
+        vocabulary.elapsed = attributes.iter().map(|attribute| if attribute.anchor.is_empty() { 0.0 } else { years_per(attribute) }).collect();
         if vocabulary.anchor.iter().any(Option::is_some) {
             vocabulary.years = (FIRST_YEAR..=LAST_YEAR).map(|year| vocabulary.number_value(&year.to_string())).collect();
         }
@@ -166,7 +179,7 @@ impl Vocabulary {
         let Some(target) = self.anchor[claim.name as usize] else {
             return Some((claim.name, claim.value));
         };
-        let year = year_of(time) - self.number(claim.value).round() as i64;
+        let year = year_of(time) - (self.number(claim.value) * self.elapsed[claim.name as usize]).round() as i64;
         let index = usize::try_from(year - FIRST_YEAR).ok().filter(|&index| index < self.years.len())?;
         Some((target, self.years[index]))
     }

@@ -146,11 +146,12 @@ struct Done {
 }
 
 fn attributes(database: &Database) -> Vec<Attribute> {
-    let mut rows = database.rows("SELECT attribute, kind, anchor, precision FROM claim_attributes ORDER BY attribute FORMAT RowBinary");
+    let mut rows = database.rows("SELECT attribute, kind, anchor, precision, unit FROM claim_attributes ORDER BY attribute FORMAT RowBinary");
     let mut found = Vec::new();
     while !rows.done() {
         let (name, kind, anchor) = (text(rows.bytes()), text(rows.bytes()), text(rows.bytes()));
-        found.push(Attribute { name, kind, anchor, precision: f64::from_le_bytes(rows.fixed()) });
+        let precision = f64::from_le_bytes(rows.fixed());
+        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()) });
     }
     assert!(!found.is_empty(), "claim_attributes is empty; claim extraction publishes it");
     log(&format!("claim attributes={}", found.len()));
