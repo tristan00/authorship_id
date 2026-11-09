@@ -85,7 +85,7 @@ fn header(descr: &str, shape: &[usize]) -> Vec<u8> {
     out
 }
 
-fn save<T: Copy>(path: &Path, descr: &str, shape: &[usize], values: &[T]) {
+pub fn save<T: Copy>(path: &Path, descr: &str, shape: &[usize], values: &[T]) {
     let mut out = BufWriter::with_capacity(WRITE_BYTES, File::create(path).unwrap());
     out.write_all(&header(descr, shape)).unwrap();
     out.write_all(raw(values)).unwrap();
@@ -249,6 +249,27 @@ fn splits(authors: &[String], threads: usize) -> Vec<u8> {
     splits
 }
 
+fn layout(splits: &[u8]) -> (Vec<u32>, Vec<u32>, [usize; 5]) {
+    let mut bounds = [0usize; 5];
+    for &split in splits {
+        bounds[BUCKETS[split as usize] + 1] += 1;
+    }
+    for split in 0..4 {
+        bounds[split + 1] += bounds[split];
+    }
+    let mut next = bounds;
+    let mut order = vec![0u32; splits.len()];
+    let mut position = vec![0u32; splits.len()];
+    for (row, &split) in splits.iter().enumerate() {
+        let slot = &mut next[BUCKETS[split as usize]];
+        order[*slot] = row as u32;
+        position[row] = *slot as u32;
+        *slot += 1;
+    }
+    log(&format!("split rows train={} validation={} calibration={} test={}", bounds[1], bounds[2] - bounds[1], bounds[3] - bounds[2], bounds[4] - bounds[3]));
+    (order, position, bounds)
+}
+
 fn read_chunk(database: &Database, authors: &[String], names: &str) -> Vec<f16> {
     let filter = format!("author >= {} AND author <= {}", quoted(&authors[0]), quoted(&authors[authors.len() - 1]));
     let mut rows = database.rows(&format!(
@@ -275,7 +296,7 @@ fn read_chunk(database: &Database, authors: &[String], names: &str) -> Vec<f16> 
     vectors
 }
 
-fn vectors(database: &Database, authors: &[String], names: &str, splits: &[u8], path: &Path) -> (Vec<f16>, usize) {
+fn vectors(database: &Database, authors: &[String], names: &str, splits: &[u8], edges: &[usize; 5], path: &Path) -> (Vec<f16>, usize) {
     let training: Vec<usize> = (0..authors.len()).filter(|&author| BUCKETS[splits[author] as usize] == 0).collect();
     let step = (training.len() / SPREAD_ROWS).max(1);
     let mut slots = vec![u32::MAX; authors.len()];
@@ -288,8 +309,9 @@ fn vectors(database: &Database, authors: &[String], names: &str, splits: &[u8], 
     let bounds = |chunk: usize| (chunk * authors.len() / VECTOR_CHUNKS, (chunk + 1) * authors.len() / VECTOR_CHUNKS);
     let chunks: Vec<usize> = (0..VECTOR_CHUNKS).filter(|&chunk| bounds(chunk).0 < bounds(chunk).1).collect();
     let total = authors.len();
-    let mut file = File::create(path).unwrap();
+    let mut file = BufWriter::with_capacity(WRITE_BYTES, File::create(path).unwrap());
     file.write_all(&header("<f2", &[total, DIMENSIONS])).unwrap();
+    let mut held: Vec<Vec<f16>> = (1..4).map(|split| Vec::with_capacity((edges[split + 1] - edges[split]) * DIMENSIONS)).collect();
     let next = AtomicUsize::new(0);
     let written = (Mutex::new(0usize), Condvar::new());
     let (results, outbox) = unbounded::<(usize, Vec<f16>)>();
@@ -318,8 +340,11 @@ fn vectors(database: &Database, authors: &[String], names: &str, splits: &[u8], 
             pending.insert(index, vectors);
             while let Some(vectors) = pending.remove(&done) {
                 let (low, high) = bounds(chunks[done]);
-                file.write_all(raw(&vectors)).unwrap();
                 for (author, row) in (low..high).zip(vectors.chunks_exact(DIMENSIONS)) {
+                    match BUCKETS[splits[author] as usize] {
+                        0 => file.write_all(raw(row)).unwrap(),
+                        split => held[split - 1].extend_from_slice(row),
+                    }
                     if slots[author] != u32::MAX {
                         sample[slots[author] as usize * DIMENSIONS..][..DIMENSIONS].copy_from_slice(row);
                     }
@@ -334,6 +359,12 @@ fn vectors(database: &Database, authors: &[String], names: &str, splits: &[u8], 
             }
         }
         assert!(done == chunks.len(), "vector chunks are missing");
+    });
+    timed("write held vectors", || {
+        for rows in &held {
+            file.write_all(raw(rows)).unwrap();
+        }
+        file.flush().unwrap();
     });
     (sample, picked)
 }
@@ -440,10 +471,10 @@ fn write_labels(path: &Path, columns: &[&[(u32, f32)]], authors: usize) {
     out.flush().unwrap();
 }
 
-fn write_authors(path: &Path, authors: &[String]) {
+fn write_authors(path: &Path, authors: &[String], order: &[u32]) {
     let mut out = BufWriter::with_capacity(WRITE_BYTES, File::create(path).unwrap());
     let mut text = String::new();
-    for (index, author) in authors.iter().enumerate() {
+    for (index, author) in order.iter().map(|&row| &authors[row as usize]).enumerate() {
         text.clear();
         text.push_str(if index == 0 { "[" } else { "," });
         text.push_str(NEWLINE);
@@ -455,7 +486,7 @@ fn write_authors(path: &Path, authors: &[String]) {
     out.flush().unwrap();
 }
 
-fn labels(staging: &Path, kinds: &[(String, String)], attributes: &[Attribute], authors: &[String], splits: &[u8], threads: usize) -> Vec<Encoded> {
+fn labels(staging: &Path, kinds: &[(String, String)], attributes: &[Attribute], authors: &[String], order: &[u32], splits: &[u8], threads: usize) -> Vec<Encoded> {
     let next = AtomicUsize::new(0);
     let results: Vec<Mutex<Option<Encoded>>> = kinds.iter().map(|_| Mutex::new(None)).collect();
     timed("encode labels", || {
@@ -475,7 +506,7 @@ fn labels(staging: &Path, kinds: &[(String, String)], attributes: &[Attribute], 
     let encoded: Vec<Encoded> = results.into_iter().map(|result| result.into_inner().unwrap().unwrap()).collect();
     assert!(encoded.iter().any(|encoded| encoded.trainable), "No consolidated attribute has enough labels to train");
     let columns: Vec<&[(u32, f32)]> = encoded.iter().filter(|encoded| encoded.trainable).map(|encoded| encoded.entries.as_slice()).collect();
-    timed("write labels", || write_labels(&staging.join("labels.npy"), &columns, authors.len()));
+    timed("write labels", || write_labels(&staging.join("labels.npy"), &columns, splits.len()));
     timed("write sets", || {
         for ((name, _), encoded) in kinds.iter().zip(&encoded) {
             if let Some((indptr, values)) = &encoded.sets {
@@ -485,7 +516,7 @@ fn labels(staging: &Path, kinds: &[(String, String)], attributes: &[Attribute], 
         }
     });
     save(&staging.join("splits.npy"), "|u1", &[splits.len()], splits);
-    timed("write authors", || write_authors(&staging.join("authors.json"), authors));
+    timed("write authors", || write_authors(&staging.join("authors.json"), authors, order));
     encoded
 }
 
@@ -600,7 +631,7 @@ fn render(value: &Json, depth: usize, out: &mut String) {
     }
 }
 
-fn manifest(path: &Path, kinds: &[(String, String)], encoded: &[Encoded], authors: usize, months: Vec<(String, Json)>, center: Vec<f32>, spread: Vec<f32>) {
+fn manifest(path: &Path, kinds: &[(String, String)], encoded: &[Encoded], bounds: &[usize; 5], months: Vec<(String, Json)>, center: Vec<f32>, spread: Vec<f32>) {
     let trainable: Vec<(&String, &Encoded)> = kinds.iter().map(|(name, _)| name).zip(encoded).filter(|(_, encoded)| encoded.trainable).collect();
     let floats = |values: Vec<f32>| Json::List(values.into_iter().map(|value| Json::Float(value as f64)).collect());
     let named = |value: fn(&Encoded) -> Json| Json::Map(trainable.iter().map(|(name, encoded)| (name.to_string(), value(encoded))).collect());
@@ -612,10 +643,12 @@ fn manifest(path: &Path, kinds: &[(String, String)], encoded: &[Encoded], author
     let manifest = Json::Map(vec![
         (String::from("targets"), named(|encoded| Json::Text(encoded.target.unwrap().to_string()))),
         (String::from("catalogs"), Json::Map(catalogs.collect())),
-        (String::from("authors"), Json::Int(authors)),
+        (String::from("authors"), Json::Int(bounds[4])),
+        (String::from("splits"), Json::Map(SPLITS.iter().enumerate().map(|(split, name)| (name.to_string(), Json::List(vec![Json::Int(bounds[split]), Json::Int(bounds[split + 1])]))).collect())),
         (String::from("source"), Json::Map(vec![(String::from("months"), Json::Map(months))])),
         (String::from("features"), Json::Map(vec![(String::from("dimensions"), Json::Int(DIMENSIONS)), (String::from("center"), floats(center)), (String::from("spread"), floats(spread))])),
         (String::from("target_counts"), named(|encoded| Json::Int(encoded.counts.iter().sum()))),
+        (String::from("split_labels"), named(|encoded| Json::List(encoded.counts.iter().map(|&count| Json::Int(count)).collect()))),
         (String::from("excluded_values"), named(|encoded| Json::Int(encoded.excluded))),
         (String::from("insufficient"), Json::Map(insufficient.collect())),
     ]);
@@ -633,16 +666,25 @@ fn prepare(database: &Database, directory: &Path, threads: usize) {
     let months = timed("months", || months(database));
     let kinds = timed("kinds", || kinds(database));
     let names = kinds.iter().map(|(name, _)| quoted(name)).collect::<Vec<_>>().join(", ");
-    let (authors, attributes) = timed("claims", || claims(database, &kinds, &names));
+    let (authors, mut attributes) = timed("claims", || claims(database, &kinds, &names));
     fs::create_dir_all(staging.join("sets")).unwrap();
     let splits = timed("splits", || splits(&authors, threads));
+    let (order, position, bounds) = timed("layout", || layout(&splits));
+    let ordered: Vec<u8> = timed("reorder", || {
+        for attribute in &mut attributes {
+            for row in &mut attribute.rows {
+                row.0 = position[row.0 as usize];
+            }
+        }
+        order.iter().map(|&row| splits[row as usize]).collect()
+    });
     let (encoded, (sample, rows)) = thread::scope(|scope| {
-        let labels = scope.spawn(|| timed("labels", || labels(&staging, &kinds, &attributes, &authors, &splits, threads)));
-        let vectors = timed("vectors", || vectors(database, &authors, &names, &splits, &staging.join("users.npy")));
+        let labels = scope.spawn(|| timed("labels", || labels(&staging, &kinds, &attributes, &authors, &order, &ordered, threads)));
+        let vectors = timed("vectors", || vectors(database, &authors, &names, &splits, &bounds, &staging.join("users.npy")));
         (labels.join().unwrap(), vectors)
     });
     let (center, spread) = timed("features", || features(&sample, rows));
-    manifest(&staging.join("manifest.json"), &kinds, &encoded, authors.len(), months, center, spread);
+    manifest(&staging.join("manifest.json"), &kinds, &encoded, &bounds, months, center, spread);
     if directory.exists() {
         fs::remove_dir_all(directory).unwrap();
     }
@@ -650,11 +692,6 @@ fn prepare(database: &Database, directory: &Path, threads: usize) {
 }
 
 pub fn run(database: &Database, args: &[String]) {
-    let report = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        report(info);
-        std::process::exit(101);
-    }));
     let directory = PathBuf::from(args.first().filter(|arg| !arg.starts_with("--")).expect("usage: attribute_io prepare DIRECTORY --host HOST"));
     let threads: usize = option(args, "--threads", "1").parse().unwrap();
     timed("prepare", || prepare(database, &directory, threads));

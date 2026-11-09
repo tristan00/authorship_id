@@ -11,7 +11,7 @@ from torch.nn import functional as F
 
 from . import LOG, timed
 from .config import GPU_MEMORY, PARAMETERS, PUBLISH_MARGIN, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
-from .data import load
+from .data import load, read, reader
 from .evaluate import DEVICE, chosen, collect, memberships, report, trunk
 from .model import AttributeModel, specifications
 
@@ -97,48 +97,40 @@ def calibrate(model, inputs, labels, sets, specs):
     return result
 
 
-def placed(arrays, selected, device):
-    result = []
-    for name in INPUTS:
-        source = arrays[name]
-        target = torch.empty((len(selected), source.shape[1]), dtype=torch.from_numpy(source[:1].copy()).dtype, device=device)
-        for start in range(0, len(selected), 1 << 20):
-            target[start:start + (1 << 20)] = torch.from_numpy(np.asarray(source[selected[start:start + (1 << 20)]]))
-        result.append(target)
-    return tuple(result)
-
-
-def subset(indptr, values, rows):
-    starts, ends = np.asarray(indptr[rows]), np.asarray(indptr[rows + 1])
-    lengths = ends - starts
-    offsets = np.concatenate([[0], np.cumsum(lengths)])
-    return offsets, np.asarray(values[np.repeat(starts - offsets[:-1], lengths) + np.arange(offsets[-1])])
+@timed
+def place_split(arrays, sets, columns, readers, name, start, end):
+    device = DEVICE if name in ("train", "validation") else "cpu"
+    members = []
+    for target, (indptr, values) in sets.items():
+        offsets = read(indptr, start, end + 1, device, readers)
+        low, high = int(offsets[0]), int(offsets[-1])
+        offsets -= low
+        members.append((columns[target], offsets, read(values, low, high, device, readers).long()))
+    return tuple(read(arrays[array], start, end, device, readers) for array in INPUTS), read(arrays["labels"], start, end, device, readers), members
 
 
 @timed
-def resident(sets):
-    return {name: (np.array(indptr), np.array(values)) for name, (indptr, values) in sets.items()}
+def observed(manifest, train):
+    _, labels, members = train
+    names = list(manifest["targets"])
+    sets = {}
+    for column, indptr, values in members:
+        lengths = indptr.diff()
+        sets[names[column]] = (int((lengths > 0).sum()), int(lengths.max()), int(indptr[-1]), torch.bincount(values, minlength=len(manifest["catalogs"][names[column]])).cpu().numpy())
+    return [column[torch.isfinite(column)].cpu().numpy() for column in labels.T], sets
 
 
 def load_splits(manifest, arrays, sets):
     targets = manifest["targets"]
-    sets = resident(sets)
-    splits = np.asarray(arrays["splits"])
-    selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
-    labeled = {name: np.asarray(arrays["labels"][indices]) for name, indices in selected.items()}
-    lists = {split: {name: subset(*sets[name], indices) for name in sets} for split, indices in selected.items()}
-    specs = specifications(targets, manifest["catalogs"], labeled["train"], lists["train"])
-    for name in ("validation", "calibration", "test"):
-        counts = np.isfinite(labeled[name]).sum(0)
-        if (counts < SPLIT_LABELS).any():
-            raise ValueError(f"Fewer than {SPLIT_LABELS} {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < SPLIT_LABELS)}")
-    LOG.info("attribute model rows=%s", {name: len(indices) for name, indices in selected.items()})
     columns = {name: column for column, name in enumerate(targets)}
-    data = {}
-    for name, indices in selected.items():
-        device = DEVICE if name in ("train", "validation") else "cpu"
-        members = [(columns[target], torch.as_tensor(indptr, device=device), torch.as_tensor(values, dtype=torch.long, device=device)) for target, (indptr, values) in lists[name].items()]
-        data[name] = (placed(arrays, indices, device), torch.as_tensor(labeled[name], dtype=torch.float32, device=device), members)
+    readers = reader()
+    data = {name: place_split(arrays, sets, columns, readers, name, start, end) for name, (start, end) in manifest["splits"].items()}
+    specs = specifications(targets, manifest["catalogs"], *observed(manifest, data["train"]))
+    for slot, name in enumerate(SPLITS):
+        short = [target for target, counts in manifest["split_labels"].items() if counts[slot] < SPLIT_LABELS]
+        if slot and short:
+            raise ValueError(f"Fewer than {SPLIT_LABELS} {name} labels for {', '.join(short)}")
+    LOG.info("attribute model rows=%s", {name: len(split[1]) for name, split in data.items()})
     return specs, data
 
 

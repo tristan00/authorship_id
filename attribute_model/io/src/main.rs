@@ -26,6 +26,11 @@ fn option<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
 }
 
 fn main() {
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        report(info);
+        std::process::exit(101);
+    }));
     let args: Vec<String> = std::env::args().collect();
     let database = || database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
     match args.get(1).map(String::as_str) {

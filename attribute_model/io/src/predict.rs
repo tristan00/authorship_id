@@ -331,11 +331,6 @@ fn insert(url: &str, layout: &Layout, parts: &Receiver<(Vec<u8>, usize)>, stats:
 }
 
 pub fn run(database: &Database, args: &[String]) {
-    let default = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        default(info);
-        std::process::exit(101);
-    }));
     timed("predict", || {
         let layout = Layout::read(&args[0]);
         let shared = Shared::open(&layout.shared);

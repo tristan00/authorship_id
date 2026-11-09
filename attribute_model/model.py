@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from . import timed
 from .config import validate
 
 
@@ -126,12 +127,10 @@ def numeric(output, spec):
     return output[:, 0].float() * spec["scale"] + spec["center"]
 
 
-def specifications(targets, catalogs, labels, sets):
+@timed
+def specifications(targets, catalogs, columns, sets):
     result = []
-    columns = np.ascontiguousarray(np.asarray(labels).T)
-    for column, (name, kind) in enumerate(validate(targets).items()):
-        observed = columns[column]
-        observed = observed[np.isfinite(observed)]
+    for observed, (name, kind) in zip(columns, validate(targets).items()):
         if len(observed) < 2:
             raise ValueError(f"{name}: fewer than two training labels")
         spec = {"name": name, "type": kind, "training_labels": len(observed)}
@@ -147,12 +146,9 @@ def specifications(targets, catalogs, labels, sets):
         if len(values) < 2:
             raise ValueError(f"{name}: at least two values are required")
         if kind == "set":
-            indptr, members = sets[name]
-            lengths = np.diff(indptr)
-            stated = int((lengths > 0).sum())
-            counts = np.bincount(members, minlength=len(values))
+            stated, longest, size, counts = sets[name]
             prior = (counts + .5) / (stated + 1)
-            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "mean_size": float(lengths[lengths > 0].mean()), "longest": int(lengths.max()),
+            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "mean_size": size / stated, "longest": longest,
                      "baseline": float((counts * -np.log(prior) + (stated - counts) * -np.log1p(-prior)).sum() / stated)}
         else:
             counts = np.bincount(observed.astype(np.int64), minlength=len(values))
