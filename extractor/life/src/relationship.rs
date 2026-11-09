@@ -56,7 +56,7 @@ static FOREIGN_SPOUSES: &Tab = &[
 ];
 
 static FOREIGN_STATUSES: &Tab = &[
-    ("una r", DATING), ("novia", DATING), ("novio", DATING), ("casad", MARRIED), ("solte", "single"), ("divor", "divorced"), ("compr", ENGAGED), ("noiv", ENGAGED), ("noiva", ENGAGED), ("noivo", ENGAGED), ("verhe", MARRIED), ("singl", "single"), ("ledig", "single"), ("gesch", "divorced"), ("verlo", ENGAGED),
+    ("casad", MARRIED), ("solte", "single"), ("singi", "single"), ("divor", "divorced"), ("compr", ENGAGED), ("noiv", ENGAGED), ("noiva", ENGAGED), ("noivo", ENGAGED), ("verhe", MARRIED), ("singl", "single"), ("ledig", "single"), ("gesch", "divorced"), ("verlo", ENGAGED),
     ("verge", DATING), ("marié", MARRIED), ("célib", "single"), ("fianc", ENGAGED), ("en co", DATING), ("sposa", MARRIED), ("fidan", DATING), ("żonat", MARRIED), ("zamęż", MARRIED), ("mężat", MARRIED),
     ("rozwi", "divorced"), ("zaręc", ENGAGED), ("w zwi", DATING), ("getro", MARRIED), ("vrijg", "single"), ("женат", MARRIED), ("замуж", MARRIED), ("холос", "single"), ("разве", "divorced"), ("в отн", DATING),
     ("separ", "separated"), ("sépar", "separated"), ("viuda", "widowed"), ("viudo", "widowed"), ("viúva", "widowed"), ("viúvo", "widowed"), ("viuva", "widowed"), ("viuvo", "widowed"), ("verwi", "widowed"), ("pacsé", COMMON_LAW),
@@ -156,19 +156,8 @@ fn listed_status(m: &Match) -> V {
 }
 
 fn foreign_status(m: &Match) -> V {
-    let key: Vec<char> = match m.first() {
-        Some(found) => found.to_vec(),
-        None => {
-            let text = m.text();
-            let mut rest = text;
-            for _ in 0..2 {
-                match rest.iter().position(|&c| c == ' ') {
-                    Some(p) => rest = &rest[p + 1..],
-                    None => break,
-                }
-            }
-            rest.to_vec()
-        }
+    let Some(key) = m.first() else {
+        return Some(DATING);
     };
     let short = &key[..key.len().min(5)];
     Some(get(FOREIGN_STATUSES, Some(short)).unwrap_or_else(|| panic!("no foreign relationship status for {:?}", short.iter().collect::<String>())))
