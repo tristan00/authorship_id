@@ -12,13 +12,10 @@ from database import client
 
 from . import LOG, timed, write_json
 from .config import DEFAULTS, DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_targets, partition, validate
-from .features import ACTIVITY, activity, bags, vocabulary
 
 CLAIMS = "SELECT author, attribute, value, support, share FROM author_claims WHERE attribute IN {attributes:Array(String)}"
-VECTORS = ("WITH picked AS (SELECT author FROM labeled WHERE {where}) SELECT author, vector, subreddits, counts, hours, weekdays, posts FROM author_vectors "
-           "INNER JOIN (SELECT author, subreddits, counts, hours, weekdays, posts FROM author_subreddits WHERE {where} AND author IN picked) AS s USING author "
-           "WHERE {where} AND author IN picked ORDER BY author")
-ARRAYS = ("users", "subreddits", "weights", "activity", "labels", "support", "share", "splits")
+VECTORS = "SELECT author, vector FROM author_vectors WHERE {where} AND author IN (SELECT author FROM labeled WHERE {where}) ORDER BY author"
+ARRAYS = ("users", "labels", "support", "share", "splits")
 SPREAD_ROWS = 1 << 20
 
 
@@ -51,17 +48,13 @@ def read_vectors(db, labeled, path):
     db.insert_arrow("labeled", pa.table({"author": labeled}))
     total = db.command("SELECT count() FROM author_vectors WHERE author IN labeled")
     vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(total, DIMENSIONS))
-    active = np.empty((total, ACTIVITY), dtype=np.float16)
-    authors, names, counts, kept, started = [], [], [], 0, time.perf_counter()
+    authors, kept, started = [], 0, time.perf_counter()
     for low, high in parts(db):
         where, parameters = span(low, high)
         with db.query_arrow_stream(VECTORS.format(where=where), parameters=parameters) as stream:
             for batch in stream:
                 vectors[kept:kept + batch.num_rows] = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS)
-                active[kept:kept + batch.num_rows] = activity(batch["hours"], batch["weekdays"], batch["posts"].to_numpy())
                 authors += batch["author"].to_pylist()
-                names.append(batch["subreddits"])
-                counts.append(batch["counts"])
                 kept += batch.num_rows
                 if kept // (1 << 20) != (kept - batch.num_rows) // (1 << 20):
                     LOG.info("labeled vectors kept=%d of %d seconds=%.1f", kept, total, time.perf_counter() - started)
@@ -69,7 +62,7 @@ def read_vectors(db, labeled, path):
     if kept != total:
         raise ValueError("Author vectors changed while they were read")
     vectors.flush()
-    return vectors, active, authors, pa.concat_arrays(names), pa.concat_arrays(counts)
+    return vectors, authors
 
 
 @timed
@@ -85,7 +78,7 @@ def prepare(directory, targets):
     names = pc.unique(claims["author"])
     LOG.info("labeled authors=%d rows=%d", len(names), claims.num_rows)
     staging.mkdir(parents=True)
-    vectors, active, authors, subreddits, counts = read_vectors(db, names, staging / "users.npy")
+    vectors, authors = read_vectors(db, names, staging / "users.npy")
     position = pc.fill_null(pc.index_in(claims["author"], value_set=pa.array(authors, pa.string())), -1).to_numpy()
     shape = (len(authors), len(targets))
     labels = np.full(shape, np.nan, dtype=np.float32)
@@ -106,16 +99,12 @@ def prepare(directory, targets):
     splits = np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors))
     training = np.flatnonzero(np.isin(splits, SPLITS["train"]))
     sample = np.asarray(vectors[training[::max(1, len(training) // SPREAD_ROWS)]], dtype=np.float32)
-    observed = active[training[::max(1, len(training) // SPREAD_ROWS)]].astype(np.float32)
-    features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist(),
-                "activity_center": observed.mean(0).tolist(), "activity_spread": np.maximum(observed.std(0), 1e-4).tolist()}
-    known = vocabulary(subreddits.take(pa.array(training)))
-    ids, weights = bags(subreddits, counts, pa.array(known, pa.string()))
-    for name, array in (("subreddits", ids), ("weights", weights), ("activity", active), ("labels", labels), ("support", support), ("share", share), ("splits", splits)):
+    features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
+    for name, array in (("labels", labels), ("support", support), ("share", share), ("splits", splits)):
         np.save(staging / f"{name}.npy", array)
     write_json(staging / "authors.json", authors)
     counts = np.isfinite(labels).sum(0)
-    manifest = {"targets": targets, "catalogs": catalogs, "subreddits": known, "authors": len(authors), "source": source, "features": features, "target_counts": {name: int(count) for name, count in zip(targets, counts)},
+    manifest = {"targets": targets, "catalogs": catalogs, "authors": len(authors), "source": source, "features": features, "target_counts": {name: int(count) for name, count in zip(targets, counts)},
                 "excluded_out_of_range": excluded, "numeric_ranges": {name: NUMERIC[name] for name, kind in targets.items() if kind == "numeric"}}
     write_json(staging / "manifest.json", manifest)
     del vectors
@@ -130,6 +119,6 @@ def load(directory, targets):
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     check_targets(targets, manifest["targets"])
     arrays = {name: np.load(directory / f"{name}.npy", mmap_mode="r", allow_pickle=False) for name in ARRAYS}
-    if arrays["users"].shape != (manifest["authors"], manifest["features"]["dimensions"]) or any(arrays[name].shape != (manifest["authors"], len(targets)) for name in ("labels", "support", "share")) or arrays["subreddits"].shape != arrays["weights"].shape or len(arrays["subreddits"]) != manifest["authors"] or arrays["activity"].shape != (manifest["authors"], ACTIVITY) or len(arrays["splits"]) != manifest["authors"]:
+    if arrays["users"].shape != (manifest["authors"], manifest["features"]["dimensions"]) or any(arrays[name].shape != (manifest["authors"], len(targets)) for name in ("labels", "support", "share")) or len(arrays["splits"]) != manifest["authors"]:
         raise ValueError("Prepared arrays do not match the manifest")
     return manifest, arrays

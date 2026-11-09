@@ -6,7 +6,6 @@ from torch import nn
 from torch.nn import functional as F
 
 from .config import DEFAULTS, validate
-from .features import ACTIVITY
 
 
 class Block(nn.Module):
@@ -33,15 +32,13 @@ class LabelEmbedding(nn.Module):
 
 
 class AttributeModel(nn.Module):
-    def __init__(self, targets, specifications, width, depth, expand, dropout, rank, activity, features, subreddits):
+    def __init__(self, targets, specifications, width, depth, expand, dropout, rank, features):
         super().__init__()
         targets = validate(targets)
         if [spec["name"] for spec in specifications] != list(targets) or any(spec["type"] != targets[spec["name"]] for spec in specifications):
             raise ValueError("Target specifications do not match the configured fields")
         self.specifications = specifications
         self.input = nn.Linear(features["dimensions"], width)
-        self.subreddits = nn.Embedding(subreddits, width, padding_idx=0)
-        self.activity = nn.Linear(ACTIVITY, width) if activity else None
         self.blocks = nn.Sequential(*(Block(width, expand, dropout) for _ in range(depth)))
         self.norm = nn.LayerNorm(width)
         self.numeric, self.categorical, self.embedding = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical", "embedding"))
@@ -51,8 +48,6 @@ class AttributeModel(nn.Module):
         self.head = nn.Linear(width, int(offsets[-1]))
         self.embeddings = nn.ModuleList(LabelEmbedding(width, len(specifications[index]["values"]), rank) for index in self.embedding)
         with torch.no_grad():
-            self.subreddits.weight.normal_(std=.05)
-            self.subreddits.weight[0].zero_()
             self.head.weight.normal_(std=.01)
             self.head.bias.zero_()
             for index in self.numeric:
@@ -70,18 +65,12 @@ class AttributeModel(nn.Module):
                    "baseline": torch.tensor([spec["baseline"] for spec in specifications], dtype=torch.float32),
                    "weight": (stated := torch.tensor([float(spec["stated_labels"]) for spec in specifications])) / stated.mean(),
                    "shift": torch.tensor(features["center"], dtype=torch.float32),
-                   "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32),
-                   "activity_shift": torch.tensor(features["activity_center"], dtype=torch.float32),
-                   "activity_factor": 1 / torch.tensor(features["activity_spread"], dtype=torch.float32)}
+                   "factor": 1 / torch.tensor(features["spread"], dtype=torch.float32)}
         for name, value in buffers.items():
             self.register_buffer(name, value, persistent=False)
 
-    def forward(self, vectors, ids, weights, activity):
-        weights = weights.float()
-        hidden = self.input((vectors.float() - self.shift) * self.factor) + (self.subreddits(ids) * weights[..., None]).sum(1) / weights.sum(1, keepdim=True).clamp_min(1)
-        if self.activity is not None:
-            hidden = hidden + self.activity((activity.float() - self.activity_shift) * self.activity_factor)
-        return self.norm(self.blocks(hidden))
+    def forward(self, vectors):
+        return self.norm(self.blocks(self.input((vectors.float() - self.shift) * self.factor)))
 
     def outputs(self, hidden):
         flat = self.head(hidden)
