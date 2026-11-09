@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from attribute_model.config import DATA, MODEL, read_targets
+from attribute_model.config import DATA, MODEL
 from database import LOGS, host
 from database.load import load_month
 from database.server import counts, schema
@@ -39,15 +39,14 @@ def derive():
     from attribute_model.train import train
     from author_encoder.predict import encode_store
     from author_encoder.store import build
-    targets = read_targets()
     rust("extractor", "claims", "run", "claim_extraction.log")
     rust("extractor", "claims", "flairs", "claim_extraction.log")
     rust("consolidator", "consolidate", "run", "consolidation.log")
     build()
     encode_store()
-    prepare(DATA, targets)
-    train(DATA, MODEL, targets)
-    predict_table(MODEL, targets)
+    prepare(DATA)
+    train(DATA, MODEL)
+    predict_table(MODEL)
 
 
 @timed

@@ -13,10 +13,11 @@ from clickhouse_connect.driver.binding import format_str, quote_identifier
 from database import author_ranges, author_span, client
 
 from . import LOG, timed
-from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, THREADS, VECTOR_RANGES, check_targets, validate
+from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, THREADS, VECTOR_RANGES
+from .evaluate import chosen
 from .model import AttributeModel, numeric
 
-KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)"}
+KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)", "set": "Array(LowCardinality(String))"}
 VECTORS = "SELECT author, vector FROM author_vectors WHERE {where} ORDER BY author"
 
 
@@ -33,21 +34,31 @@ def build(artifact):
 
 
 @lru_cache(maxsize=1)
-def cached(path, modified, configured):
+def cached(path, modified):
     torch.set_num_threads(THREADS)
     artifact = torch.load(path, map_location="cpu", weights_only=True)
-    check_targets(dict(configured), artifact["targets"])
     return build(artifact), artifact
 
 
-def load_model(path, targets):
+def load_model(path):
     path = Path(path).resolve()
-    return cached(str(path), path.stat().st_mtime_ns, tuple(validate(targets).items()))
+    return cached(str(path), path.stat().st_mtime_ns)
 
 
 def decided(artifact, outputs):
     for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
-        yield spec, numeric(output, spec) if spec["type"] == "numeric" else output.argmax(1)
+        if spec["type"] == "numeric":
+            yield spec, numeric(output, spec)
+        elif spec["type"] == "set":
+            yield spec, chosen(output.float().softmax(1), fitted["threshold"])
+        else:
+            yield spec, output.argmax(1)
+
+
+def named(spec, decision):
+    if spec["type"] == "set":
+        return [[spec["values"][index] for index in row.nonzero().flatten().tolist()] for row in decision.cpu()]
+    return [spec["values"][index] for index in decision.tolist()]
 
 
 @timed
@@ -59,9 +70,9 @@ def predict(loaded, vectors):
     result = [{} for _ in values]
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
-            for spec, chosen in decided(artifact, model.outputs(model(torch.from_numpy(values[start:start + 1024])))):
-                for row, value in enumerate(chosen.tolist(), start):
-                    result[row][spec["name"]] = {"value": value if spec["type"] == "numeric" else spec["values"][value]}
+            for spec, decision in decided(artifact, model.outputs(model(torch.from_numpy(values[start:start + 1024])))):
+                for row, value in enumerate(decision.tolist() if spec["type"] == "numeric" else named(spec, decision), start):
+                    result[row][spec["name"]] = {"value": value}
     return result
 
 
@@ -69,17 +80,20 @@ def predict(loaded, vectors):
 def infer(model, artifact, catalogs, batch, device):
     vectors = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS).copy()
     columns = {"author": batch["author"]}
-    for spec, chosen in decided(artifact, model.outputs(model(torch.from_numpy(vectors).to(device)))):
-        chosen = chosen.cpu().numpy()
-        columns[spec["name"]] = pa.array(chosen.astype(np.float32)) if spec["type"] == "numeric" else catalogs[spec["name"]].take(chosen)
+    for spec, decision in decided(artifact, model.outputs(model(torch.from_numpy(vectors).to(device)))):
+        if spec["type"] == "numeric":
+            columns[spec["name"]] = pa.array(decision.cpu().numpy().astype(np.float32))
+        elif spec["type"] == "set":
+            columns[spec["name"]] = pa.array(named(spec, decision), pa.list_(pa.string()))
+        else:
+            columns[spec["name"]] = catalogs[spec["name"]].take(decision.cpu().numpy())
     return pa.table(columns)
 
 
 @timed
-def predict_table(model_path, targets, device="cuda"):
+def predict_table(model_path, device="cuda"):
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     artifact = torch.load(model_path, map_location="cpu", weights_only=True)
-    check_targets(validate(targets), artifact["targets"])
     model = build(artifact).to(device)
     catalogs = {spec["name"]: pa.array(spec["values"]) for spec in artifact["specifications"] if spec["type"] != "numeric"}
     reader, writer = client(), client()
@@ -120,11 +134,11 @@ def predict_table(model_path, targets, device="cuda"):
 
 
 @timed
-def predict_file(model_path, targets, input_path, output_path):
+def predict_file(model_path, input_path, output_path):
     input_path, output_path = Path(input_path), Path(output_path)
     if output_path.exists():
         raise FileExistsError(output_path)
-    loaded = load_model(model_path, targets)
+    loaded = load_model(model_path)
     records = []
     with input_path.open(encoding="utf-8") as source:
         for number, line in enumerate(source, 1):
@@ -151,9 +165,9 @@ def predict_file(model_path, targets, input_path, output_path):
 
 
 @timed
-def predict_user(model_path, targets, author):
+def predict_user(model_path, author):
     found = client().query("SELECT texts, vector FROM author_vectors WHERE author = {author:String}", parameters={"author": author}).result_rows
     if not found:
         raise ValueError(f"No author vector for {author}")
     texts, vector = found[0]
-    return {"author": author, "texts": texts, "attributes": predict(load_model(model_path, targets), [vector])[0]}
+    return {"author": author, "texts": texts, "attributes": predict(load_model(model_path), [vector])[0]}

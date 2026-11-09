@@ -4,7 +4,7 @@ from pathlib import Path
 
 from reddit_dumps import setup_logging
 
-from .config import DATA, MODEL, ROOT, TARGETS, read_targets
+from .config import DATA, MODEL, ROOT
 
 
 def main():
@@ -24,26 +24,23 @@ def main():
     user.add_argument("--model", type=Path, default=MODEL)
     table = commands.add_parser("table")
     table.add_argument("--model", type=Path, default=MODEL)
-    for command in (prepare, train, predict, user, table):
-        command.add_argument("--targets", type=Path, default=TARGETS)
     args = parser.parse_args()
     setup_logging(ROOT / "attribute_model.log")
-    targets = read_targets(args.targets)
     if args.command == "prepare":
         from .data import prepare
-        result = prepare(args.data, targets)
+        result = prepare(args.data)
     elif args.command == "train":
         from .train import train
-        result = train(args.data, args.output, targets)
+        result = train(args.data, args.output)
     elif args.command == "predict":
         from .predict import predict_file
-        result = predict_file(args.model, targets, args.input, args.output)
+        result = predict_file(args.model, args.input, args.output)
     elif args.command == "user":
         from .predict import predict_user
-        result = predict_user(args.model, targets, args.author)
+        result = predict_user(args.model, args.author)
     else:
         from .predict import predict_table
-        result = predict_table(args.model, targets)
+        result = predict_table(args.model)
     print(json.dumps(result))
 
 

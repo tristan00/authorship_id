@@ -1,4 +1,4 @@
-use crate::database::{text, Database};
+use crate::database::{put_string, text, Database};
 use crate::rules::{blocked, consolidate, first, Attribute, Evidence, Step, Tallies, Vocabulary, NEED, TEXT};
 use crate::{log, parallel, timed};
 use crossbeam_channel::{bounded, Receiver, Sender};
@@ -12,6 +12,7 @@ const BUCKET_SHIFT: u32 = 104;
 const STREAMS: usize = 8;
 const EXCLUDED: &str = "'', '[deleted]', '[removed]', 'AutoModerator'";
 const KEY: &str = "reinterpretAsUInt128(substring(text_sha256, 1, 16))";
+const OUTPUTS: &str = "CREATE TABLE author_attributes_next (attribute String, kind String) ENGINE = MergeTree ORDER BY attribute";
 const CLAIMS: &str = "CREATE TABLE author_claims_next (author String, attribute LowCardinality(String), value String) ENGINE = MergeTree ORDER BY (author, attribute)";
 
 struct TextClaims {
@@ -154,6 +155,23 @@ fn attributes(database: &Database) -> Vec<Attribute> {
     assert!(!found.is_empty(), "claim_attributes is empty; claim extraction publishes it");
     log(&format!("claim attributes={}", found.len()));
     found
+}
+
+fn publish(database: &Database, attributes: &[Attribute]) {
+    database.command("DROP TABLE IF EXISTS author_attributes_next");
+    database.command(OUTPUTS);
+    let mut out = Vec::new();
+    let mut published = 0;
+    for attribute in attributes.iter().filter(|attribute| attribute.kind != "marker" && attribute.anchor.is_empty()) {
+        put_string(&mut out, &attribute.name);
+        put_string(&mut out, &attribute.kind);
+        published += 1;
+    }
+    database.insert("author_attributes_next (attribute, kind)", &out);
+    database.command("CREATE TABLE IF NOT EXISTS author_attributes AS author_attributes_next");
+    database.command("EXCHANGE TABLES author_attributes_next AND author_attributes");
+    database.command("DROP TABLE author_attributes_next");
+    log(&format!("author attributes={published}"));
 }
 
 fn quoted(text: &str) -> String {
@@ -300,7 +318,8 @@ pub fn run(database: &Database, threads: usize) {
     timed("consolidate", || {
         let finished: u64 = database.command("SELECT count() FROM extracted_parts").trim().parse().unwrap();
         assert!(finished >= PARTS, "claim extraction has not finished every part: {finished}/{PARTS}");
-        let mut vocabulary = Vocabulary::new(&timed("claim attributes", || attributes(database)));
+        let described = timed("claim attributes", || attributes(database));
+        let mut vocabulary = Vocabulary::new(&described);
         database.command("DROP TABLE IF EXISTS claimed_keys");
         database.command("CREATE TABLE claimed_keys (key UInt128) ENGINE = Set SETTINGS persistent = 0");
         let (texts, filters) = std::thread::scope(|scope| {
@@ -369,6 +388,7 @@ pub fn run(database: &Database, threads: usize) {
         database.command("EXCHANGE TABLES author_claims_next AND author_claims");
         database.command("DROP TABLE author_claims_next");
         database.command("DROP TABLE claimed_keys");
+        timed("author attributes", || publish(database, &described));
         log(&format!("author claims authors={authors} rows={decided}"));
     });
 }

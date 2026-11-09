@@ -41,7 +41,8 @@ class AttributeModel(nn.Module):
         self.input = nn.Linear(features["dimensions"], width)
         self.blocks = nn.Sequential(*(Block(width, expand, dropout) for _ in range(depth)))
         self.norm = nn.LayerNorm(width)
-        self.numeric, self.categorical, self.embedding = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical", "embedding"))
+        self.numeric, self.categorical = ([index for index, spec in enumerate(specifications) if spec["type"] == kind] for kind in ("numeric", "categorical"))
+        self.embedding = [index for index, spec in enumerate(specifications) if spec["type"] in ("embedding", "set")]
         sizes = [1] * len(self.numeric) + [len(specifications[index]["values"]) for index in self.categorical]
         offsets = np.cumsum([0] + sizes)
         self.slices = dict(zip(self.numeric + self.categorical, zip(offsets[:-1].tolist(), offsets[1:].tolist())))
@@ -118,10 +119,10 @@ def numeric(output, spec):
     return output[:, 0].float() * spec["scale"] + spec["center"]
 
 
-def specifications(targets, catalogs, labels, training):
+def specifications(targets, catalogs, labels, sets):
     result = []
     for column, (name, kind) in enumerate(validate(targets).items()):
-        observed = np.asarray(labels[training, column])
+        observed = np.asarray(labels[:, column])
         observed = observed[np.isfinite(observed)]
         if len(observed) < 2:
             raise ValueError(f"{name}: fewer than two training labels")
@@ -132,10 +133,20 @@ def specifications(targets, catalogs, labels, training):
             if scale <= 0:
                 raise ValueError(f"{name}: numeric training labels have no spread")
             spec |= {"center": center, "scale": scale, "baseline": float(np.abs((observed - center) / scale).mean())}
+            result.append(spec)
+            continue
+        values = catalogs[name]
+        if len(values) < 2:
+            raise ValueError(f"{name}: at least two values are required")
+        if kind == "set":
+            indptr, members = sets[name]
+            lengths = np.diff(indptr)
+            counts = np.bincount(members, minlength=len(values))
+            prior = (counts + .5) / (counts.sum() + .5 * len(values))
+            share = np.repeat(1 / np.maximum(lengths, 1), lengths)
+            spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "mean_size": float(lengths[lengths > 0].mean()),
+                     "baseline": float((-np.log(prior[members]) * share).sum() / (lengths > 0).sum())}
         else:
-            values = catalogs[name]
-            if len(values) < 2:
-                raise ValueError(f"{name}: at least two categorical values are required")
             counts = np.bincount(observed.astype(np.int64), minlength=len(values))
             prior = (counts + .5) / (counts.sum() + .5 * len(values))
             spec |= {"values": values, "counts": counts.tolist(), "prior": prior.tolist(), "baseline": float(-np.log(prior[observed.astype(np.int64)]).mean())}
