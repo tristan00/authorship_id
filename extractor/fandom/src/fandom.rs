@@ -40,6 +40,7 @@ const CONTINENTS: [&str; 13] = ["africa", "antarctica", "asia", "europe", "ocean
 const DEMONYM_WORDS: &str = "american british english scottish welsh irish canadian australian aussie french german spanish italian portuguese dutch russian chinese japanese korean indian pakistani \
 mexican brazilian argentine argentinian arab arabic african asian european latin latina latino hispanic polish swedish norwegian danish finnish greek turkish persian israeli ukrainian filipino \
 vietnamese thai hindi urdu bengali cuban egyptian nigerian swiss austrian belgian hungarian czech romanian";
+const GENRE_WORDS: &str = "rpg rpgs jrpg jrpgs mmo mmos mmorpg mmorpgs fps fpss platformer platformers roguelike roguelikes roguelite roguelites metroidvania metroidvanias shooter shooters soulslike soulslikes rts moba mobas genre genres mechanic mechanics";
 const INTERJECTION_WORDS: &str = "lol lmao omg haha dude bro yeah yep nope ok okay hey wow damn tbh imo idk btw nah u ur ya know";
 const FILLER_WORDS: &str = "u ur ya y'all yall know mean let lots plenty every some most many few other such own here's there's what's let's gonna wanna gotta kinda sorta";
 const CREATOR_WORDS: &str = "youtube yt tiktok twitch kick reddit instagram insta twitter facebook snapchat podcast podcasts channel channels video videos vlog vlogs stream streams streaming streamer \
@@ -73,6 +74,7 @@ static CALENDAR: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(C
 static COLOURS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(COLOUR_WORDS));
 static DEMONYMS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(DEMONYM_WORDS));
 static FILLER: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(FILLER_WORDS));
+static GENRES: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(GENRE_WORDS));
 static INTERJECTIONS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(INTERJECTION_WORDS));
 static CREATOR_TERMS: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(CREATOR_WORDS));
 pub static COMMON: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| word_set(COMMON_WORDS));
@@ -148,7 +150,7 @@ re!(ATTENDED, r"\b(?:watch|watched|watching|went|go|going|been to|attend|attende
 re!(FANNED, r"(?i:\s*(?:fan|supporter)\b)");
 re!(AVOWED, r"(?i:\b(?:i'?m|i am|as|been|being|be)\b[\w\s-]{0,20}$)");
 re!(OWNED, r"(?:my|our|we|us)\b");
-re!(PEER, r"(?i:\b(?:he|she|they|his|her|their|dad|mom|father|mother|brother|sister|wife|husband|son|daughter|friend|friends|boyfriend|girlfriend|partner|people|everyone|nobody|every)\b)");
+re!(PEER, r"(?i:\b(?:he|she|they|his|her|their|dad|mom|father|mother|brother|sister|wife|husband|son|daughter|friend|friends|boyfriend|girlfriend|partner|people|everyone|nobody|every|there's|theres|there is|anyone|someone|somebody)\b)");
 re!(FAVOURED, r"(?i:fav(?<!least fav)(?<!\wfav)(?:ou?rites?|es?|s)?\b[^\n:]*:|\^\(likes?:)");
 
 const CONTEXT_SOURCES: [&str; 8] = [
@@ -559,7 +561,10 @@ fn junk_value(attribute: &str, value: &str) -> bool {
     let every = |test: &dyn Fn(&str) -> bool| words.iter().all(|w| test(w));
     let folded_value = folded(value);
     let generic = |w: &str| GENERIC.contains(w) || COMMON.contains(w) || EDGE.contains(w);
-    (has(&CALENDAR_TARGETS, attribute) && within(&CALENDAR))
+    every(&|w| GENRES.contains(w))
+        || value.ends_with("'s")
+        || value.ends_with("’s")
+        || (has(&CALENDAR_TARGETS, attribute) && within(&CALENDAR))
         || (has(&PLATFORM_TARGETS, attribute) && every(&|w| PLATFORMS.contains(w) || PLATFORM_PART.contains(w) || is_number(w)) && words.iter().any(|w| PLATFORMS.contains(w)))
         || (has(&COLOUR_TARGETS, attribute) && every(&|w| COLOURS.contains(w)))
         || LEXICON.nations.contains(folded_value.as_str())

@@ -10,9 +10,9 @@ const PREP: &str = r"(?:in|near|outside(?: of)?|around|by|at|out of)\s+";
 const SUBJECT: &str = r"(?:\bi|\bwe|\bme and my \w+|\bmy (?:wife|husband|partner|family|girlfriend|boyfriend|fiance|fiancee|kids|parents) and i)";
 const PERSON_NOUN: &str = r"(?:guy|girl|man|woman|boy|lady|dude|gal|person|couple|cpl|student|kid|teen|teenager|mom|mum|dad|father|mother|wife|husband|bro|native|immigrant|expat|top|bottom|vers|bear|twink|femboy|sub|dom|daddy|milf|bull|transfem|transmasc|nurse|doctor|engineer|teacher|developer|artist|writer|player|gamer)";
 const PERSON: &str = r"(?:guy|girl|man|woman|boy|lady|dude|gal|person|couple|cpl|student|kid|teen|teenager|mom|mum|dad|father|mother|wife|husband|bro|native|immigrant|expat|top|bottom|vers|bear|twink|femboy|sub|dom|daddy|milf|bull|transfem|transmasc|nurse|doctor|engineer|teacher|developer|artist|writer|player|gamer)s?";
-const BRIEF: &str = r"(?!(?:sorry|sure|pretty|glad|afraid|aware|against|about|any|some|every|on|at|over|so|very|not|never|no|half|part|partly|quarter|mixed|fan|big|huge|of|in|to|from|with|the|for|into|like|than|fluent|native|married|probably|maybe|ex|former|formerly|called)\b)(?!\w+ing\b)[\w'-]+ ";
+const BRIEF: &str = r"(?!(?:pro|anti|as|mistaken|good|bad|great|ethnically|racially|culturally|sorry|sure|pretty|glad|afraid|aware|against|about|any|some|every|on|at|over|so|very|not|never|no|half|part|partly|quarter|mixed|fan|big|huge|of|in|to|from|with|the|for|into|like|than|fluent|native|married|probably|maybe|ex|former|formerly|called)\b)(?!\w+ing\b)[\w'-]+ ";
 const BELIEF: &str = r"christian|muslim|jew|jewish|catholic|atheist|conservative|liberal|i|we|\w+ly";
-const NOUNS: &str = r"teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent|dish|product|brand|movie|film|show|song|word|name|language|music|culture|history|government|team";
+const NOUNS: &str = r"teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent|dish|product|brand|movie|film|show|song|word|name|language|music|culture|history|government|team|prof|professor|degree|program|programme|department|cheese";
 const SELF_LEAD: &str = r"(?:(?<![\w.$#'/:+-])\d{2}(?:\s?(?:yo|y/o|m|f|years?(?: old)?))?|(?<![\w.$#'/:+-])[mf]\s?\d{2}s?|\bjust an?|\bi'?m an?|\bim an?|\bi am an?)[\s,/|)\]-]+(?:[a-z0-9']+\s+){0,3}?";
 
 static S_END: LazyLock<String> = LazyLock::new(|| format!(r"(?:(?:an?|the)\s+(?:\w+\s+){{0,2}}(?:town|village|city|suburb|part|side|area|middle of nowhere)\s+(?:in|of|near|outside(?: of)?)\s+)?(?:the\s+)?(?:city of\s+|state of\s+|town of\s+|province of\s+|greater\s+)?(?:(?:{DIRS})\s+)?[*_]*\Z"));
@@ -34,12 +34,7 @@ pub fn as_nation_start() -> String {
 }
 
 pub fn loose_nation() -> String {
-    format!(r"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)—–]|-\s)(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent)\b)", NATION = &*S_NATION)
-}
-
-pub fn spoken_pattern() -> String {
-    format!(concat!(r"\b{I} {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|too|myself|citizen|national|here|living|who|born|by|from|in|as|lol|haha|though|btw|with|not|or|mate|bro|guy|girl|man|woman|dude|male|female|person)\b)[a-z])",
-        r"|\bas (?:an?|another|a fellow) ({NATION})(?:[- ]born)?(?=$|[\s.,!;:)])(?!\s+(?!(?:and|but|so|myself|citizen|national|person|man|woman|guy|girl|dude|male|female|living|who|born|raised|here|in|from|i|we|it|there|that|by|expat|immigrant|veteran|mom|mother|dad|father|parent|voter|taxpayer|kid|child|adult|student|resident|native|lol)\b)[a-z])"), NATION = &*S_NATION, I = I, ADVERB = ADVERB)
+    format!(r"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)—–]|-\s)(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent|prof|professor|degree|program|programme|department|cheese)\b)", NATION = &*S_NATION)
 }
 
 macro_rules! pattern {
@@ -48,20 +43,20 @@ macro_rules! pattern {
     };
 }
 
-pattern!(LIVE, 0, format!(r"{SUBJECT}(?:\s+(?:currently|now|still|also|just|actually|already|really|recently|both|all|happily|finally))*(?:\s+(?:live|reside|moved|relocated|settled)|(?:'ve|\s+have)\s+(?:been\s+)?(?:lived|living|based|settled))\s+{ADVERB}{WAY}(?:{PREP}|to\s+|on\s+)?(?:(?!(?:a|an|the|my|our|with|and|but|for|of|to|in|by|near|at|from|this|that|fear|hope|peace|sin|denial)\b)[a-z]+\s+){{0,2}}?{END}", END = &*S_END));
+pattern!(LIVE, 0, format!(r"{SUBJECT}(?:\s+(?:currently|now|still|also|just|actually|already|really|recently|both|all|happily|finally))*(?:\s+(?:live|stay|reside|moved|relocated|settled)|(?:'ve|\s+have)\s+(?:been\s+)?(?:lived|living|based|settled))(?!(?:\s+\w+){{0,2}}\s+out\s+of\b)\s+{ADVERB}{WAY}(?:{PREP}|to\s+|on\s+)?(?:(?!(?:a|an|the|my|our|with|and|but|for|of|to|in|by|near|at|from|this|that|fear|hope|peace|sin|denial)\b)[a-z]+\s+){{0,2}}?{END}", END = &*S_END));
 pattern!(BEING, 0, format!(r"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\biam|\bi (?:now|currently|still|also) am)(?:\s+(?:currently|now|still|also|just|actually|already|really|basically|technically|both|all|living|based|located|residing|settled|here|out|over|down|up|back|happily|permanently|right|somewhere))*\s+(?:{WAY}{PREP}|(?:(?:just|right)\s+)?(?:north|south|east|west|northeast|northwest|southeast|southwest|outside)\s+of\s+){END}", END = &*S_END));
-pattern!(BARE, 0, format!(r"(?:^|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+|(?<![\w.$#'/:+-])\d{{2}}\s?[mf]?\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside)\s+(?:here\s+)?{PREP}{END}", END = &*S_END));
+pattern!(BARE, 0, format!(r"(?:^|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+|\bas someone\s+(?:who\s+)?|(?<![\w.$#'/:+-])\d{{2}}\s?[mf]?\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside)\s+(?:here\s+)?{PREP}{END}", END = &*S_END));
 pattern!(HERE, 0, format!(concat!(r"\b(?:here|over here|out here|down here|up here)\s+in\s+{END}|(?:^|[\n.!?,;:(]\s*|\b(?:for|of|to|with|among)\s+)(?:we|us)\s+(?:here\s+)?in\s+{END}|\b(?:greetings|hello|hi|hey|love|cheers|regards|blessings|hugs|howdy|saludos|grüße|grüsse)\s+from\s+{END}",
     r"|\b(?:my|our) (?:city|town|country|state|province|county|neighborhood|neighbourhood|island|village|area|house|building|apartment|flat)(?:\s*(?:of residence|of|,|:|-|\(|\.|is in|in))*\s*{END}"), END = &*S_END));
 pattern!(MOVED, 0, format!(r"(?:(?:^|[\n.!?;:(]\s*|\bthen\s+|\b\d{{2}}\s?[mf]\s+)(?:just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)|\bdecided to (?:move|relocate))\s+(?:back\s+)?(?:over\s+)?(?:here\s+)?to\s+{END}", END = &*S_END));
 pattern!(ABROAD, 0, concat!(r"\b(?:vivo|vivimos|resido|radico|estoy|estamos|moro|moramos|wohne|wohnen|lebe|leben|j'habite|habite|je vis|je réside|j'vis|je me trouve|me trouve|abito|risiedo|woon|wonen)\s+(?:actualmente\s+|atualmente\s+|aktuell\s+|derzeit\s+|zurzeit\s+|actuellement\s+|attualmente\s+|nu\s+)?",
     r"(?:en|em|no|na|in|im|à|a|au|aux|dans le|dans la|dans les|dans|nel|nella|bei|nahe|cerca de|perto de|près de|vicino a|in der nähe von)\s+(?:el\s+|la\s+|o\s+|a\s+|der\s+|den\s+|le\s+|il\s+|het\s+)?\Z",
-    r"|\b(?:aquí|aqui|acá|hier|ici|qui)\s+(?:en|em|no|na|in|à|a)\s+\Z"));
-pattern!(FROM, 0, format!(concat!(r"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\bi come|\bwe come|\boriginally|\bbeing|\bme being)(?:\s+(?:currently|still|also|just|actually|originally|both|all|here|over|out|down|up|\w+ly))*\s+from\s+{END}",
+    r"|\b(?:aquí|aqui|acá|hier|ici|qui)\s+(?:en|em|no|na|in|à|a)\s+\Z|\b(?:jeg|jag|eg|vi)\s+bor\s+i\s+\Z"));
+pattern!(FROM, 0, format!(concat!(r"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\bi come|\bwe come|\boriginally|(?<!for )\bbeing|\bme being)(?:\s+(?:currently|still|also|just|actually|originally|both|all|here|over|out|down|up|\w+ly))*\s+from\s+{END}",
     r"|(?:^|[\s(\[])(?:\d{{2}}\s?[mfw]|[mfw]\s?\d{{2}}|cpl)(?:\s+here)?\s+from\s+{END}",
     r"|\b(?:i'm|im|i am)\s+(?:an?\s+)?\d{{2}}(?:\s*-?\s*(?:years?[- ]old|yo|y/o|[mf]))?(?:\s+[a-z]+){{0,3}}\s+from\s+{END}"), END = &*S_END));
 pattern!(GERMAN, 0, r"\b(?:ich\s+)?(?:komme|kommen|bin)\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z|(?:^|[,(\[/])\s*aus\s+\Z|\b(?:[mwf]\s?\d{2}|\d{2}\s?[mwf]|[mwf])\s+aus\s+\Z");
-pattern!(LEFT, 0, concat!(r"\b(?:soy|somos|sou)\s+(?:de|del|da|do|originario de|originaria de|natural de)\s+(?:la\s+|el\s+|o\s+|a\s+)?\Z|\b(?:ich\s+)?stamme\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z",
+pattern!(LEFT, 0, concat!(r"(?<!\bno )(?<!\bnão )(?<!\bnao )\b(?:soy|somos|sou)\s+(?:de|del|da|do|originario de|originaria de|natural de)\s+(?:la\s+|el\s+|o\s+|a\s+)?\Z|\b(?:ich\s+)?stamme\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z",
     r"|\bje (?:suis|viens) (?:de|du|d')\s*\Z|\bsono di\s+\Z|\bvengo (?:de|da|dal|dalla)\s+\Z|\b(?:ik\s+)?kom (?:uit|van)\s+\Z"));
 pattern!(ORIGIN, 0, format!(concat!(r"(?:{SUBJECT}|\bas an? (?:person|guy|girl|woman|man|kid|someone) who)(?:\s+(?:was|were|got))?(?:\s+(?:\w+ly|also|both|all))*\s+(?:grew up|raised|born|brought up)(?:\s+and\s+(?:raised|bred))?\s+(?:in|on|near|outside(?: of)?|around)\s+{END}",
     r"|\bborn and (?:raised|bred) (?:in|on)\s+{END}|(?:^|[\n.!?(]\s*)(?:grew up|born|raised|born and raised) in\s+{END}",
@@ -74,7 +69,6 @@ pattern!(START, 0, r"(?:^|[\n.!?,;(:]\s*|\b(?:also|fellow|another|a|an|proud)\s+
 pattern!(HERE_AFTER, 0, format!(r"(?:\s+(?:{PERSON}|people|resident|local|area|family|fan|collector|redditor|user))?,?\s+here\b(?=\s*(?:$|[\n.!,;:)\-–—(&]|and\b|too\b|as well\b|lol|haha|so\b|but\b|with\b))"));
 pattern!(SELF, 0, r"(?:\b(?:i'm|im|i am|we're|we are|am)\s+(?:an?\s+)?|^|[\n.!?,;]\s*)\Z");
 pattern!(BORN, 0, r"(?:\b(?:i'm|im|i am|we're|we are|am|my|i was)\s+(?:an?\s+)?|^|[\n.!?,;(]\s*)\Z");
-pattern!(PEOPLE, 0, r"\b(?:i'm|im|i am|iam|as|am|we're|we are|being)\s+(?:an?\s+)?(?:(?!not\b|never\b|half\b|part\b|quarter\b|mixed\b)\w+\s+)?\Z|\b(?:native|fellow)\s+\Z");
 pattern!(CITIZEN, 0, r"\b(?:i'm|im|i am|as|am|we're|we are|being|dual)\s+(?:an?\s+)?(?:\w+\s+)?\Z|\(\Z");
 pattern!(TITLE, M, format!(r"(?<![\w-])(?:{FOR}|{TAG}|\b\d{{2}},\s*[mf]\b|\[\d{{2}}\]|\(\d{{2}}\)|\b[mft]4[mfatr]\w*|\bage:?\s*\d{{2}}\b|\b\d{{2}}\s*/\s*[mf]\b|\b[mf]\s*/\s*\d{{2}}\b)|^\s*\d{{2}}(?=\s+(?:[\[(]\s*)?(?!(?:years?|days?|weeks?|months?|hours?|minutes?|seconds?|times?|percent|people|of)\b(?!\s+old))[a-z])"));
 pattern!(LEAD, M, format!(r"(?:{FOR}|{TAG}|[\[\](){{}}#/|,:;!.–-]|\b(?:in|from|near|around|aus|de|em|en|di|loc|male|female)|^\s*\(?\d{{2}}\)?|^)\s*(?:(?:{DIRS})\s+)?\Z"));
@@ -91,6 +85,8 @@ pattern!(AGED_IN, 0, format!(r"(?:{TAG}|\b\d{{2}}[- ]?(?:years?[- ]old|yrs?[- ]o
 pattern!(ROLE, 0, format!(r"\b(?:i'm|im|i am)\s+an?\s+(?:(?!not\b|never\b)[\w-]+\s+){{1,4}}in\s+{END}", END = &*S_END));
 pattern!(OPENING, 0, r#"(?:^|[.!?\n])[\s\"'*]*\Z"#);
 pattern!(AREA, IGNORE, r"\s+(?:area|county)\b");
+pattern!(FLAIR, 0, r"\Ar/[a-z0-9_]+:\s*");
+pattern!(VENUE, IGNORE, r"\s+(?:stadium|arena|airport|university|college|time|zone|street|avenue|mall|hospital|station)\b");
 pattern!(TRIP, 0, r"\b(?:visiting|business trip|road trip|(?<!come )(?<!can )(?<!you )travel(?:l?ing)? (?:to|through)|in town (?:for|this|until|till)|passing through|layover|on vacation|on holiday|checked into|hotel room|my hotel|coming (?:to|up to|down to)|heading to|will be in|going to be in)\b");
 pattern!(TRADE, 0, r"[\w ,/-]{0,12}\]\s*\[h\]");
 pattern!(COPULA, 0, r"(?<!no )(?<!não )(?<!nao )(?<!non )\b(?:soy|somos|sou|je suis|nous sommes|ich bin|bin|wir sind|sono|siamo|ik ben|wij zijn)\s+(?:(?:un|una|um|uma|ein|eine|re|muy|bien|très|tres|molto|sehr|auch|también|tambien|aussi|anche|também|tambem|ook)\s+)?\Z");
@@ -100,8 +96,7 @@ pattern!(WHERE, 0, r"\s*,?\s+(?:is |that's |which is )?where i(?:'m| am|'ve| hav
 pattern!(LOCAL, 0, r"\s+(native|local|resident)\b");
 pattern!(LOCAL_LEAD, 0, format!(r"\b(?:i'm|im|i am|as|am)\s+an?\s+{ADVERB}(?:(?:{DIRS})\s+)?\Z"));
 pattern!(CITIZEN_AFTER, 0, r"\.?\s+(?:citizen|national|passport holder)s?\b");
-pattern!(HOME_COUNTRY, M, concat!(r"(?:\b(?:my|our) (?:home |own |native )?country\s*(?:,|\(|:|-|is|of)?\s*|\b(?:i|i'm|im|i am|i was|me)\b[^.!?\n]*\bborn and (?:raised|bred) in (?:the )?",
-    r"|(?:(?:^|[.!?]\s*)\d{2}\s*(?:years?[- ]old|yrs?[- ]old|yo|y/o)|\b(?:i'm|im|i am) (?:an? )?\d{2}(?:\s?[mf])?)\s*,?\s*(?:and\s+)?(?:i'm\s+|im\s+|i am\s+)?(?:originally\s+)?from\s+(?:the\s+)?)\Z"));
+pattern!(HOME_COUNTRY, M, r"(?:\b(?:my|our) (?:home |own |native )?country\s*(?:,|\(|:|-|is|of)?\s*|\b(?:i|i'm|im|i am|i was|me)\b[^.!?\n]*\bborn and (?:raised|bred) in (?:the )?)\Z");
 pattern!(HOSTING, 0, format!(r"\b(?:hosting|can host|new)\s+(?:in|to)\s+{END}", END = &*S_END));
 pattern!(LOCATION, 0, r"(?:^|\n)[\W_]*(?:location|loc|based)[\W_]*[:=-][\W_]*\Z");
 pattern!(HOMETOWN, 0, r"\s*[,.(-]?\s*(?:(?:it's|its|it is|is|was)\s+)?my\s+(?:hometown|home town|birthplace)\b");
@@ -110,7 +105,7 @@ pattern!(AUTOMATED, 0, r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:
 pattern!(REPOST, 0, r"(?:original (?:post|text)|copy of (?:your|the) post|backup of your post|post body)[^\n:]{0,30}:[*\s]*");
 pattern!(SUBJECTIVE, 0, r"\b(?:i|i'm|im|we|we're|me|as an?)\b");
 pattern!(CHAIN, 0, r"[\s,(:–—-]*(?:(?:more\s+)?specifically|namely|in|near|around|outside(?: of)?|just outside(?: of)?|close to)?[\s,(:–—-]*(?:the\s+)?");
-pattern!(GROUP, 0, r"(?:\b(?:we|us)(?: (?:fellow|proud|all))? \(?|\bwe(?:'re| are) (?:all |both )?|\bproud to be (?:an? )?|(?<!him )(?<!her )(?<!them )(?<!his )(?<!their )(?<!its )(?<!it )(?<!he )(?<!she )(?<!they )(?<!you )(?<!your )(?<!people )(?<!someone )(?<!to )(?<!with )(?<!just )(?<!while )\bbeing (?:an? )?)\Z");
+pattern!(GROUP, 0, r"(?:\b(?:we|us)(?: (?:fellow|proud|all))? \(?|\bwe(?:'re| are) (?:all |both )?|\bproud to be (?:an? )?|(?<!him )(?<!her )(?<!them )(?<!his )(?<!their )(?<!its )(?<!it )(?<!he )(?<!she )(?<!they )(?<!you )(?<!your )(?<!people )(?<!someone )(?<!to )(?<!with )(?<!just )(?<!while )(?<!about )\bbeing (?:an? )?)\Z");
 pattern!(NOUN_AFTER, 0, format!(r"\s+(?:{NOUNS})s?\b"));
 pattern!(GROUP_END, 0, format!(r"\)?(?=$|[\s.,!;:)])(?!\s+(?:{NOUNS})s?\b)"));
 pattern!(AGE_FRAME, M, format!(r"(?<![\w.$#'/:+-])\d\d(?<!my \d\d)(?<!a \d\d)(?<!an \d\d)(?<!the \d\d)(?<!her \d\d)(?<!his \d\d)(?<!our \d\d)[- ]?(?:years?[- ]old|yrs?[- ]old|yo|y/o)[\s,-]+(?:{BRIEF}){{0,2}}?({NATION})(?=$|[\s.,!;:)])", NATION = &*S_NATION));
@@ -154,8 +149,8 @@ pub fn asked_frames() -> [Frame; 3] {
 
 pub fn all() -> Vec<&'static Re> {
     vec![
-        &LIVE, &BEING, &BARE, &HERE, &MOVED, &ABROAD, &FROM, &GERMAN, &LEFT, &ORIGIN, &DOUBTED, &LATER, &START, &HERE_AFTER, &SELF, &BORN, &PEOPLE, &CITIZEN, &TITLE, &LEAD,
-        &TOWN_LEAD, &TAG_LEAD, &LAST, &NEAR, &ASKING, &ADMINISTRATIVE, &LOOSE, &SELF_FROM, &TAG_FROM, &AGED_IN, &ROLE, &OPENING, &AREA, &TRIP, &TRADE, &COPULA, &OPENER,
+        &LIVE, &BEING, &BARE, &HERE, &MOVED, &ABROAD, &FROM, &GERMAN, &LEFT, &ORIGIN, &DOUBTED, &LATER, &START, &HERE_AFTER, &SELF, &BORN, &CITIZEN, &TITLE, &LEAD,
+        &TOWN_LEAD, &TAG_LEAD, &LAST, &NEAR, &ASKING, &ADMINISTRATIVE, &LOOSE, &SELF_FROM, &TAG_FROM, &AGED_IN, &ROLE, &OPENING, &AREA, &VENUE, &FLAIR, &TRIP, &TRADE, &COPULA, &OPENER,
         &OPENER_END, &WHERE, &LOCAL, &LOCAL_LEAD, &CITIZEN_AFTER, &HOME_COUNTRY, &HOSTING, &LOCATION, &HOMETOWN, &LIFE, &AUTOMATED, &REPOST, &SUBJECTIVE, &CHAIN,
         &GROUP, &NOUN_AFTER, &GROUP_END, &AGE_FRAME, &HELD_FRAME, &SELF_PAREN, &LABEL_FRAME, &COMPOUND_FRAME, &AM_FRAME, &AS_WIDE, &LOOSE_NATION, &AS_NATION, &AS_NATION_START,
         &SELF_DESCRIBED, &SELF_FROM_LEAD, &TAG_BEFORE, &TAG_AFTER, &NATION_HERE, &OPENS, &CLOSES, &OTHERS_LEAD, &CITIZEN_OF, &SELF_IN_LEAD,

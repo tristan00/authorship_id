@@ -17,10 +17,11 @@ static CONDITIONAL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:if|would|wish
 static UNLESS: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:if|would|wish)\b"));
 static SCOPE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:because|cause|cuz|since|and|but|so|as|although|though|after|before|while|until)\b"));
 static PRETEND: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:like|as if|as though|pretend|pretending|imagine)\s*$"));
-static YOU: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*,?\s*(?:you|u|your|yourself)\b"));
-static SELF: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i|i'm|im|i've|ive|my|me|myself)\b"));
+static YOU: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*,?\s*(?:you|u|your|yourself)\b|\s+(?:is|isn't|means|requires|sucks|can|could|will|would|has|was|takes|seems|makes|he|she|they)\b"));
 static OPENED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^|[.!?\n,]|\b(?:but|so|because|also))\s*$"));
 static PERSONA: LazyLock<Re> = LazyLock::new(|| Re::new(r"\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\b[mf]4[a-z]+\b|\d{2}\s?(?:yo|y/o|yrs? old|years? old)\b"));
+static SELF: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i|i'm|im|i've|ive|my|me|myself)\b"));
+static PAIRED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s+and (?:i|me) (?:are|were|have|had|went|both|figured|got|did|decided)\b"));
 static STRICT_END: LazyLock<Re> = LazyLock::new(|| Re::new(r"[ \t]*(?:$|[.,!;|(\n]|(?:and|by trade|by profession|here)\b)"));
 static PERSONA_END: LazyLock<Re> = LazyLock::new(|| Re::new(r"[ \t]*(?:$|[.,!;|(\n-]|(?:and|by trade|by profession|here|who|with|getting|looking|seeking|available|from|in)\b)"));
 static WANTED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:you|your|you're|u|ur|looking|seeking|want|wanted|wanting|prefer|preferably|ideally|bonus|like|into|for)\b"));
@@ -51,6 +52,7 @@ static FIRST_NEAR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i|i'm|im|i've|
 static PEERS: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{KIN}|batchmates?|classmates?|colleagues?|coworkers?)\b")));
 pub(crate) static ASPIRING: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"\b(?:eventually|someday|love to|build|building|idea|goal|goals|pursue|pursuing|planning|plan|plans|apply|applying|application|considering|thinking|soch|want|wanted|wanting|hoping|dream|future|next|aspiring|",
     r"get|getting|start|starting|consider|choose|choosing|need|needs|require|requires|required|offer|offers)\b")));
+pub(crate) static FUTURE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:planning|plan|plans|want|wanted|wanting|hoping|thinking|considering|consider|apply|applying|dream|eventually|someday|will|might|may)\b"));
 pub(crate) static LEVELLESS: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:international|foreign|exchange|overseas)\b"));
 static WORDS: LazyLock<Re> = LazyLock::new(|| Re::new(r"[\w'-]+"));
 static MILESTONE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:passed|hit|crossed|topped|clear|cleared)\b"));
@@ -200,32 +202,44 @@ fn abroad(m: &Match) -> Option<&'static str> {
 fn fragment(m: &Match) -> Option<&'static str> {
     let text = m.string;
     let lead = m.text();
-    let persona = PERSONA.test(lead);
-    if !persona {
-        let end = m.end();
-        if end >= text.len() || !alnum(text[end]) {
-            return None;
-        }
-        let first = st(&text[end..token_end(text, end, text.len())]);
-        if !TITLE_HEADS.contains(&first) {
-            return None;
-        }
-    }
     if contains(lead, "hir") {
         return None;
     }
-    let (value, end) = title(text, m.end(), Some(if persona { 2 } else { 0 }))?;
-    if question(text, end) {
+    if PERSONA.test(lead) {
+        let (value, end) = title(text, m.end(), Some(2))?;
+        return (!question(text, end) && PERSONA_END.at(text, end).is_some()).then_some(value);
+    }
+    let (value, end) = title(text, m.end(), Some(0))?;
+    if question(text, end) || STRICT_END.at(text, end).is_none() || PAIRED.at(text, end).is_some() || addressed(text, end) || enumerated(text, m.start(), end) {
         return None;
     }
-    if persona {
-        return if PERSONA_END.at(text, end).is_some() { Some(value) } else { None };
+    (SELF.test_in(text, end, end + 120) || text.len() < 60).then_some(value)
+}
+
+fn addressed(text: &[char], end: usize) -> bool {
+    let Some(comma) = (end..text.len()).find(|&i| text[i] != ' ' && text[i] != '\t') else { return false };
+    if text[comma] != ',' {
+        return false;
     }
-    if STRICT_END.at(text, end).is_some() && (SELF.test_in(text, end, end + 120) || text.len() < 60) {
-        Some(value)
-    } else {
-        None
-    }
+    let Some(word) = (comma + 1..text.len()).find(|&i| !is_space(text[i])) else { return false };
+    let name = st(&text[word..token_end(text, word, text.len())]);
+    !matches!(name.as_str(), "i" | "i'm" | "i've" | "i'd" | "i'll") && original(text).is_some_and(|raw| raw[word].is_uppercase())
+}
+
+fn enumerated(text: &[char], start: usize, end: usize) -> bool {
+    let next = (end..text.len()).find(|&i| text[i] == '\n').map(|i| i + 1);
+    let before = line_start(text, start);
+    let previous = (before > 0).then(|| line_start(text, before - 1));
+    [next, previous].into_iter().flatten().any(|line| {
+        let first = (line..text.len()).find(|&i| alnum(text[i]) || text[i] == '\n').unwrap_or(text.len());
+        first < text.len() && text[first] != '\n' && title(text, first, Some(0)).is_some_and(|(_, stop)| STRICT_END.at(text, stop).is_some())
+    })
+}
+
+fn bare(m: &Match) -> Option<&'static str> {
+    let (value, end) = title(m.string, m.end(), Some(0))?;
+    let named = !value.contains(' ') && original(m.string).is_some_and(|text| text.get(m.end()).is_some_and(|c| c.is_uppercase()));
+    (!named && !question(m.string, end) && PERSONA_END.at(m.string, end).is_some()).then_some(value)
 }
 
 fn retiree(m: &Match) -> Option<&'static str> {

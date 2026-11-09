@@ -6,6 +6,7 @@ use std::sync::LazyLock;
 const IM: &str = r"(?:i'm|im|i am)";
 const ADV: &str = r"(?: (?:also|now|currently|still|mainly|mostly|only|just|actually|really|primarily|usually|exclusively|personally|recently|finally|already|can))*";
 const OPEN: &str = r"(?:^|[.!?\n,(]\s*)";
+const RIG_FLAIR: &str = r"\Ar/\w*(?:pc|amd|nvidia|intel|radeon|geforce|hardware|overclock|battlestation)\w*: [^\n]*?(?<![\w-])";
 const HERE: &str = r"(?:a |an |just a |fellow |another |proud )?";
 
 const LINUX: &[&str] = &["linux", "arch", "arch linux", "ubuntu", "kubuntu", "xubuntu", "lubuntu", "fedora", "debian", "linux mint", "manjaro", "nixos", "gentoo", "pop!_os", "pop os", "pop_os",
@@ -111,6 +112,7 @@ static HOBBY_LEAD: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"(?<=^|[.!?\n]|[.!?\n] |[.!?\n]  )(?:also |really )?(?:love|enjoy|into)|",
     r"in my (?:free|spare|down|leisure) time,? i(?: (?:really |also |usually |mostly )?(?:like|love|enjoy)(?: to)?)?|i (?:also )?spend (?:my|most of my|a lot of my|all my) (?:free|spare) time(?: on)?)\s+"
 )));
+static ABOUT: LazyLock<Re> = LazyLock::new(|| Re::new(r"^\s*\w+ about\b"));
 static PIECES: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:,|;|/|&|\+|\band\b|\bor\b|\bas well as\b|\bplus\b)\s*"));
 static QUALIFIER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s+(?:for|with|in|on|at|about|when|whenever|every|especially|a lot|too|sometimes|as well|myself|lately|alot|so much|very much|daily|outdoors|together)\b.*$"));
 static FILLER: LazyLock<Re> = LazyLock::new(|| Re::new(r"^(?:(?:also|some|a lot of|lots of|doing|going|a bit of|a little|more|mostly|mainly|really|just|to|of course)\s+)+"));
@@ -209,8 +211,12 @@ fn system(m: &Match) -> Option<String> {
 }
 
 fn platform(m: &Match) -> Option<String> {
-    let name = m.first_s()?;
-    let value = if name == "steam deck" {
+    let names: Vec<&str> = (1..=m.groups()).filter_map(|group| m.gs(group)).map(|name| platform_of(&name)).collect();
+    (!names.is_empty()).then(|| names.join("|"))
+}
+
+fn platform_of(name: &str) -> &'static str {
+    if name == "steam deck" {
         "steam deck"
     } else if name == "pc" || name == "steam" {
         "pc"
@@ -224,8 +230,7 @@ fn platform(m: &Match) -> Option<String> {
         "nintendo switch"
     } else {
         "mobile"
-    };
-    Some(value.to_string())
+    }
 }
 
 fn number(text: &str, low: f64, high: f64) -> Option<f64> {
@@ -311,6 +316,8 @@ fn build() -> Vec<Rule> {
     add(&mut rules, "gaming_platform", &format!(r"\b{IM}(?: (?:a|an))?(?: (?:proud|casual|hardcore|lifelong|long[- ]?time|filthy|full[- ]time|primarily|mainly|mostly))* ({platforms}) (?:player|gamer)\b(?!s|'s| (?:base|count|numbers|community|population)\b)"), platform, platform_anchors);
     add(&mut rules, "gaming_platform", &format!(r"{OPEN}{HERE}({platforms}) (?:player|gamer)(?: here\b|(?=\s*(?:$|[.,!;:)\n]|\b(?:and|btw|but|so|myself)\b)))"), platform, platform_anchors);
     add(&mut rules, "gaming_platform", &format!(r"\b{IM}(?: (?:currently|also|now|still|mostly|mainly|only))* on ({consoles}){after}"), platform, platform_anchors);
+    add(&mut rules, "gaming_platform", &format!(r"\bi (?:mostly |mainly |only |also |usually |currently )?play (?:on )?({platforms})(?:\s*(?:,|/|&|and|or)\s*|\s+)({platforms})(?:(?:\s*(?:,|/|&|and|or)\s*|\s+)({platforms}))?{after}"), platform, platform_anchors);
+    add(&mut rules, "gaming_platform", &format!(r"\b(?:on|with) my (steam deck|ps5|ps4|xbox series x|xbox series s|xbox one|xbox|nintendo switch 2|nintendo switch|switch 2|quest 3|quest 2){after}"), platform, platform_anchors);
 
     let instruments = pick(INSTRUMENTS);
     let instrument_anchors = &["guitar", "bass", "piano", "keys", "synth", "drum", "violin", "viola", "cello", "fiddle", "trumpet", "trombone", "tuba", "horn", "euphonium", "cornet", "sax", "clarinet",
@@ -335,7 +342,7 @@ fn build() -> Vec<Rule> {
     let colors = r"(?:white|yellow|orange|green|blue|purple|brown|black|red)";
     add(&mut rules, "martial_arts", &format!(concat!(r"{} (?:train|training|trained|do|doing|done|practice|practicing|practiced|practise|practising|practised|compete in|competing in|teach|teaching|coach|coaching|",
         r"started|started training|started doing|took up) (?:in )?({})(?:{} ({}))?(?:{} ({}))?\b",
-        r"(?![\w-]| (?:class|classes|gym|gyms|on tv|matches|fights|events|videos|tournaments|linux|yuga)\b)"), perfect, arts, joint, arts, joint, arts), mapped(ARTS), art_anchors);
+        r"(?![\w-]| (?:class|classes|gym|gyms|on tv|matches|fights|events|videos|tournaments|linux|yuga|kaisen)\b)"), perfect, arts, joint, arts, joint, arts), mapped(ARTS), art_anchors);
     let holder = format!(r"\b(?:{IM}|i have|i hold|i got|i earned|i've got|ive got|i received|i was promoted to|i achieved)(?: (?:now|currently|also|just|finally|recently|a|an|my))*");
     let rank = r"(?:\d+(?:st|nd|rd|th)[- ]dan |(?:\d|one|two|three|four)[- ]stripe(?:d)? )?";
     add(&mut rules, "martial_arts", &format!(r"{holder} {rank}{colors} belt (?:in|at) ({arts})\b"), mapped(ARTS), &["belt"]);
@@ -435,6 +442,7 @@ fn build() -> Vec<Rule> {
     add(&mut rules, "ram_gb", &format!(r"{owner} {gb}{ram}(?! (?:on|in) (?:my|the|a) (?:phone|tablet|ipad))"), memory, ram_anchors);
     add(&mut rules, "ram_gb", &format!(r"(?:^|[\n|•,;(]\s*)(?:[-*]\s*)?(?:ram|memory|system memory)\s*[:=-]\s*{gb}\b"), |m: &Match| if TENTATIVE.test(m.string) { None } else { memory(m) }, spec_anchors);
     add(&mut rules, "ram_gb", &format!(r"\bmy {gb}{ram}"), memory, ram_anchors);
+    add(&mut rules, "ram_gb", &format!(r"{RIG_FLAIR}{gb}{ram}"), memory, ram_anchors);
     add(&mut rules, "ram_gb", &format!(r"\b(?:i{ADV} (?:have|own|use|got|bought|built)|my) (?:an? |the )?(?:[\w-]+ ){{1,4}}?with {gb}{ram}"), memory, ram_anchors);
 
     let gpu = r"((?:(?:nvidia|geforce|amd|radeon|intel) )*(?:(?:rtx|gtx) ?\d{3,4}(?: ?(?:ti super|ti|super))?|rx ?\d{3,4}(?: ?(?:xtx|xt|gre))?|rx ?vega ?\d{2}|radeon (?:vii|\d{3,4}m?)|arc ?[ab]\d{3}))\b";
@@ -453,6 +461,7 @@ fn build() -> Vec<Rule> {
         add(&mut rules, attribute, &format!(r"{have}{gear} {paired}{part}"), keep, anchors);
         add(&mut rules, attribute, &format!(r"{using}{gear} {paired}{part}"), keep, anchors);
         add(&mut rules, attribute, &format!(r"{mine}{part}"), keep, anchors);
+        add(&mut rules, attribute, &format!(r"{RIG_FLAIR}{part}"), keep, anchors);
         add(&mut rules, attribute, &format!(r"(?:^|[\n|•,;(]\s*)(?:[-*]\s*)?{label}\s*[:=-]\s*{part}"), listed, spec_anchors);
     }
 
@@ -497,6 +506,9 @@ fn hobbies(lowered: &[char], found: &mut Found) {
             continue;
         }
         for (index, piece) in re_split(&PIECES, &lowered[start..stop]).into_iter().enumerate() {
+            if ABOUT.test(piece) {
+                continue;
+            }
             let piece = QUALIFIER.sub(piece, "");
             let piece = FILLER.sub(&piece, "");
             let name = st(strip_space(&piece));
@@ -534,7 +546,7 @@ pub fn init() {
     timed("fandom.interests.init", || {
         LazyLock::force(&RULES);
         LazyLock::force(&GATES);
-        for re in [&HOBBY_LEAD, &PIECES, &QUALIFIER, &FILLER, &OBJECT] {
+        for re in [&HOBBY_LEAD, &ABOUT, &PIECES, &QUALIFIER, &FILLER, &OBJECT] {
             LazyLock::force(re);
         }
         LazyLock::force(&HOBBIES);

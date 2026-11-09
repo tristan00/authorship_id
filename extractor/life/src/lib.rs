@@ -1,5 +1,6 @@
 mod beliefs;
 mod experience;
+mod flair;
 mod home;
 mod lifestyle;
 mod parental;

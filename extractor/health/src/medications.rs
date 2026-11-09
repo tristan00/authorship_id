@@ -33,7 +33,7 @@ const DRUGS: &[&str] = &[
     "allopurinol", "colchicine", "chantix", "varenicline", "reta", "foundayo", "orforglipron", "augmentin", "amoxicillin", "unisom", "paracetamol", "acetaminophen",
     "tylenol", "ibuprofen", "advil", "benadryl", "repatha", "irbesartan", "lactulose", "differin", "dayvigo", "nexplanon",
 ];
-const DOSE: &str = r"(\d*\.?\d+)\s?(mg|mcg|ml|iu)\b";
+const DOSE: &str = r"\d*\.?\d+\s?(?:mg|mcg|ml|iu)\b";
 
 static FRAME: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"(?:i(?<!\wi)(?:'m|m| am)(?: (?:currently|now|also|still|back|only|just|already|finally))* (?:on|taking|using|prescribed|medicated with)",
@@ -55,15 +55,7 @@ static ITEM: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
 
 static PRIOR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:suggest(?:ed|s)?|recommend(?:ed|s)?|advised?|wanted|wants?|said|says|told me|asked|insist(?:ed|s)?|should|could|may|might|can|planning|plans?|offered|tried|refused|decided) (?:that |me |to )*\Z"));
 
-static LINK: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:\([^()\n]{1,40}\)\s*)?(?:,\s*(?:and\s+|&\s+)?|\s+(?:and|&|plus)\s+|\s*[/+&]\s*)"));
-
-fn named(item: &Match) -> String {
-    let drug = item.g(3);
-    match (item.gs(4), item.gs(5), item.gs(1), item.gs(2)) {
-        (Some(number), Some(unit), _, _) | (_, _, Some(number), Some(unit)) => format!("{drug} {number} {unit}"),
-        _ => drug,
-    }
-}
+static LINK: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:\([^()\n]{1,40}\)\s*)?(?:\s+for\s+(?:my\s+)?[\w/-]+(?=\s+(?:and|&|plus)\s))?(?:,\s*(?:and\s+|&\s+)?|\s+(?:and|&|plus)\s+|\s*[/+&]\s*)"));
 
 pub fn init() {
     LazyLock::force(&FRAME);
@@ -78,7 +70,7 @@ pub fn medications(lowered: &[char], found: &mut Found) {
         let mut items = Vec::new();
         while let Some(item) = ITEM.at(lowered, at) {
             at = item.end();
-            items.push(named(&item));
+            items.push(item.g(1));
             match LINK.at(lowered, at) {
                 Some(link) => at = link.end(),
                 None => break,

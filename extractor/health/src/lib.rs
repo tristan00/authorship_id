@@ -230,7 +230,7 @@ pub const PEOPLE: &str = concat!(
 pub static OWN_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
     "{}{}",
     SELF_HEDGE.pattern,
-    r"|\b(?:suspect|suspected|probably|possibly|wonder|wondering|could be|could have|do i have|self[- ]diagnosed|test(?:ed)? for|screen(?:ed)? for|rule out|ruled out|i think|i thought|i guess|think|thinking|thought|i feel like|pretty sure|i believe|scared|afraid|worried|terrified)\b"
+    r"|\b(?:suspect|suspected|probably|possibly|wonder|wondering|could be|could have|do i have|self[- ]diagnosed|test(?:ed)? for|screen(?:ed)? for|assess(?:ed|ment)? for|evaluat(?:ed|ion) for|referr(?:al|ed) for|wait(?:ing)? ?list(?:ed)? for|rule out|ruled out|i think|i thought|i guess|think|thinking|thought|i feel like|pretty sure|i believe|scared|afraid|worried|terrified)\b"
 )));
 pub static OTHERS: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"{}|\b(?:{PEOPLE})\b", OWN_HEDGE.pattern)));
 static FOREIGN_SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
@@ -241,6 +241,9 @@ static FOREIGN_SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
 )));
 pub static MENTAL_TAIL: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{})$", TABLES.mental.names())));
 static FIGURATIVE: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\n]*?(?:\b(?:lol|lmao|lmfao|rofl|xd|haha\w*|hehe\w*|clearly|apparently|i guess|i suppose|didn'?t see|did not see|didn'?t notice|missed (?:it|that|this|those|them))\b|[😅😂🤣🙈🤦])"));
+pub static INTENSIFIED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:so|really|very|pretty|super|kinda|kind of|a bit|a little|bit|too|extremely)\s+$"));
+static FLAIR_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:suspect\w*|undiagnosed|self[- ]?(?:dx|diagnosed)|possibl\w*|probabl\w*|maybe|questioning|not)\W+(?:[\w-]+\W+)?$"));
+static PROXY_SUB: LazyLock<Re> = LazyLock::new(|| Re::new(r"^r/\w*(?:parent|mom|dad|widow|caregiv|carer|grief|loss)\w*:"));
 static SEEKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:no|not|non|looking for|seeking|want|wants|wanted|for|with|into|love|loves|like|likes)\W+(?:[\w'-]+\W+)?$"));
 const SENSES: &str = r"i(?<!\wi)(?:'?m| am|'ve gone| have gone|'m going| am going)(?: (?:also|now|already|still|basically|practically|essentially|technically))* (?:legally |completely |totally |profoundly |partially |mostly )?(deaf|blind|hard of hearing)\b|i(?<!\wi) (?:lost|had lost) (?:my |most of my |all of my |part of my )(?:\w+ )?(sight|vision|hearing)\b(?! (?:board|for|of)\b)";
 
@@ -258,7 +261,7 @@ pub fn have_now() -> String {
         r"battling|fighting|on meds for|on medication for|in treatment for|in remission from|getting treated for|managing|medicated for|surviving|a survivor of)",
         r"|i(?<!\wi) (?:take|took|need|use|used) (?:meds|medication|medications|medicine|pills|something|treatment|a prescription|an rx) for|(?:a(?<!\wa)s |i(?<!\wi)(?:'m |m | am ))(?:someone|(?:an? )(?:[\w-]+ ){0,2}?(?:person|guy|girl|woman|man|adult|lady|female|male|mom|mum|dad|mother|father|wife|husband|teen|kid|student|individual|dude|gal|patient)) (?:who(?:'s| has| is)? (?:also |still |too )?(?:has|has had|had|suffers from|suffers with|struggles with|lives with|deals with|been diagnosed with|diagnosed with|dealt with|struggled with|lived with|suffered from|suffered with)|(?:also |still )?(?:living with|with))",
         r"|m(?<!\wm)y (?:diagnosis|diagnoses|dx|dxs) (?:is|are|of|was|were|include|includes)\b|d(?<!\wd)iagnosed me (?:with|as)",
-        r"|(?<![\w.])(?:i'?m |i am )?(?:1[3-9]|[2-9]\d) ?(?:[mf]|yo|y/o|years? old)?\)?,? (?:with|w/)",
+        r"|(?<![\w.=<>~+%$#/-])(?<!bmi )(?<!over )(?<!under )(?:i'?m |i am )?(?:1[3-9]|[2-9]\d) ?(?:[mf]|yo|y/o|years? old)?\)?,? (?:with|w/)",
     ]
     .concat()
 }
@@ -283,7 +286,7 @@ pub const MODIFIERS: &str = concat!(
 pub const FOLLOWERS: &str = r"(?! (?:friend|friends|kid|kids|son|daughter|brother|sister|partner|husband|wife|mom|dad|mother|father|mum|parent|parents|sibling|ex|boyfriend|girlfriend|bf|gf|fiance|fiancee|fiancé|spouse|roommate|coworker|boss|neighbor|neighbour|cousin|aunt|uncle|grandma|grandpa|grandmother|grandfather|niece|nephew|stepdad|stepmom|patient|patients|client|clients|community|people|person|research|awareness|month|day|walk|charity|foundation|society|association|group|subreddit|sub|forum)s?\b)";
 
 pub fn gap() -> String {
-    format!(r"(?:(?!(?:{PEOPLE}|not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|than|to)\b)[\w'/-]+,?\s+){{0,3}}?")
+    format!(r"(?:(?!(?:{PEOPLE}|not|no|never|neither|nor|without|and|but|or|if|when|because|so|that|who|which|what|where|than|to)\b)[\w'/-]+,?\s+){{0,3}}?")
 }
 
 pub fn modifier() -> String {
@@ -404,6 +407,16 @@ fn leading(table: &Ordered) -> impl Fn(&Match) -> Option<String> + Send + Sync +
     }
 }
 
+fn flair(lex: Lex) -> impl Fn(&Match) -> Option<String> + Send + Sync + 'static {
+    move |m| {
+        let start = m.start_of(1) as usize;
+        if !starts_at(m.string, 0, "r/") || FLAIR_HEDGE.test_in(m.string, start.saturating_sub(30), start) || PROXY_SUB.test_in(m.string, 0, line_end(m.string, 0)) {
+            return None;
+        }
+        get(&lex, m.group(1))
+    }
+}
+
 fn unquoted(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> Option<String> + Send + Sync + 'static, hedge: Hedge) -> Rule {
     rule(attribute, pattern, move |m| if quoted(m.string, m.start()) { None } else { value(m) }, hedge)
 }
@@ -431,10 +444,11 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     feeling_states.extend(&t.feelings);
     let mut loose_states = t.mental_loose.clone();
     loose_states.extend(&t.mental_state_strict);
+    let feeling_lex = feeling_states.lex();
     let foreign_body = t.foreign_body_states.filter(|_, value| home(PHYSICAL_ATTRIBUTE, value) == PHYSICAL_ATTRIBUTE);
     let mut rules = vec![
         unquoted("physical_conditions", &format!(
-            r"m(?<!\wm)y (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |(?!(?:{PEOPLE})(?:'s|s)? )\w+ (?:and )?)?({tool_names})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad)s?\b)"
+            r"m(?<!\wm)y (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |(?!(?:{PEOPLE})(?:'s|s)? )\w+ (?:and )?)?({tool_names})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad|resistance|resistant|sensitivity|level)s?\b)"
         ), move |m| {
             if let Some(mental) = MENTAL_TAIL.search(m.string, m.start(), m.end()) {
                 if (mental.start() as isize) < m.start_of(1) {
@@ -456,6 +470,10 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         unquoted("mental_and_developmental_conditions", r"a(?<!\wa)s an? (suicidal|depressed|anxious)\b",
             by(pairs(&[("suicidal", "suicidality"), ("depressed", "depression"), ("anxious", "anxiety")])), self_hedge()),
         unquoted("mental_and_developmental_conditions",
+            r"i(?<!\wi)(?:'m|m| am)(?: (?:also|just|still))? (?:constantly|always|chronically|perpetually|naturally) anxious\b|i(?<!\wi)(?:'ve| have) always been (?:very |really |super |so |an )?anxious\b(?! (?:about|to|for|that|when|around)\b)",
+            fixed("anxiety"), own()),
+        unquoted("mental_and_developmental_conditions", r"i(?<!\wi)(?:'m|m| am)(?: also| diagnosed)? (?:bp ?(?:1|2|i|ii)|bipolar (?:1|2|i|ii))\b", fixed("bipolar"), own()),
+        unquoted("mental_and_developmental_conditions",
             r"(?:i(?<!\wi)(?: have|'ve had| was diagnosed with| got diagnosed with|'ve been diagnosed with|'m diagnosed with|'m on meds for| take meds for| was recently diagnosed with| also have| do have| have had)|d(?<!\wd)iagnosed with) (?:(?:severe|mild|moderate|chronic|clinical|diagnosed|combined[- ]type|inattentive[- ]type|bad|really bad|pretty bad|terrible|untreated|unmedicated|adult|both|some|serious) )*(add|did|osdd|tics|pmdd|panic attacks|anxiety attacks|binge eating|suicidal thoughts|suicidal ideation)(?![\w'-])",
             by(t.mental.with(&[("add", "adhd")])), own()),
         unquoted("mental_and_developmental_conditions", &format!(r"m(?<!\wm)y {modifier}({loose})\b{FOLLOWERS}(?! (?:medication|meds)\b)"), by(t.mental_loose.clone()), own()),
@@ -465,11 +483,11 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         unquoted("mental_and_developmental_conditions", &format!(
             r"(?:a(?<!\wa)s(?: an?| a fellow| someone who is| a person who is| somebody with| a person with| someone with| one with)|b(?<!\wb)eing an?|m(?<!\wm)e, an?) (?:fellow |diagnosed |late[- ]diagnosed |recovering |recovered |formerly )?({loose}|{}) ?(?:person|woman|man|adult|guy|girl|individual|sufferer|patient|survivor|haver|myself|lady|dude|mom|dad|mother|father|parent|teen|kid|student|female|male|human|being)?\b",
             t.mental_state_strict.names()
-        ), by(loose_states), self_hedge()),
+        ), by(loose_states.clone()), self_hedge()),
         unquoted("mental_and_developmental_conditions", &format!(
             r"i(?<!\wi)(?:'m|m| am| m|'ve been|ve been| have been| was| became|'m now|'m also|'m actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |so |really |too |super |just |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for(?! (?:a long time|a while|years|months|weeks|ages|decades|so long|most of my life|over|almost|nearly|the (?:past|last)|\d+))|from|by|over|with)\b)",
             feeling_states.names()
-        ), by(feeling_states.clone()), own()),
+        ), move |m| if feeling_lex.get(m.group(1)?) == Some(&"ocd") && INTENSIFIED.test(&m.string[m.start()..m.start_of(1) as usize]) { None } else { get(&feeling_lex, m.group(1)) }, own()),
         unquoted("mental_and_developmental_conditions", &format!(
             r"(?:m(?<!\wm)y|i(?<!\wi)(?: take|'m on| am on|'ve been on| started|'m taking| am taking|'ve been taking| was put on| got put on| was prescribed| got prescribed| was given| switched to| take my| forgot my| forgot to take my| ran out of|'m out of)|p(?<!\wp)(?:rescribed me|ut me on)|g(?<!\wg)ave me|s(?<!\ws)witched me to) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({})\b",
             t.adhd_drugs.names()
@@ -491,7 +509,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         ("an eating disorder", "eating disorder (unspecified)"), ("agoraphobic", "anxiety")]).lex();
     rules.extend([
         unquoted("mental_and_developmental_conditions",
-            r"(?:m(?<!\wm)a(?:de|kes|king)|l(?<!\wl)e(?:ft|aving)|g(?<!\wg)ave) me (?:really |so |very |super |severely |clinically |chronically )?(depressed|suicidal|depression|an eating disorder|agoraphobic)\b(?= *(?:$|[.!\n,;]|and\b|for (?:years|months|a long time)))",
+            r"(?:m(?<!\wm)a(?:de|kes|king)|l(?<!\wl)e(?:ft|aving)|g(?<!\wg)ave) me (?:really |so |very |super |severely |clinically |chronically )?(depressed|suicidal|depression|an eating disorder|agoraphobic)\b(?= *(?:$|[.!\n,;]|and\b|af\b|asf\b|for (?:years|months|a long time)))",
             move |m| get(&caused, m.first()), own()),
         unquoted("mental_and_developmental_conditions",
             r"f(?<!\wf)or my (adhd|autism|anxiety|depression|ocd|ptsd|cptsd|bipolar|bpd|panic attacks|panic disorder|social anxiety|mdd|gad|eating disorder)\b",
@@ -504,13 +522,16 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             r"i(?<!\wi)(?:'m|m| am|'ve been| have been)(?: now| officially| currently| finally)? (?:over |almost |nearly |about )?(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|several|many) (?:days?|weeks?|months?|years?|yrs?) (sober|alcohol[- ]free|off (?:alcohol|booze|the booze|the drink|drinking)|(?:clean|off) (?:from |of )?(?:heroin|opiates|opioids|fentanyl|oxy|meth|cocaine|coke|crack|adderall|benzos|xanax|klonopin)|porn[- ]?free|gambling[- ]free|gamble[- ]free)\b",
             recovered, self_hedge()),
         unquoted("recovering_from",
-            r"(?:i(?<!\wi)(?:'m| am)(?: also| now| still)?|a(?<!\wa)s) an? ((?:recovering|recovered|sober|former|ex-?) ?(?:alcoholic|heroin addict|opiate addict|opioid addict|fentanyl addict|gambling addict|gambler|porn addict|sex addict|meth addict|cocaine addict|crack addict|benzo addict)|(?:alcoholic|heroin addict|opiate addict|opioid addict|meth addict) in recovery)\b|i(?<!\wi)(?:'ve| have) been (sober) (?:for|since)\b|i(?<!\wi)(?:'m| am) (?:now |currently )?(?:in recovery|recovering) from (alcoholism|alcohol addiction|alcohol use disorder|opioid addiction|opiate addiction|heroin addiction|fentanyl addiction|gambling addiction|porn addiction|sex addiction|meth addiction|cocaine addiction|benzo addiction)\b|i(?<!\wi)(?:'ve| have)? (?:(?:finally|officially|just|also|recently|completely|since) )?(?:quit|stopped|gave up|given up) (drinking|alcohol|booze|the booze|the drink)\b(?! (?:soda|coffee|pop|energy|milk|juice|tea|water|caffeine|diet|coke|pepsi|monster|red bull|sugary|sweet|sugar|caffeinated|out|from|it|that|this|them|so much|as much|for(?! good\b))\b)",
+            r"(?:i(?<!\wi)(?:'m| am)(?: also| now| still)?|a(?<!\wa)s) an? ((?:recovering|recovered|sober|former|ex-?) ?(?:alcoholic|heroin addict|opiate addict|opioid addict|fentanyl addict|gambling addict|gambler|porn addict|sex addict|meth addict|cocaine addict|crack addict|benzo addict)|(?:alcoholic|heroin addict|opiate addict|opioid addict|meth addict) in recovery)\b|i(?<!\wi)(?:'ve| have)(?: now| officially| finally| also| just)? been (sober) (?:for|since|over|almost|nearly|about|\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b|i(?<!\wi)(?:'m| am) (?:now |currently )?(?:in recovery|recovering) from (alcoholism|alcohol addiction|alcohol use disorder|opioid addiction|opiate addiction|heroin addiction|fentanyl addiction|gambling addiction|porn addiction|sex addiction|meth addiction|cocaine addiction|benzo addiction)\b|i(?<!\wi)(?:'ve| have)? (?:(?:finally|officially|just|also|recently|completely|since) )?(?:quit|stopped|gave up|given up) (drinking|alcohol|booze|the booze|the drink)\b(?! (?:like|soft|ice|iced|fizzy|soda|coffee|pop|energy|milk|juice|tea|water|caffeine|diet|coke|pepsi|monster|red bull|sugary|sweet|sugar|caffeinated|out|from|it|that|this|them|so much|as much|for(?! good\b))\b)",
+            recovered, self_hedge()),
+        unquoted("recovering_from",
+            r"i(?<!\wi)(?:'m| am|'ve been| have been| got| was)(?: (?:now|also|still|finally|officially|completely))? (?:sober|clean) (?:from|off) (?:of )?(?:my )?(alcohol|drinking|heavy drinking|booze|benzos|xanax|meth|cocaine|heroin|opiates|gambling|porn)\b|\b(?:\d+|a|one|two|three|four|five|six|seven|eight|nine|ten) (?:days?|weeks?|months?|years?) (?:sober|clean) (?:from|off) (?:of )?(alcohol|drinking|booze|benzos)\b",
             recovered, self_hedge()),
         unquoted("sober_time",
             r"i(?<!\wi)(?:'m|m| am|'ve been| have been)(?: now| officially| currently| finally)? (?:over |almost |nearly |about )?(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a) (days?|weeks?|months?|years?|yrs?) (?:sober|clean)\b",
             sober_days, self_hedge()),
         unquoted("sober_time",
-            r"i(?<!\wi)(?:'ve| have) been (?:sober|clean) (?:for )?(?:over |almost |nearly |about )?(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a) (days?|weeks?|months?|years?|yrs?)\b",
+            r"i(?<!\wi)(?:'ve| have)(?: now| officially| finally| also| just)? been (?:sober|clean) (?:for )?(?:over |almost |nearly |about )?(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a) (days?|weeks?|months?|years?|yrs?)\b",
             sober_days, self_hedge()),
         unquoted("mental_and_developmental_conditions",
             r"i(?<!\wi)(?:'m|m| am)(?: also| currently| still| now| back)? on (?:my |prescription |prescribed |stimulant )?(?:adhd|add) (?:meds|medications?|medicine|stimulants)\b|i(?<!\wi)(?:'m| am)? (?:take|took|started|need|taking|started taking|stopped taking) (?:my )?(?:adhd|add) (?:meds|medications?|medicine)\b",
@@ -530,7 +551,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             t.mental.names()
         ), by(t.mental.clone()), others()),
         unquoted("mental_and_developmental_conditions", &format!(
-            r"i(?<!\wi) (?:also |still |do )?(?:have|have had|struggle with|deal with|live with)(?: an?)? ({})(?![\w'-])(?! (?:to|with|of|that|for|in)\b)",
+            r"i(?<!\wi) (?:also |still |do )?(?:have|have had|struggle with|deal with|live with)(?: an?)? ({})(?![\w'-])(?! (?:to|with|of|that|for|in|tech|teacher|program|class|school|course|degree|major|department|student)\b)",
             t.mental_words.names()
         ), by(t.mental.clone()), others()),
         unquoted("medical_devices",
@@ -543,6 +564,13 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|beep|bleep|automat))(?![\s\S]*\b(?:{MODERATION})\b)[\s\S]*?{BOT_OWN}"), fixed("bot"), TAGGED), &BOT_WORDS),
         needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|beep|bleep|automat))(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_OWN}"), fixed("bot"), TAGGED), &BOT_WORDS),
     ]);
+    let mind = loose_states.filter(|_, value| !["anxiety", "depression"].contains(&value));
+    let body = t.physical.filter(|name, value| {
+        !value.is_empty() && home(PHYSICAL_ATTRIBUTE, value) == PHYSICAL_ATTRIBUTE && (name.chars().count() >= 4 || ["t1d", "t2d", "ibs", "ibd", "eds"].contains(&name)) && !["pots", "disability", "disabilities"].contains(&name)
+    });
+    for (attribute, table) in [("mental_and_developmental_conditions", mind), (PHYSICAL_ATTRIBUTE, body)] {
+        rules.push(needs(unquoted(attribute, &format!(r"(?<![\w'/-])({})(?![\w'-]){FOLLOWERS}(?! (?:ally|allies|advocate|awareness|screeching)\b)(?! '\d\d\b)", table.names()), flair(table.lex()), own()), &["r/"]));
+    }
     rules.extend(habits::rules());
     let personal = t.mental_state_strict.filter(|_, value| NEURO.contains(&value) || value == "neurodivergent (unspecified)");
     let personal_lex = personal.lex();

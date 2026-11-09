@@ -3,7 +3,7 @@ use claimcore::*;
 use std::collections::HashSet as StdSet;
 use std::sync::LazyLock;
 
-const COMMON_STOP: &str = "not|no|never|and|but|or|if|when|because|so|that|who|which|what|where|why|how|whether|than|to|in|on|about|like|for|from|at|by|into|of|with|without|is|was|are|were|be|it|this";
+const COMMON_STOP: &str = "not|no|never|neither|nor|without|and|but|or|if|when|because|so|that|who|which|what|where|why|how|whether|than|to|in|on|about|like|for|from|at|by|into|of|with|without|is|was|are|were|be|it|this";
 
 fn stop() -> String {
     format!("{PEOPLE}|{COMMON_STOP}")
@@ -41,17 +41,22 @@ macro_rules! re {
     };
 }
 
-re!(OTHER_PEOPLE, r"\b(?:roommate|flatmate|housemate|coworker|colleague|classmate|mom|mother|dad|father|wife|husband|son|daughter|friend|brother|sister|grandma|grandpa|grandmother|grandfather|aunt|uncle|cousin|boyfriend|girlfriend|partner|he|she|his|her|him|they|their|dog|cat|patients?|clients?|family|families|relatives)\b");
+re!(OTHER_PEOPLE, r"\b(?:roommate|flatmate|housemate|coworker|colleague|classmate|child|children|kid|kids|baby|babies|toddler|infant|newborn|mom|mother|dad|father|wife|husband|son|daughter|friend|brother|sister|grandma|grandpa|grandmother|grandfather|aunt|uncle|cousin|boyfriend|girlfriend|partner|he|she|his|her|him|they|their|dog|cat|patients?|clients?|family|families|relatives)\b");
 re!(MOOD_NAMES, format!(r"\b({})\b", pairs_names(MOODS)));
 re!(UNNAMED, r"\bi(?<!\wi)(?:'m| am| was| got| have been|'ve been|ve been)(?: (?:officially|finally|formally|recently|just|only|also|then|eventually|late|properly))? (?:diagnosed|dx'?d)(?! (?:with|w/|as an?|as having|by|for)\b)|\bi(?<!\wi) (?:got|received|finally got|just got|recently got) (?:my|a|an|the) (?:official |formal |proper )?(?:diagnosis|dx)\b");
-re!(ASSESSED, r"\s*(?:assessments?|evaluations?|diagnosis|diagnoses|traits|testing|tests?)\b");
-re!(POSSESSOR, format!(r"\b(?:{PEOPLE}|someone|anyone|somebody|anybody)(?: (?!(?:and|but|or|i|i'm|im|me|my)\b)\w+){{0,2}} (?:has|have|had|having|with|gets|got)(?: \w+){{0,2}} $"));
+re!(ASSESSED, r"[\s-]*(?:assessments?|evaluations?|diagnos\w*|traits|testing|tests?|screening)\b");
+re!(RELATIVE, r"\bwho(?:'s| is| was| has| had| have)(?: [\w-]+){0,2} $");
+re!(POTTERY, r"\b(?:plants?|houseplants?|soil|drainage|pottery|potting|clay|kiln|glaze|pans|cooking|stove|ceramics?|succulents?)\b");
+re!(NEGATED, r"\b(?:neither|nor|without|never had|don't have|do not have|not)\b(?:[\s,/-]+[\w'-]+){0,2}[\s,/-]+$");
+re!(PREFIXED, r"\b(?:pre|non|anti|post)-?$");
+re!(OBJECT, r"\b(?:the|this|that|about|understands?|understanding|treats?|treating|research|researching|studies|study|broader|broad|evil|normal)\s+$");
+re!(POSSESSOR, format!(r"\b(?:{PEOPLE}|someone|anyone|somebody|anybody|those)(?: (?!(?:and|but|or|i|i'm|im|me|my)\b)\w+){{0,2}} (?:has|have|had|having|with|gets|got)(?: \w+){{0,2}} $"));
 re!(ADDRESSED, r"\b(?:you|your|you're|u|ur)\b");
 re!(GENERIC, r"\s+(?:is|are|isn't|aren't|makes|make|causes|cause|can|could|does|doesn't|means|affects|tends|presents|manifests)\b");
 re!(ATTRIBUTIVE, r" +(?!(?:and|or|af|asf|myself|too|as|but|so|lol)\b)[a-z]");
 re!(ASKING, r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b");
-re!(GENERAL, r"\b(?:the|this|that|some|much|any|no|less|more|of|such|social|performance|test|exam)\s+$");
-re!(NAMED_OWNER, r"\b(?!(?:i|it|that|he|she|there|what|who|let|here|today|everyone|one)\x27s\b)[\w-]+\x27s\s+$");
+re!(GENERAL, r"\b(?:the|this|that|some|much|any|no|less|more|of|such|social|performance|test|exam|post|pre|non|anti)\s+$");
+re!(NAMED_OWNER, r"\b(?!(?:i|it|that|he|she|there|what|who|let|here|today|everyone|one)\x27s\b)[\w-]+(?:\x27s|s\x27)\s+$");
 re!(CAUSED, r"\b(?:give|gives|giving|gave|given) (?:me|us) (?:[\w-]+ ){0,3}$");
 re!(FIRST_PERSON, r"\b(?:i|i'm|im|i've|ive|i'd|i'll|my|me|myself|mine)\b");
 re!(HEADS, r"\s*(?:treatments?|diagnos[ie]s|journey|management|care|awareness|meds|medications?|medicines?|drugs?|pills?|supplies|creams?|moisturi[sz]ers?|products?|routines?|complications?|experiences?|sufferers?|babies|studios?|diets?|friendly|centers?|centres?)\b");
@@ -79,9 +84,9 @@ re!(CLAUSE_END, r"\s*(?:[,;:.!?)(/&+]|$|(?:and|but|so|with|too|as well|myself|lo
 re!(STATE_CUE, stating("being an?"));
 re!(MIND_STATE_CUE, stating("being(?: an?)?|of us"));
 re!(LINK, format!(r"\s*(?:,|&|/|\+|\band\b|\bor\b|\bplus\b|\bas well as\b|\balong with\b|\bw/)(?:\s*(?:and|&)\b)?{}", lead()));
-re!(TRAIL, format!(r"\s*(?:{PEOPLE}|community|person|research|awareness|month|day|walk|{}", r"charity|foundation|society|association|group|subreddit|sub|forum|nurse|doctor|unit|ward|center|centre|clinic|risk|test|testing|screening)s?\b|'s\b"));
+re!(TRAIL, format!(r"\s*(?:{PEOPLE}|community|person|research|awareness|month|day|walk|{}", r"charity|foundation|society|association|group|subreddit|sub|forum|nurse|doctor|unit|ward|center|centre|clinic|risk|test|testing|screening|study|studies|lab)s?\b|'s\b"));
 re!(SCOPE, r"[,;:(.!?\n]|\b(?:and|but|because|cause|cuz|bc|since|so|though|although|while|whereas)\b");
-re!(ASTROLOGY, r"\b(?:aries|taurus|gemini|geminis|leo|leos|virgo|virgos|libra|libras|scorpio|scorpios|sagittarius|capricorn|capricorns|aquarius|pisces|zodiac|horoscope|astrology)\b|\b(?:in|into) cancer\b|\bcancer (?:sun|moon|rising|venus|mars|mercury|jupiter|saturn|placement|season|sign)\b|\b(?:sun|moon|rising|saturn|jupiter|venus|mars|mercury) (?:in|sign)\b");
+re!(ASTROLOGY, r"\b(?:\d{1,2}h|chiron|stellium|natal|lilith|aries|taurus|gemini|geminis|leo|leos|virgo|virgos|libra|libras|scorpio|scorpios|sagittarius|capricorn|capricorns|aquarius|pisces|zodiac|horoscope|astrology)\b|\b(?:in|into) cancer\b|\bcancer (?:sun|moon|rising|venus|mars|mercury|jupiter|saturn|placement|season|sign)\b|\b(?:sun|moon|rising|saturn|jupiter|venus|mars|mercury) (?:in|sign)\b");
 re!(SENTENCE, r"[^.!?\n]+");
 re!(POSSESSIVE_HEDGE, r"\b(?:if|whether|unless|imagine|pretend|wish|hope)\b");
 re!(FOREIGN_END, r#"[.;:!?()\[\]\"\n]"#);
@@ -470,6 +475,10 @@ fn owned(lowered: &[char], origin: usize, part: &[char], found: &mut Found, fami
         for (start, end, name) in lookup(&words, |key| family.known.contains(key), &family.longest, &family.suffix.0) {
             let noun = !family.states.contains_key(&name);
             let dual = family.both.contains(&name);
+            if mental && eq(&name, "ocd") && INTENSIFIED.test(&part[..start]) {
+                previous = None;
+                continue;
+            }
             if physical {
                 if let Some(tail) = MENTAL_TAIL.search(part, start.saturating_sub(40), end) {
                     if tail.start() < start {
@@ -654,8 +663,8 @@ fn runs(text: &[char]) -> impl Iterator<Item = &[char]> {
     text.split(|&c| !run_char(c)).filter(|run| !run.is_empty())
 }
 
-fn foreign(lowered: &[char], found: &mut Found) {
-    let Some(language) = language(lowered) else { return };
+fn foreign(tongue: Option<&'static Language>, lowered: &[char], found: &mut Found) {
+    let Some(language) = tongue else { return };
     let links = &FOREIGN.links;
     let mut buffer: Key = Vec::new();
     for m in language.cue.iter(lowered) {
@@ -707,7 +716,8 @@ fn words(text: &[char]) -> impl Iterator<Item = &[char]> {
 pub fn ailments(lowered: &[char], found: &mut Found) {
     crate::medications::medications(lowered, found);
     let lexicons = &*LEXICONS;
-    let speaker = FIRST_PERSON.test(lowered);
+    let tongue = language(lowered);
+    let speaker = tongue.is_none() && FIRST_PERSON.test(lowered);
     let mooded = MOOD_NAMES.test(lowered);
     let moody = speaker && mooded;
     let sick = speaker && lexicons.ailment_names.within(|| words(lowered));
@@ -736,7 +746,7 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
             if asked {
                 continue;
             }
-            let first = FIRST_PERSON.test(part);
+            let first = tongue.is_none() && FIRST_PERSON.test(part);
             let mood = first || moody && MOOD_NAMES.test(part);
             if !(mood || !here.is_empty()) || !first && CROWD.test(part) {
                 continue;
@@ -748,7 +758,7 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
                 if others.is_some() || addressed.is_some() || hedge.map_or(false, |h| h <= start) {
                     break;
                 }
-                if quoted(lowered, origin + start) || NAMED_OWNER.test(&part[start.saturating_sub(30)..start]) || POSSESSOR.test_in(part, start.saturating_sub(50), start) || GENERIC.at(part, end).is_some() || TRAIL.at(part, end).is_some() || HEADS.at(part, end).is_some() || name.len() <= 3 && COUNTED.test(&part[..start]) {
+                if quoted(lowered, origin + start) || NAMED_OWNER.test(&part[start.saturating_sub(30)..start]) || POSSESSOR.test_in(part, start.saturating_sub(50), start) || RELATIVE.test(&part[start.saturating_sub(30)..start]) || PREFIXED.test(&part[start.saturating_sub(6)..start]) || NEGATED.test(&part[start.saturating_sub(30)..start]) || GENERIC.at(part, end).is_some() || TRAIL.at(part, end).is_some() || HEADS.at(part, end).is_some() || name.len() <= 3 && COUNTED.test(&part[..start]) {
                     continue;
                 }
                 let value = lexicons.ailment_keys[name];
@@ -765,6 +775,9 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
                     break;
                 }
                 let key = m.group(1).unwrap();
+                if eq(key, "ocd") && INTENSIFIED.test(&part[..at]) || NEGATED.test(&part[at.saturating_sub(30)..at]) {
+                    continue;
+                }
                 let value = lexicons.moods[key];
                 let after = m.end();
                 let neuro = NEURO.contains(&value);
@@ -773,6 +786,7 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
                 }
                 if quoted(lowered, origin + at) || POSSESSOR.test_in(part, at.saturating_sub(50), at) || TRAIL.at(part, after).is_some() || ASSESSED.at(part, after).is_some()
                     || CAUSED.test_in(part, at.saturating_sub(40), at) || !first && !neuro || !neuro && GENERAL.test(&part[at.saturating_sub(20)..at])
+                    || neuro && OBJECT.test(&part[at.saturating_sub(30)..at]) && !starts_at(part, after, " spectrum") || NAMED_OWNER.test(&part[at.saturating_sub(30)..at])
                 {
                     continue;
                 }
@@ -796,9 +810,12 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
             }
         }
     }
-    foreign(lowered, found);
+    foreign(tongue, lowered, found);
     if found.has("physical_conditions", "cancer") && ASTROLOGY.test(lowered) {
         pop(found, "physical_conditions", "cancer");
+    }
+    if found.has("physical_conditions", "pots") && POTTERY.test(lowered) {
+        pop(found, "physical_conditions", "pots");
     }
     if ["type 1 diabetes", "type 2 diabetes", "lada diabetes", "prediabetes"].iter().any(|typed| found.has("physical_conditions", typed)) {
         pop(found, "physical_conditions", "diabetes (type unstated)");

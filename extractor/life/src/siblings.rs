@@ -47,6 +47,7 @@ pub fn build() -> Vec<Rule> {
     let YOUNG = format!(r"(?:youngest (?:{SIBLING}|of {NUMBER}\b|in (?:my|our|the) family)|baby of (?:the|my|our) family|last[- ]born)");
     let FRAME = r"(?:\bi(?:'m| am|m|'ve always been| was| grew up as| grew up)|\bim|\bas|\bbeing|\bgrowing up as)";
     vec![
+        needs(r("birth_order", &format!(r"^r/\w+:\s*(?:[^\n|]*\|\s*)?(?:only child|(?:oldest|eldest|youngest|middle) (?:child|of {NUMBER}))\s*(?:$|[|\n])|(?:^|[\n.!?]\s*)(?:\w+ )?only child here\b|\b\d{{2}}\s*[mf]\s+(?:only|middle|oldest|youngest) child\b"), |m| kept(m, order(m)?), TAGGED), &["only", "oldest", "eldest", "youngest", "middle"]),
         needs(r("birth_order", &format!(r"{FRAME} (?:(?:actually|also|technically|literally|basically|just|still) )?(?:the |an? |also the |also an? )?(?:only (?:child|kid)\b(?! (?:policy|syndrome|in|at|on|who|that|from|to|left|there|here|among|with|around|for)\b)|{OLD}|{YOUNG}|middle (?:{SIBLING}|of {NUMBER}\b))|\bi have no (?:siblings|brothers or sisters)\b"), mine, self_hedge()),
           &["only", "oldest", "eldest", "first", "youngest", "baby of", "last", "middle", "no siblings", "brothers or sisters"]),
         needs(r("birth_order", &format!(r"{FRAME} the (?:oldest|eldest|youngest)(?: one)?\b(?=\s*(?:[,.!;:)\n]|$|(?:and|but|so|(?:out )?of (?:us|them|my|the|all))\b))"), |m| { let (a, b) = sentence(m); if FAMILY.test_in(m.string, a, b) { mine(m) } else { None } }, self_hedge()), &["oldest", "eldest", "youngest"]),

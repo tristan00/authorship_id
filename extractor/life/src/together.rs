@@ -69,13 +69,13 @@ fn steady(m: &Match) -> V {
 #[allow(non_snake_case)]
 pub fn build() -> Vec<Rule> {
     let SPAN = format!(r"{ABOUT}{COUNT}( and a half)?\+? ?(years?|yrs?|months?|mos?)(?:\s*(?:and|&) (a half|6 months))?\b");
-    let WE = format!(r"(?:\b(?:i|we)(?:'ve| have)?|\bmy (?:\w+ )?{PARTNER} and i(?:'ve| have)?|\b(?:he|she) and i(?:'ve| have)?) been (?:happily |officially |now )?");
+    let WE = format!(r"(?:\b(?:i|we)(?:'ve| have)?|\bmy (?:\w+ )?{PARTNER}(?: \([^)\n]{{1,10}}\))? and i(?: \([^)\n]{{1,10}}\))?(?:'ve| have)?|\b(?:he|she) and i(?:'ve| have)?) been (?:happily |officially |now )?");
     let TOGETHER = format!(r"(?:married|together|dating|with (?:my (?:\w+ )?{PARTNER}|him|her))");
     let BOTH = format!(r"(?:{WE}{TOGETHER}|\b(?:i'm|im|i am|we're|we are) (?:happily )?married)");
     let LABEL = r"(?:(?<![^\n.!?,;(|/-])|(?<=[\n.!?,;(|/-] )|\b(?:and|but|happily) )";
     vec![
         needs(rule("relationship_length", &format!(r"{BOTH} (?:for )?{SPAN}"), length, self_hedge()), &["married", "together", "dating", "with"]),
-        needs(rule("relationship_length", &format!(r"{LABEL}(?:married|together) (?:for )?{SPAN}"), labelled, TAGGED), &["married", "together"]),
+        needs(rule("relationship_length", &format!(r"{LABEL}(?:been )?(?:married|together) (?:for )?{SPAN}"), labelled, TAGGED), &["married", "together"]),
         needs(rule("relationship_length", &format!(r"{LABEL}{SPAN} (?:together|married|of marriage)\b(?! (?:before|ago|earlier)\b)"), labelled, TAGGED), &["together", "married", "marriage"]),
         needs(rule("relationship_start_year", &format!(r"{WE}{TOGETHER} since {YEAR}\b|{LABEL}(?:married|together) since {YEAR}\b|\b(?:i|we) (?:got )?married in {YEAR}\b"), started, self_hedge()), &["since", "married in"]),
         needs(r("relationship_status", &format!(r"(?:\b(?:i|we)(?:'ve| have)?|\bmy (?:\w+ )?(?:boyfriend|girlfriend|bf|gf|partner) and i(?:'ve| have)?) been (?:together|dating) (?:for )?{SPAN}"), steady, self_hedge()), &["together", "dating"]),

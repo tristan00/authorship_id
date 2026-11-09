@@ -93,6 +93,7 @@ pub fn rules() -> Vec<Rule> {
         needs(rule("hardiness_zone", &format!(r"(?:^|\n)[^\S\n]*(?:[^\n,]{{0,60}},[^\S\n]*)?{QUALIFIER}zone ?(\d{{1,2}})([ab])(?=[^\S\n]*(?:$|\n|[,.;:)(]|-\s))"), |m| zone(m, true), hedge()), &["zone"]),
         rule("hardiness_zone", &format!(r"\Ar/([a-z0-9_]+): (?:[^\n]*?[^\w\n])?()(?<![-–/~])(?<![-–/] )(\d{{1,2}})([ab])\b(?!\s*(?:-|–|/|to|or|and)\s*\d|\w)"), |m| m.group(1).is_some_and(|sub| GARDEN_SUB.test(sub)).then(|| zone(m, true)).flatten(), TAGGED),
         needs(rule("accent", &format!(r"\bi (?:have|got|speak with|talk with|still have|definitely have|apparently have|do have|have got|'ve got|ve got|kinda have|kind of have|naturally have){accent_lead} ({spoken}) accent\b"), accent, hedge()), &["accent"]),
+        needs(rule("accent", &format!(r"\bi (?:\w+ ){{0,3}}?(?:speak|talk)(?: \w+){{0,3}}? (?:with|in){accent_lead} ({spoken}) accent\b"), accent, hedge()), &["accent"]),
         needs(rule("accent", &format!(r"\bmy (?:(?:slight|strong|heavy|thick|light|faint|noticeable|mild|natural|native|own|broad|soft|subtle|real|normal|regular|everyday|thick|obvious|lingering|residual)\s+)*({accents}) accent\b(?! (?:impression|impersonation|voice|is fake|is terrible))"), accent, hedge()), &["accent"]),
     ]
 }

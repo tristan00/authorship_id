@@ -32,7 +32,6 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         rule("nationality", &as_nation(), |m| nation_of(m.group(1)).map(String::from), hedge()),
         rule("nationality", &as_nation_start(), |m| nation_of(m.group(1)).map(String::from), hedge()),
         needs(rule("nationality", &format!(r"(?<!his )(?<!her )(?<!their )(?<!its )(?<!your )\bfellow ({NATION})s?(?![\w-])(?=\s*(?:$|[.,!?;:)\n]|(?:here|and|but|too|lol)\b|(?:[a-z]+ ){{0,2}}?(?:brothers?|sisters?|guys?|girls?|man|woman|men|women|people|folks|redditors?|citizens?|friends?|kids|parents|mums?|moms?|dads?)\b))", NATION = &*S_NATION), |m| nation_of(m.group(1)).map(String::from), hedge()), &["fellow"]),
-        rule("native_language", &spoken_pattern(), |m| spoken(m.nonempty(1).or(m.group(2))), hedge()),
         needs(rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:l[ae]nguage|tongue),?(?: which)? is\s+\**(\w+)\b|\b(\w+)\** is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) (?:also |actually )?(?:an? )?native \**(\w+)\** speaker\b|\bnative \**(\w+)\** speaker here\b|\b(?:i'm|im|i am|as) an? native speaker of \**(\w+)\b|\b(\w+)\**\s*\(native\)|\b(?:native(?: language)?|mother tongue|first language)\**\s*[:=-]\**\s*\**(\w+)\b|\b(?:i'm|im|i am) native in \**(\w+)\b",
             |m| spoken(m.first()), hedge()), &["native", "language", "tongue"]),
         rule("native_language", r"\b(\w+) is the only language i (?:speak|know)\b|\bas (?:a )?native (\w+ )?speakers?\b",
@@ -116,6 +115,9 @@ fn line_of(text: &[char], start: usize, end: usize) -> &[char] {
 }
 
 fn fits(entry: &Entry, text: &[char], start: usize, end: usize) -> bool {
+    if VENUE.at(text, end).is_some() {
+        return false;
+    }
     let has_lower = || line_of(text, start, end).iter().any(|&c| islower(&[c]));
     if entry.flag == "code" {
         return isupper(&text[start..end]) && has_lower();
@@ -292,10 +294,10 @@ fn hedged(lowered: &[char], opening: usize, end: usize) -> bool {
 }
 
 const STANCE_CUES: [&[&str]; 13] = [
-    &["live", "living", "reside", "moved", "relocated", "settled", "based"],
+    &["live", "living", "stay", "reside", "moved", "relocated", "settled", "based"],
     &["live", "living", "based", "located", "residing", "reside"],
     &["here", "we", "us", "from", "my ", "our "],
-    &["vivo", "vivimos", "resido", "radico", "estoy", "estamos", "moro", "moramos", "wohne", "lebe", "habite", "je vis", "je réside", "j'vis", "me trouve", "abito", "risiedo", "woon", "wonen", "aquí", "aqui", "acá", "hier", "ici", "qui"],
+    &["vivo", "vivimos", "resido", "radico", "estoy", "estamos", "moro", "moramos", "wohne", "lebe", "habite", "bor i", "je vis", "je réside", "j'vis", "me trouve", "abito", "risiedo", "woon", "wonen", "aquí", "aqui", "acá", "hier", "ici", "qui"],
     &["aus", "von"],
     &["i'm", "im", "we're", "we are", "iam", " am"],
     &["from"],
@@ -468,21 +470,16 @@ fn lived(entry: &Entry, end: usize, found: &mut Found, whole: bool) {
         found.set("location", entry.region, end);
     }
     if whole {
-        found.set("location", entry.country, end);
+        found.set("location", entry.country.trim_start_matches("the "), end);
     }
 }
 
 fn nation(lowered: &[char], start: usize, end: usize, entry: &Entry, kind: Option<&str>, line_end: usize, tagged: bool, found: &mut Found) {
-    let country = entry.country;
     match kind {
-        Some("here") => {
-            found.set("nationality", country, start);
-            found.set("location", country, start);
-        }
-        Some("born" | "citizen") => found.set("nationality", country, start),
+        Some("here" | "born" | "citizen") => found.set("nationality", entry.country, start),
         _ => {
             if tagged && start < line_end && !ASKING.test_in(lowered, 0, start) && NOUN_AFTER.at(lowered, end).is_none() && TITLE.iter_in(lowered, 0, line_end).any(|tag| tag.end() <= start && start - tag.end() <= 25 || tag.start() >= end && tag.start() - end <= 25) {
-                found.set("nationality", country, start);
+                found.set("nationality", entry.country, start);
             }
         }
     }
@@ -507,13 +504,23 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
     let mut residence: Vec<(Entry, usize, bool)> = Vec::new();
     let mut framed: Vec<(&'static str, usize)> = Vec::new();
     let mut opened: Vec<(&'static str, usize)> = Vec::new();
+    let flair = FLAIR.at(lowered, 0).map(|m| m.end());
+    let tail = lowered.iter().rposition(|&c| c.is_alphanumeric()).map_or(0, |at| at + 1);
     for spot in &spots {
         let (start, end) = (spot.start, spot.end);
         let mut current = spot.entry;
         let country = current.country;
         let line = line_start(lowered, start);
         let is_nation = current.kind == "nation";
-        if (is_nation || current.kind == "country" && digit_in(lowered, line, line_end(lowered, end)))
+        if flair == Some(start) && end == tail {
+            if is_nation {
+                framed.push((country, start));
+            } else if matches!(current.kind, "city" | "region" | "country") && !matches!(current.flag, "1" | "town") {
+                residence.push((current, end, true));
+            }
+            continue;
+        }
+        if is_nation
             && (TAG_BEFORE.test_in(lowered, line.max(start.saturating_sub(16)), start) || TAG_AFTER.at(lowered, end).is_some())
             && !ASKING.test_in(lowered, line, start)
         {
@@ -557,16 +564,10 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
             continue;
         }
         if current.kind == "people" {
-            if kind == Some("here") || PEOPLE.test_in(lowered, start.saturating_sub(30), start) {
-                framed.push((country, end));
-            }
             continue;
         }
         let is_country = current.kind == "country";
-        if matches!(kind, Some("here" | "aus")) && is_country {
-            found.set("nationality", country, start);
-        }
-        if is_country && (digit_in(lowered, line, start) || occurs(lowered, line, start, &["country", "born and"])) {
+        if is_country && occurs(lowered, line, start, &["country", "born and"]) {
             if let Some(home) = HOME_COUNTRY.search(lowered, line, start) {
                 if !hedged(lowered, home.start(), end) {
                     framed.push((country, start));
@@ -625,24 +626,19 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         if kind.is_none() && !title.truthy() && current.kind == "region" && LOCATION.test_in(lowered, start.saturating_sub(30), start) {
             kind = Some("residence");
         }
-        if kind == Some("residence") && LIFE.at(lowered, end).is_some() {
+        if kind == Some("residence") && is_country && LIFE.at(lowered, end).is_some() {
             framed.push((country, end));
         }
-        if foreign && current.kind == "region" && matches!(kind, Some("residence" | "local" | "aus")) {
+        if foreign && current.kind == "region" && matches!(kind, Some("residence" | "local" | "aus" | "from")) {
             continue;
         }
         if kind == Some("here") && current.kind == "city" || title == Title::Bare {
             current.region = "";
         }
-        if matches!(kind, Some("residence" | "aus" | "local")) || kind == Some("here") && current.flag != "1" || kind.is_none() && title.truthy() {
+        if matches!(kind, Some("residence" | "aus" | "local" | "from")) || kind == Some("here") && current.flag != "1" || kind.is_none() && title.truthy() {
             let whole = current.kind == "country" || !matches!(title, Title::Loose | Title::Bare) && kind != Some("aus") && !(title.truthy() && foreign);
             residence.push((current, end, whole));
-        } else if kind == Some("from") {
-            let whole = current.kind == "country" || !foreign;
-            if whole {
-                framed.push((country, start));
-            }
-        } else if matches!(kind, Some("origin" | "born")) {
+        } else if matches!(kind, Some("origin" | "born")) && is_country {
             framed.push((country, start));
         } else if kind == Some("citizen") && current.kind == "country" {
             framed.push((country, start));

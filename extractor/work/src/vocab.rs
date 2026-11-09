@@ -233,7 +233,7 @@ pub const HEADS: &str = concat!("engineer|developer|dev|manager|officer|assistan
     "operator|supervisor|coordinator|aide|teacher|artist|writer|editor|producer|agent|representative|rep|clerk|student|lead|instructor|therapist|counselor|counsellor|",
     "attorney|lawyer|driver|mechanic|inspector|owner|practitioner|apprentice|trainee|intern|major|graduate|grad|candidate|friend|fan|school|program|programme|degree|",
     "course|class|classes|job|position|wife|husband|girlfriend|boyfriend|partner|mom|mum|dad|parent|family|kid|daughter|son|simulator|game|citizen|character|wannabe|",
-    "cosplay|costume|outfit|role|roleplay|rp|fantasy|kink|fetish|uniform|show|movie|series");
+    "cosplay|costume|outfit|role|roleplay|rp|fantasy|kink|fetish|uniform|show|movie|series|car|cars");
 
 pub const SOC: &[(&str, &str)] = &[
     ("11", BUSINESS), ("11-2", MEDIA), ("11-2022", SALES), ("11-3021", SOFTWARE), ("11-3031", FINANCE), ("11-3051", WAREHOUSE), ("11-3071", TRANSPORT), ("11-9013", OUTDOOR), ("11-9021", TRADE),
@@ -250,7 +250,7 @@ pub const SOC: &[(&str, &str)] = &[
 pub const ONET_STOP: &str = concat!("owner captain player hunter hiker climber comic helper president agent advocate builder breeder boarder guide sewer anchor mixer closer checker dresser ",
     "hanger buffer roller receiver spinner tender filler seater searcher examiner deputy dealer collector trader planner picker sacker scribe messenger ",
     "cowboy caster blender spotter burner chipper bundler runner reader rider starter member observer leader mentor organizer volunteer survivor novice ",
-    "delegate resident catcher grader feeder stapler wrapper winder sorter scaler shipper bagger mover pusher host");
+    "delegate resident catcher grader feeder stapler wrapper winder sorter scaler shipper bagger mover pusher host knitter purchaser diver joiner");
 
 pub const FOREIGN: &[(&str, &str)] = &[
     (CLINICAL, concat!("médico|médica|doctor|doctora|enfermero|enfermera|dentista|farmacéutico|farmacéutica|psicólogo|psicóloga|fisioterapeuta|enfermeiro|enfermeira|farmacêutico|farmacêutica|",

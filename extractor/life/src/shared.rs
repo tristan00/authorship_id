@@ -25,7 +25,8 @@ pub const AS: &str = concat!(
 regex!(NEAR, r#"\b(?:be|become|becoming|imagine|pretend|roleplay|rp|future|someday|dream|wish|if i (?:ever )?(?:had|have|get|got|find)|when i (?:have|get|find))[\s'\"*_]+(?:\w+[\s'\"*_]+)?$"#);
 regex!(SCOPED, r#"\b(?:if|wish|unless|whether|pretend(?:ing)?|imagine|as if|act like|until|once)[\s'\"*_]+(?:\w+[\s'\"*_]+)?$"#);
 regex!(STATED, r#"(?:\b(?:if|wish|unless|whether|pretend(?:ing)?|imagine|as if|act like|until|once|used to|when i was|back when|no longer|never|not)|n't)[\s'\"*_]+(?:\w+[\s'\"*_]+)?$"#);
-regex!(FUTURE, r#"(?:\b(?:if|wish|unless|whether|pretend(?:ing)?|imagine|as if|until|once|when|someday|one day|would|want to|wanna|hope to|plan to|planning to|used to|never|not)|n't)[\s'\"*_]+(?:\w+[\s'\"*_]+)?$"#);
+regex!(FUTURE, r#"(?:\b(?:if|wish|unless|whether|pretend(?:ing)?|imagine|as if|until|once|when|someday|one day|would|want to|wanna|hope to|plan to|planning to|used to|never|not|cannot)|n't)[\s'\"*_]+(?:\w+[\s'\"*_]+)?$"#);
+regex!(WAS, r"\b(?:he|she|they|you|u) (?:was|were)\s+$");
 regex!(CONDITIONAL, r"\b(?:if|would|wish)\b");
 
 regex!(ENDED, r"\b(?:i'm|i am|im|we're|we are|we got|i got) (?:now |recently |newly |legally |finally |officially )?(?:divorced|separated)\b|\b(?:my|our) divorce\b|\bmy ex[- ]?(?:wife|husband|hubby|spouse)\b|\bnow ex\b|\bmy (?:late|deceased) (?:wife|husband)\b|\bi(?:'m| am) (?:a )?widow(?:er|ed)?\b");
@@ -33,12 +34,11 @@ regex!(BROKEN, r"\b(?:broke up with me|dumped me|(?:she|he) left me|we (?:just |
 regex!(WRITING, r"\b(?:rp|roleplay|role play|role-play|writing|literate|kinks?|plot|para)\b");
 regex!(THIRD, r"\b(?:he|she|they|you|u|his|her|their|your|ur)\b");
 regex!(COUPLED, r"\b(?:married|wife|husband|hubby|hotwife)\b");
-regex!(PAIRED, r"\b(?:couple|we|our)\b");
 regex!(SELF, r"\b(?:i|me|my|we|our|us|i'm|im|i've)\b");
 
 pub static SPOUSES: &Tab = &[
     ("wife", MARRIED), ("husband", MARRIED), ("hubby", MARRIED), ("wifey", MARRIED), ("spouse", MARRIED), ("missus", MARRIED), ("mrs", MARRIED), ("hubs", MARRIED), ("wifes", MARRIED),
-    ("husbands", MARRIED), ("girlfriend", DATING), ("boyfriend", DATING), ("gf", DATING), ("bf", DATING), ("partner", DATING), ("significant other", DATING), ("misses", MARRIED),
+    ("husbands", MARRIED), ("hubbys", MARRIED), ("girlfriend", DATING), ("boyfriend", DATING), ("gf", DATING), ("bf", DATING), ("partner", DATING), ("significant other", DATING), ("misses", MARRIED),
     ("fiance", ENGAGED), ("fiancé", ENGAGED), ("fiancee", ENGAGED), ("fiancée", ENGAGED), ("jowa", DATING),
 ];
 pub static STATUSES: &Tab = &[
@@ -72,7 +72,7 @@ pub fn spoken(m: &Match) -> bool {
 }
 
 pub fn owned(m: &Match, table: &Tab, number: usize) -> V {
-    if !spoken(m) {
+    if !spoken(m) || WAS.test_in(m.string, back(m, 10), m.start()) {
         return None;
     }
     let value = get(table, m.group(number));
