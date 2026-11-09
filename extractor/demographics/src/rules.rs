@@ -214,13 +214,19 @@ fn age() -> Vec<Rule> {
         }, sh()),
         said("age", r"(?:me|myself) at (\d{2})\b(?![\d.,%/'-])", |m: &Match| if OPENED_LINE.test(before(m.string, m.start(), 3)) { ages(m.group(1)) } else { None }, sh()),
         said("age", r", (\d{2}),", |m: &Match| if NAMED.test_in(m.string, m.start().saturating_sub(30), m.start()) { ages(m.group(1)) } else { None }, sh()),
-        said("birth_year", r"born in (?:((?:19[3-9]\d)|(?:200\d)|(?:201[0-3]))\b|'(\d{2})\b|([3-9]\d)\b(?![\d,.%]))", |m: &Match| {
+        said("birth_year", r"born in (?:((?:19[3-9]\d)|(?:200\d)|(?:201[0-2]))\b|'(\d{2})\b|([3-9]\d)\b(?![\d,.%]))", |m: &Match| {
             if !BORN.test_in(m.string, m.start().saturating_sub(40), m.start()) {
                 return None;
             }
-            match m.nonempty(1) {
-                Some(year) => Some(int(year).to_string()),
-                None => Some((1900 + int(either(m, &[2, 3]).unwrap_or(&[]))).to_string()),
+            match (m.nonempty(1), m.nonempty(2), m.nonempty(3)) {
+                (Some(year), _, _) => Some(int(year).to_string()),
+                (None, Some(short), _) => match int(short) {
+                    year @ 0..=12 => Some((2000 + year).to_string()),
+                    year @ 30..=99 => Some((1900 + year).to_string()),
+                    _ => None,
+                },
+                (None, None, Some(decade)) => Some((1900 + int(decade)).to_string()),
+                (None, None, None) => unreachable!("born in matched without a year"),
             }
         }, h()),
         said("age", &format!(r"^(?=[\s\S]*?[^\W\d_])(?:(?![$#+£€'.])\W){{0,2}}[\[\(]?(\d{{2}})[\]\)]?(?=[\s,.!\]…]|$|(?<=\))[a-z])(?!\s+[^\x00-\x{{24f}}]|!\?|\s+(?!yrs?\b|years?\b|[a-z]+ous\b)[a-z]{{2,}}s\b|\s+(?:years?|yrs?|yr)\b(?!\s+old\b)|(?<=\d)\s+straight\b|\s*{UNITS}|[.,:/]\d|\s*[-–/x+]\s*\d|\s*(?:and|or|to|-)\s+\d|\.\s*\d|\s+(?:of|out|times|people|years? (?:ago|of)|is|was|isn't|wasn't|would|will|more|minutes|seconds|percent|k|point|points|roll|eur|euros?|usd|tl|rs|kr|pln|kilo|кило|лет|psi|cents?|g|mg|ml|hz|fps|gb|mb|tb|mm|rpm|bpm|ppm|dpo|total|million|mill|billion|thousand|gig|gigs|new|हज़ार|{MONTHS})\b)"),
