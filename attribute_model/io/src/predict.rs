@@ -313,10 +313,6 @@ impl Read for Body<'_> {
     }
 }
 
-fn argument<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
-    args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).map(String::as_str).unwrap_or(default)
-}
-
 fn insert(url: &str, layout: &Layout, parts: &Receiver<(Vec<u8>, usize)>, stats: &Stats) {
     let sql = format!("INSERT INTO {} FORMAT Native", layout.table);
     while let Ok((current, rows)) = parts.recv() {
@@ -353,7 +349,6 @@ pub fn run(database: &Database, args: &[String]) {
         let pending = Mutex::new((0..layout.slots).map(|_| None).collect::<Vec<Option<Batch>>>());
         let (completed, finished) = bounded::<Batch>(layout.slots);
         let (part_sender, parts) = bounded(layout.slots);
-        let url = format!("http://{}:{}/?database={}&max_execution_time=0", argument(args, "--host", "localhost"), argument(args, "--port", "8123"), argument(args, "--database", "reddit"));
         std::thread::scope(|scope| {
             for _ in 0..layout.fetchers {
                 scope.spawn(|| fetch(database, &layout, shared, &ranges, &free, &pending, &stats));
@@ -372,7 +367,7 @@ pub fn run(database: &Database, args: &[String]) {
             }
             drop((part_sender, finished));
             for _ in 0..layout.inserters {
-                scope.spawn(|| insert(&url, &layout, &parts, &stats));
+                scope.spawn(|| insert(database.url(), &layout, &parts, &stats));
             }
             for line in std::io::stdin().lock().lines() {
                 let slot: usize = line.unwrap().trim().parse().unwrap();

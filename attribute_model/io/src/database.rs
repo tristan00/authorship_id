@@ -16,6 +16,10 @@ impl Database {
         Database { url: format!("http://{host}:{port}/?database={database}&max_execution_time=0") }
     }
 
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
     fn post(&self, sql: &str) -> ureq::Response {
         ureq::post(&self.url).send_string(sql).unwrap_or_else(|error| failed(sql, error))
     }
