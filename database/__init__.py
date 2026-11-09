@@ -41,8 +41,19 @@ def sha_ranges(parts=BODY_RANGES):
     return [(edges[index], edges[index + 1] if index + 1 < parts else None) for index in range(parts)]
 
 
+@timed
+def author_ranges(db, table, count):
+    sample = [row[0] for row in db.query(f"SELECT author FROM {table} WHERE cityHash64(author) % 1000 = 0 ORDER BY author").result_rows]
+    lows = sorted({"", *(sample[len(sample) * index // count] for index in range(1, count) if sample)})
+    return list(zip(lows, [*lows[1:], ""]))
+
+
+def author_span(low, high):
+    return "author >= {low:String}" + (" AND author < {high:String}" if high else ""), {"low": low, "high": high}
+
+
 def in_range(column, low, high):
     return f"{column} >= {low}" + (f" AND {column} < {high}" if high else "")
 
 
-__all__ = ["DATABASE", "DUMPS", "LOG", "LOGS", "NO_AUTHOR", "bounds", "client", "host", "in_range", "keep_alive", "sha_ranges", "timed"]
+__all__ = ["DATABASE", "DUMPS", "LOG", "LOGS", "NO_AUTHOR", "author_ranges", "author_span", "bounds", "client", "host", "in_range", "keep_alive", "sha_ranges", "timed"]

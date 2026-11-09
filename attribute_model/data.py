@@ -7,11 +7,10 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from author_encoder.store import parts, span
-from database import client
+from database import author_ranges, author_span, client
 
 from . import LOG, timed, write_json
-from .config import DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_targets, partition, validate
+from .config import DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, VECTOR_RANGES, check_targets, partition, validate
 
 CLAIMS = "SELECT author, attribute, value FROM author_claims WHERE attribute IN {attributes:Array(String)}"
 VECTORS = "SELECT author, vector FROM author_vectors WHERE {where} AND author IN (SELECT author FROM labeled WHERE {where}) ORDER BY author"
@@ -47,8 +46,8 @@ def read_vectors(db, labeled, path):
     total = db.command("SELECT count() FROM author_vectors WHERE author IN labeled")
     vectors = np.lib.format.open_memmap(path, mode="w+", dtype=np.float16, shape=(total, DIMENSIONS))
     authors, kept, started = [], 0, time.perf_counter()
-    for low, high in parts(db):
-        where, parameters = span(low, high)
+    for low, high in author_ranges(db, "author_vectors", VECTOR_RANGES):
+        where, parameters = author_span(low, high)
         with db.query_arrow_stream(VECTORS.format(where=where), parameters=parameters) as stream:
             for batch in stream:
                 vectors[kept:kept + batch.num_rows] = batch["vector"].flatten().to_numpy().reshape(-1, DIMENSIONS)

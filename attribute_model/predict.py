@@ -10,11 +10,10 @@ import pyarrow as pa
 import torch
 from clickhouse_connect.driver.binding import format_str, quote_identifier
 
-from author_encoder.store import parts, span
-from database import client
+from database import author_ranges, author_span, client
 
 from . import LOG, timed
-from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, THREADS, check_targets, validate
+from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, THREADS, VECTOR_RANGES, check_targets, validate
 from .model import AttributeModel, numeric
 
 KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)"}
@@ -99,8 +98,8 @@ def predict_table(model_path, targets, device="cuda"):
         buffered = []
 
     with ThreadPoolExecutor(1) as pool:
-        for low, high in parts(reader):
-            where, parameters = span(low, high)
+        for low, high in author_ranges(reader, "author_vectors", VECTOR_RANGES):
+            where, parameters = author_span(low, high)
             with reader.query_arrow_stream(VECTORS.format(where=where), parameters=parameters, settings={"max_block_size": PREDICTION_BATCH}) as stream:
                 for batch in stream:
                     buffered.append(infer(model, artifact, catalogs, batch, device))
