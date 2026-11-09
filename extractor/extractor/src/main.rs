@@ -8,9 +8,10 @@ mod score;
 use claimcore::*;
 use serde::Deserialize;
 use serde_json::value::RawValue;
+use std::collections::BTreeMap;
 use std::io::{BufWriter, Write};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::LazyLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{LazyLock, Mutex};
 use std::time::Instant;
 
 #[derive(Deserialize)]
@@ -35,19 +36,29 @@ static RULES: LazyLock<(Vec<&'static Rule>, prefilter::Literals)> = LazyLock::ne
     (rules, literals)
 });
 
-static INVALID: AtomicU64 = AtomicU64::new(0);
+const INVALID_EXAMPLES: usize = 5;
+
+static INVALID: Mutex<BTreeMap<String, (u64, Vec<String>)>> = Mutex::new(BTreeMap::new());
 
 fn contracted(attribute: &str, value: &str) -> Option<String> {
     let known = contract::SCHEMA.attribute(attribute).unwrap_or_else(|| panic!("a rule emitted {attribute:?}, which claim_extraction/schema.json does not define"));
     let normal = known.normal(value);
     if normal.is_none() {
-        INVALID.fetch_add(1, Ordering::Relaxed);
+        let mut invalid = INVALID.lock().unwrap();
+        let (count, examples) = invalid.entry(attribute.to_string()).or_default();
+        *count += 1;
+        if examples.len() < INVALID_EXAMPLES && !examples.iter().any(|example| example == value) {
+            examples.push(value.to_string());
+        }
     }
     normal
 }
 
-fn invalid() -> u64 {
-    INVALID.load(Ordering::Relaxed)
+fn invalid() -> String {
+    let invalid = INVALID.lock().unwrap();
+    let total: u64 = invalid.values().map(|(count, _)| count).sum();
+    let detail: Vec<String> = invalid.iter().map(|(attribute, (count, examples))| format!("{attribute}:{count}{examples:?}")).collect();
+    format!("{total} {}", detail.join(" "))
 }
 
 fn bot_safe(attribute: &str) -> bool {
