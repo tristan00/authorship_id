@@ -10,6 +10,9 @@ afghani	afghanistan
 afghanistaner	afghanistan
 afghanistanerin	afghanistan
 afghano	afghanistan
+agypter	egypt
+agypterin	egypt
+agypterinnen	egypt
 albanais	albania
 albanaise	albania
 albanees	albania
@@ -19,10 +22,17 @@ albanerinnen	albania
 albanese	albania
 albanesi	albania
 albanisch	albania
+alema	germany
+aleman	germany
 alemana	germany
 alemanas	germany
 alemanes	germany
+alemao	germany
 alemán	germany
+alemã	germany
+alemão	germany
+algerien	algeria
+algerienne	algeria
 algerier	algeria
 algerierin	algeria
 algerina	algeria
@@ -35,6 +45,8 @@ allemand	germany
 allemande	germany
 allemandes	germany
 allemands	germany
+americain	united states
+americaine	united states
 americana	united states
 americano	united states
 amerikaan	united states
@@ -62,6 +74,8 @@ angolani	angola
 angolano	angola
 antarcticain	antarctica
 antarcticaine	antarctica
+antartica	antarctica
+antartico	antarctica
 antiguayen	antigua and barbuda
 antiguayenne	antigua and barbuda
 antártica	antarctica
@@ -76,6 +90,9 @@ argentino	argentina
 armena	armenia
 armene	armenia
 armeni	armenia
+armenien	armenia
+armenienne	armenia
+armeniens	armenia
 armenier	armenia
 armenierin	armenia
 armenierinnen	armenia
@@ -90,6 +107,8 @@ arubano	aruba
 aserbaidschaner	azerbaijan
 aserbaidschanerin	azerbaijan
 aserbaidschanerinnen	azerbaijan
+athiopianer	ethiopia
+athiopianerin	ethiopia
 australiana	australia
 australiane	australia
 australiani	australia
@@ -106,17 +125,23 @@ austriaco	austria
 autrichien	austria
 autrichienne	austria
 azera	azerbaijan
+azerbaidjanais	azerbaijan
+azerbaidjanaise	azerbaijan
 azerbaïdjanais	azerbaijan
 azerbaïdjanaise	azerbaijan
 azere	azerbaijan
 azeri	azerbaijan
 azero	azerbaijan
+bahameen	bahamas
+bahameenne	bahamas
 bahamense	bahamas
 bahamensi	bahamas
 bahaméen	bahamas
 bahaméenne	bahamas
 bahrainer	bahrain
 bahrainerin	bahrain
+bahreinien	bahrain
+bahreinienne	bahrain
 bahreinita	bahrain
 bahreinite	bahrain
 bahreiniti	bahrain
@@ -131,6 +156,8 @@ barbadiani	barbados
 barbadiano	barbados
 barbadien	barbados
 barbadienne	barbados
+barthelomeen	saint barthelemy
+barthelomeenne	saint barthelemy
 barthéloméen	saint barthelemy
 barthéloméenne	saint barthelemy
 belarusse	belarus
@@ -146,15 +173,28 @@ belgier	belgium
 belgierin	belgium
 belgierinnen	belgium
 belgische	belgium
+belicena	belize
+beliceno	belize
+beliceña	belize
 beliceño	belize
 beliziana	belize
 beliziane	belize
 beliziani	belize
 beliziano	belize
+belizien	belize
+belizienne	belize
 bengalese	bangladesh
 bengalesi	bangladesh
 beninese	benin
 beninesi	benin
+beninien	benin
+beninienne	benin
+beniniennes	benin
+beniniens	benin
+beninois	benin
+beninoise	benin
+beninoises	benin
+bermudes	bermuda
 bermudiana	bermuda
 bermudiane	bermuda
 bermudiani	bermuda
@@ -174,6 +214,8 @@ birmana	myanmar
 birmane	myanmar
 birmani	myanmar
 birmano	myanmar
+bissaoguineen	guinea-bissau
+bissaoguineenne	guinea-bissau
 bissaoguinéen	guinea-bissau
 bissaoguinéenne	guinea-bissau
 biélorusse	belarus
@@ -199,6 +241,10 @@ botswanais	botswana
 botswanaise	botswana
 botswani	botswana
 botswano	botswana
+brasileira	brazil
+brasileiro	brazil
+brasilena	brazil
+brasileno	brazil
 brasileña	brazil
 brasileño	brazil
 brasiliana	brazil
@@ -207,6 +253,11 @@ brasilianer	brazil
 brasilianerin	brazil
 brasiliani	brazil
 brasiliano	brazil
+bresilien	brazil
+bresilienne	brazil
+britanica	united kingdom
+britanico	united kingdom
+britanicos	united kingdom
 britannica	united kingdom
 britanniche	united kingdom
 britannici	united kingdom
@@ -214,12 +265,16 @@ britannico	united kingdom
 brite	united kingdom
 britin	united kingdom
 britse	united kingdom
+británica	united kingdom
+británico	united kingdom
 británicos	united kingdom
 britânicos	united kingdom
 bruneiana	brunei
 bruneiane	brunei
 bruneiani	brunei
 bruneiano	brunei
+bruneien	brunei
+bruneienne	brunei
 brunéien	brunei
 brunéienne	brunei
 brésilien	brazil
@@ -233,9 +288,11 @@ bulgari	bulgaria
 bulgarin	bulgaria
 bulgarinnen	bulgaria
 bulgaro	bulgaria
+burkinabe	burkina faso
 burkinabè	burkina faso
 burundais	burundi
 burundaise	burundi
+burundes	burundi
 burundesa	burundi
 burundese	burundi
 burundesi	burundi
@@ -249,6 +306,10 @@ béniniens	benin
 béninois	benin
 béninoise	benin
 béninoises	benin
+caledonien	new caledonia
+caledonienne	new caledonia
+caledoniennes	new caledonia
+caledoniens	new caledonia
 calédonien	new caledonia
 calédonienne	new caledonia
 calédoniennes	new caledonia
@@ -264,18 +325,21 @@ camerounaise	cameroon
 camerunese	cameroon
 camerunesi	cameroon
 canadees	canada
+canadense	canada
 canadese	canada
 canadesi	canada
 canadiana	canada
 canadiano	canada
 canadien	canada
 canadienne	canada
+canadiense	canada
 capoverdiana	cabo verde
 capoverdiane	cabo verde
 capoverdiani	cabo verde
 capoverdiano	cabo verde
 capverdien	cabo verde
 capverdienne	cabo verde
+catracha	honduras
 catracho	honduras
 caymaniana	cayman islands
 caymaniane	cayman islands
@@ -341,6 +405,7 @@ costaricani	costa rica
 costaricano	costa rica
 costaricien	costa rica
 costaricienne	costa rica
+costarricense	costa rica
 croata	croatia
 croate	croatia
 croati	croatia
@@ -352,9 +417,15 @@ cubane	cuba
 cubani	cuba
 cubano	cuba
 cypriote	cyprus
+dane	denmark
+danen	denmark
+danes	denmark
 danesa	denmark
 danese	denmark
 danesi	denmark
+danin	denmark
+daninnen	denmark
+danisch	denmark
 danois	denmark
 danoise	denmark
 danés	denmark
@@ -397,23 +468,38 @@ egiziana	egypt
 egiziane	egypt
 egiziani	egypt
 egiziano	egypt
+egyptien	egypt
+egyptienne	egypt
+emirati	united arab emirates
 emiratina	united arab emirates
 emiratine	united arab emirates
 emiratini	united arab emirates
 emiratino	united arab emirates
 emiratí	united arab emirates
+emirien	united arab emirates
+emirienne	united arab emirates
 equatoguineana	equatorial guinea
 equatoguineane	equatorial guinea
 equatoguineani	equatorial guinea
 equatoguineano	equatorial guinea
+equatoguineen	equatorial guinea
+equatoguineenne	equatorial guinea
+equatorien	ecuador
+equatorienne	ecuador
 eritrea	eritrea
 eritree	eritrea
 eritrei	eritrea
 eritreo	eritrea
+erythreen	eritrea
+erythreenne	eritrea
 espagnol	spain
 espagnole	spain
 espanhol	spain
 espanhola	spain
+espanol	spain
+espanola	spain
+espanolas	spain
+espanoles	spain
 español	spain
 española	spain
 españolas	spain
@@ -434,8 +520,13 @@ eswatinienne	eswatini
 eswatinier	eswatini
 eswatinierin	eswatini
 eswatinisch	eswatini
+ethiopien	ethiopia
+ethiopienne	ethiopia
+ethiopique	ethiopia
 etiope	ethiopia
 etiopi	ethiopia
+falklandese	falkland islands
+falklandesi	falkland islands
 falklandése	falkland islands
 falklandési	falkland islands
 fidjien	fiji
@@ -451,11 +542,13 @@ filippine	philippines
 filippini	philippines
 filippino	philippines
 fin	finland
+fines	finland
 finesa	finland
 finesas	finland
 fineses	finland
 finlandais	finland
 finlandaise	finland
+finlandes	finland
 finlandesa	finland
 finlandesas	finland
 finlandese	finland
@@ -467,6 +560,10 @@ finnen	finland
 finnin	finland
 finninnen	finland
 finés	finland
+francais	france
+francaise	france
+francaises	france
+frances	france
 francesa	france
 francese	france
 francesi	france
@@ -477,6 +574,8 @@ francês	france
 fransman	france
 franzose	france
 franzosen	france
+franzosin	france
+franzosinnen	france
 französin	france
 französinnen	france
 français	france
@@ -496,6 +595,9 @@ georgiana	georgia
 georgiane	georgia
 georgiani	georgia
 georgiano	georgia
+georgien	georgia
+georgienne	georgia
+georgiens	georgia
 georgier	georgia
 georgierin	georgia
 georgierinnen	georgia
@@ -509,6 +611,8 @@ gibilterrina	gibraltar
 gibilterrine	gibraltar
 gibilterrini	gibraltar
 gibilterrino	gibraltar
+gibraltarena	gibraltar
+gibraltareno	gibraltar
 gibraltarer	gibraltar
 gibraltarerin	gibraltar
 gibraltarerinnen	gibraltar
@@ -516,6 +620,7 @@ gibraltareña	gibraltar
 gibraltareño	gibraltar
 gibraltarien	gibraltar
 gibraltarienne	gibraltar
+gibraltina	gibraltar
 gibraltino	gibraltar
 gibutiana	djibouti
 gibutiane	djibouti
@@ -561,10 +666,13 @@ guamanienne	guam
 guamano	guam
 guatemaler	guatemala
 guatemalerin	guatemala
+guatemalien	guatemala
+guatemalienne	guatemala
 guatemalteca	guatemala
 guatemalteche	guatemala
 guatemaltechi	guatemala
 guatemalteco	guatemala
+guatemalteque	guatemala
 guatémalien	guatemala
 guatémalienne	guatemala
 guatémaltèque	guatemala
@@ -575,6 +683,7 @@ guineani	guinea
 guineano	guinea
 guineense	guinea-bissau
 guineensi	guinea-bissau
+guineoecuatoriana	equatorial guinea
 guineoecuatoriano	equatorial guinea
 guyanais	french guiana
 guyanese	guyana
@@ -590,16 +699,26 @@ haitianer	haiti
 haitianerin	haiti
 haitiani	haiti
 haitiano	haiti
+haitien	haiti
+haitienne	haiti
 haïtien	haiti
 haïtienne	haiti
+holandes	the netherlands
+holandés	the netherlands
+holandês	the netherlands
 hondurees	honduras
 honduregna	honduras
 honduregne	honduras
 honduregni	honduras
 honduregno	honduras
+hondurena	honduras
+hondureno	honduras
+hondureña	honduras
+hondureño	honduras
 hondurien	honduras
 hondurienne	honduras
 hongaar	hungary
+hongkones	hong kong
 hongkonesa	hong kong
 hongkongais	hong kong
 hongkongaise	hong kong
@@ -628,10 +747,15 @@ indonesiana	indonesia
 indonesiane	indonesia
 indonesiani	indonesia
 indonesiano	indonesia
+indonesien	indonesia
+indonesienne	indonesia
 indonesier	indonesia
 indonesierin	indonesia
 indonésien	indonesia
 indonésienne	indonesia
+ingles	united kingdom
+inglés	united kingdom
+inglês	united kingdom
 irachena	iraq
 irachene	iraq
 iracheni	iraq
@@ -641,6 +765,7 @@ irakerin	iraq
 iraki	iraq
 irakien	iraq
 irakienne	iraq
+irakier	iraq
 irakiër	iraq
 iraner	iran
 iranerin	iran
@@ -651,6 +776,7 @@ iraniano	iran
 iranien	iran
 iranienne	iran
 iranisch	iran
+iraqui	iraq
 iraquí	iraq
 ire	ireland
 iren	ireland
@@ -665,6 +791,9 @@ israeliana	israel
 israeliane	israel
 israeliani	israel
 israeliano	israel
+israelien	israel
+israelienne	israel
+israelier	israel
 israelin	israel
 israelinnen	israel
 israelis	israel
@@ -690,9 +819,14 @@ ivoriana	ivory coast
 ivoriane	ivory coast
 ivoriani	ivory coast
 ivoriano	ivory coast
+jamaicain	jamaica
+jamaicaine	jamaica
+jamaicana	jamaica
 jamaicano	jamaica
 jamaikaner	jamaica
 jamaikanerin	jamaica
+jamaiquain	jamaica
+jamaiquaine	jamaica
 jamaïcain	jamaica
 jamaïcaine	jamaica
 jamaïquain	jamaica
@@ -704,6 +838,7 @@ japanse	japan
 japonais	japan
 japonaise	japan
 japonaises	japan
+japones	japan
 japonesa	japan
 japonés	japan
 japonês	japan
@@ -720,6 +855,7 @@ kasachen	kazakhstan
 kasachin	kazakhstan
 kasachinnen	kazakhstan
 kasachisch	kazakhstan
+kazaja	kazakhstan
 kazajo	kazakhstan
 kazaka	kazakhstan
 kazake	kazakhstan
@@ -734,6 +870,8 @@ keniano	kenya
 keniota	kenya
 keniote	kenya
 kenioti	kenya
+kenyan	kenya
+kenyane	kenya
 kirghisa	kyrgyzstan
 kirghise	kyrgyzstan
 kirghisi	kyrgyzstan
@@ -753,6 +891,8 @@ kosovarin	kosovo
 kosovarinnen	kosovo
 kossovien	kosovo
 kossovienne	kosovo
+koweitien	kuwait
+koweitienne	kuwait
 koweïtien	kuwait
 koweïtienne	kuwait
 kroaat	croatia
@@ -776,12 +916,15 @@ laotiano	laos
 laotien	laos
 laotienne	laos
 lesotense	lesotho
+lesothan	lesotho
+lesothane	lesotho
 lesothiana	lesotho
 lesothiane	lesotho
 lesothiani	lesotho
 lesothiano	lesotho
 lesothien	lesotho
 lesothienne	lesotho
+leton	latvia
 letona	latvia
 lette	latvia
 letten	latvia
@@ -801,6 +944,8 @@ liberiana	liberia
 liberiane	liberia
 liberiani	liberia
 liberiano	liberia
+liberien	liberia
+liberienne	liberia
 libica	libya
 libiche	libya
 libici	libya
@@ -843,6 +988,8 @@ macauense	macao
 macedone	north macedonia
 macedoni	north macedonia
 macedonia	north macedonia
+macedonien	north macedonia
+macedonienne	north macedonia
 macedonio	north macedonia
 macédonien	north macedonia
 macédonienne	north macedonia
@@ -892,6 +1039,8 @@ maltesi	malta
 mannese	isle of man
 mannesi	isle of man
 maoresi	mayotte
+marfilena	ivory coast
+marfileno	ivory coast
 marfileña	ivory coast
 marfileño	ivory coast
 marocain	morocco
@@ -902,6 +1051,7 @@ marocchini	morocco
 marocchino	morocco
 marokkaner	morocco
 marokkanerin	morocco
+marroqui	morocco
 marroquí	morocco
 marshallais	marshall islands
 marshallaise	marshall islands
@@ -937,9 +1087,13 @@ micronesiana	micronesia
 micronesiane	micronesia
 micronesiani	micronesia
 micronesiano	micronesia
+micronesien	micronesia
+micronesienne	micronesia
 micronésien	micronesia
 micronésienne	micronesia
 miquelonais	saint pierre and miquelon
+mocambicana	mozambique
+mocambicano	mozambique
 moldauer	moldova
 moldauerin	moldova
 moldauerinnen	moldova
@@ -951,6 +1105,7 @@ monegasca	monaco
 monegasche	monaco
 monegaschi	monaco
 monegasco	monaco
+monegasque	monaco
 monegasse	monaco
 monegassen	monaco
 monegassin	monaco
@@ -964,6 +1119,7 @@ mongolin	mongolia
 mongolinnen	mongolia
 mongolo	mongolia
 montenegrijn	montenegro
+montenegrin	montenegro
 montenegrina	montenegro
 montenegrinas	montenegro
 montenegrine	montenegro
@@ -986,6 +1142,8 @@ mozambicana	mozambique
 mozambicane	mozambique
 mozambicani	mozambique
 mozambicano	mozambique
+moçambicana	mozambique
+moçambicano	mozambique
 namibiana	namibia
 namibiane	namibia
 namibiani	namibia
@@ -1000,13 +1158,29 @@ nauruano	nauru
 nederlander	the netherlands
 nederlanders	the netherlands
 nederlandse	the netherlands
+neerlandais	the netherlands
+neerlandes	the netherlands
 neerlandesa	the netherlands
 neerlandés	the netherlands
+neocaledonien	new caledonia
+neocaledonienne	new caledonia
+neocaledoniennes	new caledonia
+neocaledoniens	new caledonia
+neoguineen	papua new guinea
+neoguineenne	papua new guinea
+neozelandais	new zealand
+neozelandaise	new zealand
 neozelandese	new zealand
 neozelandesi	new zealand
+nepalais	nepal
+nepalaise	nepal
 nepalese	nepal
 nepalesi	nepal
+nepali	nepal
 nepalí	nepal
+neuseelander	new zealand
+neuseelanderin	new zealand
+neuseelandisch	new zealand
 neuseeländer	new zealand
 neuseeländerin	new zealand
 neuseeländisch	new zealand
@@ -1018,14 +1192,18 @@ nicaraguayen	nicaragua
 nicaraguayenne	nicaragua
 nicaraguense	nicaragua
 nicaraguensi	nicaragua
+nicaragüense	nicaragua
 nigeriaan	nigeria
 nigeriaanse	nigeria
+nigerian	nigeria
 nigeriana	nigeria
 nigeriane	nigeria
 nigerianer	nigeria
 nigerianerin	nigeria
 nigeriani	nigeria
 nigeriano	nigeria
+nigerien	niger
+nigerienne	niger
 nigerier	niger
 nigerierin	niger
 nigerina	niger
@@ -1036,7 +1214,11 @@ nigérian	nigeria
 nigériane	nigeria
 nigérien	niger
 nigérienne	niger
+niuena	niue
+niuenha	niue
 niuenho	niue
+niueno	niue
+niueña	niue
 niueño	niue
 noor	norway
 norcoreana	north korea
@@ -1055,6 +1237,10 @@ noruega	norway
 noruego	norway
 norvegese	norway
 norvegesi	norway
+norvegien	norway
+norvegienne	norway
+norvegiennes	norway
+norvegiens	norway
 norvégien	norway
 norvégienne	norway
 norvégiennes	norway
@@ -1081,12 +1267,16 @@ omanaise	oman
 omanita	oman
 omaniti	oman
 oostenrijker	austria
+osterreicher	austria
+osterreicherin	austria
+osterreicherinnen	austria
 osttimoraner	timor leste
 osttimoranerin	timor leste
 osttimorese	timor leste
 ougandais	uganda
 ougandaise	uganda
 ouzbek	uzbekistan
+ouzbekeke	uzbekistan
 ouzbekèke	uzbekistan
 pakistaan	pakistan
 pakistana	pakistan
@@ -1096,6 +1286,7 @@ pakistane	pakistan
 pakistaner	pakistan
 pakistanerin	pakistan
 pakistani	pakistan
+pakistanies	pakistan
 pakistano	pakistan
 pakistaní	pakistan
 pakistaníes	pakistan
@@ -1105,8 +1296,14 @@ palestinese	palestinian territory
 palestinesi	palestinian territory
 palestinien	palestinian territory
 palestinienne	palestinian territory
+panameen	panama
+panameenne	panama
+panamena	panama
+panameno	panama
 panamense	panama
 panamensi	panama
+panameña	panama
+panameño	panama
 panamiana	panama
 panamiano	panama
 panaméen	panama
@@ -1121,10 +1318,12 @@ paraguaiana	paraguay
 paraguaiane	paraguay
 paraguaiani	paraguay
 paraguaiano	paraguay
+paraguaya	paraguay
 paraguayaner	paraguay
 paraguayanerin	paraguay
 paraguayen	paraguay
 paraguayenne	paraguay
+paraguayo	paraguay
 peruaan	peru
 peruaanse	peru
 peruana	peru
@@ -1137,6 +1336,8 @@ peruviana	peru
 peruviane	peru
 peruviani	peru
 peruviano	peru
+peruvien	peru
+peruvienne	peru
 philippin	philippines
 philippine	philippines
 polaca	poland
@@ -1154,6 +1355,8 @@ polnisch	poland
 polonais	poland
 polonaise	poland
 polonaises	poland
+polynesien	french polynesia
+polynesienne	french polynesia
 polynésien	french polynesia
 polynésienne	french polynesia
 poolse	poland
@@ -1165,6 +1368,9 @@ portoricana	puerto rico
 portoricane	puerto rico
 portoricani	puerto rico
 portoricano	puerto rico
+portorriquena	puerto rico
+portorriqueno	puerto rico
+portorriqueña	puerto rico
 portorriqueño	puerto rico
 portugais	portugal
 portugaise	portugal
@@ -1173,8 +1379,13 @@ portugiese	portugal
 portugiesen	portugal
 portugiesin	portugal
 portugiesinnen	portugal
+portugues	portugal
 portuguesa	portugal
+portugués	portugal
 português	portugal
+puertorriquena	puerto rico
+puertorriqueno	puerto rico
+puertorriqueña	puerto rico
 puertorriqueño	puerto rico
 péruvien	peru
 péruvienne	peru
@@ -1182,11 +1393,17 @@ qatarien	qatar
 qatarienne	qatar
 qatariota	qatar
 qatarioti	qatar
+reunionnais	reunion
 roemeen	romania
 roumain	romania
 roumaine	romania
 ruandese	rwanda
 ruandesi	rwanda
+rumane	romania
+rumanen	romania
+rumanin	romania
+rumaninnen	romania
+rumanisch	romania
 rumena	romania
 rumene	romania
 rumeni	romania
@@ -1207,12 +1424,14 @@ russen	russia
 russi	russia
 russin	russia
 russinnen	russia
+russlandisch	russia
 russländisch	russia
 russo	russia
 rwandais	rwanda
 rwandaise	rwanda
 réunionnais	reunion
 saharaui	western sahara
+sahrawi	western sahara
 sahrāwī	western sahara
 salomonais	solomon islands
 salomonaise	solomon islands
@@ -1224,6 +1443,10 @@ salvadoregna	el salvador
 salvadoregne	el salvador
 salvadoregni	el salvador
 salvadoregno	el salvador
+salvadorena	el salvador
+salvadoreno	el salvador
+salvadoreña	el salvador
+salvadoreño	el salvador
 salvadorianer	el salvador
 salvadorianerin	el salvador
 salvadorien	el salvador
@@ -1246,6 +1469,8 @@ santaluciana	saint lucia
 santaluciane	saint lucia
 santaluciani	saint lucia
 santaluciano	saint lucia
+santomeen	sao tome and principe
+santomeenne	sao tome and principe
 santoméen	sao tome and principe
 santoméenne	sao tome and principe
 sanvincentina	saint vincent and the grenadines
@@ -1261,12 +1486,17 @@ schwedinnen	sweden
 schweizer	switzerland
 schweizerin	switzerland
 schweizerinnen	switzerland
+senegalais	senegal
+senegalaise	senegal
+senegales	senegal
 senegalesa	senegal
 senegalesas	senegal
 senegalese	senegal
 senegaleses	senegal
 senegalesi	senegal
 senegalesin	senegal
+senegalien	senegal
+senegalienne	senegal
 senegalés	senegal
 serba	serbia
 serbe	serbia
@@ -1276,11 +1506,14 @@ serbin	serbia
 serbinnen	serbia
 serbo	serbia
 serf	serbia
+servier	serbia
 serviër	serbia
 seychellese	seychelles
 seychellesi	seychelles
 seychellois	seychelles
 seychelloise	seychelles
+sierraleonais	sierra leone
+sierraleonaise	sierra leone
 sierraleonese	sierra leone
 sierraleonesi	sierra leone
 sierraléonais	sierra leone
@@ -1352,15 +1585,23 @@ sudcoreana	south korea
 sudcoreane	south korea
 sudcoreani	south korea
 sudcoreano	south korea
+sudkoreaner	south korea
+sudkoreanerin	south korea
+sudkoreanerinnen	south korea
 sudsoudanais	south sudan
 sudsoudanaise	south sudan
 sudsudanese	south sudan
 sudsudanesi	south sudan
+sudsudanesin	south sudan
+suedois	sweden
+suedoise	sweden
+suedoises	sweden
 suisse	switzerland
 suissesse	switzerland
 suiza	switzerland
 suizo	switzerland
 surinamer	suriname
+surinames	suriname
 surinamesa	suriname
 surinamese	suriname
 surinamesi	suriname
@@ -1396,6 +1637,8 @@ tagika	tajikistan
 tagike	tajikistan
 tagiki	tajikistan
 tagiko	tajikistan
+taiwanais	taiwan
+taiwanaise	taiwan
 taiwanese	taiwan
 taiwanesi	taiwan
 tanzaniana	tanzania
@@ -1408,11 +1651,16 @@ taïwanais	taiwan
 taïwanaise	taiwan
 tchadien	chad
 tchadienne	chad
+tcheque	czechia
 tchèque	czechia
 tedesca	germany
 tedesche	germany
 tedeschi	germany
 tedesco	germany
+thailandais	thailand
+thailandaise	thailand
+thailander	thailand
+thailanderin	thailand
 thailandese	thailand
 thailandesi	thailand
 thailänder	thailand
@@ -1466,6 +1714,9 @@ turche	turkey
 turchi	turkey
 turco	turkey
 turk	turkey
+turke	turkey
+turkin	turkey
+turkisch	turkey
 turkmena	turkmenistan
 turkmene	turkmenistan
 turkmeni	turkmenistan
@@ -1520,6 +1771,7 @@ vaticana	vatican
 vaticane	vatican
 vaticani	vatican
 vaticano	vatican
+venezolana	venezuela
 venezolano	venezuela
 venezolanos	venezuela
 venezuelana	venezuela
@@ -1528,6 +1780,8 @@ venezuelaner	venezuela
 venezuelanerin	venezuela
 venezuelani	venezuela
 venezuelano	venezuela
+venezuelien	venezuela
+venezuelienne	venezuela
 venezulaner	venezuela
 venezulanerin	venezuela
 vietnamese	vietnam
@@ -1541,6 +1795,7 @@ vincentaise	saint vincent and the grenadines
 vénézuélien	venezuela
 vénézuélienne	venezuela
 yemenita	yemen
+yemenite	yemen
 yemeniti	yemen
 yéménite	yemen
 zambiana	zambia
@@ -1551,6 +1806,8 @@ zambien	zambia
 zambienne	zambia
 zentralafrikaner	central african republic
 zentralafrikanerin	central african republic
+zimbabween	zimbabwe
+zimbabweenne	zimbabwe
 zimbabwese	zimbabwe
 zimbabwesi	zimbabwe
 zimbabwéen	zimbabwe

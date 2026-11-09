@@ -3,6 +3,7 @@ import json
 import re
 import sys
 import urllib.parse
+import unicodedata
 import urllib.request
 import zipfile
 from collections import Counter
@@ -18,6 +19,10 @@ TARGET = Path(__file__).with_name("gazetteer.tsv")
 WIKIDATA = "https://query.wikidata.org/sparql?"
 FOREIGN = Path(__file__).with_name("demonyms.tsv")
 COPULA_LANGUAGES = ("es", "pt", "fr", "de", "it", "nl")
+MISSING_DEMONYMS = {"paraguayo": "paraguay", "brasileiro": "brazil", "alemão": "germany", "alemã": "germany", "portugués": "portugal", "canadiense": "canada",
+                    "canadense": "canada", "inglés": "united kingdom", "inglês": "united kingdom", "británico": "united kingdom", "hondureño": "honduras",
+                    "salvadoreño": "el salvador", "nicaragüense": "nicaragua", "costarricense": "costa rica", "panameño": "panama", "moçambicano": "mozambique",
+                    "holandés": "the netherlands", "holandês": "the netherlands"}
 TOKEN = re.compile(r"[^\W_]+")
 LOCALES = ("es", "de", "fr", "pt", "it", "pl", "nl")
 STOPWORDS = ("spanish", "german", "french", "portuguese", "italian", "dutch")
@@ -101,6 +106,14 @@ def generate(target=TARGET):
         out.writelines("\t".join((name, *row)) + "\n" for name, row in rows.items())
 
 
+def folded(text):
+    return "".join(char for char in unicodedata.normalize("NFKD", text) if not unicodedata.combining(char))
+
+
+def gendered(name):
+    return (name, name[:-1] + "a") if name.endswith("o") and not name.endswith("ão") else (name,)
+
+
 @timed
 def foreign(target=FOREIGN):
     nltk.download("brown", quiet=True)
@@ -110,9 +123,13 @@ def foreign(target=FOREIGN):
     query = "SELECT ?code ?demonym WHERE { ?country wdt:P297 ?code; wdt:P1549 ?demonym. FILTER(LANG(?demonym) IN (%s)) }" % ", ".join(f'"{language}"' for language in COPULA_LANGUAGES)
     request = urllib.request.Request(WIKIDATA + urllib.parse.urlencode({"query": query, "format": "json"}), headers={"User-Agent": "claim-extraction"})
     found = {}
-    for item in json.loads(urllib.request.urlopen(request).read())["results"]["bindings"]:
-        if (country := countries.get(item["code"]["value"])) and (name := key(item["demonym"]["value"])) and " " not in name and name not in english:
-            found.setdefault(name, set()).add(country)
+    stated = [(key(item["demonym"]["value"]), country) for item in json.loads(urllib.request.urlopen(request).read())["results"]["bindings"]
+              if (country := countries.get(item["code"]["value"]))]
+    for name, country in stated + list(MISSING_DEMONYMS.items()):
+        for form in gendered(name):
+            for spelling in {form, folded(form)}:
+                if spelling and " " not in spelling and spelling not in english:
+                    found.setdefault(spelling, set()).add(country)
     with open(target, "w", encoding="utf-8", newline="\n") as out:
         out.write("demonym\tcountry\n")
         out.writelines(f"{name}\t{next(iter(owners))}\n" for name, owners in sorted(found.items()) if len(owners) == 1)
