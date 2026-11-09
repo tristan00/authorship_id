@@ -3,12 +3,13 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod database;
 mod run;
+mod score;
 
 use claimcore::*;
 use serde::Deserialize;
 use serde_json::value::RawValue;
 use std::io::{BufWriter, Write};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::LazyLock;
 use std::time::Instant;
 
@@ -21,7 +22,7 @@ struct Row<'a> {
 
 static BOT_SAFE: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
     let mut safe: Vec<&'static str> = demographics::rules().iter().chain(work::rules()).map(|rule| rule.attribute).collect();
-    safe.extend(["automated_account", "relationship_status", "parental_status"]);
+    safe.extend(["automated_account", "relationship_status", "parent_role"]);
     safe.sort();
     safe.dedup();
     safe
@@ -33,6 +34,21 @@ static RULES: LazyLock<(Vec<&'static Rule>, prefilter::Literals)> = LazyLock::ne
     let literals = prefilter::Literals::new(&patterns);
     (rules, literals)
 });
+
+static INVALID: AtomicU64 = AtomicU64::new(0);
+
+fn contracted(attribute: &str, value: &str) -> Option<String> {
+    let known = contract::SCHEMA.attribute(attribute).unwrap_or_else(|| panic!("a rule emitted {attribute:?}, which claim_extraction/schema.json does not define"));
+    let normal = known.normal(value);
+    if normal.is_none() {
+        INVALID.fetch_add(1, Ordering::Relaxed);
+    }
+    normal
+}
+
+fn invalid() -> u64 {
+    INVALID.load(Ordering::Relaxed)
+}
 
 fn bot_safe(attribute: &str) -> bool {
     BOT_SAFE.binary_search(&attribute).is_ok()
@@ -67,7 +83,6 @@ fn positioned(raw: &str) -> Vec<(String, String, usize)> {
     fandom::favorites(&text, &mut found);
     fandom::fandom(&text, &mut found);
     fandom::adjacent(&text, &mut found);
-    found.remove_attribute("character");
     fandom::characters(&text, &mut found);
     if !automatic {
         health::ailments(&lowered, &mut found);
@@ -105,7 +120,8 @@ fn read_lines(path: &str) -> Vec<String> {
 
 fn process(line: &str) -> String {
     let row: Row = serde_json::from_str(line).unwrap_or_else(|error| panic!("bad input line: {error}"));
-    encoded(row.id.get(), &positioned(&row.text))
+    let claims: Vec<(String, String, usize)> = positioned(&row.text).into_iter().filter_map(|(attribute, value, position)| contracted(&attribute, &value).map(|value| (attribute, value, position))).collect();
+    encoded(row.id.get(), &claims)
 }
 
 fn extract(input: &str, output: &str, threads: usize) {
@@ -133,7 +149,7 @@ fn extract(input: &str, output: &str, threads: usize) {
         });
         drop(slots);
         let seconds = started.elapsed().as_secs_f64();
-        log(&format!("texts={} threads={threads} seconds={seconds:.2} rate={:.0} failures={}", lines.len(), lines.len() as f64 / seconds, re::FAILURES.load(Ordering::Relaxed)));
+        log(&format!("texts={} threads={threads} seconds={seconds:.2} rate={:.0} failures={} invalid={}", lines.len(), lines.len() as f64 / seconds, re::FAILURES.load(Ordering::Relaxed), invalid()));
         timed("write", || {
             let mut writer = BufWriter::new(std::fs::File::create(output).unwrap());
             for line in &results {
@@ -165,8 +181,37 @@ fn bench(input: &str) {
     println!("picks {total} failures {} jit_failures {}", re::FAILURES.load(Ordering::Relaxed), re::JIT_FAILURES.load(Ordering::Relaxed));
 }
 
+fn prompts(prompt: &str, input: &str, output: &str) {
+    timed("prompts", || {
+        let template = contract::SCHEMA.template(prompt);
+        let mut writer = BufWriter::new(std::fs::File::create(output).unwrap());
+        let mut count = 0usize;
+        for line in read_lines(input) {
+            let row: Row = serde_json::from_str(&line).unwrap_or_else(|error| panic!("bad input line: {error}"));
+            let text = template.replace("{text}", &row.text);
+            writeln!(writer, "{{\"id\": {}, \"text\": {}}}", row.id.get(), serde_json::to_string(&text).unwrap()).unwrap();
+            count += 1;
+        }
+        writer.flush().unwrap();
+        log(&format!("prompts prompt={prompt} records={count}"));
+    });
+}
+
 fn option<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
     args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).map(String::as_str).unwrap_or(default)
+}
+
+fn positional(args: &[String]) -> Vec<&str> {
+    let mut found = Vec::new();
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if arg.starts_with("--") {
+            iter.next();
+        } else {
+            found.push(arg.as_str());
+        }
+    }
+    found
 }
 
 fn main() {
@@ -175,6 +220,9 @@ fn main() {
     match args.get(1).map(String::as_str) {
         Some("extract") if args.len() >= 4 => extract(&args[2], &args[3], threads),
         Some("bench") if args.len() >= 3 => bench(&args[2]),
+        Some("prompts") if args.len() >= 5 => prompts(&args[2], &args[3], &args[4]),
+        Some("template") if args.len() >= 3 => print!("{}", contract::SCHEMA.template(&args[2])),
+        Some("score") if args.len() > 5 => score::score(&args[2], &args[3], &args[4], option(&args, "--agree", "2").parse().unwrap(), threads, &positional(&args[5..]), args.iter().position(|arg| arg == "--contested").map(|index| args[index + 1].as_str())),
         Some("conditions") => {
             for (attribute, name, value) in health::english_conditions() {
                 println!("{attribute}	{name}	{value}");
@@ -182,6 +230,7 @@ fn main() {
         }
         Some(command @ ("run" | "flairs")) => {
             let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
+            run::attributes(&database);
             if command == "run" {
                 run::extract(&database, threads, args.iter().any(|arg| arg == "--reset"));
             } else {
@@ -189,7 +238,7 @@ fn main() {
             }
         }
         _ => {
-            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims conditions | claims run|flairs --host H [--port P] [--database D] --threads N [--reset]");
+            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims prompts <prompt> <input.jsonl> <output.jsonl> | claims template <prompt> | claims score <prompt> <texts.jsonl> <report.json> <answers_dir>... [--agree N] [--contested <out.jsonl>] --threads N | claims conditions | claims run|flairs --host H [--port P] [--database D] --threads N [--reset]");
             std::process::exit(2);
         }
     }

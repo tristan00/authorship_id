@@ -11,7 +11,9 @@ macro_rules! regex {
 pub(crate) use regex;
 
 pub const MARRIED: &str = "married";
-pub const DATING: &str = "dating or in a relationship";
+pub const DATING: &str = "in a relationship";
+pub const SEEING: &str = "dating / seeing someone";
+pub const COMMON_LAW: &str = "common-law / de facto";
 pub const ENGAGED: &str = "engaged";
 
 pub const ME: &str = r"i(?<!\wi)(?:'m|m| am|am| m|'am|'?ve been|'ve always been)";
@@ -41,7 +43,7 @@ pub static SPOUSES: &Tab = &[
 ];
 pub static STATUSES: &Tab = &[
     ("single", "single"), ("married", MARRIED), ("engaged", ENGAGED), ("divorced", "divorced"), ("separated", "separated"), ("widowed", "widowed"), ("a widow", "widowed"),
-    ("a widower", "widowed"), ("in a relationship", DATING), ("taken", DATING), ("unmarried", "single"), ("not married", "single"), ("attached", DATING), ("partnered", DATING),
+    ("a widower", "widowed"), ("in a relationship", DATING), ("taken", DATING), ("attached", DATING), ("partnered", DATING),
     ("verheiratet", MARRIED), ("vergeben", DATING), ("geschieden", "divorced"), ("marié", MARRIED), ("mariée", MARRIED), ("divorcé", "divorced"), ("divorcée", "divorced"), ("casado", MARRIED), ("casada", MARRIED),
     ("divorciado", "divorced"), ("divorciada", "divorced"), ("sposato", MARRIED), ("sposata", MARRIED), ("getrouwd", MARRIED), ("gescheiden", "divorced"),
 ];
@@ -119,14 +121,6 @@ pub fn sentence_start(m: &Match) -> usize {
 pub fn mine(m: &Match) -> bool {
     let (a, b) = bounds(m);
     SELF.test_in(m.string, a, b)
-}
-
-pub fn couple(m: &Match) -> V {
-    if COUPLED.test(m.string) || !PAIRED.test(m.string) || !spoken(m) {
-        None
-    } else {
-        Some(DATING)
-    }
 }
 
 pub fn r(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> V + Send + Sync + 'static, hedge: Hedge) -> Rule {

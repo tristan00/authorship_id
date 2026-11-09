@@ -95,7 +95,7 @@ const REGION_ALIASES: &[(&str, &[&str])] = &[
 
 const CITY_ALIASES: &[(&str, &str)] = &[
     ("nyc", "new york city"), ("la", "los angeles"), ("l.a.", "los angeles"), ("sf", "san francisco"), ("philly", "philadelphia"), ("vegas", "las vegas"),
-    ("okc", "oklahoma city"), ("slc", "salt lake city"), ("bombay", "mumbai"), ("calcutta", "kolkata"), ("cdmx", "mexico city"),
+    ("okc", "oklahoma city"), ("slc", "salt lake city"), ("bombay", "mumbai"), ("blr", "bengaluru"), ("calcutta", "kolkata"), ("cdmx", "mexico city"),
     ("kl", "kuala lumpur"), ("saigon", "ho chi minh city"), ("kiev", "kyiv"), ("odessa", "odesa"), ("münchen", "munich"), ("roma", "rome"),
     ("milano", "milan"), ("wien", "vienna"), ("lisboa", "lisbon"), ("rio", "rio de janeiro"), ("atl", "atlanta"), ("chi", "chicago"),
     ("nola", "new orleans"), ("pdx", "portland"), ("htx", "houston"), ("kc", "kansas city"),

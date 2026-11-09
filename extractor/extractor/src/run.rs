@@ -8,15 +8,14 @@ use std::time::Instant;
 const PARTS: usize = 256;
 const BATCH: usize = 1024;
 const INSERT_BYTES: usize = 64 << 20;
-const COMPASS_SUBREDDIT: &str = "politicalcompassmemes";
-const TABLES: [&str; 3] = [
+const TABLES: [&str; 4] = [
+    "CREATE TABLE IF NOT EXISTS claim_attributes (attribute String, kind String, anchor String, precision Float64) ENGINE = MergeTree ORDER BY attribute",
     "CREATE TABLE IF NOT EXISTS text_claims (text_sha256 FixedString(32), attribute LowCardinality(String), value String, position UInt32) ENGINE = MergeTree ORDER BY (text_sha256, attribute)",
     "CREATE TABLE IF NOT EXISTS flair_claims (subreddit String, flair String, attribute LowCardinality(String), value String) ENGINE = MergeTree ORDER BY (subreddit, flair)",
     "CREATE TABLE IF NOT EXISTS extracted_parts (part UInt16, texts UInt64, claims UInt64, seconds Float32, finished_at DateTime('UTC') DEFAULT now()) ENGINE = MergeTree ORDER BY part",
 ];
 
 static MBTI: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![A-Za-z])([IE][NS][TF][JP])(?:-[AT])?(?![A-Za-z])"));
-static COMPASS: LazyLock<Re> = LazyLock::new(|| Re::with(r"(?:^|[\s:-])(?:chad\s+)?(?:(auth|lib)[-\s]?)?(left|center|centre|right|centrist)\s*$", claimcore::re::I));
 
 fn range(part: usize) -> String {
     let low = format!("text_sha256 >= unhex('{part:02x}{}')", "00".repeat(31));
@@ -90,6 +89,7 @@ fn extract_part(database: &Database, part: usize, threads: usize) -> (u64, u64) 
             let mut found = 0u64;
             for (digest, text) in &batch {
                 for (attribute, value, position) in crate::positioned(text) {
+                    let Some(value) = crate::contracted(&attribute, &value) else { continue };
                     out.extend_from_slice(digest);
                     put_string(&mut out, &attribute);
                     put_string(&mut out, &value);
@@ -119,7 +119,7 @@ fn extract_part(database: &Database, part: usize, threads: usize) -> (u64, u64) 
     row.extend_from_slice(&claims.to_le_bytes());
     row.extend_from_slice(&(seconds as f32).to_le_bytes());
     database.insert("extracted_parts (part, texts, claims, seconds)", &row);
-    log(&format!("part={part} texts={texts} claims={claims} seconds={seconds:.0} rate={:.0}", texts as f64 / seconds.max(1e-9)));
+    log(&format!("part={part} texts={texts} claims={claims} invalid={} seconds={seconds:.0} rate={:.0}", crate::invalid(), texts as f64 / seconds.max(1e-9)));
     (texts, claims)
 }
 
@@ -146,27 +146,10 @@ pub fn extract(database: &Database, threads: usize, reset: bool) {
     });
 }
 
-fn compass(flair: &[char]) -> Option<String> {
-    let found = COMPASS.find(flair)?;
-    let axis = found.gs(1).unwrap_or_default().to_lowercase();
-    let side = found.g(2).to_lowercase().replace("centre", "center");
-    Some(match (axis.is_empty(), side.as_str()) {
-        (true, "center" | "centrist") => "centrist".to_string(),
-        (false, "center" | "centrist") => format!("{axis}-center"),
-        (true, _) => side,
-        (false, _) => format!("{axis}-{side}"),
-    })
-}
-
-fn flair_claims(subreddit: &str, flair: &str) -> Vec<(String, String)> {
+fn flair_claims(flair: &str) -> Vec<(String, String)> {
     let mut found: Vec<(String, String)> = crate::positioned(flair).into_iter().map(|(attribute, value, _)| (attribute, value)).collect();
     let chars: Vec<char> = flair.chars().collect();
-    found.extend(MBTI.iter(&chars).map(|found| ("personality_type".to_string(), found.g(1))));
-    if subreddit == COMPASS_SUBREDDIT {
-        if let Some(side) = compass(&chars) {
-            found.push(("political_compass".to_string(), side));
-        }
-    }
+    found.extend(MBTI.iter(&chars).map(|found| ("mbti_type".to_string(), found.g(1).to_lowercase())));
     found.sort();
     found.dedup();
     found
@@ -200,7 +183,8 @@ pub fn flairs(database: &Database, threads: usize) {
                 let mut out = Vec::new();
                 let mut found = 0u64;
                 for (subreddit, flair) in &batch {
-                    for (attribute, value) in flair_claims(subreddit, flair) {
+                    for (attribute, value) in flair_claims(flair) {
+                        let Some(value) = crate::contracted(&attribute, &value) else { continue };
                         put_string(&mut out, subreddit);
                         put_string(&mut out, flair);
                         put_string(&mut out, &attribute);
@@ -223,6 +207,22 @@ pub fn flairs(database: &Database, threads: usize) {
         if !pending.is_empty() {
             database.insert("flair_claims (subreddit, flair, attribute, value)", &pending);
         }
-        log(&format!("flairs={seen} claims={claims} seconds={:.0}", started.elapsed().as_secs_f64()));
+        log(&format!("flairs={seen} claims={claims} invalid={} seconds={:.0}", crate::invalid(), started.elapsed().as_secs_f64()));
+    });
+}
+
+pub fn attributes(database: &Database) {
+    timed("attributes", || {
+        database.command(TABLES[0]);
+        database.command("TRUNCATE TABLE claim_attributes");
+        let mut out = Vec::new();
+        for attribute in &claimcore::contract::SCHEMA.attributes {
+            put_string(&mut out, &attribute.name);
+            put_string(&mut out, &attribute.kind);
+            put_string(&mut out, attribute.anchor.as_deref().unwrap_or(""));
+            out.extend_from_slice(&attribute.precision.unwrap_or(f64::NAN).to_le_bytes());
+        }
+        database.insert("claim_attributes (attribute, kind, anchor, precision)", &out);
+        log(&format!("attributes={}", claimcore::contract::SCHEMA.attributes.len()));
     });
 }

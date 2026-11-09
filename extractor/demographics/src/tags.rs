@@ -15,10 +15,13 @@ static LEADING_TAG: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W*\d{2},?\s|\W*[\
 static RANGE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:-|–|to|or)\s*\d(?!\d)"));
 static BODILY: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:/\w+)? (?:facial|body|pubic|chest|arm|leg|beard)\b"));
 static HAIR_HINT: LazyLock<Re> = LazyLock::new(|| Re::new(r"hair|blond|brunette|redhead|ginger|bald|shaved head"));
+static BALD_PART: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:\w+\s+)?(?:pussy|cunt|cock|dick|balls|penis|vagina|kitty|snatch|ass|asshole|hole|crotch|pubes|pubic|groin|mound|taint|tires?|eagle|spot|spots|patch|patches|head of|lie)\b"));
+static BALD_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:[,;|/)\n.!&+]|$|and\b|with\b|w/|(?:\w+ )?(?:guy|man|dude|male|daddy|dad|bear|head|headed|white|black|asian|latino|bearded|chubby|fat|bi|gay|straight|married|top|bottom|here|m|f)\b)"));
+static BALD_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:go|going|gone|goes|went|to|be|being|getting|get|gets|or|keep|keeping|turn|turning|almost|half|partially|not|never|starting)\W+$"));
 static CROWD_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r" (?:\w+ ){{0,2}}{CROWD}")));
 
 pub fn force() {
-    for re in [&SPOKEN, &MEASURE_AFTER, &HERE_AFTER, &THIS_BEFORE, &MY_BEFORE, &AGE_BEFORE, &UNIT_AFTER, &ADDRESSED, &LEADING_AGE, &LEADING_TAG, &RANGE_AFTER, &CROWD_AFTER, &BODILY, &HAIR_HINT] {
+    for re in [&SPOKEN, &MEASURE_AFTER, &HERE_AFTER, &THIS_BEFORE, &MY_BEFORE, &AGE_BEFORE, &UNIT_AFTER, &ADDRESSED, &LEADING_AGE, &LEADING_TAG, &RANGE_AFTER, &CROWD_AFTER, &BODILY, &HAIR_HINT, &BALD_PART, &BALD_AFTER, &BALD_BEFORE] {
         LazyLock::force(re);
     }
 }
@@ -139,11 +142,17 @@ fn haired(lowered: &[char], strict: bool, found: &mut Found) {
             if let Some(value) = get(&HAIRS, either(&m, &[1, 2])) {
                 found.set("hair_color", value, start);
             }
+            match m.group(1).map(st).as_deref() {
+                Some("bald") if BALD_PART.at(lowered, m.end()).is_none() && BALD_AFTER.at(lowered, m.end()).is_some() && !BALD_BEFORE.test(before(lowered, start, 16)) => found.set("hair_loss", "bald", start),
+                Some("shaved head") => found.set("hair_length", "shaved head", start),
+                _ => {}
+            }
         }
     }
 }
 
 pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
+    crate::traits::listed(lowered, found);
     if !DIGIT.test(lowered) && SPOKEN.at(lowered, 0).is_none() {
         return;
     }
@@ -153,7 +162,9 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
     for m in WORDED.iter(lowered) {
         if owned(lowered, m.start()) && UNIT_AFTER.at(&lowered[m.end()..], 0).is_none() {
             if let Some(age) = ages(either(&m, &[1, 4])) {
-                found.set("gender", st(either(&m, &[2, 3]).unwrap_or(&[])), m.start());
+                if let Some(value) = get(&GENDERS, either(&m, &[2, 3])) {
+                    found.set("gender", value, m.start());
+                }
                 found.set("age", age, m.start());
             }
         }

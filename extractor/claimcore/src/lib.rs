@@ -1,4 +1,5 @@
 pub mod common;
+pub mod contract;
 pub mod prefilter;
 pub mod re;
 pub mod schema;
@@ -63,10 +64,6 @@ impl Found {
     pub fn values(&self, attribute: &str) -> Vec<String> {
         self.items.iter().filter(|(a, _, _)| a == attribute).map(|(_, v, _)| v.clone()).collect()
     }
-
-    pub fn remove_attribute(&mut self, attribute: &str) {
-        self.items.retain(|(a, _, _)| a != attribute);
-    }
 }
 
 thread_local! {
@@ -95,12 +92,7 @@ pub fn original<'a>(lowered: &'a [char]) -> Option<&'a [char]> {
     }
 }
 
-pub fn finish(mut found: Found) -> Vec<(String, String, usize)> {
-    if let Some(position) = found.get("relationship_status", "married") {
-        if !found.any("living_with") {
-            found.set("living_with", "partner or family", position);
-        }
-    }
+pub fn finish(found: Found) -> Vec<(String, String, usize)> {
     let mut order: Vec<usize> = (0..found.items.len()).collect();
     order.sort_by_key(|&i| found.items[i].2);
     let mut earliest: Vec<(&str, &str)> = Vec::new();
@@ -115,10 +107,8 @@ pub fn finish(mut found: Found) -> Vec<(String, String, usize)> {
         if SINGLE.contains(&attribute.as_str()) && !earliest.iter().any(|(a, v)| a == attribute && v == value) {
             continue;
         }
-        if let Some((a, v)) = schema::canonical(attribute, value) {
-            if !picks.iter().any(|(pa, pv, _)| *pa == a && *pv == v) {
-                picks.push((a, v, *position));
-            }
+        if !picks.iter().any(|(pa, pv, _)| pa == attribute && pv == value) {
+            picks.push((attribute.clone(), value.clone(), *position));
         }
     }
     picks

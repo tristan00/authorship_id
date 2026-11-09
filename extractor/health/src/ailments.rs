@@ -41,7 +41,7 @@ macro_rules! re {
     };
 }
 
-re!(OTHER_PEOPLE, r"\b(?:mom|mother|dad|father|wife|husband|son|daughter|friend|brother|sister|grandma|grandpa|grandmother|grandfather|aunt|uncle|cousin|boyfriend|girlfriend|partner|he|she|his|her|him|they|their|dog|cat|patients?|clients?|family|families|relatives)\b");
+re!(OTHER_PEOPLE, r"\b(?:roommate|flatmate|housemate|coworker|colleague|classmate|mom|mother|dad|father|wife|husband|son|daughter|friend|brother|sister|grandma|grandpa|grandmother|grandfather|aunt|uncle|cousin|boyfriend|girlfriend|partner|he|she|his|her|him|they|their|dog|cat|patients?|clients?|family|families|relatives)\b");
 re!(MOOD_NAMES, format!(r"\b({})\b", pairs_names(MOODS)));
 re!(UNNAMED, r"\bi(?<!\wi)(?:'m| am| was| got| have been|'ve been|ve been)(?: (?:officially|finally|formally|recently|just|only|also|then|eventually|late|properly))? (?:diagnosed|dx'?d)(?! (?:with|w/|as an?|as having|by|for)\b)|\bi(?<!\wi) (?:got|received|finally got|just got|recently got) (?:my|a|an|the) (?:official |formal |proper )?(?:diagnosis|dx)\b");
 re!(ASSESSED, r"\s*(?:assessments?|evaluations?|diagnosis|diagnoses|traits|testing|tests?)\b");
@@ -50,9 +50,11 @@ re!(ADDRESSED, r"\b(?:you|your|you're|u|ur)\b");
 re!(GENERIC, r"\s+(?:is|are|isn't|aren't|makes|make|causes|cause|can|could|does|doesn't|means|affects|tends|presents|manifests)\b");
 re!(ATTRIBUTIVE, r" +(?!(?:and|or|af|asf|myself|too|as|but|so|lol)\b)[a-z]");
 re!(ASKING, r"\b(?:do|does|did|could|can|might|may|am|would|should|will|have) i\b");
+re!(GENERAL, r"\b(?:the|this|that|some|much|any|no|less|more|of|such|social|performance|test|exam)\s+$");
+re!(NAMED_OWNER, r"\b(?!(?:i|it|that|he|she|there|what|who|let|here|today|everyone|one)\x27s\b)[\w-]+\x27s\s+$");
 re!(CAUSED, r"\b(?:give|gives|giving|gave|given) (?:me|us) (?:[\w-]+ ){0,3}$");
 re!(FIRST_PERSON, r"\b(?:i|i'm|im|i've|ive|i'd|i'll|my|me|myself|mine)\b");
-re!(HEADS, r"\s*(?:meds|medications?|medicines?|drugs?|pills?|supplies|creams?|moisturi[sz]ers?|products?|routines?|complications?|experiences?|sufferers?|babies|studios?|diets?|friendly|centers?|centres?)\b");
+re!(HEADS, r"\s*(?:treatments?|diagnos[ie]s|journey|management|care|awareness|meds|medications?|medicines?|drugs?|pills?|supplies|creams?|moisturi[sz]ers?|products?|routines?|complications?|experiences?|sufferers?|babies|studios?|diets?|friendly|centers?|centres?)\b");
 re!(CROWD, r"\b(?:people|person|those|anyone|someone|somebody|everyone|many|most|some|others|patients|women|men|kids|children|americans|studies|research|risk|causes?|symptoms?)\b");
 re!(NOUN_CUE, format!(r"(?:{})$", owning(&have_now(), &format!(r"\bmy{}{}{{0,2}}", lead(), free()))));
 re!(PAST_CUE, format!(r"(?:{}){}{}{{0,2}}$", had(), lead(), free()));
@@ -191,12 +193,11 @@ static LEXICONS: LazyLock<Lexicons> = LazyLock::new(|| {
     for table in [&t.physical, &t.physical_states, &t.physical_tools, &t.mental, &t.mental_states, &t.mind_extra] {
         known.extend(table.keys.iter().map(|key| key.as_str()));
     }
-    let wordnet_text: &'static str = Box::leak(data_file("wordnet_conditions.tsv").into_boxed_str());
+    let wordnet_text: &'static str = Box::leak(data_file("wordnet_conditions.txt").into_boxed_str());
     let mut merged = Ordered::default();
-    for line in wordnet_text.lines() {
-        let (name, value) = line.split_once('\t').unwrap();
+    for name in wordnet_text.lines() {
         if !known.contains(name) {
-            merged.insert(name.to_string(), value);
+            merged.insert(name.to_string(), "");
         }
     }
     for (organ, value) in ORGANS {
@@ -206,7 +207,7 @@ static LEXICONS: LazyLock<Lexicons> = LazyLock::new(|| {
     }
     merged.extend(&t.physical);
     for name in UNSPECIFIED {
-        merged.insert(name.to_string(), "unspecified");
+        merged.insert(name.to_string(), "");
     }
     let conditions = inflected(&merged).filter(|name, _| !POLYSEMOUS.contains(&name));
     let physical_stated = inflected(&t.physical_states);
@@ -217,14 +218,14 @@ static LEXICONS: LazyLock<Lexicons> = LazyLock::new(|| {
     let mind_stated = inflected(&t.mental_state_strict);
     let mind_states = mind_stated.filter(|name, _| !mind.has(name));
     let families = vec![
-        family("physical_condition", &conditions, &states, &NOUN_CUE, &STATE_CUE, &HERE_AFTER_PHYSICAL, ("itis", "other physical condition"), &physical_stated),
-        family("mental_condition", &mind, &mind_states, &MIND_CUE, &MIND_STATE_CUE, &HERE_AFTER_MENTAL, ("phobia", "other mental health condition"), &mind_stated),
+        family("physical_conditions", &conditions, &states, &NOUN_CUE, &STATE_CUE, &HERE_AFTER_PHYSICAL, ("itis", ""), &physical_stated),
+        family("mental_and_developmental_conditions", &mind, &mind_states, &MIND_CUE, &MIND_STATE_CUE, &HERE_AFTER_MENTAL, ("phobia", ""), &mind_stated),
     ];
     let mut ailment_keys = Ordered::default();
-    for name in COMMON {
+    for (name, value) in COMMON {
         let chars: Vec<char> = name.chars().collect();
         let joined: Vec<String> = words(&chars).map(st).collect();
-        ailment_keys.insert(joined.join(" "), t.physical.map[*name]);
+        ailment_keys.insert(joined.join(" "), value);
     }
     let mut condition_keys: Vec<&str> = Vec::new();
     for (table_a, table_b) in [(&conditions, &states), (&mind, &mind_states)] {
@@ -335,11 +336,11 @@ static FOREIGN: LazyLock<Foreign> = LazyLock::new(|| {
     let mut states: HashMap<Key, (&'static str, &'static str)> = HashMap::default();
     for table in [&t.foreign_mind_states, &t.foreign_mind_extra] {
         for (name, value) in table.iter() {
-            states.insert(name.chars().collect(), ("mental_condition", value));
+            states.insert(name.chars().collect(), ("mental_and_developmental_conditions", value));
         }
     }
     for (name, value) in t.foreign_body_states.iter() {
-        states.insert(name.chars().collect(), ("physical_condition", value));
+        states.insert(name.chars().collect(), ("physical_conditions", value));
     }
     let mut languages = Vec::new();
     for (index, table) in labels.into_iter().enumerate() {
@@ -372,7 +373,7 @@ static FOREIGN: LazyLock<Foreign> = LazyLock::new(|| {
 pub fn init() {
     LazyLock::force(&LEXICONS);
     LazyLock::force(&FOREIGN);
-    for re in [&OTHER_PEOPLE, &MOOD_NAMES, &UNNAMED, &ASSESSED, &POSSESSOR, &ADDRESSED, &GENERIC, &ATTRIBUTIVE, &ASKING, &CAUSED, &FIRST_PERSON, &HEADS, &CROWD,
+    for re in [&OTHER_PEOPLE, &GENERAL, &NAMED_OWNER, &MOOD_NAMES, &UNNAMED, &ASSESSED, &POSSESSOR, &ADDRESSED, &GENERIC, &ATTRIBUTIVE, &ASKING, &CAUSED, &FIRST_PERSON, &HEADS, &CROWD,
         &PAST_CUE, &DROPPED, &DIAGNOSED, &CAUSE, &KIN, &CANDIDATE, &HERE_BEFORE, &SELF_BEFORE, &SELF_AFTER, &DUAL_CUE, &CARRIED, &CARRIED_STATE, &CLAUSE_END,
         &LINK, &TRAIL, &SCOPE, &ASTROLOGY, &SENTENCE, &POSSESSIVE_HEDGE, &FOREIGN_END, &FOREIGN_TOKEN] {
         LazyLock::force(re);
@@ -463,7 +464,7 @@ fn owned(lowered: &[char], origin: usize, part: &[char], found: &mut Found, fami
     }
     let words = pieces(part);
     for family in families {
-        let physical = family.attribute == "physical_condition";
+        let physical = family.attribute == "physical_conditions";
         let mental = !physical;
         let mut previous: Option<usize> = None;
         for (start, end, name) in lookup(&words, |key| family.known.contains(key), &family.longest, &family.suffix.0) {
@@ -491,7 +492,7 @@ fn owned(lowered: &[char], origin: usize, part: &[char], found: &mut Found, fami
                 .or_else(|| if dual { DUAL_CUE.find(left).map(size) } else { None })
                 .or(here)
                 .or_else(|| {
-                    if physical && noun && family.nouns.get(&name).copied() != Some("unspecified") {
+                    if physical && noun && family.nouns.get(&name).copied() != Some("") {
                         PAST_CUE.find(left).map(size).or_else(|| caused(part, left, start))
                     } else {
                         None
@@ -517,7 +518,9 @@ fn owned(lowered: &[char], origin: usize, part: &[char], found: &mut Found, fami
                 && !(physical && name.len() <= 3 && COUNTED.test(left))
             {
                 let value = family.nouns.get(&name).or_else(|| family.states.get(&name)).copied().unwrap_or(family.suffix.1);
-                found.set(family.attribute, value, origin + start);
+                if !value.is_empty() {
+                    found.set(home(family.attribute, value), value, origin + start);
+                }
                 previous = Some(end);
             } else {
                 previous = None;
@@ -678,7 +681,9 @@ fn foreign(lowered: &[char], found: &mut Found) {
                 }
             }
             let Some((size, (attribute, value))) = hit else { break };
-            found.set(attribute, value, m.start());
+            if !value.is_empty() {
+                found.set(home(attribute, value), value, m.start());
+            }
             index += size;
             if index >= tokens.len() || !links.contains(tokens[index]) {
                 break;
@@ -700,6 +705,7 @@ fn words(text: &[char]) -> impl Iterator<Item = &[char]> {
 }
 
 pub fn ailments(lowered: &[char], found: &mut Found) {
+    crate::medications::medications(lowered, found);
     let lexicons = &*LEXICONS;
     let speaker = FIRST_PERSON.test(lowered);
     let mooded = MOOD_NAMES.test(lowered);
@@ -742,10 +748,13 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
                 if others.is_some() || addressed.is_some() || hedge.map_or(false, |h| h <= start) {
                     break;
                 }
-                if quoted(lowered, origin + start) || POSSESSOR.test_in(part, start.saturating_sub(50), start) || GENERIC.at(part, end).is_some() || TRAIL.at(part, end).is_some() || HEADS.at(part, end).is_some() || name.len() <= 3 && COUNTED.test(&part[..start]) {
+                if quoted(lowered, origin + start) || NAMED_OWNER.test(&part[start.saturating_sub(30)..start]) || POSSESSOR.test_in(part, start.saturating_sub(50), start) || GENERIC.at(part, end).is_some() || TRAIL.at(part, end).is_some() || HEADS.at(part, end).is_some() || name.len() <= 3 && COUNTED.test(&part[..start]) {
                     continue;
                 }
-                found.set("physical_condition", lexicons.ailment_keys[name], origin + start);
+                let value = lexicons.ailment_keys[name];
+                if !value.is_empty() {
+                    found.set("physical_conditions", value, origin + start);
+                }
             }
             if !mood {
                 continue;
@@ -763,17 +772,17 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
                     continue;
                 }
                 if quoted(lowered, origin + at) || POSSESSOR.test_in(part, at.saturating_sub(50), at) || TRAIL.at(part, after).is_some() || ASSESSED.at(part, after).is_some()
-                    || CAUSED.test_in(part, at.saturating_sub(40), at) || !first && !neuro
+                    || CAUSED.test_in(part, at.saturating_sub(40), at) || !first && !neuro || !neuro && GENERAL.test(&part[at.saturating_sub(20)..at])
                 {
                     continue;
                 }
                 let window = &part[..at];
                 if OTHERS.test_in(window, scoped(window), window.len())
-                    || neuro && (OWN_HEDGE.test_in(part, 0, at) || !first && GENERIC.at(part, after).is_some() || eq(key, "autistic") && ATTRIBUTIVE.at(part, after).is_some())
+                    || neuro && (OWN_HEDGE.test_in(part, 0, at) || !first && GENERIC.at(part, after).is_some() || (eq(key, "autistic") || eq(key, "audhd")) && ATTRIBUTIVE.at(part, after).is_some())
                 {
                     continue;
                 }
-                found.set("mental_condition", value, origin + at);
+                found.set("mental_and_developmental_conditions", value, origin + at);
             }
         }
     }
@@ -782,30 +791,16 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
             if !question(lowered, unnamed.end()) && !HEDGE.test_in(lowered, clause(lowered, unnamed.start()), unnamed.start()) && !quoted(lowered, unnamed.start()) {
                 let values: HashSet<&str> = MOOD_NAMES.iter(lowered).map(|m| lexicons.moods[m.group(1).unwrap()]).collect();
                 if values.len() == 1 {
-                    found.set("mental_condition", values.into_iter().next().unwrap(), unnamed.start());
+                    found.set("mental_and_developmental_conditions", values.into_iter().next().unwrap(), unnamed.start());
                 }
             }
         }
     }
     foreign(lowered, found);
-    if found.has("physical_condition", "cancer") && ASTROLOGY.test(lowered) {
-        pop(found, "physical_condition", "cancer");
+    if found.has("physical_conditions", "cancer") && ASTROLOGY.test(lowered) {
+        pop(found, "physical_conditions", "cancer");
     }
-    if let Some(position) = pop(found, "mental_condition", "both adhd and autism") {
-        for part in ["adhd", "autism"] {
-            found.set("mental_condition", part, position);
-        }
-    }
-    if let Some(position) = pop(found, "mental_condition", "dyslexia") {
-        found.set("mental_condition", "neurodivergent, unspecified", position);
-        found.set("mental_condition", "other mental health condition", position);
-    }
-    if let Some(position) = pop(found, "physical_condition", "neurological condition") {
-        found.set("physical_condition", "other physical condition", position);
-    }
-    if let Some(position) = pop(found, "physical_condition", "unspecified") {
-        if !found.any("physical_condition") {
-            found.set("physical_condition", "other physical condition", position);
-        }
+    if ["type 1 diabetes", "type 2 diabetes", "lada diabetes", "prediabetes"].iter().any(|typed| found.has("physical_conditions", typed)) {
+        pop(found, "physical_conditions", "diabetes (type unstated)");
     }
 }

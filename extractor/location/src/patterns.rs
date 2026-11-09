@@ -34,7 +34,7 @@ pub fn as_nation_start() -> String {
 }
 
 pub fn loose_nation() -> String {
-    format!(r"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)])(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent)\b)", NATION = &*S_NATION)
+    format!(r"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)—–]|-\s)(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent)\b)", NATION = &*S_NATION)
 }
 
 pub fn spoken_pattern() -> String {
@@ -103,7 +103,6 @@ pattern!(CITIZEN_AFTER, 0, r"\.?\s+(?:citizen|national|passport holder)s?\b");
 pattern!(HOME_COUNTRY, M, concat!(r"(?:\b(?:my|our) (?:home |own |native )?country\s*(?:,|\(|:|-|is|of)?\s*|\b(?:i|i'm|im|i am|i was|me)\b[^.!?\n]*\bborn and (?:raised|bred) in (?:the )?",
     r"|(?:(?:^|[.!?]\s*)\d{2}\s*(?:years?[- ]old|yrs?[- ]old|yo|y/o)|\b(?:i'm|im|i am) (?:an? )?\d{2}(?:\s?[mf])?)\s*,?\s*(?:and\s+)?(?:i'm\s+|im\s+|i am\s+)?(?:originally\s+)?from\s+(?:the\s+)?)\Z"));
 pattern!(HOSTING, 0, format!(r"\b(?:hosting|can host|new)\s+(?:in|to)\s+{END}", END = &*S_END));
-pattern!(HAILS, 0, format!(r"(?:\bhere|\bthis side|\b\d{{2}} years|(?:^|[\n.!?]\s*)am|\bcpl|\bcouple)\s+from\s+{END}", END = &*S_END));
 pattern!(LOCATION, 0, r"(?:^|\n)[\W_]*(?:location|loc|based)[\W_]*[:=-][\W_]*\Z");
 pattern!(HOMETOWN, 0, r"\s*[,.(-]?\s*(?:(?:it's|its|it is|is|was)\s+)?my\s+(?:hometown|home town|birthplace)\b");
 pattern!(LIFE, 0, r"(?:,?\s+[a-z]+){0,2}?,?\s+(?:my|all my|for my) (?:entire |whole )?life\b");
@@ -112,6 +111,7 @@ pattern!(REPOST, 0, r"(?:original (?:post|text)|copy of (?:your|the) post|backup
 pattern!(SUBJECTIVE, 0, r"\b(?:i|i'm|im|we|we're|me|as an?)\b");
 pattern!(CHAIN, 0, r"[\s,(:–—-]*(?:(?:more\s+)?specifically|namely|in|near|around|outside(?: of)?|just outside(?: of)?|close to)?[\s,(:–—-]*(?:the\s+)?");
 pattern!(GROUP, 0, r"(?:\b(?:we|us)(?: (?:fellow|proud|all))? \(?|\bwe(?:'re| are) (?:all |both )?|\bproud to be (?:an? )?|(?<!him )(?<!her )(?<!them )(?<!his )(?<!their )(?<!its )(?<!it )(?<!he )(?<!she )(?<!they )(?<!you )(?<!your )(?<!people )(?<!someone )(?<!to )(?<!with )(?<!just )(?<!while )\bbeing (?:an? )?)\Z");
+pattern!(NOUN_AFTER, 0, format!(r"\s+(?:{NOUNS})s?\b"));
 pattern!(GROUP_END, 0, format!(r"\)?(?=$|[\s.,!;:)])(?!\s+(?:{NOUNS})s?\b)"));
 pattern!(AGE_FRAME, M, format!(r"(?<![\w.$#'/:+-])\d\d(?<!my \d\d)(?<!a \d\d)(?<!an \d\d)(?<!the \d\d)(?<!her \d\d)(?<!his \d\d)(?<!our \d\d)[- ]?(?:years?[- ]old|yrs?[- ]old|yo|y/o)[\s,-]+(?:{BRIEF}){{0,2}}?({NATION})(?=$|[\s.,!;:)])", NATION = &*S_NATION));
 pattern!(HELD_FRAME, M, format!(r"\b(?:my|have|hold|holding|got|own)\s+(?:an?\s+|dual\s+)?({NATION})\s+(?:passport|citizenship)\b|\bdual (?:citizenship|nationality|citizen|national)s?\s*[:,(-]?\s*({NATION})\b", NATION = &*S_NATION));
@@ -126,7 +126,7 @@ pattern!(AS_NATION_START, 0, as_nation_start());
 pattern!(SELF_DESCRIBED, 0, format!(r"{SELF_LEAD}({NATION})(?:\s+[a-z']+){{0,3}}?\s+(?:{PERSON_NOUN}|male|female|cuck|gentleman|lad|chick|hubby|here)\b", NATION = &*S_NATION));
 pattern!(SELF_FROM_LEAD, 0, format!(r"{SELF_LEAD}from\s+(?:the\s+)?\Z"));
 pattern!(TAG_BEFORE, M, format!(r"(?:{TAG}|{FOR}|\A[^\w\n]*\d{{2}}|\b\d{{2}}\s?(?:yo|y/o|male|female)|^[^\w\n]*[mf])[\s,/|:()\[\]-]*\Z"));
-pattern!(TAG_AFTER, 0, format!(r"[\s,/|(\[-]*(?:{TAG}|\d{{2}}\s?(?:yo|y/o)\b|\d{{2}}\s*[)\]]|(?:m|f|male|female)\s*[,/|]\s*\d{{2}}\b)"));
+pattern!(TAG_AFTER, 0, format!(r"[\s,/|(\[-]*(?:{TAG}|\d{{2}}\s?(?:yo|y/o)\b|(?:1[89]|[2-9]\d)\s*[)\]]|(?:m|f|male|female)\s*[,/|]\s*\d{{2}}\b)"));
 pattern!(NATION_HERE, 0, format!(r"(?:\s+(?:{PERSON}|fan|citizen|national))?(?:\s+(?:living in|based in|from)\s+[a-z]+(?: [a-z]+)?)?,?\s+(?:over |out |down |up )?here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b)"));
 pattern!(OPENS, 0, r"(?:^|[.!?\n]\s*)[\W_]*(?:(?:hi|hey|hello|yeah|yes|also|just|sadly|proudly|proud|nope|no|well|lol)[,.!]*\s+)*(?:(?!(?:my|his|her|their|our|your|the|this|that|these|those|some|any|every|no|not|of|to|for|with|from|in|on|at|is|was|are|were|a|an|and|or|but|if|when|i|you|he|she|they|we|it|me|him|them|us|like|love|than|as|so)\b)[a-z-]+,?\s+(?:and\s+)?){0,3}\Z");
 pattern!(CLOSES, 0, format!(r"(?:(?:\s+(?!couple|cpl){PERSON_NOUN})?(?:,?\s+(?:here|based|living|moving|looking|seeking)\b|[ \t]*,?[ \t]*\d\d(?![\w%]))|(?:\s+(?!(?:is|are|was|were|and|or|but|in|on|at|from|of|to|the|a|an|who|that)\b)[a-z]+){{1,3}},?\s+here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b))(?![ \t]*(?:and|or|/|&)?[ \t]*(?:{NATION})\b)", NATION = &*S_NATION));
@@ -156,8 +156,8 @@ pub fn all() -> Vec<&'static Re> {
     vec![
         &LIVE, &BEING, &BARE, &HERE, &MOVED, &ABROAD, &FROM, &GERMAN, &LEFT, &ORIGIN, &DOUBTED, &LATER, &START, &HERE_AFTER, &SELF, &BORN, &PEOPLE, &CITIZEN, &TITLE, &LEAD,
         &TOWN_LEAD, &TAG_LEAD, &LAST, &NEAR, &ASKING, &ADMINISTRATIVE, &LOOSE, &SELF_FROM, &TAG_FROM, &AGED_IN, &ROLE, &OPENING, &AREA, &TRIP, &TRADE, &COPULA, &OPENER,
-        &OPENER_END, &WHERE, &LOCAL, &LOCAL_LEAD, &CITIZEN_AFTER, &HOME_COUNTRY, &HOSTING, &HAILS, &LOCATION, &HOMETOWN, &LIFE, &AUTOMATED, &REPOST, &SUBJECTIVE, &CHAIN,
-        &GROUP, &GROUP_END, &AGE_FRAME, &HELD_FRAME, &SELF_PAREN, &LABEL_FRAME, &COMPOUND_FRAME, &AM_FRAME, &AS_WIDE, &LOOSE_NATION, &AS_NATION, &AS_NATION_START,
+        &OPENER_END, &WHERE, &LOCAL, &LOCAL_LEAD, &CITIZEN_AFTER, &HOME_COUNTRY, &HOSTING, &LOCATION, &HOMETOWN, &LIFE, &AUTOMATED, &REPOST, &SUBJECTIVE, &CHAIN,
+        &GROUP, &NOUN_AFTER, &GROUP_END, &AGE_FRAME, &HELD_FRAME, &SELF_PAREN, &LABEL_FRAME, &COMPOUND_FRAME, &AM_FRAME, &AS_WIDE, &LOOSE_NATION, &AS_NATION, &AS_NATION_START,
         &SELF_DESCRIBED, &SELF_FROM_LEAD, &TAG_BEFORE, &TAG_AFTER, &NATION_HERE, &OPENS, &CLOSES, &OTHERS_LEAD, &CITIZEN_OF, &SELF_IN_LEAD,
     ]
 }

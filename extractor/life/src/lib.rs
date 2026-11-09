@@ -1,8 +1,13 @@
+mod beliefs;
+mod experience;
 mod home;
 mod lifestyle;
 mod parental;
 mod relationship;
 mod shared;
+mod siblings;
+mod together;
+mod traits;
 
 use claimcore::*;
 use std::sync::LazyLock;
@@ -10,9 +15,16 @@ use std::sync::LazyLock;
 static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     let mut rules = relationship::build();
     rules.extend(parental::build());
+    rules.extend(relationship::kink());
+    rules.extend(together::build());
+    rules.extend(experience::build());
+    rules.extend(siblings::build());
     rules.extend(shared::scoped_rules(home::pets()));
     rules.extend(shared::scoped_rules(home::living()));
     rules.extend(home::housing());
+    rules.extend(home::residency());
+    rules.extend(traits::build());
+    rules.extend(beliefs::build());
     rules
 });
 static LIFESTYLE: LazyLock<Vec<Rule>> = LazyLock::new(lifestyle::build);

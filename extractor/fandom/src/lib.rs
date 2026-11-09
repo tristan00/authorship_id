@@ -1,6 +1,7 @@
 mod characters;
 mod cues;
 mod fandom;
+mod interests;
 mod lexicon;
 
 use claimcore::*;
@@ -19,4 +20,5 @@ pub fn init() {
     fandom::init();
     characters::init();
     cues::init();
+    interests::init();
 }

@@ -1,5 +1,7 @@
 mod lexicon;
 mod patterns;
+mod schools;
+mod standing;
 mod vocab;
 
 use claimcore::*;
@@ -24,38 +26,55 @@ static PERSONA_END: LazyLock<Re> = LazyLock::new(|| Re::new(r"[ \t]*(?:$|[.,!;|(
 static WANTED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:you|your|you're|u|ur|looking|seeking|want|wanted|wanting|prefer|preferably|ideally|bonus|like|into|for)\b"));
 static OBJECT: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s+(?:my|your|his|her|their|this|that|these|those|the|a|an|me|you|him|them|us|it|or|one|some|any)\b"));
 static ROLEPLAY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:rp|roleplay|role play|role-play|roleplaying|role playing)\b"));
+static ASPIRANT: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:aspiring|wannabe|future|budding|would-be|soon[- ]to[- ]be)\b"));
+static COMMUNITY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bcommunity college\b"));
 static GRADUATE_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:grad|graduate|phd|masters?|master's|doctoral|med|law|medical)\b"));
 static SCHOOL_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:high school|highschool|hs)\b"));
-static LEVELED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:high|school|hs|grad|graduate|phd|masters?|master's|doctoral|med|law|medical|nursing|international|foreign|exchange|overseas)\b"));
+static PHD_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:phd|ph\.d|doctoral|doctorate|dissertation|dphil)\b"));
+static MASTERS_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:masters?|master's|msc|mba|msw|mfa|ma|ms|mtech|m\.tech|meng|llm|postgrad)\b"));
+static PRO_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:law|(?<!pre )(?<!pre-)med|(?<!pre )(?<!pre-)medical|dental|vet|veterinary|pharmacy|nursing|bsn|[123]l|ms[1-4])\b"));
+static COLLEGE_LEVEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:college|uni|university|engineering|undergrad|undergraduate|bachelor'?s?|bachelors|bsc|btech|campus|major|majoring|degree|faculdade|facul|universidad|universidade|facultad|fac|studium)\b"));
+static STUDENT_WORD: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:student|students|studying|study|studies|studiere|estudiante|estudante|studente|studentessa|étudiant|étudiante|fresher|freshie|semester|sem)\b"));
+static UNI_YEAR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:(1st|first)|(2nd|second)|(3rd|third)|(4th|fourth|final|last))[- ](?:year|yr)\b"));
+static CLASS_YEAR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:(freshman|fresher|freshie)|(sophomore)|(junior)|(senior))\b"));
+static GRADE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"\b(?:(6th|7th|8th|sixth|seventh|eighth|year [78])|(9th|10th|ninth|tenth|freshman|sophomore|first|second|1st|2nd|class (?:9|10|ix|x)|grade (?:9|10)|(?:year|yr|y) ?(?:9|10))|",
+    r"(11th|eleventh|junior|third|3rd|class (?:11|xi)|grade 11|(?:year|yr|y) ?11)|(12th|twelfth|senior|fourth|final|last|4th|class (?:12|xii)|grade 12|(?:year|yr|y) ?12)|((?:year|yr|y) ?13))\b")));
+pub(crate) static GRAD_SCHOOL: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bgrad(?:uate)? (?:school|student)\b"));
+static SCHOOL_YEAR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:y|yr|year) ?(?:9|10|11|12|13)\b"));
+static ACADEMIC_SUB: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:univ|college|tards|student|btech|iit|nit|vit|bits|dtu|nsut|pesu|srm|manipal|amity|lpu|kiit|mbbs|medico|campus|engineering|jee)"));
+static ACADEMIC_FLAIR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:cse|ece|eee|mech|civil|aids|aiml|ise|it|ep|bca|mca|bsc|bba|btech|b\.tech|mbbs|core|ee|cs|engineering|uni|college|university)\b"));
+static WHEN: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:when|once|until|before|after|if)\s+$"));
+pub(crate) static IN_PROGRESS: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:doing|studying|finishing|completing|working on|working towards|currently|enrolled|middle of|halfway|toward|towards)\b"));
 const KIN: &str = "he|she|they|his|her|their|him|them|husband|wife|boyfriend|girlfriend|partner|friend|friends|brother|sister|son|daughter|mom|mum|dad|mother|father|cousin|roommate";
 static OTHERS: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{KIN}|you|your|u|someone|anyone|everyone|everybody|nobody|people)\b")));
 static FIRST_NEAR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i|i'm|im|i've|ive|my|me)\b"));
 static PEERS: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{KIN}|batchmates?|classmates?|colleagues?|coworkers?)\b")));
-static ASPIRING: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"\b(?:goal|goals|pursue|pursuing|planning|plan|plans|apply|applying|application|considering|thinking|soch|want|wanted|wanting|hoping|dream|future|next|aspiring|",
+pub(crate) static ASPIRING: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"\b(?:eventually|someday|love to|build|building|idea|goal|goals|pursue|pursuing|planning|plan|plans|apply|applying|application|considering|thinking|soch|want|wanted|wanting|hoping|dream|future|next|aspiring|",
     r"get|getting|start|starting|consider|choose|choosing|need|needs|require|requires|required|offer|offers)\b")));
-static LEVELLESS: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:international|foreign|exchange|overseas)\b"));
+pub(crate) static LEVELLESS: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:international|foreign|exchange|overseas)\b"));
 static WORDS: LazyLock<Re> = LazyLock::new(|| Re::new(r"[\w'-]+"));
 static MILESTONE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:passed|hit|crossed|topped|clear|cleared)\b"));
 static COMPARED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:more|less|extra|higher|lower|raise|diff|differential)\b"));
 static EARNERS: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{KIN}|parents|family|you|your|u|we|someone|anyone|everyone|people)\b")));
 
+pub(crate) const SELF_EMPLOYED: &str = "self-employed / freelance";
+pub(crate) const UNDERGRAD: &str = "undergraduate (year unstated)";
+pub(crate) const GRADUATED: &str = "graduated (level unstated)";
+pub(crate) const PROFESSIONAL_SCHOOL: &str = "medical / law / professional school";
+const UNI_YEARS: [&str; 4] = ["university 1st year", "university 2nd year", "university 3rd year", "university 4th / final year"];
+
 pub(crate) static BUSINESS_MAP: LazyLock<Map> = LazyLock::new(|| listed(BUSINESSES));
 pub(crate) static FIELD_MAP: LazyLock<Map> = LazyLock::new(|| listed(FIELDS));
-pub(crate) static PLACE_MAP: LazyLock<Map> = LazyLock::new(|| listed(PLACES));
 pub(crate) static VERB_MAP: LazyLock<Map> = LazyLock::new(|| pairs(VERBS));
-pub(crate) static INTERNSHIP_MAP: LazyLock<Map> = LazyLock::new(|| pairs(INTERNSHIPS));
 pub(crate) static SUBJECTS: LazyLock<Map> = LazyLock::new(|| {
     let mut out = pairs(SUBJECT_PAIRS);
     out.extend(listed(SUBJECT_TABLE));
     out
 });
 pub(crate) static DEGREE_MAP: LazyLock<Map> = LazyLock::new(|| pairs(DEGREES));
+const DEGREE_OF: [&str; 12] = ["science", "arts", "engineering", "business", "fine", "education", "laws", "law", "philosophy", "music", "social", "public"];
 static SHORT: LazyLock<HashSet<&'static str>> = LazyLock::new(|| SHORT_DEGREES.iter().copied().collect());
-static LEVELS: LazyLock<Map> = LazyLock::new(|| {
-    let mut out: Map = DEGREES.iter().map(|(name, level)| (name.trim_end_matches('.').to_string(), Some(*level))).collect();
-    out.insert("msn".to_string(), Some("master's degree"));
-    out
-});
+static LEVELS: LazyLock<Map> = LazyLock::new(|| DEGREES.iter().map(|(name, level)| (name.trim_end_matches('.').to_string(), Some(*level))).collect());
 static SCHOOL_MAP: LazyLock<Map> = LazyLock::new(|| pairs(SCHOOLS));
 static FOREIGN_SUBJECT_MAP: LazyLock<Map> = LazyLock::new(|| listed(FOREIGN_SUBJECTS));
 pub(crate) static DEGREE_SUBJECTS: LazyLock<Map> = LazyLock::new(|| {
@@ -80,6 +99,7 @@ pub fn init() {
         LazyLock::force(&FOREIGN_TITLES);
         LazyLock::force(&TITLE_HEADS);
         LazyLock::force(&FOREIGN_HEADS);
+        LazyLock::force(&schools::SCHOOLS);
         LazyLock::force(&RULES);
     });
 }
@@ -88,12 +108,38 @@ fn get(map: &Map, key: Option<&[char]>) -> Option<String> {
     key.and_then(|k| map.get(&st(k)).copied().flatten()).map(String::from)
 }
 
-fn found(value: Option<&'static str>) -> Option<String> {
-    value.map(String::from)
+fn keyed(map: &Map, key: Option<&[char]>) -> Option<String> {
+    let key = st(key?);
+    map.get(&key).copied().flatten().map(|_| key)
 }
 
 fn lookup(map: &'static LazyLock<Map>, number: usize) -> V {
     Box::new(move |m| get(map, m.group(number)))
+}
+
+fn keys(map: &'static LazyLock<Map>, number: usize) -> V {
+    Box::new(move |m| keyed(map, m.group(number)))
+}
+
+fn sector(m: &Match) -> Option<String> {
+    let key = keyed(&FIELD_MAP, m.group(1))?;
+    if key.starts_with("a ") || FIELD_MAP[&key] == Some(MILITARY) {
+        return None;
+    }
+    Some(key.trim_start_matches("the ").to_string())
+}
+
+fn branch(m: &Match) -> Option<String> {
+    let key = m.gs(1)?;
+    let value = match key.trim_start_matches("the ") {
+        "army" | "army reserve" => "army",
+        "navy" => "navy",
+        "air force" => "air force",
+        "marines" | "marine corps" => "marines",
+        "coast guard" => "coast guard",
+        _ => return None,
+    };
+    Some(value.to_string())
 }
 
 fn fixed(value: &'static str) -> V {
@@ -113,42 +159,42 @@ fn free(text: &[char], start: usize, hedge: &Re) -> bool {
     !hedge.test_in(text, cut, start)
 }
 
-fn after(m: &Match, using: Use) -> Option<&'static str> {
+fn after(m: &Match) -> Option<&'static str> {
     if !free(m.string, m.start(), &SELF_HEDGE) {
         return None;
     }
-    title(m.string, m.end(), None, using)?.0
+    Some(title(m.string, m.end(), None)?.0)
 }
 
-fn opener(m: &Match, using: Use) -> Option<&'static str> {
-    let (value, end) = title(m.string, m.end(), None, using)?;
+fn opener(m: &Match) -> Option<&'static str> {
+    let (value, end) = title(m.string, m.end(), None)?;
     if YOU.at(m.string, end).is_some() {
         None
     } else {
-        value
+        Some(value)
     }
 }
 
-fn opened(m: &Match, using: Use) -> Option<&'static str> {
+fn opened(m: &Match) -> Option<&'static str> {
     if OPENED.test_in(m.string, m.start().saturating_sub(20), m.start()) {
-        opener(m, using)
+        opener(m)
     } else {
         None
     }
 }
 
-fn here(m: &Match, using: Use) -> Option<&'static str> {
+fn here(m: &Match) -> Option<&'static str> {
     let (a, b) = m.span(1)?;
-    ending(m.string, a, b, using)
+    ended(m.string, a, b)
 }
 
-fn hired(m: &Match, using: Use) -> Option<&'static str> {
-    title(m.string, m.end(), None, using)?.0
+fn hired(m: &Match) -> Option<&'static str> {
+    Some(title(m.string, m.end(), None)?.0)
 }
 
 fn abroad(m: &Match) -> Option<&'static str> {
     let (key, _) = spot(m.string, m.end(), Some(1), &FOREIGN_BLOCKED, &FOREIGN_TITLES, &FOREIGN_HEADS)?;
-    Some(FOREIGN_TITLES[&key])
+    Some(FOREIGN_TITLES.get_key_value(&key)?.0.as_str())
 }
 
 fn fragment(m: &Match) -> Option<&'static str> {
@@ -168,32 +214,32 @@ fn fragment(m: &Match) -> Option<&'static str> {
     if contains(lead, "hir") {
         return None;
     }
-    let (value, end) = title(text, m.end(), Some(if persona { 2 } else { 0 }), Use::Job)?;
+    let (value, end) = title(text, m.end(), Some(if persona { 2 } else { 0 }))?;
     if question(text, end) {
         return None;
     }
     if persona {
-        return if PERSONA_END.at(text, end).is_some() { value } else { None };
+        return if PERSONA_END.at(text, end).is_some() { Some(value) } else { None };
     }
     if STRICT_END.at(text, end).is_some() && (SELF.test_in(text, end, end + 120) || text.len() < 60) {
-        value
+        Some(value)
     } else {
         None
     }
 }
 
 fn retiree(m: &Match) -> Option<&'static str> {
-    let (value, end) = title(m.string, m.end(), Some(1), Use::Job)?;
-    if STRICT_END.at(m.string, end).is_some() { value } else { None }
+    let (value, end) = title(m.string, m.end(), Some(1))?;
+    if STRICT_END.at(m.string, end).is_some() { Some(value) } else { None }
 }
 
 fn tagged(m: &Match) -> Option<&'static str> {
     let text = m.string;
-    let (value, end) = title(text, m.end(), Some(2), Use::Job)?;
+    let (value, end) = title(text, m.end(), Some(2))?;
     if question(text, end) || WANTED.test_in(text, m.start(), end) || OBJECT.at(text, end).is_some() {
         return None;
     }
-    value
+    Some(value)
 }
 
 #[derive(Default)]
@@ -255,9 +301,9 @@ fn celled(m: &Match) -> Option<&'static str> {
     if persona > start || wanted < start {
         return None;
     }
-    let (value, end) = title(text, m.end(), Some(0), Use::Job)?;
+    let (value, end) = title(text, m.end(), Some(0))?;
     if STRICT_END.at(text, end).is_some() {
-        value
+        Some(value)
     } else {
         None
     }
@@ -278,15 +324,26 @@ fn roleplay(text: &[char]) -> bool {
 }
 
 fn occupied(find: impl Fn(&Match) -> Option<&'static str> + Send + Sync + 'static) -> V {
-    Box::new(move |m| match find(m) {
-        Some(value) if value == FOUNDER => Some(BUSINESS.to_string()),
-        Some(value) if value == OWNER => None,
-        other => found(other),
-    })
+    Box::new(move |m| find(m).filter(|key| job_kind(key) != OWNER).map(String::from))
+}
+
+fn status(key: &str) -> Option<&'static str> {
+    let job = job_kind(key);
+    if key.ends_with(" owner") || job == FOUNDER && !key.starts_with("business") {
+        Some(standing::BUSINESS_OWNER)
+    } else if job == OWNER {
+        Some(SELF_EMPLOYED)
+    } else if key == "intern" || key.ends_with(" intern") {
+        Some("intern")
+    } else if key == "apprentice" || key.starts_with("apprentice ") || key.ends_with(" apprentice") {
+        Some("apprentice")
+    } else {
+        None
+    }
 }
 
 fn employed(find: impl Fn(&Match) -> Option<&'static str> + Send + Sync + 'static) -> V {
-    Box::new(move |m| find(m).map(|value| if value == OWNER || value == FOUNDER { OWNER.to_string() } else { "employed".to_string() }))
+    Box::new(move |m| find(m).and_then(status).filter(|_| ASPIRANT.at(m.string, m.end()).is_none()).map(String::from))
 }
 
 fn scoped_with(value: V, hedge: &'static Re, played: bool) -> V {
@@ -295,6 +352,11 @@ fn scoped_with(value: V, hedge: &'static Re, played: bool) -> V {
 
 fn scoped(value: V) -> V {
     scoped_with(value, &SELF_HEDGE, false)
+}
+
+fn ranged(m: &Match, low: f64, high: f64) -> Option<String> {
+    let value: f64 = m.first_s()?.parse().ok()?;
+    (low..=high).contains(&value).then(|| m.first_s()).flatten()
 }
 
 fn said(attribute: &'static str, pattern: &str, value: V, hedge: &'static Re) -> Rule {
@@ -318,7 +380,7 @@ fn college(m: &Match) -> Option<String> {
     let start = m.start();
     let begin = sentence(text, start);
     if (FIRST_NEAR.test_in(text, begin, start) || PERSONA.test_in(text, begin, start + 6)) && !OTHERS.test_in(text, begin, start) {
-        Some("college student".to_string())
+        Some(UNDERGRAD.to_string())
     } else {
         None
     }
@@ -327,7 +389,7 @@ fn college(m: &Match) -> Option<String> {
 fn cased(m: &Match) -> Option<String> {
     let text = original(m.string)?;
     if !text.is_empty() && text[m.end() - 2..m.end()] == ['I', 'T'] {
-        Some(SOFTWARE.to_string())
+        Some("it".to_string())
     } else {
         None
     }
@@ -347,14 +409,13 @@ fn degree_in(m: &Match) -> Option<String> {
     let start = m.start();
     let degree = m.gs(1)?;
     let level = LEVELS.get(&degree).copied().flatten()?;
-    if SHORT.contains(degree.as_str()) {
-        let subject = m.g(2);
-        if !is_subject(&subject) && !is_subject(subject.split_whitespace().next().unwrap_or("")) {
-            return None;
-        }
+    let subject = m.g(2);
+    let first = subject.split_whitespace().next().unwrap_or("");
+    if !is_subject(&subject) && !is_subject(first) && (SHORT.contains(degree.as_str()) || !DEGREE_OF.contains(&first)) {
+        return None;
     }
     let left = clause(text, start).max(start.saturating_sub(60));
-    if ASPIRING.test_in(text, left, start) || !(FIRST_NEAR.test_in(text, start.saturating_sub(80), start) || line_start(text, start) == start) {
+    if ASPIRING.test_in(text, left, start) || IN_PROGRESS.test_in(text, left, start) || OTHERS.test_in(text, clause(text, start), start) || !(FIRST_NEAR.test_in(text, start.saturating_sub(80), start) || line_start(text, start) == start) {
         return None;
     }
     Some(level.to_string())
@@ -372,10 +433,10 @@ fn anchored(text: &[char], start: usize) -> bool {
 
 fn subject(m: &Match, block: &HashSet<&'static str>) -> Option<String> {
     let name = m.first_s()?;
-    if block.contains(name.as_str()) {
+    if block.contains(name.as_str()) || !SUBJECTS.contains_key(&name) {
         None
     } else {
-        SUBJECTS.get(&name).copied().flatten().map(String::from)
+        Some(name)
     }
 }
 
@@ -384,40 +445,89 @@ fn subject_before(text: &[char], start: usize) -> Option<String> {
     for size in [4, 3, 2, 1] {
         if words.len() >= size {
             let key = words[words.len() - size..].join(" ");
-            if let Some(value) = SUBJECTS.get(&key) {
-                return value.map(String::from);
+            if SUBJECTS.contains_key(&key) {
+                return Some(key);
             }
         }
     }
     None
 }
 
-fn leveled(m: &Match) -> Option<String> {
-    let span = m.text();
-    if GRADUATE_LEVEL.test(span) {
-        Some("graduate student".to_string())
-    } else if SCHOOL_LEVEL.test(span) {
-        Some("high school student".to_string())
-    } else if LEVELED.test(span) {
-        None
+fn graduate(text: &[char]) -> &'static str {
+    if PHD_LEVEL.test(text) {
+        "phd student"
+    } else if MASTERS_LEVEL.test(text) {
+        "master's student"
     } else {
-        Some("college student".to_string())
+        "graduate student (level unstated)"
     }
 }
 
-fn period(name: Option<&str>, annual: bool) -> Option<f64> {
+fn year_of(found: &Match) -> Option<&'static str> {
+    Some(UNI_YEARS[(1..=4).find(|&i| found.group(i).is_some())? - 1])
+}
+
+fn level(m: &Match) -> Option<String> {
+    let span = m.text();
+    if SCHOOL_LEVEL.test(span) || LEVELLESS.test(span) || question(m.string, m.end()) || WHEN.test_in(m.string, m.start().saturating_sub(8), m.start()) {
+        return None;
+    }
+    let value = if COMMUNITY.test(span) {
+        "community college"
+    } else if PRO_LEVEL.test(span) {
+        PROFESSIONAL_SCHOOL
+    } else if GRADUATE_LEVEL.test(span) || PHD_LEVEL.test(span) || MASTERS_LEVEL.test(span) {
+        graduate(span)
+    } else if let Some(year) = UNI_YEAR.search(span, 0, span.len()) {
+        if !COLLEGE_LEVEL.test(span) && !STUDENT_WORD.test(span) {
+            return None;
+        }
+        year_of(&year)?
+    } else if COLLEGE_LEVEL.test(span) {
+        match CLASS_YEAR.search(span, 0, span.len()) {
+            Some(year) => year_of(&year)?,
+            None => UNDERGRAD,
+        }
+    } else {
+        "student (level unstated)"
+    };
+    Some(value.to_string())
+}
+
+fn flair_level(m: &Match) -> Option<String> {
+    let text = m.string;
+    let (a, b) = m.span(2)?;
+    if let Some(found) = SCHOOL_YEAR.search(text, a, b) {
+        return Some(match GRADE.search(found.text(), 0, found.text().len()) {
+            Some(year) => ["middle school", "high school year 9-10", "year 11", "year 12", "year 13"][(1..=5).find(|&i| year.group(i).is_some())? - 1],
+            None => return None,
+        }
+        .to_string());
+    }
+    let year = UNI_YEAR.search(text, a, b)?;
+    if ACADEMIC_SUB.test(m.group(1)?) || ACADEMIC_FLAIR.test_in(text, a, b) {
+        Some(year_of(&year)?.to_string())
+    } else {
+        None
+    }
+}
+
+fn grade(m: &Match) -> Option<String> {
+    let value = match GRADE.search(m.text(), 0, m.text().len()) {
+        Some(found) => ["middle school", "high school year 9-10", "year 11", "year 12", "year 13"][(1..=5).find(|&i| found.group(i).is_some())? - 1],
+        None => "high school (year unstated)",
+    };
+    Some(value.to_string())
+}
+
+fn period(name: Option<&str>) -> Option<f64> {
     let times = match name {
         None | Some("year" | "yr" | "annum" | "annually" | "yearly") => 1.0,
         Some("month" | "mo" | "monthly") => 12.0,
         Some("week" | "wk" | "weekly") => 52.0,
-        Some("hour" | "hr" | "hourly") => 2080.0,
         _ => return None,
     };
-    if annual && times != 1.0 {
-        None
-    } else {
-        Some(times)
-    }
+    Some(times)
 }
 
 fn scale(name: Option<&[char]>) -> f64 {
@@ -428,15 +538,18 @@ fn scale(name: Option<&[char]>) -> f64 {
     }
 }
 
-fn income(m: &Match, annual: bool) -> Option<String> {
-    let name = m.gs(4).or_else(|| m.gs(5)).or_else(|| if contains(m.text(), "hourly") { Some("hourly".to_string()) } else { None });
-    let times = period(name.as_deref(), annual)?;
+fn income(m: &Match) -> Option<String> {
+    if contains(m.text(), "hourly") {
+        return None;
+    }
+    let name = m.gs(4).or_else(|| m.gs(5));
+    let times = period(name.as_deref())?;
     if times > 1.0 && (MILESTONE.test(m.text()) || COMPARED.at(m.string, m.end()).is_some()) {
         return None;
     }
     let digits: Vec<char> = m.group(1)?.iter().copied().filter(|&c| c != ',').collect();
     let amount = py_float(&digits)? * scale(m.group(2).or(m.group(3))) * times;
-    if (1000.0..=100_000_000.0).contains(&amount) {
+    if (1000.0..=10_000_000.0).contains(&amount) {
         Some((amount as i64).to_string())
     } else {
         None
@@ -448,7 +561,7 @@ fn earning(m: &Match) -> Option<String> {
     let start = m.start();
     let left = clause(text, start);
     if (owned(text, start, 50) || PERSONA.test_in(text, left, start)) && !EARNERS.test_in(text, left, start) {
-        income(m, false)
+        income(m)
     } else {
         None
     }

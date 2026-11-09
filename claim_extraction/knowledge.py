@@ -8,7 +8,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections import namedtuple
+from collections import Counter, namedtuple
 from pathlib import Path
 
 import nltk
@@ -55,12 +55,6 @@ BRACKETED = re.compile(r"\s*[(\[][^)\]]*[)\]]")
 TRAILING = re.compile(r"\s+[(\[][^)\]]*[)\]]?\s*$")
 CLUB = re.compile(r"\s+(?:football club|f\.?c\.?|a\.?f\.?c\.?|c\.?f\.?)$")
 VAGUE = frozenset("this that the these those my our his her their him them it its he she they one game games movie movies film films show shows book books series song songs album albums character characters team teams player players author authors artist artists band bands music".split())
-BOOK_AUTHORS = Path(__file__).with_name("book_authors.tsv")
-BOOK_SOURCES = frozenset({"novel", "book series"})
-SCREEN_AND_COMIC_CLASSES = ("Q21198342", "Q14406742", "Q196600", "Q24856", "Q5398426", "Q63952888", "Q11424")
-WRITTEN = """SELECT ?label ?name WHERE {{ VALUES ?class {{ {classes} }} ?item wdt:{property} ?class ; wikibase:sitelinks ?links ; wdt:P50 ?author . FILTER(?links >= {minimum})
-FILTER NOT EXISTS {{ ?item wdt:P31/wdt:P279* ?other . VALUES ?other {{ {excluded} }} }}
-?item rdfs:label ?label FILTER(LANG(?label) = "en") ?author rdfs:label ?name FILTER(LANG(?name) = "en") }}"""
 FILMS = Path(__file__).with_name("films.tsv")
 FILM_SOURCES = (Source("film", "P31", "Q11424", True, "franchise", 10),)
 CLUBS = Path(__file__).with_name("clubs.tsv")
@@ -68,11 +62,18 @@ CLUB_SOURCES = (Source("sports team", "P31", "Q12973014", True, "sports_team", 2
 NONWORD_TITLES = Path(__file__).with_name("nonword_titles.tsv")
 COMMON_WORDS = Path(__file__).with_name("common_words.tsv")
 TITLE_ATTRIBUTES = frozenset({"franchise", "video_game"})
-GAME_SERIES = Path(__file__).with_name("game_series.tsv")
-GAME_SOURCES = frozenset({"video game"})
-SERIES = """SELECT ?label ?name WHERE {{ VALUES ?class {{ {classes} }} ?item wdt:{property} ?class ; wikibase:sitelinks ?links ; wdt:P179 ?series . FILTER(?links >= {minimum})
-OPTIONAL {{ ?item rdfs:label ?item_en FILTER(LANG(?item_en) = "en") }} OPTIONAL {{ ?item rdfs:label ?item_mul FILTER(LANG(?item_mul) = "mul") }} BIND(COALESCE(?item_en, ?item_mul) AS ?label)
-OPTIONAL {{ ?series rdfs:label ?series_en FILTER(LANG(?series_en) = "en") }} OPTIONAL {{ ?series rdfs:label ?series_mul FILTER(LANG(?series_mul) = "mul") }} BIND(COALESCE(?series_en, ?series_mul) AS ?name) FILTER(BOUND(?label) && BOUND(?name)) }}"""
+SCHOOLS = Path(__file__).with_name("schools.tsv")
+DEMONYMS = Path(__file__).with_name("demonyms.tsv")
+SCHOOL_SOURCES = (Source("university", "P31", "Q3918", True, "school_attended", 5),
+                  Source("college", "P31", "Q189004", True, "school_attended", 5),
+                  Source("higher education institution", "P31", "Q38723", True, "school_attended", 5))
+SCHOOL_EXCLUSIONS = (Source("learned society", "P31", "Q955824", True, "school_attended", 5),)
+SCHOOL_TYPES = frozenset("university universities universidad universidade université universität università universiteit uni college colleges institute institution school schools univ state tech academy polytechnic politecnico conservatory seminary faculty campus".split())
+SCHOOL_VAGUE = frozenset("midwest baptist dominican colegio técnico tecnico metropolitana statale renda unica chung spartans msm kpi eur aut sse unu bfs".split())
+DESCRIBING = 10
+AMBIGUITY = 3
+SHORT = 4
+SHORT_SITELINKS = 20
 
 
 def fetched(query):
@@ -105,48 +106,11 @@ def members(source, classes):
     return members(source, classes[:half]) + members(source, classes[half:])
 
 
-def related(source, classes, query):
-    rows = fetched(query.format(classes=" ".join("wd:" + code for code in classes), property=source.property, minimum=source.minimum_sitelinks, excluded=" ".join("wd:" + code for code in SCREEN_AND_COMIC_CLASSES)))
-    if rows is not None:
-        return rows
-    if len(classes) == 1:
-        raise TimeoutError(source.name + " " + classes[0])
-    half = len(classes) // 2
-    return related(source, classes[:half], query) + related(source, classes[half:], query)
-
-
-def generate_relation(target, names, query, header, attributes, sources=SOURCES):
-    pairs = {}
-    for source in sources:
-        if source.name not in names:
-            continue
-        classes = subclasses(source.root) if source.subclasses else [source.root]
-        for start in range(0, len(classes), CHUNK):
-            for label, name in related(source, classes[start:start + CHUNK], query):
-                if (key := fan_value(attributes[0], BRACKETED.sub("", label).strip().lower())) and (value := fan_value(attributes[1], BRACKETED.sub("", name).strip().lower())):
-                    pairs.setdefault(key, set()).add(value)
-    with open(target, "w", encoding="utf-8", newline="\n") as out:
-        out.write(header + "\n")
-        for key, values in sorted(pairs.items()):
-            if len(values) == 1:
-                out.write(f"{key}\t{next(iter(values))}\n")
-
-
 def fan_value(attribute, text):
     text = TRAILING.sub("", text).removeprefix("the ")
     if attribute == "sports_team":
         text = CLUB.sub("", text)
     return text if set(text.split()) - VAGUE else None
-
-
-@timed
-def generate_book_authors(target=BOOK_AUTHORS, sources=SOURCES):
-    generate_relation(target, BOOK_SOURCES, WRITTEN, "title\tauthor", ("franchise", "author"), sources)
-
-
-@timed
-def generate_game_series(target=GAME_SERIES, sources=SOURCES):
-    generate_relation(target, GAME_SOURCES, SERIES, "game\tseries", ("video_game", "franchise"), sources)
 
 
 def folded(text):
@@ -249,11 +213,72 @@ def generate_common_words(target=COMMON_WORDS):
         out.writelines(word + "\n" for word in sorted(common - proper) if "_" not in word and WORD.fullmatch(word))
 
 
+@timed
+def generate_schools(target=SCHOOLS, sources=SCHOOL_SOURCES, exclusions=SCHOOL_EXCLUSIONS):
+    nltk.download("brown", quiet=True)
+    nltk.download("stopwords", quiet=True)
+    nltk.download("names", quiet=True)
+    nltk.download("words", quiet=True)
+    nltk.download("wordnet", quiet=True)
+    words = Counter(word for word in nltk.corpus.brown.words() if word.islower())
+    stop = frozenset(nltk.corpus.stopwords.words("english"))
+    places = {line.split("\t", 1)[0] for line in GAZETTEER.read_text(encoding="utf-8").splitlines()[1:]}
+    demonyms = {line.split("\t", 1)[0] for line in DEMONYMS.read_text(encoding="utf-8").splitlines()[1:]}
+    dictionary = frozenset(COMMON_WORDS.read_text(encoding="utf-8").splitlines()[1:]) | {word for word in nltk.corpus.words.words() if word.islower()}
+    given = frozenset(name.lower() for name in nltk.corpus.names.words())
+
+    def ordinary(token):
+        return words[token] >= 3 or token in dictionary or nltk.corpus.wordnet.morphy(token) in dictionary
+
+    def acronym(key, value):
+        initials = iter(token[0] for token in WORD.findall(value))
+        return all(char in initials for char in key)
+
+    items, excluded = {}, set()
+    for source in exclusions:
+        classes = subclasses(source.root)
+        for start in range(0, len(classes), CHUNK):
+            excluded.update(row[0] for row in members(source, classes[start:start + CHUNK]))
+    for source in sources:
+        classes = subclasses(source.root) if source.subclasses else [source.root]
+        for start in range(0, len(classes), CHUNK):
+            for item, links, name, alias, language in members(source, classes[start:start + CHUNK]):
+                if item in excluded:
+                    continue
+                entry = items.setdefault(item.rsplit("/", 1)[1], {"links": int(links), "labels": {}, "names": set()})
+                entry["names"].add(name)
+                if alias == "0":
+                    entry["labels"][language] = name
+    labels = {code: label for code, entry in items.items() if (label := entry["labels"].get("en") or entry["labels"].get("mul"))}
+    values = {code: " ".join(BRACKETED.sub("", label).lower().split()) for code, label in labels.items()}
+    usage = Counter(token for value in set(values.values()) for token in set(WORD.findall(value)))
+    describing = SCHOOL_TYPES | stop | {token for token, count in usage.items() if count >= DESCRIBING and (words[token] >= 3 or token in demonyms)}
+    candidates = {}
+    for code, value in values.items():
+        entry = items[code]
+        for name in entry["names"]:
+            for form, rank in forms(name, False):
+                key = " ".join(WORD.findall(form)).lower()
+                tokens = key.split()
+                content = [token for token in tokens if token not in describing]
+                if len(key) < 3 or not content or not re.search(r"[^\W\d_]", key) or "_" in key:
+                    continue
+                common = not SCHOOL_TYPES & set(tokens) and (all(map(ordinary, content)) or key in places or key in demonyms or key in SCHOOL_VAGUE or tokens[-1] in places and set(tokens[:-1]) <= describing or (len(content) == 1 and content[0] in given)) or (len(tokens) == 1 and len(key) <= SHORT and (entry["links"] < SHORT_SITELINKS or not acronym(key, value)))
+                candidates.setdefault(key, []).append(((2 * rank + (name != labels[code]), -entry["links"], int(code[1:])), value, entry["links"], common))
+    with open(target, "w", encoding="utf-8", newline="\n") as out:
+        out.write("key\tvalue\tsitelinks\tcommon\n")
+        for key, found in sorted(candidates.items()):
+            found.sort()
+            order, value, links, common = found[0]
+            if not any(rival[0][0] == order[0] and rival[1] != value and rival[2] * AMBIGUITY > links for rival in found[1:]):
+                out.write(f"{key}\t{value}\t{links}\t{'1' if common else ''}\n")
+
+
+
 if __name__ == "__main__":
     generate(Path(sys.argv[1]) if len(sys.argv) > 1 else TARGET)
-    generate_book_authors()
-    generate_game_series()
     generate_films()
     generate_clubs()
     generate_nonword_titles()
     generate_common_words()
+    generate_schools()

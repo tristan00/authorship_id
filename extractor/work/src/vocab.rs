@@ -227,7 +227,7 @@ pub const JOBS: &[(&str, &str)] = &[
 
 pub const SKILL: &str = concat!("good|great|bad|decent|terrible|awful|amazing|better|best|worse|worst|home|amateur|hobby|hobbyist|aspiring|wannabe|wanna-be|future|former|ex|retired|noob|newbie|",
     "beginner|budding|failed|frustrated|would-be|prospective|fake|pretend|big|huge|massive|total|natural|born|picky|lazy|self-taught|shitty|crappy|mediocre|average|okay|ok|",
-    "competent|excellent|fantastic|awesome|horrible|poor|weekend|backyard|armchair|bedroom|closet|student|wanna|sucky|lousy|messy|careful|safe|nervous|confident|avid");
+    "competent|excellent|fantastic|awesome|horrible|poor|weekend|backyard|armchair|bedroom|closet|student|wanna|sucky|lousy|messy|careful|safe|nervous|confident|avid|reckless|intermediate|aggressive|defensive|learner|cautious");
 pub const BLOCK_WORDS: &str = "and or but with to of for in at on who that like this my your his her their our the a an not no than as is was can cant can't";
 pub const HEADS: &str = concat!("engineer|developer|dev|manager|officer|assistant|technician|tech|worker|analyst|specialist|consultant|nurse|scientist|designer|director|architect|administrator|",
     "operator|supervisor|coordinator|aide|teacher|artist|writer|editor|producer|agent|representative|rep|clerk|student|lead|instructor|therapist|counselor|counsellor|",
@@ -250,7 +250,7 @@ pub const SOC: &[(&str, &str)] = &[
 pub const ONET_STOP: &str = concat!("owner captain player hunter hiker climber comic helper president agent advocate builder breeder boarder guide sewer anchor mixer closer checker dresser ",
     "hanger buffer roller receiver spinner tender filler seater searcher examiner deputy dealer collector trader planner picker sacker scribe messenger ",
     "cowboy caster blender spotter burner chipper bundler runner reader rider starter member observer leader mentor organizer volunteer survivor novice ",
-    "delegate resident catcher grader feeder stapler wrapper winder sorter scaler shipper bagger mover pusher");
+    "delegate resident catcher grader feeder stapler wrapper winder sorter scaler shipper bagger mover pusher host");
 
 pub const FOREIGN: &[(&str, &str)] = &[
     (CLINICAL, concat!("médico|médica|doctor|doctora|enfermero|enfermera|dentista|farmacéutico|farmacéutica|psicólogo|psicóloga|fisioterapeuta|enfermeiro|enfermeira|farmacêutico|farmacêutica|",
@@ -359,51 +359,13 @@ pub const FIELDS: &[(&str, &str)] = &[
     (ADULT, "sex work|the adult industry|adult entertainment|porn"),
 ];
 
-pub const PLACES: &[(&str, &str)] = &[
-    (CARE, "nursing home|care home|assisted living facility|assisted living|group home|hospice|retirement home|memory care facility|home care agency"),
-    (FOOD, concat!("restaurant|bar|pub|hotel|motel|kitchen|cafe|café|coffee shop|bakery|pizza place|pizza shop|fast food restaurant|fast food place|diner|brewery|casino|resort|catering company|",
-        "steakhouse|sushi restaurant|deli|cafeteria|food truck|cruise ship|country club|golf club|night club|nightclub|club")),
-    (SALES, concat!("store|grocery store|supermarket|gas station|retail store|department store|mall|car dealership|dealership|bookstore|clothing store|shoe store|thrift store|furniture store|jewelry store|pet store|",
-        "convenience store|liquor store|shop|boutique|phone store|electronics store|hardware store|big box store|retailer")),
-    (WAREHOUSE, concat!("warehouse|factory|distribution center|distribution centre|fulfillment center|fulfilment centre|plant|manufacturing plant|mill|sawmill|",
-        "processing plant|meat plant|meatpacking plant|cannery|print shop|assembly plant|steel mill|paper mill|refinery")),
-    (TEACHING, concat!("school|elementary school|middle school|high school|primary school|secondary school|preschool|kindergarten|daycare|university|college|community college|",
-        "tutoring center|learning center|library|academy|charter school|private school|public school|montessori school|boarding school|language school")),
-    (FINANCE, "bank|credit union|accounting firm|insurance company|investment bank|hedge fund|brokerage|tax firm|financial firm"),
-    (LAW, "law firm|courthouse|court|public defender's office|da's office|prosecutor's office|legal aid office|legal clinic"),
-    (OFFICE, "call center|call centre|front desk|reception desk|office|corporate office|head office"),
-    (TRADE, "construction site|construction company|auto shop|body shop|mechanic shop|garage|machine shop|repair shop|oil rig|mine|coal mine|shipyard|power plant|car shop|tire shop"),
-    (TRANSPORT, "airport|airline|trucking company|post office|train station|bus depot|shipping company|logistics company|moving company|port"),
-    (SAFETY, "police department|police station|fire department|fire station|prison|jail|correctional facility|detention center|sheriff's office|sheriff's department|security company"),
-    (GOVERNMENT, "city hall|government agency|federal agency|state agency|council|dmv|social security office|embassy|consulate|town hall|county office"),
-    (SOCIAL, concat!("church|nonprofit|non-profit|charity|shelter|homeless shelter|women's shelter|food bank|community center|mosque|synagogue|temple|youth center|treatment center|rehab|",
-        "detox center|halfway house")),
-    (SOFTWARE, "tech company|software company|startup|tech startup|it company|game studio|data center|saas company|big tech"),
-    (MEDIA, "newspaper|magazine|news station|tv station|radio station|ad agency|advertising agency|marketing agency|pr firm|publishing house|publisher|media company"),
-    (ARTS, "studio|recording studio|design studio|museum|gallery|theater|theatre|cinema|movie theater|film studio|animation studio|tattoo shop|tattoo studio|photography studio"),
-    (SCIENCE, "lab|laboratory|research lab|research institute|research center|observatory|biotech company|pharma company|pharmaceutical company"),
-    (SERVICE, "salon|hair salon|nail salon|barbershop|barber shop|spa|gym|fitness center|car wash|funeral home|dry cleaners|laundromat|kennel|doggy daycare|grooming salon"),
-    (OUTDOOR, "farm|ranch|nursery|garden center|greenhouse|vineyard|orchard|zoo|aquarium|park|national park|golf course|stable|stables|dairy farm"),
-    (BUSINESS, "consulting firm|consultancy|staffing agency|recruitment agency"),
-    ("", concat!("company|firm|agency|business|corporation|small business|family business|organization|organisation|nonprofit organization|place|",
-        "hospital|clinic|medical clinic|dental office|dentist office|dentist's office|doctor's office|vet clinic|vet office|veterinary clinic|animal hospital|er|icu|nicu|",
-        "emergency room|urgent care|pharmacy|surgery center|rehab center|psych ward|psychiatric hospital|mental hospital|medical center|health center|optometrist office")),
-];
-
 pub const VERBS: &[(&str, &str)] = &[
-    ("sell", SALES), ("teach", TEACHING), ("tutor", TEACHING), ("clean", SERVICE), ("drive", TRANSPORT), ("cook", FOOD), ("bartend", FOOD), ("code", SOFTWARE), ("program", SOFTWARE),
-    ("nurse", CLINICAL), ("deliver", TRANSPORT), ("repair", TRADE), ("fix", TRADE), ("build", TRADE), ("install", TRADE), ("cut", SERVICE), ("tattoo", ARTS), ("farm", OUTDOOR),
-    ("trade", FINANCE), ("edit", ARTS), ("photograph", ARTS), ("film", ARTS), ("stream", ARTS), ("cam", ADULT), ("dance", ARTS), ("model", ARTS), ("dj", ARTS), ("translate", OTHER), ("design", ARTS),
-    ("write", ARTS), ("develop", SOFTWARE), ("groom", SERVICE), ("paint", ARTS), ("sing", ARTS), ("act", ARTS), ("illustrate", ARTS), ("animate", ARTS), ("audit", FINANCE), ("manage", BUSINESS),
-    ("consult", BUSINESS), ("recruit", BUSINESS), ("plumb", TRADE), ("weld", TRADE), ("wait", FOOD), ("serve", FOOD), ("bake", FOOD), ("landscape", OUTDOOR),
-];
-
-pub const INTERNSHIPS: &[(&str, &str)] = &[
-    ("banking", FINANCE), ("finance", FINANCE), ("accounting", FINANCE), ("audit", FINANCE), ("tax", FINANCE), ("marketing", MEDIA), ("journalism", MEDIA), ("media", MEDIA),
-    ("engineering", ENGINEERING), ("software", SOFTWARE), ("it", SOFTWARE), ("data", SOFTWARE), ("tech", SOFTWARE), ("coding", SOFTWARE), ("developer", SOFTWARE), ("law", LAW), ("legal", LAW),
-    ("nursing", CLINICAL), ("clinical", CLINICAL), ("pharmacy", CLINICAL), ("medical", CLINICAL), ("hospital", CLINICAL), ("teaching", TEACHING), ("research", SCIENCE), ("design", ARTS),
-    ("consulting", BUSINESS), ("hr", BUSINESS), ("sales", SALES), ("retail", SALES), ("hotel", FOOD), ("government", GOVERNMENT), ("electrical", TRADE), ("plumbing", TRADE),
-    ("carpentry", TRADE), ("welding", TRADE), ("mechanic", TRADE), ("hvac", TRADE),
+    ("sell", "salesperson"), ("teach", "teacher"), ("tutor", "tutor"), ("clean", "cleaner"), ("drive", "driver"), ("cook", "cook"), ("bartend", "bartender"), ("code", "programmer"),
+    ("program", "programmer"), ("nurse", "nurse"), ("deliver", "delivery driver"), ("build", "builder"), ("install", "installer"), ("tattoo", "tattoo artist"), ("farm", "farmer"),
+    ("trade", "trader"), ("edit", "editor"), ("photograph", "photographer"), ("film", "filmmaker"), ("stream", "streamer"), ("dance", "dancer"), ("model", "model"), ("dj", "dj"),
+    ("translate", "translator"), ("design", "designer"), ("write", "writer"), ("develop", "developer"), ("groom", "groomer"), ("paint", "painter"), ("sing", "singer"), ("act", "actor"),
+    ("illustrate", "illustrator"), ("animate", "animator"), ("audit", "auditor"), ("manage", "manager"), ("consult", "consultant"), ("recruit", "recruiter"), ("plumb", "plumber"),
+    ("weld", "welder"), ("serve", "server"), ("bake", "baker"), ("landscape", "landscaper"),
 ];
 
 const CS: &str = "computer science or IT";
@@ -455,28 +417,29 @@ pub const SUBJECT_TABLE: &[(&str, &str)] = &[
     ("psychology", "clinical psychology|counseling psychology"),
 ];
 
-const BACH: &str = "bachelor's degree";
-const MAST: &str = "master's degree";
-const PROF: &str = "professional degree such as law or medicine";
-const TRADE_SCHOOL: &str = "trade school or associate degree";
+const BACH: &str = "bachelor's";
+const MAST: &str = "master's";
+const PHD: &str = "doctorate (phd)";
+const MD: &str = "medical doctor";
+const LAW_DEGREE: &str = "law degree";
+const OTHER_DOCTORATE: &str = "professional doctorate (other)";
 
 pub const DEGREES: &[(&str, &str)] = &[
     ("bachelor", BACH), ("bachelors", BACH), ("bachelor's", BACH), ("ba", BACH), ("bs", BACH), ("bsc", BACH),
     ("b.s.", BACH), ("b.a.", BACH), ("bcom", BACH), ("b.com", BACH), ("btech", BACH), ("b.tech", BACH),
     ("beng", BACH), ("bba", BACH), ("bfa", BACH), ("bsn", BACH), ("undergrad degree", BACH), ("undergraduate degree", BACH),
     ("master", MAST), ("masters", MAST), ("master's", MAST), ("ma", MAST), ("ms", MAST), ("msc", MAST), ("m.s.", MAST),
-    ("mba", MAST), ("msw", MAST), ("mtech", MAST), ("m.tech", MAST), ("mfa", MAST), ("meng", MAST), ("mse", MAST),
-    ("phd", "doctorate"), ("ph.d", "doctorate"), ("ph.d.", "doctorate"), ("doctorate", "doctorate"), ("dphil", "doctorate"), ("jd", PROF),
-    ("md", PROF), ("mbbs", PROF), ("dds", PROF),
-    ("pharmd", PROF), ("dvm", PROF), ("llb", BACH), ("associate's", TRADE_SCHOOL),
-    ("associates", TRADE_SCHOOL), ("associate degree", TRADE_SCHOOL), ("ged", "high school diploma"), ("high school diploma", "high school diploma"),
+    ("mba", MAST), ("msw", MAST), ("mtech", MAST), ("m.tech", MAST), ("mfa", MAST), ("meng", MAST), ("mse", MAST), ("msn", MAST),
+    ("phd", PHD), ("ph.d", PHD), ("ph.d.", PHD), ("doctorate", PHD), ("dphil", PHD), ("jd", LAW_DEGREE), ("llb", LAW_DEGREE),
+    ("md", MD), ("mbbs", MD), ("dds", OTHER_DOCTORATE), ("dvm", OTHER_DOCTORATE), ("dnp", OTHER_DOCTORATE), ("psyd", OTHER_DOCTORATE), ("edd", OTHER_DOCTORATE), ("dpt", OTHER_DOCTORATE), ("pharmd", "pharmacy doctorate"),
+    ("associate's", "associate"), ("associates", "associate"), ("associate degree", "associate"), ("ged", "secondary school"), ("high school diploma", "secondary school"),
 ];
 pub const SHORT_DEGREES: &[&str] = &["ba", "bs", "ma", "ms", "md", "jd", "b.s.", "b.a.", "m.s.", "mse", "dds", "dvm", "mfa", "ged", "associates", "associate's"];
 
 pub const SCHOOLS: &[(&str, &str)] = &[
-    ("law", "law"), ("l", "law"), ("med", MED), ("medical", MED), ("pharmacy", MED), ("nursing", MED), ("dental", MED),
-    ("vet", MED), ("veterinary", MED), ("residency", MED), ("engineering", "engineering"),
-    ("business", BIZ), ("b", BIZ), ("art", ART), ("film", ART), ("architecture", ART),
+    ("law", "law"), ("l", "law"), ("med", "medicine"), ("medical", "medicine"), ("pharmacy", "pharmacy"), ("nursing", "nursing"), ("dental", "dentistry"),
+    ("vet", "veterinary medicine"), ("veterinary", "veterinary medicine"), ("engineering", "engineering"), ("business", "business"), ("b", "business"), ("art", "art"),
+    ("film", "film"), ("architecture", "architecture"),
 ];
 
 pub const FOREIGN_SUBJECTS: &[(&str, &str)] = &[
@@ -500,8 +463,8 @@ pub const DEGREE_SUBJECT_EXTRA: &[(&str, &str)] = &[
 ];
 
 pub const DEGREE_FIELDS: &[(&str, &str)] = &[
-    (BIZ, "mba|bba|bcom|b.com|mcom|m.com"), (MED, "mbbs|bsn|msn|pharmd|dvm|bds"), ("law", "llb"),
-    (ART, "bfa|mfa"), (SOC_SCI, "msw|bsw"), ("engineering", "btech|b.tech|mtech|m.tech|beng|meng"),
+    ("business administration", "mba|bba"), ("commerce", "bcom|b.com|mcom|m.com"), ("medicine", "mbbs"), ("nursing", "bsn|msn"), ("pharmacy", "pharmd"),
+    ("veterinary medicine", "dvm"), ("dentistry", "bds"), ("law", "llb"), ("fine arts", "bfa|mfa"), ("social work", "msw|bsw"), ("engineering", "btech|b.tech|mtech|m.tech|beng|meng"),
 ];
 
 pub const AMBIGUOUS_SUBJECTS: &[&str] = &["it", "ai", "art", "design", "film", "music", "dance", "business", "management", "marketing", "history", "english", "photography", "drama", "religion",

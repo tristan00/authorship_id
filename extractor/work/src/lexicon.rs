@@ -3,17 +3,6 @@ use claimcore::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-pub struct Title {
-    pub job: &'static str,
-    pub field: Option<&'static str>,
-}
-
-#[derive(Clone, Copy)]
-pub enum Use {
-    Job,
-    Field,
-}
-
 pub fn alnum(c: char) -> bool {
     c != '_' && is_word(c)
 }
@@ -92,27 +81,14 @@ fn onet() -> HashMap<String, &'static str> {
     out
 }
 
-pub static TITLES: LazyLock<HashMap<String, Title>> = LazyLock::new(|| {
+pub static TITLES: LazyLock<HashMap<String, &'static str>> = LazyLock::new(|| {
     let mut jobs: HashMap<String, &'static str> = onet();
     for (value, words) in JOBS {
         for word in words.split('|') {
             jobs.insert(phrase(word), value);
         }
     }
-    jobs.into_iter()
-        .map(|(key, job)| {
-            let field = if key.contains("psycholog") {
-                Some("psychology")
-            } else if job == CLINICAL {
-                Some("medicine or health")
-            } else if job == ENGINEERING {
-                Some("engineering")
-            } else {
-                None
-            };
-            (key, Title { job, field })
-        })
-        .collect()
+    jobs
 });
 
 pub static FOREIGN_TITLES: LazyLock<HashMap<String, &'static str>> = LazyLock::new(|| {
@@ -190,13 +166,16 @@ pub fn spot<V>(text: &[char], start: usize, skip: Option<usize>, block: &HashSet
     None
 }
 
-pub fn title(text: &[char], start: usize, skip: Option<usize>, using: Use) -> Option<(Option<&'static str>, usize)> {
+pub fn title(text: &[char], start: usize, skip: Option<usize>) -> Option<(&'static str, usize)> {
     let (key, end) = spot(text, start, skip, &BLOCK, &TITLES, &TITLE_HEADS)?;
-    let entry = &TITLES[&key];
-    Some((match using { Use::Job => Some(entry.job), Use::Field => entry.field }, end))
+    Some((TITLES.get_key_value(&key)?.0.as_str(), end))
 }
 
-pub fn ended(text: &[char], start: usize, end: usize) -> Option<String> {
+pub fn job_kind(key: &str) -> &'static str {
+    TITLES.get(key).or_else(|| FOREIGN_TITLES.get(key)).copied().unwrap_or_else(|| panic!("{key:?} is not a known job title"))
+}
+
+pub fn ended(text: &[char], start: usize, end: usize) -> Option<&'static str> {
     let mut names: Vec<String> = tokens(text, start, end).iter().map(|&(a, b)| st(&text[a..b])).collect();
     if let Some(last) = names.last_mut() {
         if !TITLES.contains_key(last.as_str()) && last.ends_with('s') {
@@ -205,18 +184,9 @@ pub fn ended(text: &[char], start: usize, end: usize) -> Option<String> {
     }
     for offset in names.len().saturating_sub(6)..names.len() {
         let key = names[offset..].join(" ");
-        if TITLES.contains_key(&key) {
-            return if names[..offset].iter().any(|name| BLOCK.contains(name.as_str())) { None } else { Some(key) };
+        if let Some((found, _)) = TITLES.get_key_value(&key) {
+            return if names[..offset].iter().any(|name| BLOCK.contains(name.as_str())) { None } else { Some(found.as_str()) };
         }
     }
     None
-}
-
-pub fn ending(text: &[char], start: usize, end: usize, using: Use) -> Option<&'static str> {
-    let key = ended(text, start, end)?;
-    let entry = &TITLES[&key];
-    match using {
-        Use::Job => Some(entry.job),
-        Use::Field => entry.field,
-    }
 }

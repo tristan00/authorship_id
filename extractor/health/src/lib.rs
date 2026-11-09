@@ -1,4 +1,6 @@
 mod ailments;
+mod habits;
+mod medications;
 mod vocab;
 
 pub use ailments::ailments;
@@ -102,6 +104,17 @@ impl Ordered {
     }
 }
 
+pub const PHYSICAL_ATTRIBUTE: &str = "physical_conditions";
+
+pub fn home(attribute: &'static str, value: &str) -> &'static str {
+    match value {
+        "blind / low vision" | "one eye / monocular" | "colorblind" | "nearsighted" | "farsighted" | "astigmatism" | "glaucoma" | "cataract" | "keratoconus" => "vision",
+        "hiv positive" | "hsv-1" | "hsv-2" | "herpes / hsv (type unstated)" | "hpv" => "sexual_health_status",
+        "perimenopause" | "menopause" | "post-menopause" | "surgical menopause" => "menopause_stage",
+        _ => attribute,
+    }
+}
+
 pub fn spread(groups: Groups) -> Ordered {
     let mut out = Ordered::default();
     for (value, items) in groups {
@@ -174,12 +187,8 @@ pub struct Tables {
 
 pub static TABLES: LazyLock<Tables> = LazyLock::new(|| {
     let physical_tools = spread(PHYSICAL_TOOLS);
-    let keep: HashSet<&str> = STRICT_KEEP.iter().copied().collect();
     let drop: HashSet<&str> = STRICT_DROP.iter().copied().collect();
-    let mut tool_strict = physical_tools.filter(|name, value| value != "other physical condition" || keep.contains(name)).filter(|name, _| !drop.contains(name));
-    for name in STRICT_UNSPECIFIED {
-        tool_strict.insert(name.to_string(), "unspecified");
-    }
+    let tool_strict = physical_tools.filter(|name, value| !value.is_empty() && !drop.contains(name) && home(PHYSICAL_ATTRIBUTE, value) == PHYSICAL_ATTRIBUTE);
     let mental = spread(MENTAL);
     let loose: HashSet<&str> = LOOSE_EXCLUDE.iter().copied().collect();
     let mental_loose = mental.filter(|name, _| !loose.contains(name));
@@ -189,7 +198,7 @@ pub static TABLES: LazyLock<Tables> = LazyLock::new(|| {
     let mental_words = mental.filter(|name, _| !["did", "add", "odd", "bed", "ed"].contains(&name));
     let drugs: &'static str = Box::leak(data_file("adhd_drugs.txt").into_boxed_str());
     let mut adhd_drugs = Ordered::default();
-    for line in drugs.lines() {
+    for line in drugs.lines().filter(|line| !["bupropion", "clonidine", "modafinil"].contains(line)) {
         adhd_drugs.insert(line.to_string(), "adhd");
     }
     Tables {
@@ -221,7 +230,7 @@ pub const PEOPLE: &str = concat!(
 pub static OWN_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
     "{}{}",
     SELF_HEDGE.pattern,
-    r"|\b(?:suspect|suspected|probably|possibly|wonder|wondering|could be|could have|do i have|self[- ]diagnosed|test(?:ed)? for|screen(?:ed)? for|rule out|ruled out|i think|i thought|i guess|i feel like|pretty sure|i believe)\b"
+    r"|\b(?:suspect|suspected|probably|possibly|wonder|wondering|could be|could have|do i have|self[- ]diagnosed|test(?:ed)? for|screen(?:ed)? for|rule out|ruled out|i think|i thought|i guess|think|thinking|thought|i feel like|pretty sure|i believe|scared|afraid|worried|terrified)\b"
 )));
 pub static OTHERS: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"{}|\b(?:{PEOPLE})\b", OWN_HEDGE.pattern)));
 static FOREIGN_SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
@@ -232,8 +241,8 @@ static FOREIGN_SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(
 )));
 pub static MENTAL_TAIL: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{})$", TABLES.mental.names())));
 static FIGURATIVE: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\n]*?(?:\b(?:lol|lmao|lmfao|rofl|xd|haha\w*|hehe\w*|clearly|apparently|i guess|i suppose|didn'?t see|did not see|didn'?t notice|missed (?:it|that|this|those|them))\b|[😅😂🤣🙈🤦])"));
-static SENSE: LazyLock<Re> = LazyLock::new(|| Re::new(r"deaf|blind|hearing|eye|sight|vision|ear\b"));
 static SEEKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:no|not|non|looking for|seeking|want|wants|wanted|for|with|into|love|loves|like|likes)\W+(?:[\w'-]+\W+)?$"));
+const SENSES: &str = r"i(?<!\wi)(?:'?m| am|'ve gone| have gone|'m going| am going)(?: (?:also|now|already|still|basically|practically|essentially|technically))* (?:legally |completely |totally |profoundly |partially |mostly )?(deaf|blind|hard of hearing)\b|i(?<!\wi) (?:lost|had lost) (?:my |most of my |all of my |part of my )(?:\w+ )?(sight|vision|hearing)\b(?! (?:board|for|of)\b)";
 
 pub const SUBJECT: &str = r"i(?<!\wi) (?:also |still |do |actually |now |already |too |even |definitely |literally |personally |unfortunately |both |currently |recently |just |really |apparently |obviously |basically |technically |myself |officially |finally |eventually |later |since |unfortunately also )*";
 
@@ -298,7 +307,7 @@ const BOT_OWN: &str = concat!(
 const BOT_WORDS: [&str; 6] = [" bot", "^bot", "[bot", "beep boop", "bleep bloop", "automat"];
 const MODERATION: &str = r"removed|remove|approv\w*|karma|locked|not allowed|bans?|bannable|banned|comments are disabled|filtered|blocked|block you|copy of (?:the|this|your) (?:original )?(?:post|submission)|post's original text|copia del post|salvo qui una copia";
 const PERSONAL_AD: &str = r"[\[(]\s*(?:nb|[mf])[mf]?\s*4\s*(?:[mfatr]|me|nb)\w*\s*[\])][^\n]*?(?<![\w'-])({})(?![\w'-])";
-pub const NEURO: [&str; 3] = ["adhd", "autism", "both adhd and autism"];
+pub const NEURO: [&str; 3] = ["adhd", "autism", "audhd"];
 
 pub fn quoted(text: &[char], start: usize) -> bool {
     let line = &text[line_start(text, start)..start];
@@ -307,7 +316,73 @@ pub fn quoted(text: &[char], start: usize) -> bool {
 }
 
 fn get(lex: &Lex, part: Option<&[char]>) -> Option<String> {
-    part.and_then(|key| lex.get(key)).map(|value| value.to_string())
+    part.and_then(|key| lex.get(key)).filter(|value| !value.is_empty()).map(|value| value.to_string())
+}
+
+fn sense(sight: bool) -> impl Fn(&Match) -> Option<String> + Send + Sync + 'static {
+    move |m| {
+        let word: String = m.first()?.iter().collect();
+        let seen = matches!(word.as_str(), "blind" | "sight" | "vision");
+        if seen != sight || FIGURATIVE.at(m.string, m.end()).is_some() {
+            return None;
+        }
+        Some(if sight { "blind / low vision" } else { "deaf / hard of hearing" }.to_string())
+    }
+}
+
+fn number(word: &str) -> Option<f64> {
+    let words = ["a", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+    match words.iter().position(|known| *known == word) {
+        Some(index) => Some(index as f64 + 1.0),
+        None if word == "one" => Some(1.0),
+        None => word.parse().ok(),
+    }
+}
+
+fn sober_days(m: &Match) -> Option<String> {
+    let count = number(&m.gs(1)?)?;
+    let unit = m.gs(2)?;
+    let days = match unit.trim_end_matches('s') {
+        "day" => 1.0,
+        "week" => 7.0,
+        "month" => 30.44,
+        _ => 365.25,
+    };
+    Some(format!("{}", (count * days).round() as i64))
+}
+
+const ALLERGENS: &[(&str, &str)] = &[
+    ("peanut", "peanuts"), ("tree", "tree nuts"), ("nut", "tree nuts"), ("almond", "tree nuts"), ("cashew", "tree nuts"), ("walnut", "tree nuts"), ("shellfish", "shellfish"), ("shrimp", "shellfish"),
+    ("egg", "eggs"), ("dairy", "dairy"), ("milk", "dairy"), ("gluten", "gluten / wheat"), ("wheat", "gluten / wheat"), ("soy", "soy"), ("fish", "fish"), ("sesame", "sesame"),
+    ("cat", "cats"), ("dog", "dogs"), ("seasonal", "pollen / hay fever"), ("hay", "pollen / hay fever"), ("pollen", "pollen / hay fever"), ("grass", "pollen / hay fever"),
+    ("ragweed", "pollen / hay fever"), ("birch", "pollen / hay fever"), ("dust", "dust / dust mites"), ("mold", "mold"), ("mould", "mold"), ("latex", "latex"),
+    ("penicillin", "penicillin / antibiotics"), ("amoxicillin", "penicillin / antibiotics"), ("sulfa", "penicillin / antibiotics"), ("antibiotic", "penicillin / antibiotics"),
+    ("nsaid", "nsaids"), ("ibuprofen", "nsaids"), ("aspirin", "nsaids"), ("bee", "bees / wasps"), ("wasp", "bees / wasps"), ("no", "no allergies"),
+];
+
+fn allergen(word: Option<&[char]>) -> Option<String> {
+    let word: String = word?.iter().collect();
+    ALLERGENS.iter().find(|(key, _)| word.starts_with(key)).map(|(_, value)| value.to_string())
+}
+
+fn recovered(m: &Match) -> Option<String> {
+    let text: String = m.first()?.iter().collect();
+    let value = if text.contains("porn") || text.contains("sex") {
+        "porn / sex"
+    } else if text.contains("gambl") {
+        "gambling"
+    } else if ["heroin", "opiate", "opioid", "fentanyl", "oxy", "dope"].iter().any(|word| text.contains(word)) {
+        "opioids"
+    } else if ["meth", "cocaine", "coke", "crack", "adderall", "speed", "stimulant"].iter().any(|word| text.contains(word)) {
+        "stimulants"
+    } else if ["benzo", "xanax", "klonopin", "valium", "ativan"].iter().any(|word| text.contains(word)) {
+        "benzodiazepines"
+    } else if ["sober", "alcohol", "booze", "drink"].iter().any(|word| text.contains(word)) {
+        "alcohol"
+    } else {
+        return None;
+    };
+    Some(value.to_string())
 }
 
 fn by(table: Ordered) -> impl Fn(&Match) -> Option<String> + Send + Sync + 'static {
@@ -356,8 +431,9 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     feeling_states.extend(&t.feelings);
     let mut loose_states = t.mental_loose.clone();
     loose_states.extend(&t.mental_state_strict);
+    let foreign_body = t.foreign_body_states.filter(|_, value| home(PHYSICAL_ATTRIBUTE, value) == PHYSICAL_ATTRIBUTE);
     let mut rules = vec![
-        unquoted("physical_condition", &format!(
+        unquoted("physical_conditions", &format!(
             r"m(?<!\wm)y (?:own |new |old |daily |current |rescue |emergency |stupid |damn |trusty |first |second |last |next |latest |recent |regular |usual |monthly |weekly |yearly |annual |(?!(?:{PEOPLE})(?:'s|s)? )\w+ (?:and )?)?({tool_names})\b(?! (?:friend|kid|son|daughter|brother|sister|partner|husband|wife|mom|dad)s?\b)"
         ), move |m| {
             if let Some(mental) = MENTAL_TAIL.search(m.string, m.start(), m.end()) {
@@ -367,52 +443,41 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             }
             get(&tool_lex, m.group(1))
         }, own()),
-        unquoted("physical_condition", &format!(
+        unquoted("physical_conditions", &format!(
             r"i(?<!\wi)(?: (?:also |still |now |have to |had to |need to |always |usually |currently |sometimes |must )?(?:wear|need|use|carry|have|got|take|took|started|start|am on|was on|was put on|got put on|was prescribed|got prescribed|inject|do|did|go to|see|saw|visit)|'m (?:also |still |now |currently )?(?:on|taking|using)|'ve (?:been on|been taking|been using|started)) (?:a |an |my |the |two |both |prescription |daily )?({tool_rule_names})\b"
         ), by(tool_strict), own()),
-        unquoted("physical_condition",
-            r"i(?<!\wi)(?:'?m| am|'ve gone| have gone|'m going| am going)(?: (?:also|now|already|still|basically|practically|essentially|technically))* (?:legally |completely |totally |profoundly |partially |mostly )?(?:deaf|blind|hard of hearing)\b|i(?<!\wi) (?:was )?born (?:without|with(?:out)? (?:a |an |one )?(?:missing|no) )|i(?<!\wi) (?:was )?born with (?:one|only one|half an?|a missing|no) (?:arm|leg|hand|foot|kidney|eye|ear|lung)\b|i(?<!\wi) (?:lost|had amputated|had to have amputated) (?:my |both |one of my |part of my )(?:\w+ )?(?:arm|leg|hand|foot|feet|legs|arms|fingers|toes|eye|sight|vision|hearing)\b",
-            |m| if !SENSE.test(m.text()) { Some("physical disability".to_string()) } else if FIGURATIVE.at(m.string, m.end()).is_some() { None } else { Some("vision or hearing impairment".to_string()) }, self_hedge()),
-        unquoted("physical_condition",
+        unquoted("physical_conditions", SENSES, sense(false), self_hedge()),
+        unquoted("vision", SENSES, sense(true), self_hedge()),
+        unquoted("physical_conditions",
             r"i(?<!\wi)(?:(?:'?m| am|'ve been| have been)(?: (?:also|still|currently|now|basically|literally|just|pretty much))*(?: (?:always|often|constantly|permanently|chronically|perpetually|frequently|usually|almost always) in(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|much|constant|chronic|daily))*| in(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|much))* (?:constant|chronic|daily|ongoing|almost constant|nearly constant|perpetual|permanent|never[- ]?ending|endless|everyday|lifelong|persistent)(?: (?:severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating))*)| live(?: (?:always|constantly|daily))? (?:in|with)(?: (?:a lot of|so much|severe|excruciating|agonizing|agonising|unbearable|terrible|horrible|significant|serious|extreme|intense|immense|crippling|debilitating|some|constant|chronic|daily|ongoing))*) pain\b(?! (?:management|clinic|meds|medications?|killers?|relief|pills?|doctors?|specialists?)\b)",
-            fixed("chronic pain or fibromyalgia"), self_hedge()),
-        unquoted("physical_condition", concat!(
-            r"m(?<!\wm)y (?:face|skin|scalp|face skin|facial skin) (?:is|has been|gets|get|keeps|is always|is still|is getting|has gotten|tends to be|is naturally|is super|is very|is so|is really|is extremely|is quite|is pretty|is kinda|is a bit|always gets)* ?",
-            r"(?:so |very |really |super |extremely |quite |pretty |kinda |a bit |naturally )?(?:dry|oily|sensitive|acne[- ]prone|prone to (?:acne|breakouts|redness|irritation)|breaking out|broken out|flaky|flaking|peeling|",
-            r"itchy|irritated|inflamed|congested|dehydrated|reactive|combination)\b"
-        ), fixed("skin condition"), own()),
-        unquoted("physical_condition", concat!(
-            r"m(?<!\wm)y (?:\w+ )?(?:back|knees?|hips?|joints|neck|shoulders?|wrists?|ankles?|feet|legs|hands|stomach) (?:still |always |really |constantly |also )?",
-            r"(?:hurts?|aches?|(?:is |are |has been |have been |keeps |keep )?(?:hurting|aching|killing me|sore|in pain))\b"
-        ), fixed("unspecified"), own()),
-        unquoted("mental_condition", &format!(r"(?:{have})\s+{modifier}(?:an? )?{gap}({loose})\b{FOLLOWERS}"), by(t.mental_loose.clone()), own()),
-        unquoted("mental_condition", &format!(r"{BARE}\s+{modifier}(?:an? )?{gap}({loose})\b{FOLLOWERS}"), by(t.mental_loose.clone()), others()),
-        unquoted("mental_condition", r"a(?<!\wa)s an? (suicidal|depressed|anxious|paranoid|psychotic)\b",
-            by(pairs(&[("suicidal", "other mental health condition"), ("depressed", "depression"), ("anxious", "anxiety"), ("paranoid", "anxiety"), ("psychotic", "schizophrenia or psychosis")])), self_hedge()),
-        unquoted("mental_condition",
-            r"(?:i(?<!\wi)(?: have|'ve had| was diagnosed with| got diagnosed with|'ve been diagnosed with|'m diagnosed with|'m on meds for| take meds for| was recently diagnosed with| also have| do have| have had)|d(?<!\wd)iagnosed with) (?:(?:severe|mild|moderate|chronic|clinical|diagnosed|combined[- ]type|inattentive[- ]type|bad|really bad|pretty bad|terrible|untreated|unmedicated|adult|both|some|serious) )*(add|did|ied|odd|osdd|trich|tics|insomnia|pmdd|hypomania|mania|panic attacks|anxiety attacks|binge eating|disordered eating|intrusive thoughts|suicidal thoughts|self harm|self-harm|childhood trauma|complex trauma|trauma|burnout|autistic burnout|executive dysfunction|sensory issues|gender dysphoria|separation anxiety|claustrophobia|dissociation|sleep paralysis|night terrors|a stutter|a speech impediment|stuttering|apraxia|a nervous breakdown|a mental breakdown|nervous breakdowns|emotional dysregulation)\b",
-            by(t.mental.with(&[("add", "adhd"), ("bed", "eating disorder"), ("ied", "other mental health condition"), ("odd", "other mental health condition")])), own()),
-        unquoted("mental_condition", &format!(r"m(?<!\wm)y {modifier}({loose})\b{FOLLOWERS}(?! (?:medication|meds)\b)"), by(t.mental_loose.clone()), own()),
-        unquoted("mental_condition",
-            r"m(?<!\wm)y (?:(?:own|official|formal|first|recent|new|adult|actual|initial|late) )*(adhd|autism|audhd|ocd|bpd|ptsd|cptsd|anxiety|depression|bipolar|ed|eating disorder|addiction|insomnia|tics|trich|did) (?:brain|meds|medication|diagnosis|symptoms|is|was|has|makes|gets|kicks|flares|got|took|and|so)\b",
-            by(t.mental.with(&[("bipolar", "bipolar disorder"), ("ed", "eating disorder"), ("insomnia", "other mental health condition"), ("tics", "other mental health condition"),
-                ("trich", "other mental health condition"), ("did", "other mental health condition")])), own()),
-        unquoted("mental_condition", &format!(
+            fixed("chronic pain / crps"), self_hedge()),
+        unquoted("mental_and_developmental_conditions", &format!(r"(?:{have})\s+{modifier}(?:an? )?{gap}({loose})\b{FOLLOWERS}"), by(t.mental_loose.clone()), own()),
+        unquoted("mental_and_developmental_conditions", &format!(r"{BARE}\s+{modifier}(?:an? )?{gap}({loose})\b{FOLLOWERS}"), by(t.mental_loose.clone()), others()),
+        unquoted("mental_and_developmental_conditions", r"a(?<!\wa)s an? (suicidal|depressed|anxious)\b",
+            by(pairs(&[("suicidal", "suicidality"), ("depressed", "depression"), ("anxious", "anxiety")])), self_hedge()),
+        unquoted("mental_and_developmental_conditions",
+            r"(?:i(?<!\wi)(?: have|'ve had| was diagnosed with| got diagnosed with|'ve been diagnosed with|'m diagnosed with|'m on meds for| take meds for| was recently diagnosed with| also have| do have| have had)|d(?<!\wd)iagnosed with) (?:(?:severe|mild|moderate|chronic|clinical|diagnosed|combined[- ]type|inattentive[- ]type|bad|really bad|pretty bad|terrible|untreated|unmedicated|adult|both|some|serious) )*(add|did|osdd|tics|pmdd|panic attacks|anxiety attacks|binge eating|suicidal thoughts|suicidal ideation)(?![\w'-])",
+            by(t.mental.with(&[("add", "adhd")])), own()),
+        unquoted("mental_and_developmental_conditions", &format!(r"m(?<!\wm)y {modifier}({loose})\b{FOLLOWERS}(?! (?:medication|meds)\b)"), by(t.mental_loose.clone()), own()),
+        unquoted("mental_and_developmental_conditions",
+            r"m(?<!\wm)y (?:(?:own|official|formal|first|recent|new|adult|actual|initial|late) )*(adhd|autism|audhd|ocd|bpd|ptsd|cptsd|anxiety|depression|bipolar|eating disorder|tics|did) (?:brain|meds|medication|diagnosis|symptoms|is|was|has|makes|gets|kicks|flares|got|took|and|so)\b",
+            by(t.mental.clone()), own()),
+        unquoted("mental_and_developmental_conditions", &format!(
             r"(?:a(?<!\wa)s(?: an?| a fellow| someone who is| a person who is| somebody with| a person with| someone with| one with)|b(?<!\wb)eing an?|m(?<!\wm)e, an?) (?:fellow |diagnosed |late[- ]diagnosed |recovering |recovered |formerly )?({loose}|{}) ?(?:person|woman|man|adult|guy|girl|individual|sufferer|patient|survivor|haver|myself|lady|dude|mom|dad|mother|father|parent|teen|kid|student|female|male|human|being)?\b",
             t.mental_state_strict.names()
         ), by(loose_states), self_hedge()),
-        unquoted("mental_condition", &format!(
+        unquoted("mental_and_developmental_conditions", &format!(
             r"i(?<!\wi)(?:'m|m| am| m|'ve been|ve been| have been| was| became|'m now|'m also|'m actually) (?:also |now |currently |technically |actually |literally |officially |still |pretty |very |so |really |too |super |just |severely |extremely |mildly |pretty much |basically |definitely |diagnosed |clinically |formally |medically |probably not |a diagnosed |a |an |self[- ]diagnosed |late[- ]diagnosed )*({})\b(?! (?:people|person|friend|friends|community|rights|folks|kids?|son|daughter|family|patients?|to (?:the|this|that|your|my|his|her|their|it|them|what|how|whether|any)|about|of|for(?! (?:a long time|a while|years|months|weeks|ages|decades|so long|most of my life|over|almost|nearly|the (?:past|last)|\d+))|from|by|over|with)\b)",
             feeling_states.names()
         ), by(feeling_states.clone()), own()),
-        unquoted("mental_condition", &format!(
+        unquoted("mental_and_developmental_conditions", &format!(
             r"(?:m(?<!\wm)y|i(?<!\wi)(?: take|'m on| am on|'ve been on| started|'m taking| am taking|'ve been taking| was put on| got put on| was prescribed| got prescribed| was given| switched to| take my| forgot my| forgot to take my| ran out of|'m out of)|p(?<!\wp)(?:rescribed me|ut me on)|g(?<!\wg)ave me|s(?<!\ws)witched me to) (?:\w+ )?(?:\d+\s?mg (?:of )?)?({})\b",
             t.adhd_drugs.names()
         ), by(t.adhd_drugs.clone()), self_hedge()),
-        unquoted("mental_condition", &format!(r"\b(audhd|au/dhd)\b{FOLLOWERS}"), fixed("both adhd and autism"), others()),
-        unquoted("mental_condition",
-            r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar|insomnia) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
-            by(t.mental.with(&[("bipolar", "bipolar disorder"), ("insomnia", "other mental health condition")])), self_hedge()),
+        unquoted("mental_and_developmental_conditions", &format!(r"\b(audhd|au/dhd)\b{FOLLOWERS}"), |m| if starts_at(m.string, 0, "r/") { Some("audhd".to_string()) } else { None }, others()),
+        unquoted("mental_and_developmental_conditions",
+            r"\b(adhd|autism|audhd|asd|ocd|ptsd|cptsd|bpd|anxiety|depression|bipolar) (?:brain|makes my|affects my|ruins my|means i|makes me|makes it|has made my|messes with my|fucks with my|controls my|took over my|runs my|got the better of me)\b",
+            by(t.mental.clone()), self_hedge()),
     ];
     for pattern in [
         format!(r"(?:r(?<!\wr)ecover(?:ing|ed)|i(?<!\wi)n recovery) from (?:my |an? )?({loose})\b"),
@@ -420,56 +485,68 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
         format!(r"^\W*(?:yep\W+|yeah\W+|also\W+|same\W+|me too\W+)?({loose})\W*$"),
         format!(r"(?:^|[.!?\n]\s*)also,? ({loose})\b(?=\W*(?:$|[.!?\n]))"),
     ] {
-        rules.push(unquoted("mental_condition", &pattern, by(t.mental_loose.clone()), own()));
+        rules.push(unquoted("mental_and_developmental_conditions", &pattern, by(t.mental_loose.clone()), own()));
     }
-    let caused = pairs(&[("depressed", "depression"), ("suicidal", "other mental health condition"), ("depression", "depression"), ("anxiety", "anxiety"), ("ptsd", "ptsd"),
-        ("an eating disorder", "eating disorder"), ("agoraphobic", "anxiety"), ("alcoholic", "addiction"), ("addict", "addiction")]).lex();
+    let caused = pairs(&[("depressed", "depression"), ("suicidal", "suicidality"), ("depression", "depression"),
+        ("an eating disorder", "eating disorder (unspecified)"), ("agoraphobic", "anxiety")]).lex();
     rules.extend([
-        unquoted("mental_condition",
-            r"(?:m(?<!\wm)a(?:de|kes|king)|l(?<!\wl)e(?:ft|aving)|g(?<!\wg)ave) me (?:really |so |very |super |severely |clinically |chronically )?(depressed|suicidal|depression|anxiety|ptsd|an eating disorder|agoraphobic)\b(?= *(?:$|[.!\n,;]|and\b|for (?:years|months|a long time)))|b(?<!\wb)ec(?:oming|ame|ome) an (alcoholic|addict)\b",
+        unquoted("mental_and_developmental_conditions",
+            r"(?:m(?<!\wm)a(?:de|kes|king)|l(?<!\wl)e(?:ft|aving)|g(?<!\wg)ave) me (?:really |so |very |super |severely |clinically |chronically )?(depressed|suicidal|depression|an eating disorder|agoraphobic)\b(?= *(?:$|[.!\n,;]|and\b|for (?:years|months|a long time)))",
             move |m| get(&caused, m.first()), own()),
-        unquoted("mental_condition",
-            r"f(?<!\wf)or my (adhd|autism|anxiety|depression|ocd|ptsd|cptsd|bipolar|bpd|insomnia|panic attacks|panic disorder|social anxiety|mdd|gad|ed|eating disorder|addiction|alcoholism)\b",
-            by(t.mental.with(&[("bipolar", "bipolar disorder"), ("ed", "eating disorder"), ("insomnia", "other mental health condition"), ("panic attacks", "anxiety")])), own()),
-        unquoted("mental_condition",
-            r"i(?<!\wi) (?:was|got) (?:\w+ )?(?:hospitalized|hospitalised|admitted|committed|sectioned|baker acted|5150'?d|put on a 5150|put in a psych ward|in a psych ward|in the psych ward|inpatient) (?:for|after|because of) (?:my |an? )?(depression|suicidal thoughts|a suicide attempt|suicide attempt|an overdose|psychosis|a psychotic episode|mania|a manic episode|an eating disorder|anorexia|bulimia|self harm|self-harm)\b",
-            by(pairs(&[("depression", "depression"), ("suicidal thoughts", "depression"), ("a suicide attempt", "depression"), ("suicide attempt", "depression"), ("an overdose", "addiction"), ("psychosis", "schizophrenia or psychosis"),
-                ("a psychotic episode", "schizophrenia or psychosis"), ("mania", "bipolar disorder"), ("a manic episode", "bipolar disorder"), ("an eating disorder", "eating disorder"), ("anorexia", "eating disorder"),
-                ("bulimia", "eating disorder"), ("self harm", "other mental health condition"), ("self-harm", "other mental health condition")])), own()),
-        unquoted("mental_condition",
-            r"i(?<!\wi)(?:'m|m| am|'ve been| have been) (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|several|many|over \d+|almost \d+|nearly \d+) (?:days?|weeks?|months?|years?|yrs?) (?:sober|clean|off (?:drugs|alcohol|heroin|meth|opiates|opioids|pills|booze|the booze|the drink|drinking))\b",
-            fixed("addiction"), self_hedge()),
-        unquoted("mental_condition",
-            r"i(?<!\wi)(?:'m|m| am|'ve been|ve been| got| became) (?:so |really |literally |kinda |pretty |super |very |totally |completely |still |seriously |severely )*addicted to\b",
-            fixed("addiction"), own()),
-        unquoted("mental_condition",
+        unquoted("mental_and_developmental_conditions",
+            r"f(?<!\wf)or my (adhd|autism|anxiety|depression|ocd|ptsd|cptsd|bipolar|bpd|panic attacks|panic disorder|social anxiety|mdd|gad|eating disorder)\b",
+            by(t.mental.clone()), own()),
+        unquoted("mental_and_developmental_conditions",
+            r"i(?<!\wi) (?:was|got) (?:\w+ )?(?:hospitalized|hospitalised|admitted|committed|sectioned|baker acted|5150'?d|put on a 5150|put in a psych ward|in a psych ward|in the psych ward|inpatient) (?:for|after|because of) (?:my |an? )?(depression|suicidal thoughts|a suicide attempt|suicide attempt|mania|a manic episode|an eating disorder|anorexia)\b",
+            by(pairs(&[("depression", "depression"), ("suicidal thoughts", "suicidality"), ("a suicide attempt", "suicidality"), ("suicide attempt", "suicidality"), ("mania", "bipolar"),
+                ("a manic episode", "bipolar"), ("an eating disorder", "eating disorder (unspecified)"), ("anorexia", "anorexia")])), own()),
+        unquoted("recovering_from",
+            r"i(?<!\wi)(?:'m|m| am|'ve been| have been)(?: now| officially| currently| finally)? (?:over |almost |nearly |about )?(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a few|several|many) (?:days?|weeks?|months?|years?|yrs?) (sober|alcohol[- ]free|off (?:alcohol|booze|the booze|the drink|drinking)|(?:clean|off) (?:from |of )?(?:heroin|opiates|opioids|fentanyl|oxy|meth|cocaine|coke|crack|adderall|benzos|xanax|klonopin)|porn[- ]?free|gambling[- ]free|gamble[- ]free)\b",
+            recovered, self_hedge()),
+        unquoted("recovering_from",
+            r"(?:i(?<!\wi)(?:'m| am)(?: also| now| still)?|a(?<!\wa)s) an? ((?:recovering|recovered|sober|former|ex-?) ?(?:alcoholic|heroin addict|opiate addict|opioid addict|fentanyl addict|gambling addict|gambler|porn addict|sex addict|meth addict|cocaine addict|crack addict|benzo addict)|(?:alcoholic|heroin addict|opiate addict|opioid addict|meth addict) in recovery)\b|i(?<!\wi)(?:'ve| have) been (sober) (?:for|since)\b|i(?<!\wi)(?:'m| am) (?:now |currently )?(?:in recovery|recovering) from (alcoholism|alcohol addiction|alcohol use disorder|opioid addiction|opiate addiction|heroin addiction|fentanyl addiction|gambling addiction|porn addiction|sex addiction|meth addiction|cocaine addiction|benzo addiction)\b|i(?<!\wi)(?:'ve| have)? (?:(?:finally|officially|just|also|recently|completely|since) )?(?:quit|stopped|gave up|given up) (drinking|alcohol|booze|the booze|the drink)\b(?! (?:soda|coffee|pop|energy|milk|juice|tea|water|caffeine|diet|coke|pepsi|monster|red bull|sugary|sweet|sugar|caffeinated|out|from|it|that|this|them|so much|as much|for(?! good\b))\b)",
+            recovered, self_hedge()),
+        unquoted("sober_time",
+            r"i(?<!\wi)(?:'m|m| am|'ve been| have been)(?: now| officially| currently| finally)? (?:over |almost |nearly |about )?(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a) (days?|weeks?|months?|years?|yrs?) (?:sober|clean)\b",
+            sober_days, self_hedge()),
+        unquoted("sober_time",
+            r"i(?<!\wi)(?:'ve| have) been (?:sober|clean) (?:for )?(?:over |almost |nearly |about )?(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a) (days?|weeks?|months?|years?|yrs?)\b",
+            sober_days, self_hedge()),
+        unquoted("mental_and_developmental_conditions",
             r"i(?<!\wi)(?:'m|m| am)(?: also| currently| still| now| back)? on (?:my |prescription |prescribed |stimulant )?(?:adhd|add) (?:meds|medications?|medicine|stimulants)\b|i(?<!\wi)(?:'m| am)? (?:take|took|started|need|taking|started taking|stopped taking) (?:my )?(?:adhd|add) (?:meds|medications?|medicine)\b",
             fixed("adhd"), own()),
-        unquoted("mental_condition",
+        unquoted("mental_and_developmental_conditions",
             r"m(?<!\wm)y (?:own )?(autistic|neurodivergent|adhd|audhd|dyslexic) (?:ass|self|brain|mind|side|butt|tendencies|traits|quirks|desire|desires|obsession|obsessions|experience|nature|needs|meltdowns?|hyperfixations?|hyperfocus|special interests?|stims?|stimming|logic|ways|moments?|struggles|symptoms|issues|habits)\b",
-            by(pairs(&[("autistic", "autism"), ("neurodivergent", "neurodivergent, unspecified"), ("adhd", "adhd"), ("audhd", "both adhd and autism"), ("dyslexic", "dyslexia")])), own()),
-        unquoted("mental_condition", &format!(r"{FOREIGN_AM}({})(?![\w'])", t.foreign_mind_states.names()), leading(&t.foreign_mind_states), Some(&*FOREIGN_SELF_HEDGE)),
-        unquoted("mental_condition", &format!(r"{FOREIGN_IS}{FOREIGN_PERSON}({})(?![\w'])", t.foreign_mind_extra.names()), leading(&t.foreign_mind_extra), Some(&*FOREIGN_SELF_HEDGE)),
-        unquoted("physical_condition", &format!(r"{FOREIGN_IS}{FOREIGN_PERSON}({})(?![\w'])", t.foreign_body_states.names()), leading(&t.foreign_body_states), Some(&*FOREIGN_SELF_HEDGE)),
-        unquoted("mental_condition",
+            by(pairs(&[("autistic", "autism"), ("neurodivergent", "neurodivergent (unspecified)"), ("adhd", "adhd"), ("audhd", "audhd"), ("dyslexic", "dyslexia / learning disorder")])), own()),
+        unquoted("mental_and_developmental_conditions", &format!(r"{FOREIGN_AM}({})(?![\w'])", t.foreign_mind_states.names()), leading(&t.foreign_mind_states), Some(&*FOREIGN_SELF_HEDGE)),
+        unquoted("mental_and_developmental_conditions", &format!(r"{FOREIGN_IS}{FOREIGN_PERSON}({})(?![\w'])", t.foreign_mind_extra.names()), leading(&t.foreign_mind_extra), Some(&*FOREIGN_SELF_HEDGE)),
+        unquoted("physical_conditions", &format!(r"{FOREIGN_IS}{FOREIGN_PERSON}({})(?![\w'])", foreign_body.names()), leading(&foreign_body), Some(&*FOREIGN_SELF_HEDGE)),
+        unquoted("mental_and_developmental_conditions",
             r"(?:we|us)(?<!\w(?:we|us))\W+(?:fellow |other )?(autistic|adhd|adhders|neurodivergent|nd|audhd|bipolar|ocd|anxious|depressed|dyslexic) (?:people|folks|adults|women|men|girls|guys|ones|kids|types|individuals|humans)\b",
-            by(pairs(&[("autistic", "autism"), ("adhd", "adhd"), ("adhders", "adhd"), ("neurodivergent", "neurodivergent, unspecified"), ("nd", "neurodivergent, unspecified"), ("audhd", "both adhd and autism"),
-                ("bipolar", "bipolar disorder"), ("ocd", "ocd"), ("anxious", "anxiety"), ("depressed", "depression"), ("dyslexic", "dyslexia")])), self_hedge()),
-        unquoted("mental_condition", &format!(
+            by(pairs(&[("autistic", "autism"), ("adhd", "adhd"), ("adhders", "adhd"), ("neurodivergent", "neurodivergent (unspecified)"), ("nd", "neurodivergent (unspecified)"), ("audhd", "audhd"),
+                ("bipolar", "bipolar"), ("ocd", "ocd"), ("anxious", "anxiety"), ("depressed", "depression"), ("dyslexic", "dyslexia / learning disorder")])), self_hedge()),
+        unquoted("mental_and_developmental_conditions", &format!(
             r"(?:i(?<!\wi)(?: was|'ve been| got| am|'m)|g(?<!\wg)ot|w(?<!\ww)as|b(?<!\wb)een|t(?<!\wt)(?:hey|herapist)|d(?<!\wd)octor|p(?<!\wp)sychiatrist) (?:\w+ )?(?:diagnosed|dx'?d) (?:me )?(?:with|as)(?: an?)? ({})\b",
             t.mental.names()
         ), by(t.mental.clone()), others()),
-        unquoted("mental_condition", &format!(
-            r"i(?<!\wi) (?:also |still |do )?(?:have|have had|struggle with|deal with|live with)(?: an?)? ({})\b(?! (?:to|with|of|that|for|in)\b)",
+        unquoted("mental_and_developmental_conditions", &format!(
+            r"i(?<!\wi) (?:also |still |do )?(?:have|have had|struggle with|deal with|live with)(?: an?)? ({})(?![\w'-])(?! (?:to|with|of|that|for|in)\b)",
             t.mental_words.names()
         ), by(t.mental.clone()), others()),
+        unquoted("medical_devices",
+            r"(?:m(?<!\wm)y|i(?<!\wi)(?:'m| am)? (?:also |now |currently |still |just )?(?:use|using|wear|wearing|have|got|started|switched to|am on|on|upgraded to)) (?:a |an |the |new |first |trusty )?(?:(dexcom(?: g[4-7])?|freestyle libre(?: [1-3]\+?)?|libre [1-3]\+?|libre sensors?|cgm|continuous glucose monitor|guardian sensor)|(insulin pump|omnipod(?: 5| dash)?|t[-:]?slim(?: x2)?|tandem (?:pump|mobi|t[-:]?slim)|medtronic (?:pump|minimed|6[37]0g|7[78]0g)|minimed(?: \d+g)?))(?![\w-])",
+            |m| Some(if m.has(1) { "cgm" } else { "insulin pump" }.to_string()), own()),
+        unquoted("allergies",
+            r"i(?<!\wi)(?:'m| am|'ve been| have been|'ve always been)(?: (?:also|very|severely|deathly|highly|super|really|extremely|mildly|slightly|quite|so|pretty|incredibly|horribly|terribly))* allergic to (?:most |all |many |both )?(peanuts?|tree nuts|nuts|almonds|cashews|walnuts|shellfish|shrimp|eggs?|dairy|milk|gluten|wheat|soy|fish|sesame|cats?|dogs?|horses?|rabbits?|pet dander|dander|pollen|grass|ragweed|hay|birch|dust|dust mites|mold|mould|latex|penicillin|amoxicillin|sulfa(?: drugs)?|antibiotics|nsaids|ibuprofen|aspirin|bees|bee stings|wasps)\b|(?:m(?<!\wm)y|i(?<!\wi) (?:also |still )?(?:have|suffer from|get|deal with)(?: an?| severe| bad| terrible| mild| really bad| awful| horrible)*) (food allerg(?:y|ies)|peanut allerg(?:y|ies)|(?:tree )?nut allerg(?:y|ies)|shellfish allerg(?:y|ies)|egg allerg(?:y|ies)|dairy allerg(?:y|ies)|milk allerg(?:y|ies)|seasonal allergies|hay ?fever|pollen allerg(?:y|ies)|grass allerg(?:y|ies)|cat allerg(?:y|ies)|dog allerg(?:y|ies)|pet allerg(?:y|ies)|dust allerg(?:y|ies)|mold allerg(?:y|ies)|latex allerg(?:y|ies)|penicillin allerg(?:y|ies)|sulfa allerg(?:y|ies)|bee allerg(?:y|ies)|gluten allerg(?:y|ies)|wheat allerg(?:y|ies)|soy allerg(?:y|ies)|fish allerg(?:y|ies)|sesame allerg(?:y|ies))\b|i(?<!\wi) (?:have|got) (no) (?:known )?allergies\b|i(?<!\wi)(?:'m| am) (not) allergic to anything\b",
+            |m| allergen(m.first()), own()),
         needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|automat|beep|bleep))(?![\s\S]*\b(?:{MODERATION})\b)(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_SELF}"), fixed("bot"), TAGGED), &BOT_WORDS),
         needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|beep|bleep|automat))(?![\s\S]*\b(?:{MODERATION})\b)[\s\S]*?{BOT_OWN}"), fixed("bot"), TAGGED), &BOT_WORDS),
         needs(rule("automated_account", &format!(r"^(?=[\s\S]*?(?:bot|beep|bleep|automat))(?![\s\S]*(?:\bu/\w|\bop\b))[\s\S]*?{BOT_OWN}"), fixed("bot"), TAGGED), &BOT_WORDS),
     ]);
-    let personal = t.mental_state_strict.filter(|_, value| NEURO.contains(&value) || value == "neurodivergent, unspecified");
+    rules.extend(habits::rules());
+    let personal = t.mental_state_strict.filter(|_, value| NEURO.contains(&value) || value == "neurodivergent (unspecified)");
     let personal_lex = personal.lex();
-    rules.push(rule("mental_condition", &PERSONAL_AD.replace("{}", &personal.names()), move |m| {
+    rules.push(rule("mental_and_developmental_conditions", &PERSONAL_AD.replace("{}", &personal.names()), move |m| {
         if SEEKING.test_in(m.string, m.start(), m.start_of(1) as usize) {
             None
         } else {
@@ -487,18 +564,13 @@ pub fn init() {
     timed("health init", || {
         LazyLock::force(&RULES);
         ailments::init();
+        medications::init();
     });
 }
 
 pub fn english_conditions() -> Vec<(&'static str, String, &'static str)> {
     let t = &*TABLES;
-    let mut known: HashSet<&str> = HashSet::default();
-    for table in [&t.physical, &t.physical_states, &t.physical_tools, &t.mental, &t.mental_states, &t.mind_extra] {
-        known.extend(table.keys.iter().map(|key| key.as_str()));
-    }
-    let wordnet: &'static str = Box::leak(data_file("wordnet_conditions.tsv").into_boxed_str());
-    let mut rows: Vec<(&'static str, String, &'static str)> = t.physical.iter().map(|(name, value)| ("physical_condition", name.clone(), value)).collect();
-    rows.extend(t.mental_loose.iter().map(|(name, value)| ("mental_condition", name.clone(), value)));
-    rows.extend(wordnet.lines().filter_map(|line| line.split_once('\t')).filter(|(name, _)| !known.contains(name)).map(|(name, value)| ("physical_condition", name.to_string(), value)));
+    let mut rows: Vec<(&'static str, String, &'static str)> = t.physical.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| (home(PHYSICAL_ATTRIBUTE, value), name.clone(), value)).collect();
+    rows.extend(t.mental_loose.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| ("mental_and_developmental_conditions", name.clone(), value)));
     rows
 }

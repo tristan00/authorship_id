@@ -12,13 +12,12 @@ from . import timed
 ENDPOINT = "https://query.wikidata.org/sparql"
 HEADERS = {"User-Agent": "authorship-id-lexicon/1.0", "Accept": "text/csv"}
 TARGET = Path(__file__).with_name("foreign_conditions.tsv")
-EXTRACTOR = Path(__file__).parents[1] / "extractor"
 LANGUAGES = ("es", "pt", "fr", "de", "it", "nl", "pl")
 CODES = ("P494", "P4229", "P7807", "P493", "P1692", "P663", "P1930")
 QUERY = ("SELECT DISTINCT ?en ?lang ?name ?kind WHERE {{ VALUES ?en {{ {names} }} ?item rdfs:label ?en . FILTER EXISTS {{ ?item {codes} ?code }} "
          "VALUES ?kind {{ rdfs:label skos:altLabel }} ?item ?kind ?name . BIND(LANG(?name) AS ?lang) FILTER(?lang IN ({languages})) }}")
-VALUE_ITEMS = {"Q12131": ("physical_condition", "physical disability"), "Q1179623": ("physical_condition", "physical disability"), "Q12029": ("mental_condition", "addiction"),
-               "Q59344393": ("mental_condition", "neurodivergent, unspecified")}
+VALUE_ITEMS = {"Q12131": ("physical_conditions", "disability (unspecified)"), "Q1179623": ("physical_conditions", "disability (unspecified)"),
+               "Q59344393": ("mental_and_developmental_conditions", "neurodivergent (unspecified)")}
 ITEM_QUERY = ("SELECT DISTINCT ?item ?lang ?name ?kind WHERE {{ VALUES ?item {{ {items} }} VALUES ?kind {{ rdfs:label skos:altLabel }} ?item ?kind ?name . BIND(LANG(?name) AS ?lang) "
               "FILTER(?lang IN ({languages})) }}")
 SHORT = 4
@@ -26,9 +25,8 @@ PLAIN = re.compile(r"[^\W\d_](?:[\w' -]*\w)?")
 BATCH = 300
 
 
-def english():
-    subprocess.run(["cargo", "build", "--release", "-q"], cwd=EXTRACTOR, check=True)
-    listed = subprocess.run([str(EXTRACTOR / "target" / "release" / "claims"), "conditions"], capture_output=True, text=True, encoding="utf-8", check=True).stdout
+def english(binary):
+    listed = subprocess.run([binary, "conditions"], capture_output=True, text=True, encoding="utf-8", check=True).stdout
     pairs = {}
     for line in listed.splitlines():
         attribute, name, value = line.split("\t")
@@ -48,8 +46,8 @@ def fetch(query):
 
 
 @timed
-def generate(target=TARGET):
-    known = english()
+def generate(binary, target=TARGET):
+    known = english(binary)
     lookup = {spelling: name for name in sorted(known) for spelling in spellings(name)}
     spelled = sorted(lookup)
     languages = ", ".join(f'"{lang}"' for lang in LANGUAGES)
@@ -67,4 +65,4 @@ def generate(target=TARGET):
 
 
 if __name__ == "__main__":
-    generate(Path(sys.argv[1]) if len(sys.argv) > 1 else TARGET)
+    generate(sys.argv[1], Path(sys.argv[2]) if len(sys.argv) > 2 else TARGET)

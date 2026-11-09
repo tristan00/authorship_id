@@ -175,8 +175,6 @@ pub struct Lexicon {
     pub sentence_cased: Map<Vec<Entry>>,
     pub team_words: Map<&'static str>,
     pub team_span: usize,
-    pub author_of_book: Map<&'static str>,
-    pub series_of_game: Map<&'static str>,
     pub places: FxHashSet<&'static str>,
     pub nations: FxHashSet<&'static str>,
     pub words: FxHashSet<&'static str>,
@@ -279,15 +277,6 @@ fn team_words(clubs_file: &str) -> Map<&'static str> {
         if heads.len() == 1 && !words.contains_key(key) {
             table.insert(leak(key.clone()), leak(heads[0].clone()));
         }
-    }
-    table
-}
-
-fn pairs(name: &str) -> Map<&'static str> {
-    let mut table: Map<&'static str> = FxHashMap::default();
-    for line in rows(name) {
-        let (a, b) = line.split_once('\t').unwrap();
-        table.insert(a, b);
     }
     table
 }
@@ -415,8 +404,6 @@ fn build() -> Lexicon {
         sentence_cased,
         team_words: FxHashMap::default(),
         team_span: 0,
-        author_of_book: pairs("book_authors.tsv"),
-        series_of_game: pairs("game_series.tsv"),
         places: rows("gazetteer.tsv").map(|line| line.split('\t').next().unwrap()).collect(),
         nations: rows("gazetteer.tsv").filter_map(|line| {
             let fields: Vec<&'static str> = line.split('\t').collect();

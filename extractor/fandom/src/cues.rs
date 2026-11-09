@@ -1,33 +1,14 @@
 use aho_corasick::{AhoCorasick, AhoCorasickKind};
 use std::sync::LazyLock;
 
-pub const POSITIVE: &[&str] = &[
-    " love", " adore", " enjoy", " like", " dig", " recommend", " second", " rewatched", " replayed", " obsessed", " addicted", " into", " fan of", " hooked", " enough of",
-    " fav", " good", " great", " amazing", " awesome", " excellent", " fantastic", " underrated", " underappreciated", " goat", " incredible", " perfect", " beautiful", " fun",
-    " peak", " fire", " best", " jam", " banger", " masterpiece", " classic", " brilliant", " phenomenal", " gorgeous", " wonderful", " playing", " watching", " listening",
-    " reading", " bingeing", " binging", " replaying", " rewatching", "for me", "mine is", "hands down",
-];
-pub const PRAISED: &[&str] = &[" peak", " goat", " amazing", " incredible", " underrated", " phenomenal", " masterpiece", " banger", " fire", " elite", "tier", " best"];
-pub const LIKED_PERSON: &[&str] = &[" like ", " liked "];
-pub const CHOICE: &[&str] = &["^("];
-pub const CREATED: &[&str] = &[" vid", " stream", " vod", " channel", " podcast", " content", " vlog"];
-pub const WATCHED: &[&str] = &[" youtube", " twitch", " tiktok", " kick"];
-pub const LISTENED: &[&str] = &[" listen", " jamming to ", " bumping "];
-pub const ALBUM: &[&str] = &["'s ", "s' "];
-pub const ALBUM_WORDS: &[&str] = &[" album", " song", " single", " discography", " tour", " concert", " record", " ep", " lp", " music", " vocals", " lyrics"];
-pub const SEEN: &[&str] = &[" saw ", " seen ", " see ", " seeing "];
-pub const SEEN_WORDS: &[&str] = &[" live", " in concert", " perform", " play live", " open for"];
-pub const WROTE: &[&str] = &[" book", " novel", " series", " trilogy", " saga", " writing"];
-pub const WRITTEN_BY: &[&str] = &["by "];
 pub const FAVOURED: &[&str] = &["fav", "^(like"];
 pub const FAV: &[&str] = &["fav"];
-pub const LOVED: &[&str] = &["love ", "loved ", "adore ", "adored ", "enjoy ", "enjoyed ", "obsessed with "];
+pub const LOVED: &[&str] = &["obsessed with "];
 pub const GOAT: &[&str] = &["goat ", "goat:"];
-pub const CRUSH: &[&str] = &["crush on ", "crushes on "];
 pub const STAN: &[&str] = &[" stan "];
 pub const FAN_OF: &[&str] = &[" fan of ", " supporter of ", " admirer of "];
 
-const LISTS: &[&[&str]] = &[POSITIVE, PRAISED, LIKED_PERSON, CHOICE, CREATED, WATCHED, LISTENED, ALBUM, ALBUM_WORDS, SEEN, SEEN_WORDS, WROTE, WRITTEN_BY, FAVOURED, FAV, LOVED, GOAT, CRUSH, STAN, FAN_OF];
+const LISTS: &[&[&str]] = &[FAVOURED, FAV, LOVED, GOAT, STAN, FAN_OF];
 
 static WORDS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
     let mut words: Vec<&'static str> = Vec::new();
@@ -64,7 +45,7 @@ macro_rules! masks {
     };
 }
 
-masks!(POSITIVE, PRAISED, LIKED_PERSON, CHOICE, CREATED, WATCHED, LISTENED, ALBUM, ALBUM_WORDS, SEEN, SEEN_WORDS, WROTE, WRITTEN_BY, FAVOURED, FAV, LOVED, GOAT, CRUSH, STAN, FAN_OF);
+masks!(FAVOURED, FAV, LOVED, GOAT, STAN, FAN_OF);
 
 pub struct Cues([u64; 4]);
 

@@ -1,5 +1,7 @@
+mod looks;
 mod rules;
 mod tags;
+mod traits;
 
 use claimcore::*;
 use std::collections::HashSet;
@@ -11,91 +13,74 @@ pub use tags::tags;
 pub const IM: &str = r"i(?<!\wi)(?:'m|m| am|am| m|'am|'?ve been|'ve always been)";
 pub const UNITS: &str = r"(?:years? ago|yrs? ago|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|times|percent|%|lbs?|kgs?|pounds|miles|km|cm|dollars|bucks|k\b|grand|hp|mph|degrees|feet|ft|inches|in\b(?!\s+(?!(?:a|an|the|few|couple|two|three|four|five|six|weeks?|months?|years?|days?|hours?|minutes?|length|girth|long|thick|wide|tall|cut|uncut|soft|hard|erect)\b)[a-z]{3,})|seconds|secs?|euros?|points|pts|ounces|oz|inch)";
 pub static OTHERS: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
-    r"\b(?:my|his|her|their|our|your|he|she|him|boyfriend|girlfriend|bf|gf|husband|wife|hubby|partner|ex|friend|son|daughter|brother|sister|mom|dad|mother|",
+    r"\b(?:my|his|her|their|our|your|he|she|him|boyfriend|girlfriend|bf|gf|husband|wife|hubby|partner|fianc\w*|spouse|ex|friend|son|daughter|brother|sister|mom|dad|mother|",
     r"father|dom|sub|guy|girl|man|woman|someone|somebody|with|e\.g|eg|example|like|for|to|and|older|younger|current|new|another|this|that|the)\W*$"
 )));
 pub static SELF: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:\b(?:i|me|myself|i'm|im|i am|ich|moi|yo|as|bin)(?:\s+an?)?|^)\W*$"));
 
 const BASE_GENDERS: &[(&str, &str)] = &[
-    ("guy", "male"), ("man", "male"), ("dude", "male"), ("male", "male"), ("boy", "male"), ("bloke", "male"), ("lad", "male"), ("gentleman", "male"), ("dad", "male"), ("father", "male"),
-    ("husband", "male"), ("hubby", "male"), ("mum", "female"), ("mom", "female"), ("mother", "female"), ("wife", "female"), ("woman", "female"), ("women", "female"), ("girl", "female"), ("female", "female"),
-    ("lady", "female"), ("gal", "female"), ("chick", "female"), ("girlie", "female"), ("dilf", "male"), ("m", "male"), ("f", "female"), ("nb", "non-binary"), ("non-binary", "non-binary"),
-    ("nonbinary", "non-binary"), ("enby", "non-binary"), ("genderfluid", "non-binary"), ("agender", "non-binary"), ("genderqueer", "non-binary"),
-    ("trans woman", "trans woman"), ("transwoman", "trans woman"), ("trans girl", "trans woman"), ("mtf", "trans woman"), ("trans man", "trans man"), ("transman", "trans man"),
-    ("trans guy", "trans man"), ("ftm", "trans man"), ("trans", "transgender, unspecified"), ("transgender", "transgender, unspecified"),
+    ("guy", "man"), ("man", "man"), ("dude", "man"), ("male", "man"), ("boy", "man"), ("bloke", "man"), ("lad", "man"), ("gentleman", "man"), ("dad", "man"), ("father", "man"),
+    ("husband", "man"), ("hubby", "man"), ("mum", "woman"), ("mom", "woman"), ("mother", "woman"), ("wife", "woman"), ("woman", "woman"), ("women", "woman"), ("girl", "woman"), ("female", "woman"),
+    ("lady", "woman"), ("gal", "woman"), ("chick", "woman"), ("girlie", "woman"), ("dilf", "man"), ("m", "man"), ("f", "woman"), ("nb", "nonbinary"), ("non-binary", "nonbinary"),
+    ("nonbinary", "nonbinary"), ("enby", "nonbinary"), ("genderfluid", "genderfluid"), ("agender", "agender"), ("genderqueer", "genderqueer"),
+    ("trans woman", "trans woman"), ("transwoman", "trans woman"), ("trans girl", "trans woman"), ("transgirl", "trans woman"), ("tgirl", "trans woman"), ("ts girl", "trans woman"), ("mtf", "trans woman"),
+    ("trans man", "trans man"), ("transman", "trans man"), ("trans guy", "trans man"), ("ftm", "trans man"),
 ];
 const KINSHIP: &[(&str, &str)] = &[
-    ("son", "male"), ("brother", "male"), ("uncle", "male"), ("nephew", "male"), ("grandpa", "male"), ("grandfather", "male"), ("granddad", "male"), ("grandad", "male"), ("stepdad", "male"), ("widower", "male"),
-    ("boyfriend", "male"), ("daughter", "female"), ("sister", "female"), ("aunt", "female"), ("niece", "female"), ("grandma", "female"), ("grandmother", "female"), ("granny", "female"),
-    ("stepmom", "female"), ("widow", "female"), ("girlfriend", "female"), ("housewife", "female"), ("mommy", "female"), ("bro", "male"), ("twink", "male"), ("femboy", "male"),
-    ("daddy", "male"), ("milf", "female"), ("hotwife", "female"), ("sahm", "female"), ("sahd", "male"),
+    ("son", "man"), ("brother", "man"), ("uncle", "man"), ("nephew", "man"), ("grandpa", "man"), ("grandfather", "man"), ("granddad", "man"), ("grandad", "man"), ("stepdad", "man"), ("widower", "man"),
+    ("boyfriend", "man"), ("daughter", "woman"), ("sister", "woman"), ("aunt", "woman"), ("niece", "woman"), ("grandma", "woman"), ("grandmother", "woman"), ("granny", "woman"),
+    ("stepmom", "woman"), ("widow", "woman"), ("girlfriend", "woman"), ("housewife", "woman"), ("mommy", "woman"), ("bro", "man"), ("twink", "man"), ("femboy", "man"),
+    ("daddy", "man"), ("milf", "woman"), ("hotwife", "woman"), ("sahm", "woman"), ("sahd", "man"),
 ];
 const PLURALS: &[(&str, &str)] = &[
-    ("men", "male"), ("guys", "male"), ("dudes", "male"), ("males", "male"), ("dads", "male"), ("fathers", "male"), ("husbands", "male"),
-    ("women", "female"), ("girls", "female"), ("ladies", "female"), ("females", "female"), ("moms", "female"), ("mothers", "female"), ("wives", "female"),
+    ("men", "man"), ("guys", "man"), ("dudes", "man"), ("males", "man"), ("dads", "man"), ("fathers", "man"), ("husbands", "man"),
+    ("women", "woman"), ("girls", "woman"), ("ladies", "woman"), ("females", "woman"), ("moms", "woman"), ("mothers", "woman"), ("wives", "woman"),
 ];
 const ROLES: &[(&str, &str)] = &[
-    ("bwc", "male"), ("bbc", "male"), ("bull", "male"), ("stud", "male"), ("boi", "male"), ("jock", "male"), ("bear", "male"), ("cub", "male"), ("king", "male"),
-    ("cougar", "female"), ("gilf", "female"), ("domme", "female"), ("queen", "female"), ("bbw", "female"), ("sis", "female"),
+    ("bwc", "man"), ("bbc", "man"), ("bull", "man"), ("stud", "man"), ("boi", "man"), ("jock", "man"), ("bear", "man"), ("cub", "man"), ("king", "man"),
+    ("cougar", "woman"), ("gilf", "woman"), ("domme", "woman"), ("queen", "woman"), ("bbw", "woman"), ("sis", "woman"),
 ];
 pub static GENDERS: LazyLock<Table> = LazyLock::new(|| [BASE_GENDERS, KINSHIP, PLURALS, ROLES].iter().flat_map(|t| t.iter()).map(|(k, v)| (k.to_string(), *v)).collect());
 pub static GENDER_WORDS: LazyLock<String> = LazyLock::new(|| {
     let kin = KINSHIP.iter().map(|(k, _)| *k).collect::<Vec<_>>().join("|");
-    format!(r"(guy|man|dude|male|boy|bloke|lad|gentleman|dad|father|husband|mum|mom|mother|wife|woman|(?<=\ba )women|girl|female|lady|gal|chick|bull|stud|boi|cougar|gilf|domme|{kin})")
+    format!(r"(?<!\btrans )(?<!\btrans-)(?<!\btransgender )(?<!\bcis )(?<!\bcis-)(?<!\bcisgender )(guy|man|dude|male|boy|bloke|lad|gentleman|dad|father|husband|mum|mom|mother|wife|woman|(?<=\ba )women|girl|female|lady|gal|chick|bull|stud|boi|cougar|gilf|domme|{kin})")
 });
 pub const ADJECTIVES: &str = concat!(
     r"(?:(?:\d{2}[- ]?(?:years?|yrs?|y/?o)(?:[- ]old)?|single|married|straight|gay|bi|bisexual|white|black|asian|latino|latina|hispanic|indian|young|old|older|middle[- ]aged|",
-    r"tall|short|fat|chubby|skinny|fit|average|normal|regular|grown|cis|cisgender|divorced|disabled|autistic|working|stay[- ]at[- ]home|new|first[- ]time|",
+    r"tall|short|fat|chubby|skinny|fit|average|normal|regular|grown|divorced|disabled|autistic|working|stay[- ]at[- ]home|new|first[- ]time|",
     r"american|british|canadian|australian|christian|muslim|jewish|catholic|retired|lonely|horny|shy|curvy|petite|busy|proud) ){0,3}"
 );
 pub static ORIENTATIONS: LazyLock<Table> = LazyLock::new(|| table(&[
     ("gay", "gay"), ("lesbian", "lesbian"), ("bisexual", "bisexual"), ("bi", "bisexual"), ("pansexual", "pansexual"), ("pan", "pansexual"), ("asexual", "asexual"), ("ace", "asexual"),
-    ("queer", "queer, unspecified"), ("straight", "straight"), ("heterosexual", "straight"), ("hetero", "straight"), ("homosexual", "gay"), ("aroace", "asexual"), ("aro-ace", "asexual"), ("str8", "straight"),
+    ("queer", "queer"), ("straight", "straight"), ("heterosexual", "straight"), ("hetero", "straight"), ("homosexual", "gay"), ("aroace", "asexual"), ("aro-ace", "asexual"), ("str8", "straight"),
+    ("heteroflexible", "heteroflexible"), ("hetero-flexible", "heteroflexible"), ("aegosexual", "aegosexual"), ("androsexual", "androsexual"), ("cishet", "straight"),
 ]));
 const BASE_ETHNICITIES: &[(&str, &str)] = &[
-    ("white", "white"), ("caucasian", "white"), ("black", "black"), ("african american", "black"), ("asian", "east asian"), ("east asian", "east asian"), ("chinese", "east asian"),
-    ("korean", "east asian"), ("japanese", "east asian"), ("taiwanese", "east asian"), ("south asian", "south asian"), ("indian", "south asian"), ("desi", "south asian"),
-    ("pakistani", "south asian"), ("bangladeshi", "south asian"), ("southeast asian", "southeast asian"), ("filipino", "southeast asian"), ("filipina", "southeast asian"),
-    ("vietnamese", "southeast asian"), ("thai", "southeast asian"), ("latino", "hispanic or latino"), ("latina", "hispanic or latino"), ("latinx", "hispanic or latino"),
-    ("hispanic", "hispanic or latino"), ("mexican", "hispanic or latino"), ("arab", "middle eastern or north african"), ("middle eastern", "middle eastern or north african"),
-    ("persian", "middle eastern or north african"), ("native american", "indigenous"), ("indigenous", "indigenous"), ("aboriginal", "indigenous"),
-    ("pacific islander", "pacific islander"), ("mixed", "mixed"), ("mixed race", "mixed"), ("biracial", "mixed"), ("bi-racial", "mixed"), ("multiracial", "mixed"), ("multi-racial", "mixed"), ("multiethnic", "mixed"), ("multi-ethnic", "mixed"), ("mixed-race", "mixed"), ("african", "black"),
+    ("white", "white"), ("caucasian", "white"), ("black", "black"), ("african american", "black"), ("asian", "asian"), ("east asian", "east asian"), ("southeast asian", "southeast asian"),
+    ("south east asian", "southeast asian"), ("south asian", "south asian / desi"), ("desi", "south asian / desi"), ("latino", "latino / latina"), ("latina", "latino / latina"),
+    ("latinx", "latino / latina"), ("chicano", "latino / latina"), ("chicana", "latino / latina"), ("hispanic", "hispanic"), ("arab", "arab / middle eastern"),
+    ("middle eastern", "arab / middle eastern"), ("persian", "persian / iranian"), ("iranian", "persian / iranian"), ("native american", "indigenous"), ("indigenous", "indigenous"),
+    ("aboriginal", "indigenous"), ("first nations", "indigenous"), ("mestizo", "mestizo / mestiza"), ("mestiza", "mestizo / mestiza"), ("pacific islander", "pacific islander"),
+    ("samoan", "pacific islander"), ("polynesian", "pacific islander"), ("tongan", "pacific islander"), ("north african", "north african"), ("amazigh", "north african"),
+    ("ashkenazi", "jewish (ethnic)"), ("sephardic", "jewish (ethnic)"), ("mizrahi", "jewish (ethnic)"),
+    ("mixed", "mixed"), ("mixed race", "mixed"), ("biracial", "mixed"), ("bi-racial", "mixed"), ("multiracial", "mixed"), ("multi-racial", "mixed"), ("multiethnic", "mixed"), ("multi-ethnic", "mixed"), ("mixed-race", "mixed"),
 ];
-const SPANISH_SPEAKING_AMERICA: &[&str] = &["argentine", "argentinian", "bolivian", "chilean", "colombian", "costa rican", "cuban", "dominican", "ecuadorian", "guatemalan", "honduran", "mexican", "nicaraguan", "panamanian", "paraguayan", "peruvian", "puerto rican", "salvadoran", "uruguayan", "venezuelan"];
-const ARAB_LEAGUE_AND_IRAN: &[&str] = &["algerian", "bahraini", "comorian", "djiboutian", "egyptian", "emirati", "iranian", "iraqi", "jordanian", "kuwaiti", "lebanese", "libyan", "mauritanian", "moroccan", "omani", "palestinian", "qatari", "saudi", "somali", "sudanese", "syrian", "tunisian", "yemeni"];
-pub static ETHNIC_KEYS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
-    let mut keys: Vec<&'static str> = Vec::new();
-    let all = BASE_ETHNICITIES.iter().map(|(k, _)| *k).chain(SPANISH_SPEAKING_AMERICA.iter().copied()).chain(ARAB_LEAGUE_AND_IRAN.iter().copied());
-    for key in all {
-        if !keys.contains(&key) {
-            keys.push(key);
-        }
-    }
-    keys
-});
-pub static ETHNICITIES: LazyLock<Table> = LazyLock::new(|| {
-    let mut map = table(BASE_ETHNICITIES);
-    for name in SPANISH_SPEAKING_AMERICA {
-        map.insert(name.to_string(), "hispanic or latino");
-    }
-    for name in ARAB_LEAGUE_AND_IRAN {
-        map.insert(name.to_string(), "middle eastern or north african");
-    }
-    map
-});
-pub static ETHNIC_JOINED: LazyLock<String> = LazyLock::new(|| alternation(ETHNIC_KEYS.iter().copied()));
-pub static ETHNIC_NAMES: LazyLock<String> = LazyLock::new(|| escaped_longest(ETHNIC_KEYS.iter().copied()));
+pub static ETHNIC_KEYS: LazyLock<Vec<&'static str>> = LazyLock::new(|| BASE_ETHNICITIES.iter().map(|(k, _)| *k).collect());
+pub static ETHNICITIES: LazyLock<Table> = LazyLock::new(|| table(BASE_ETHNICITIES));
+const REGION_BEFORE: &str = r"(?<!\beast )(?<!\beast-)(?<!\bsouth )(?<!\bsouth-)(?<!\bsoutheast )(?<!\bnorth )";
+pub static ETHNIC_JOINED: LazyLock<String> = LazyLock::new(|| format!("{REGION_BEFORE}(?:{})", alternation(ETHNIC_KEYS.iter().copied())));
+pub static ETHNIC_NAMES: LazyLock<String> = LazyLock::new(|| format!("{REGION_BEFORE}(?:{})", escaped_longest(ETHNIC_KEYS.iter().copied())));
 const BODIES_LIST: &[(&str, &str)] = &[
-    ("skinny", "slim"), ("very thin", "very thin"), ("underweight", "very thin"), ("thin", "slim"), ("slim", "slim"), ("slender", "slim"), ("lean", "slim"), ("athletic", "athletic or muscular"),
-    ("muscular", "athletic or muscular"), ("fit", "athletic or muscular"), ("buff", "athletic or muscular"), ("jacked", "athletic or muscular"), ("toned", "athletic or muscular"),
-    ("average", "average"), ("average build", "average"), ("curvy", "curvy"), ("thick", "curvy"), ("chubby", "chubby or overweight"), ("overweight", "chubby or overweight"),
-    ("fat", "chubby or overweight"), ("heavy", "chubby or overweight"), ("bbw", "chubby or overweight"), ("plus size", "chubby or overweight"), ("plus-size", "chubby or overweight"),
-    ("obese", "obese"), ("morbidly obese", "obese"), ("petite", "slim"),
+    ("skinny", "slim / skinny"), ("very thin", "slim / skinny"), ("underweight", "slim / skinny"), ("thin", "slim / skinny"), ("slim", "slim / skinny"), ("slender", "slim / skinny"), ("lean", "slim / skinny"), ("athletic", "fit / athletic"),
+    ("muscular", "muscular"), ("fit", "fit / athletic"), ("buff", "muscular"), ("jacked", "muscular"), ("toned", "fit / athletic"),
+    ("average", "average"), ("average build", "average"), ("curvy", "curvy"), ("thick", "thick"), ("chubby", "chubby"), ("overweight", "overweight"),
+    ("fat", "fat"), ("heavy", "big / heavyset"), ("heavyset", "big / heavyset"), ("heavy-set", "big / heavyset"), ("bbw", "bbw"), ("plus size", "plus size"), ("plus-size", "plus size"),
+    ("obese", "obese"), ("morbidly obese", "obese"), ("petite", "petite"), ("slim thick", "slim thick"), ("slim-thick", "slim thick"), ("slim thicc", "slim thick"), ("slimthick", "slim thick"),
 ];
 pub static BODIES: LazyLock<Table> = LazyLock::new(|| table(BODIES_LIST));
 const SHAPES_LIST: &[(&str, &str)] = &[
-    ("muscled", "athletic or muscular"), ("shredded", "athletic or muscular"), ("thicc", "curvy"), ("chub", "chubby or overweight"), ("chunky", "chubby or overweight"), ("dadbod", "average"), ("dad bod", "average"), ("dad-bod", "average"), ("beefy", "athletic or muscular"), ("stocky", "chubby or overweight"),
-    ("hourglass", "curvy"), ("rellenita", "chubby or overweight"), ("gordita", "chubby or overweight"), ("flaca", "very thin"), ("tiny", "very thin"), ("ripped", "athletic or muscular"), ("toned", "athletic or muscular"), ("jock", "athletic or muscular"), ("ssbbw", "chubby or overweight"),
+    ("muscled", "muscular"), ("shredded", "muscular"), ("thicc", "thick"), ("chub", "chubby"), ("chunky", "chubby"), ("dadbod", "dad bod"), ("dad bod", "dad bod"), ("dad-bod", "dad bod"), ("beefy", "muscular"), ("stocky", "stocky"),
+    ("hourglass", "curvy"), ("rellenita", "chubby"), ("gordita", "chubby"), ("flaca", "slim / skinny"), ("tiny", "petite"), ("ripped", "muscular"), ("toned", "fit / athletic"), ("jock", "fit / athletic"), ("ssbbw", "bbw"),
 ];
 pub static SHAPES: LazyLock<Table> = LazyLock::new(|| table(SHAPES_LIST));
 pub static BODY_ALL: LazyLock<String> = LazyLock::new(|| longest_first(BODIES_LIST.iter().chain(SHAPES_LIST.iter()).map(|(k, _)| *k)));
@@ -103,14 +88,15 @@ pub static BODY_WORDS: LazyLock<String> = LazyLock::new(|| {
     escaped_longest(BODIES_LIST.iter().chain(SHAPES_LIST.iter()).map(|(k, _)| *k).filter(|k| !["average", "heavy", "tiny", "thick", "very thin"].contains(k)))
 });
 pub static HAIRS: LazyLock<Table> = LazyLock::new(|| table(&[
-    ("blonde", "blonde"), ("blond", "blonde"), ("brown", "brown"), ("brunette", "brown"), ("black", "black"), ("red", "red"), ("ginger", "red"), ("auburn", "red"), ("a redhead", "red"),
-    ("redhead", "red"), ("a ginger", "red"), ("grey", "grey or white"), ("gray", "grey or white"), ("white", "grey or white"), ("silver", "grey or white"), ("pink", "dyed unusual color"),
-    ("blue", "dyed unusual color"), ("purple", "dyed unusual color"), ("green", "dyed unusual color"), ("teal", "dyed unusual color"), ("turquoise", "dyed unusual color"), ("lavender", "dyed unusual color"), ("salt and pepper", "grey or white"), ("salt n' pepper", "grey or white"), ("bald", "bald"), ("balding", "bald"), ("a blonde", "blonde"), ("shaved head", "bald"),
+    ("blonde", "blonde"), ("blond", "blonde"), ("brown", "brown / brunette"), ("brunette", "brown / brunette"), ("black", "black"), ("red", "red / ginger"), ("ginger", "red / ginger"), ("auburn", "auburn"), ("a redhead", "red / ginger"),
+    ("redhead", "red / ginger"), ("a ginger", "red / ginger"), ("grey", "grey / greying"), ("gray", "grey / greying"), ("greying", "grey / greying"), ("graying", "grey / greying"),
+    ("white", "white"), ("silver", "grey / greying"), ("pink", "pink"), ("purple", "purple"), ("strawberry blonde", "strawberry blonde"), ("strawberry blond", "strawberry blonde"),
+    ("blue", "blue"), ("teal", "teal"), ("turquoise", "teal"), ("salt and pepper", "salt and pepper"), ("salt n' pepper", "salt and pepper"), ("a blonde", "blonde"),
 ]));
 pub const FREE: &str = r#"(?:(?!(?:not|never|no|with|for|to|than|like|and|or|that|who|this|the|my|his|her|your|their|our|a|an|in|on|at|from|about|by|into|fan|friend|friends)\b)[\w'"”-]+ )"#;
 pub static COLORS: LazyLock<Table> = LazyLock::new(|| table(&[("ebony", "black"), ("wasian", "mixed"), ("blk", "black")]));
 pub static OTHER_ETHNIC: LazyLock<String> = LazyLock::new(|| {
-    escaped_longest(ETHNIC_KEYS.iter().copied().chain(["ebony", "wasian", "blk"]).filter(|w| !["white", "black", "mixed"].contains(w)))
+    format!("{REGION_BEFORE}(?:{})", escaped_longest(ETHNIC_KEYS.iter().copied().chain(["ebony", "wasian", "blk"]).filter(|w| !["white", "black", "mixed"].contains(w))))
 });
 pub const PERSON: &str = r"(?:m|f|male|female|guy|girl|man|woman|dude|bro|boy|top|bottom|bull|daddy|dad|mom|milf|wife|hubby|couple|here|stud|twink|bear|femboy|sub|dom|\d{2})\b";
 pub static STATURE: LazyLock<Re> = LazyLock::new(|| Re::new(r#"([4-7])(?<![\w.$'][4-7])(?:\s?(?:'|ft|foot|feet)\s?(\d{1,2})?|["”](?=\d)(\d{1,2}))\s?(?:"|”|''|in\b|inches)?(?![\d'"”])"#));
@@ -139,7 +125,7 @@ pub const BODY_NOUNS: &str = r"(?:build|built|body|bod|frame|figure|shape|girl|g
 pub const CROWD: &str = r"(?:guys|girls|women|men|ladies|tops|bottoms|bulls|bros|dudes|couples|people|queens|wives|moms|milfs|daddies|bears|twinks|chicks|females|males|chasers)\b";
 pub const DESIRED_PATTERN: &str = r"n't\b|\bain'?t\b|\b(?<!-)(?:looking|look for|seeking|thing for|searching for|prefer\w*|pref|into|love|loves|like|likes|interested in|any|bonus|must|not|isn't|no|if|you|your|you're|ur)\b";
 pub static DESIRED: LazyLock<Re> = LazyLock::new(|| Re::new(DESIRED_PATTERN));
-pub static DESCRIBED: LazyLock<Re> = LazyLock::new(|| Re::new(&(r"(?:^|[\s,.!/(|+-])(?<!slim )(?<!skinny )(thin|lean|fit|muscled|shredded|jacked|buff|fat|tiny|average|ripped|hourglass|rellenita|gordita|flaca)".to_string()
+pub static DESCRIBED: LazyLock<Re> = LazyLock::new(|| Re::new(&(r"(?:^|[\s,.!/(|+-])(?<!slim )(?<!skinny )(?<!body )(?<!% )(?<!\dg )(thin|lean|fit|muscled|shredded|jacked|buff|fat|tiny|average|ripped|hourglass|rellenita|gordita|flaca)".to_string()
     + &format!(r"(?! (?:\w+ ){{0,2}}{CROWD})(?= (?:\w+ ){{0,2}}?{BODY_NOUNS}| (?:and |but |with |w/ |af\b|asf\b|\d)|[\s,.!/)|]*$|\s*[,/|.!&+])"))));
 pub static WANTING: LazyLock<Re> = LazyLock::new(|| Re::new(&(r"\b(?:want|wants|wish|wished|need|needs)\b|".to_string() + DESIRED_PATTERN)));
 pub static ETHNIC: LazyLock<Re> = LazyLock::new(|| {
@@ -148,8 +134,8 @@ pub static ETHNIC: LazyLock<Re> = LazyLock::new(|| {
 });
 
 pub static POSTERS: LazyLock<Table> = LazyLock::new(|| table(&[
-    ("m", "male"), ("f", "female"), ("w", "female"), ("fb", "female"), ("fu", "female"), ("futa", "female"), ("tf", "trans woman"), ("mtf", "trans woman"), ("tm", "trans man"),
-    ("ftm", "trans man"), ("nb", "non-binary"), ("wm", "male"), ("mwm", "male"), ("swm", "male"), ("dwm", "male"), ("bm", "male"), ("wf", "female"),
+    ("m", "man"), ("f", "woman"), ("w", "woman"), ("fb", "woman"), ("fu", "woman"), ("futa", "woman"), ("tf", "trans woman"), ("tm", "trans man"),
+    ("nb", "nonbinary"), ("wm", "man"), ("mwm", "man"), ("swm", "man"), ("dwm", "man"), ("bm", "man"), ("wf", "woman"),
 ]));
 pub static LOOKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![a-z0-9])(?:[\[\(]?(\d{2})(?:\s*/\s*\d{2})?[\]\)]?\s*)?[\[\(]?\s*(nb|mtf|ftm|tf|tm|futa|fb|fu|[mf])((?:[mf]|/\w+)*)\s*4\s*((?:[mfatr]|me|nb|[a-z](?=[a-z/]*\s*[\]\)]))[a-z/]*)\s*[\]\)]?(?:\s*[-–|:#]?\s*[\[\(]?(\d{2})(?!\d))?"));
 pub static AGED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?=[\dmfwsdbtn])(?<![\w$£€#'/:+-])(?<![\w,]\.)(?<!\d,)(?:(\d{2})(?:\s?[/\\|-]?|,)\s?((?:[smd]?w|b)m|wf|mtf|ftm|tf|tm|fb|nb|[mf])(?:(?<=m)f(?![\w'])|(?<=f)m(?![\w']))?|((?:[smd]?w|b)m|tf|tm|fb|nb|[mfw])\s?[/'.,-]?\s?(\d{2})(?:[mfa](?![\w'])|(?<=m\d\d)f\d{2}(?![\w'])|(?<=f\d\d)m\d{2}(?![\w']))?)(?!(?!_)[\w'%]|[-/]\d|-[a-z]\d)"));
@@ -166,7 +152,7 @@ pub static SPEAKER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i|i'm|im|i am
 pub static WORDED: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"(?=[\dmf])(?<![\w$#.,'/:+-])(?:(\d{{2}})\s?(?:yo|y/o|yrs?|years?(?: old)?)?(?:\s*/\s*|[\s,]*){ADJECTIVES}\(?(male|female)\)?|(male|female)(?:\s*/\s*|[\s,]*)(\d{{2}}))(?![\w'%])")));
 pub static BRACKETED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?=[\d(\[mf])(?<![\w$#.,'/:+-])(?:(\d{2})\s?[\(\[]\s*([mf])\s*[\)\]]|[\(\[](\d{2})[\)\]]\s?(m|f|male|female)\b|([mf])\s?[\(\[](\d{2})[\)\]]|[\(\[]([mf])[\)\]]\s?(\d{2})\b)"));
 pub static ANATOMY: LazyLock<Table> = LazyLock::new(|| table(&[
-    ("cock", "male"), ("dick", "male"), ("penis", "male"), ("balls", "male"), ("foreskin", "male"), ("bwc", "male"), ("bbc", "male"), ("pussy", "female"), ("vagina", "female"), ("clit", "female"), ("tits", "female"), ("boobs", "female"), ("breasts", "female"), ("pregnant", "female"),
+    ("cock", "man"), ("dick", "man"), ("penis", "man"), ("balls", "man"), ("foreskin", "man"), ("bwc", "man"), ("bbc", "man"), ("pussy", "woman"), ("vagina", "woman"), ("clit", "woman"), ("tits", "woman"), ("boobs", "woman"), ("breasts", "woman"), ("pregnant", "woman"),
 ]));
 pub static HUNG: LazyLock<Re> = LazyLock::new(|| Re::new(r"(b[wb]c)(?<![\w-]b[wb]c)(?![\w-])"));
 pub static COMPARED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:is|was|are|were|be|being|than|of|to|from|between|claims|claimed|like|avg|average|mine's|mines|u|ur|you|your|you're|she|he|her|his|they|their|wife|husband|gf|bf|under|over|at least|taller|shorter|e\.g)\b"));
@@ -205,7 +191,7 @@ pub fn owned(lowered: &[char], start: usize) -> bool {
 
 pub fn bodied(text: &[char], start: usize, word: &[char]) -> Option<String> {
     if (eq(word, "skinny") || eq(word, "thin")) && INTENSE.test_in(text, start.saturating_sub(12), start) {
-        return Some("very thin".to_string());
+        return Some("slim / skinny".to_string());
     }
     let key = st(word);
     BODIES.get(&key).or_else(|| SHAPES.get(&key)).map(|v| v.to_string())
@@ -241,7 +227,7 @@ pub fn ages(value: Option<&[char]>) -> Option<String> {
         return None;
     }
     let number = py_int(value)?;
-    if (13..=99).contains(&number) {
+    if (13..=90).contains(&number) {
         Some(st(value))
     } else {
         None
@@ -270,6 +256,8 @@ pub fn init() {
             LazyLock::force(re);
         }
         tags::force();
+        traits::force();
+        looks::force();
         rules::force();
         LazyLock::force(&STURDY);
     });
