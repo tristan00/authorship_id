@@ -13,6 +13,8 @@ ureq = { version = "2", default-features = false }
 crossbeam-channel = "0.5"
 tokenizers = { version = "0.21", default-features = false, features = ["fancy-regex"] }
 serde_json = "1"
+half = "2"
+sha2 = "0.10"
 
 [profile.release]
 opt-level = 3

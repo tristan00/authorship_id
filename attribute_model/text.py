@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-import subprocess
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,15 +12,12 @@ from author_encoder import clean
 from author_encoder.config import LUAR, MAX_LENGTH, TOKEN_BUDGET
 from author_encoder.model import load_model as load_encoder
 from author_encoder.tokens import load_tokenizer
-from database import host
-
 from . import LOG, timed, write_json
 from .config import DATA, SPLITS, TEXT_DATA, TEXT_ENCODE
-from .data import SPREAD_ROWS
 from .predict import load_model, predict
 
-IO = Path(__file__).parent / "io" / "target" / "release" / "attribute_io.exe"
 SHARED = ("labels.npy", "splits.npy", "authors.json")
+SPREAD_ROWS = 1 << 20
 
 
 def batched(lengths, flat):
@@ -38,8 +34,9 @@ def batched(lengths, flat):
 
 @timed
 def tokenized(staging, source):
+    from pipeline.run import rust
     tokenizer = hf_hub_download(LUAR[0], "tokenizer.json", revision=LUAR[1], local_files_only=True)
-    subprocess.run([str(IO), "texts", "--authors", str(source / "authors.json"), "--out", str(staging), "--tokenizer", tokenizer, "--max-length", str(MAX_LENGTH), "--host", host()], check=True)
+    rust("attribute_model/io", "attribute_io", "texts", "attribute_texts.log", "--authors", str(source / "authors.json"), "--out", str(staging), "--tokenizer", tokenizer, "--max-length", str(MAX_LENGTH))
     lengths = np.load(staging / "lengths.npy").astype(np.int64)
     flat = np.fromfile(staging / "tokens.bin", dtype=np.int32)
     if lengths.sum() != len(flat):

@@ -15,10 +15,10 @@ ROOT = Path(__file__).parents[1]
 
 
 @timed
-def rust(crate, binary, command, log):
+def rust(crate, binary, command, log, *args):
     subprocess.run(["cargo", "build", "--release"], cwd=ROOT / crate, check=True)
     with open(LOGS / log, "a", encoding="utf-8") as out:
-        subprocess.run([str(ROOT / crate / "target" / "release" / binary), command, "--host", host(), "--threads", str(os.cpu_count() - 2)], check=True, stderr=out)
+        subprocess.run([str(ROOT / crate / "target" / "release" / binary), command, *args, "--host", host(), "--threads", str(os.cpu_count() - 2)], check=True, stderr=out)
 
 
 @timed
