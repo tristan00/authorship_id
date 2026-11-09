@@ -540,6 +540,46 @@ pub fn interests(lowered: &[char], found: &mut Found) {
     if meets(&bits, &GATES.hobbies) {
         hobbies(lowered, found);
     }
+    let devices: Vec<(String, String, usize)> = found.items.iter().filter(|(attribute, _, _)| attribute == "phone" || attribute == "cpu").cloned().collect();
+    for (attribute, value, position) in devices {
+        if attribute == "cpu" {
+            found.set("cpu", vendor(&value), position);
+        } else {
+            let (brand, system) = handset(&value);
+            found.set("phone", brand, position);
+            found.set("operating_system", system, position);
+        }
+    }
+}
+
+fn vendor(cpu: &str) -> &'static str {
+    if cpu.contains("intel") || cpu.contains("core") || cpu.starts_with('i') || cpu.ends_with('k') || cpu.ends_with("kf") || cpu.ends_with("ks") {
+        "intel"
+    } else if cpu.contains("ryzen") || cpu.contains("threadripper") || cpu.ends_with('x') || cpu.ends_with("x3d") {
+        "amd"
+    } else {
+        panic!("cpu {cpu:?} has no vendor")
+    }
+}
+
+fn handset(phone: &str) -> (&'static str, &'static str) {
+    if phone.contains("iphone") {
+        ("iphone", "ios")
+    } else if phone.contains("pixel") {
+        ("pixel", "android")
+    } else if phone.contains("galaxy") || phone.contains("samsung") || phone.starts_with('s') {
+        ("samsung", "android")
+    } else if phone.contains("oneplus") {
+        ("oneplus", "android")
+    } else if phone.contains("xiaomi") || phone.contains("redmi") || phone.contains("poco") {
+        ("xiaomi", "android")
+    } else if phone.contains("iqoo") {
+        ("iqoo", "android")
+    } else if phone.contains("nothing") {
+        ("nothing", "android")
+    } else {
+        panic!("phone {phone:?} has no brand")
+    }
 }
 
 pub fn init() {
