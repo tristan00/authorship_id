@@ -1,6 +1,7 @@
 use crate::database::{put_string, string, Database};
 use claimcore::{log, timed, Re};
 use crossbeam_channel::bounded;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{BufReader, Read};
 use std::sync::LazyLock;
 use std::time::Instant;
@@ -12,7 +13,7 @@ const TABLES: [&str; 4] = [
     "CREATE TABLE IF NOT EXISTS claim_attributes (attribute String, kind String, anchor String, precision Float64) ENGINE = MergeTree ORDER BY attribute",
     "CREATE TABLE IF NOT EXISTS text_claims (text_sha256 FixedString(32), attribute LowCardinality(String), value String, position UInt32) ENGINE = MergeTree ORDER BY (text_sha256, attribute)",
     "CREATE TABLE IF NOT EXISTS flair_claims (subreddit String, flair String, attribute LowCardinality(String), value String) ENGINE = MergeTree ORDER BY (subreddit, flair)",
-    "CREATE TABLE IF NOT EXISTS extracted_parts (part UInt16, texts UInt64, claims UInt64, seconds Float32, finished_at DateTime('UTC') DEFAULT now()) ENGINE = MergeTree ORDER BY part",
+    "CREATE TABLE IF NOT EXISTS extracted_parts (part UInt16, texts UInt64, claims UInt64, seconds Float32, build String, finished_at DateTime('UTC') DEFAULT now()) ENGINE = MergeTree ORDER BY part",
 ];
 
 static MBTI: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![A-Za-z])([IE][NS][TF][JP])(?:-[AT])?(?![A-Za-z])"));
@@ -62,7 +63,7 @@ fn parallel<T: Send, R: Send>(threads: usize, produce: impl FnOnce(crossbeam_cha
     });
 }
 
-fn extract_part(database: &Database, part: usize, threads: usize) -> (u64, u64) {
+fn extract_part(database: &Database, part: usize, threads: usize, build: &str) -> (u64, u64) {
     let started = Instant::now();
     let filter = range(part);
     if database.command(&format!("SELECT count() FROM text_claims WHERE {filter}")).trim() != "0" {
@@ -118,28 +119,49 @@ fn extract_part(database: &Database, part: usize, threads: usize) -> (u64, u64) 
     row.extend_from_slice(&texts.to_le_bytes());
     row.extend_from_slice(&claims.to_le_bytes());
     row.extend_from_slice(&(seconds as f32).to_le_bytes());
-    database.insert("extracted_parts (part, texts, claims, seconds)", &row);
+    put_string(&mut row, build);
+    database.insert("extracted_parts (part, texts, claims, seconds, build)", &row);
     log(&format!("part={part} texts={texts} claims={claims} invalid={} seconds={seconds:.0} rate={:.0}", crate::invalid(), texts as f64 / seconds.max(1e-9)));
     (texts, claims)
 }
 
-pub fn extract(database: &Database, threads: usize, reset: bool) {
-    timed("extract", || {
-        if reset {
-            database.command("DROP TABLE IF EXISTS text_claims");
-            database.command("DROP TABLE IF EXISTS extracted_parts");
+fn build() -> String {
+    timed("build", || {
+        let mut hasher = DefaultHasher::new();
+        std::fs::read(std::env::current_exe().unwrap()).unwrap().hash(&mut hasher);
+        let mut files: Vec<_> = std::fs::read_dir(claimcore::DATA).unwrap().map(|entry| entry.unwrap().path()).filter(|path| path.is_file()).collect();
+        files.sort();
+        for path in files {
+            path.file_name().hash(&mut hasher);
+            std::fs::read(&path).unwrap().hash(&mut hasher);
         }
+        format!("{:016x}", hasher.finish())
+    })
+}
+
+pub fn extract(database: &Database, threads: usize) {
+    timed("extract", || {
+        let build = build();
         for table in TABLES {
             database.command(table);
+        }
+        let stale: u64 = database.command(&format!("SELECT count() FROM extracted_parts WHERE build != '{build}' FORMAT TSV")).trim().parse().unwrap();
+        if stale > 0 {
+            log(&format!("extract build={build} stale_parts={stale} dropping text_claims"));
+            database.command("DROP TABLE text_claims");
+            database.command("DROP TABLE extracted_parts");
+            for table in TABLES {
+                database.command(table);
+            }
         }
         timed("init", crate::init);
         let done: Vec<usize> = database.command("SELECT part FROM extracted_parts FORMAT TSV").lines().map(|line| line.trim().parse().unwrap()).collect();
         let todo: Vec<usize> = (0..PARTS).filter(|part| !done.contains(part)).collect();
-        log(&format!("extract parts={PARTS} done={} todo={} threads={threads}", done.len(), todo.len()));
+        log(&format!("extract build={build} parts={PARTS} done={} todo={} threads={threads}", done.len(), todo.len()));
         let started = Instant::now();
         let mut texts = 0u64;
         for (index, &part) in todo.iter().enumerate() {
-            texts += extract_part(database, part, threads).0;
+            texts += extract_part(database, part, threads, &build).0;
             let elapsed = started.elapsed().as_secs_f64();
             log(&format!("progress parts={}/{} texts={texts} rate={:.0} eta_hours={:.2}", index + 1, todo.len(), texts as f64 / elapsed, elapsed / (index + 1) as f64 * (todo.len() - index - 1) as f64 / 3600.0));
         }

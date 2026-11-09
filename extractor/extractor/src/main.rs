@@ -232,13 +232,13 @@ fn main() {
             let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
             run::attributes(&database);
             if command == "run" {
-                run::extract(&database, threads, args.iter().any(|arg| arg == "--reset"));
+                run::extract(&database, threads);
             } else {
                 run::flairs(&database, threads);
             }
         }
         _ => {
-            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims prompts <prompt> <input.jsonl> <output.jsonl> | claims template <prompt> | claims score <prompt> <texts.jsonl> <report.json> <answers_dir>... [--agree N] [--contested <out.jsonl>] --threads N | claims conditions | claims run|flairs --host H [--port P] [--database D] --threads N [--reset]");
+            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims prompts <prompt> <input.jsonl> <output.jsonl> | claims template <prompt> | claims score <prompt> <texts.jsonl> <report.json> <answers_dir>... [--agree N] [--contested <out.jsonl>] --threads N | claims conditions | claims run|flairs --host H [--port P] [--database D] --threads N");
             std::process::exit(2);
         }
     }
