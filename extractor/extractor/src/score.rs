@@ -9,6 +9,7 @@ use std::io::{BufWriter, Write};
 
 const EXAMPLES: usize = 25;
 const SNIPPET: usize = 400;
+const OPEN: &str = "*";
 
 #[derive(Deserialize)]
 struct Text {
@@ -91,6 +92,35 @@ fn extracted(texts: &[&Text], prompt: &str, threads: usize) -> (Vec<Vec<(String,
     (claims, invalid)
 }
 
+type Shown = BTreeMap<String, Vec<String>>;
+
+fn open(name: &str) -> bool {
+    SCHEMA.attribute(name).is_some_and(|attribute| attribute.values.is_empty() && attribute.kind != "number")
+}
+
+fn grouped(claims: &[(String, String)], shown: &mut Shown) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for (attribute, value) in claims {
+        let claim = if open(attribute) {
+            let values = shown.entry(attribute.clone()).or_default();
+            if !values.contains(value) {
+                values.push(value.clone());
+            }
+            (attribute.clone(), OPEN.to_string())
+        } else {
+            (attribute.clone(), value.clone())
+        };
+        if !out.contains(&claim) {
+            out.push(claim);
+        }
+    }
+    out
+}
+
+fn displayed(shown: &Shown, attribute: &str, value: &str) -> String {
+    if value == OPEN { shown[attribute].join(" | ") } else { value.to_string() }
+}
+
 fn example(text: &Text, value: &str, votes: usize) -> Value {
     json!({"id": text.id.get().trim_matches('"'), "value": value, "votes": votes, "text": text.text.chars().take(SNIPPET).collect::<String>()})
 }
@@ -105,17 +135,19 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
         let mut claimed = vec![0usize; models.len()];
         let mut panel = vec![[0usize; 3]; models.len()];
         let rest = models.len().saturating_sub(1).div_ceil(2).max(1);
-        let labels: Vec<BTreeMap<(String, String), usize>> = kept
+        let labels: Vec<(BTreeMap<(String, String), usize>, Shown)> = kept
             .iter()
             .map(|text| {
                 let mut votes = BTreeMap::new();
+                let mut shown = Shown::new();
                 let mut each = Vec::with_capacity(models.len());
                 for (index, model) in models.iter().enumerate() {
                     let parsed = SCHEMA.parse_answer(prompt, &text.text, &model[text.id.get()]);
                     parsed.rejected.iter().for_each(|reason| *rejected[index].entry(reason).or_insert(0) += 1);
-                    claimed[index] += parsed.claims.len();
-                    parsed.claims.iter().for_each(|claim| *votes.entry(claim.clone()).or_insert(0) += 1);
-                    each.push(parsed.claims);
+                    let claims = grouped(&parsed.claims, &mut shown);
+                    claimed[index] += claims.len();
+                    claims.iter().for_each(|claim| *votes.entry(claim.clone()).or_insert(0) += 1);
+                    each.push(claims);
                 }
                 for (index, own) in each.iter().enumerate() {
                     for (claim, &count) in &votes {
@@ -126,7 +158,7 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
                         panel[index][2] += (others >= rest) as usize;
                     }
                 }
-                votes
+                (votes, shown)
             })
             .collect();
         for (directory, [agreed, own, majority]) in directories.iter().zip(&panel) {
@@ -136,7 +168,7 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
             timed("contested", || {
                 let mut out = BufWriter::new(std::fs::File::create(path).unwrap_or_else(|error| panic!("cannot write {path}: {error}")));
                 let mut count = 0usize;
-                for (text, votes) in kept.iter().zip(&labels) {
+                for (text, (votes, _)) in kept.iter().zip(&labels) {
                     if votes.values().any(|&count| count < models.len()) {
                         writeln!(out, "{}", json!({"id": serde_json::from_str::<Value>(text.id.get()).unwrap(), "text": text.text})).unwrap();
                         count += 1;
@@ -148,8 +180,15 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
         }
         timed("init", init);
         let (rules, invalid) = timed("rules", || extracted(&kept, prompt, threads));
+        let rules: Vec<(Vec<(String, String)>, Shown)> = rules
+            .iter()
+            .map(|found| {
+                let mut shown = Shown::new();
+                (grouped(found, &mut shown), shown)
+            })
+            .collect();
         let mut tallies: BTreeMap<String, Tally> = BTreeMap::new();
-        for ((text, votes), found) in kept.iter().zip(&labels).zip(&rules) {
+        for ((text, (votes, said)), (found, emitted)) in kept.iter().zip(&labels).zip(&rules) {
             for ((attribute, value), &count) in votes {
                 let tally = tallies.entry(attribute.clone()).or_default();
                 *tally.votes.entry(count).or_insert(0) += 1;
@@ -157,7 +196,7 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
                     tally.missed += 1;
                     tally.values.entry(value.clone()).or_default()[2] += 1;
                     if tally.false_negatives.len() < EXAMPLES {
-                        tally.false_negatives.push(example(text, value, count));
+                        tally.false_negatives.push(example(text, &displayed(said, attribute, value), count));
                     }
                 }
             }
@@ -171,7 +210,7 @@ pub fn score(prompt: &str, texts_path: &str, report_path: &str, agree: usize, th
                     tally.wrong += 1;
                     tally.values.entry(value.clone()).or_default()[1] += 1;
                     if tally.false_positives.len() < EXAMPLES {
-                        tally.false_positives.push(example(text, value, count));
+                        tally.false_positives.push(example(text, &displayed(emitted, attribute, value), count));
                     }
                 }
             }
