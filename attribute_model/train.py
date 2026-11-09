@@ -122,11 +122,17 @@ def subset(indptr, values, rows):
     return offsets, np.asarray(values[np.repeat(starts - offsets[:-1], lengths) + np.arange(offsets[-1])])
 
 
+@timed
+def resident(arrays):
+    return {name: np.array(array) for name, array in arrays.items()}
+
+
 def load_splits(manifest, arrays, sets):
     targets = manifest["targets"]
-    splits = np.asarray(arrays["splits"])
+    arrays = resident(arrays)
+    splits = arrays["splits"]
     selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
-    labeled = {name: np.asarray(arrays["labels"][indices]) for name, indices in selected.items()}
+    labeled = {name: arrays["labels"][indices] for name, indices in selected.items()}
     lists = {split: {name: subset(*sets[name], indices) for name in sets} for split, indices in selected.items()}
     specs = specifications(targets, manifest["catalogs"], labeled["train"], lists["train"])
     for name in ("validation", "calibration", "test"):
