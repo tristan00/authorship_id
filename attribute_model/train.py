@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from . import LOG, timed
 from .config import GPU_MEMORY, PARAMETERS, PUBLISH_MARGIN, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
 from .data import load
-from .evaluate import DEVICE, chosen, collect, memberships, report
+from .evaluate import DEVICE, chosen, collect, memberships, report, trunk
 from .model import AttributeModel, specifications
 
 INPUTS = ("users",)
@@ -69,16 +69,16 @@ def temperature(logits, target, batch=16384):
 
 
 @timed
-def categorical(model, inputs, labels, column, spec):
-    sample, target = collect(model, inputs, labels, column, TEMPERATURE_ROWS)
+def categorical(model, hidden, labels, column, spec):
+    sample, target = collect(model, hidden, labels, column, TEMPERATURE_ROWS)
     return {"temperature": temperature(sample, target.long())}
 
 
 @timed
-def membership(model, inputs, labels, column, indptr, values):
+def membership(model, hidden, labels, column, indptr, values):
     pairs = torch.zeros(len(THRESHOLDS), 2, device=DEVICE)
     actual = 0
-    for probabilities, truth in memberships(model, inputs, labels, column, indptr, values):
+    for probabilities, truth in memberships(model, hidden, labels, column, indptr, values):
         for slot, threshold in enumerate(THRESHOLDS):
             predicted = chosen(probabilities, threshold)
             pairs[slot] += torch.stack([(predicted & truth).sum(), predicted.sum()])
@@ -91,14 +91,15 @@ def membership(model, inputs, labels, column, indptr, values):
 @timed
 def calibrate(model, inputs, labels, sets, specs):
     lists = {column: (indptr, values) for column, indptr, values in sets}
+    hidden = trunk(model, inputs)
     result = []
     for column, spec in enumerate(specs):
         if spec["type"] == "numeric":
             result.append({})
         elif spec["type"] == "set":
-            result.append(membership(model, inputs, labels, column, *lists[column]))
+            result.append(membership(model, hidden, labels, column, *lists[column]))
         else:
-            result.append(categorical(model, inputs, labels, column, spec))
+            result.append(categorical(model, hidden, labels, column, spec))
         LOG.info("attribute model calibrated %s %s", spec["name"], json.dumps(result[-1]))
     return result
 

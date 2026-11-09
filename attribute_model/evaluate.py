@@ -8,8 +8,14 @@ DEVICE = "cuda"
 BINS = 15
 
 
-def streamed(model, inputs, labels, column, limit=None, batch=8192):
+@timed
+def trunk(model, inputs, batch=1 << 16):
     model.eval()
+    with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
+        return torch.cat([model(*(part[start:start + batch].to(DEVICE) for part in inputs)) for start in range(0, len(inputs[0]), batch)])
+
+
+def streamed(model, hidden, labels, column, limit=None, batch=8192):
     taken = 0
     for start in range(0, len(labels), batch):
         if limit is not None and taken >= limit:
@@ -17,18 +23,18 @@ def streamed(model, inputs, labels, column, limit=None, batch=8192):
         target = labels[start:start + batch, column].to(DEVICE)
         present = torch.isfinite(target)
         with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
-            output = model.output(model(*(part[start:start + batch].to(DEVICE)[present] for part in inputs)), column).float()
+            output = model.output(hidden[start:start + batch][present], column).float()
         taken += len(output)
         yield output, target[present]
 
 
-def collect(model, inputs, labels, column, limit=None):
-    outputs, targets = zip(*streamed(model, inputs, labels, column, limit))
+def collect(model, hidden, labels, column, limit=None):
+    outputs, targets = zip(*streamed(model, hidden, labels, column, limit))
     return torch.cat(outputs), torch.cat(targets)
 
 
-def probabilities(model, inputs, labels, column, fitted):
-    for output, target in streamed(model, inputs, labels, column):
+def probabilities(model, hidden, labels, column, fitted):
+    for output, target in streamed(model, hidden, labels, column):
         yield (output / fitted["temperature"]).softmax(1), target
 
 
@@ -36,14 +42,13 @@ def chosen(probabilities, threshold):
     return (probabilities >= threshold) | (probabilities == probabilities.max(1, keepdim=True).values)
 
 
-def memberships(model, inputs, labels, column, indptr, values, batch=4096):
-    model.eval()
+def memberships(model, hidden, labels, column, indptr, values, batch=4096):
     for start in range(0, len(labels), batch):
         rows = torch.arange(start, min(start + batch, len(labels)), device=labels.device)[torch.isfinite(labels[start:start + batch, column])]
         if not len(rows):
             continue
         with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
-            output = model.output(model(*(part[rows].to(DEVICE) for part in inputs)), column).float()
+            output = model.output(hidden[rows.to(DEVICE)], column).float()
         starts, lengths = indptr[rows], indptr[rows + 1] - indptr[rows]
         offsets = torch.cumsum(lengths, 0) - lengths
         members = values[torch.repeat_interleave(starts - offsets, lengths) + torch.arange(int(lengths.sum()), device=lengths.device)]
@@ -57,10 +62,10 @@ def micro(hits, predicted, actual):
     return precision, recall, 2 * hits / max(predicted + actual, 1)
 
 
-def set_report(model, inputs, labels, column, spec, fitted, indptr, values):
+def set_report(model, hidden, labels, column, spec, fitted, indptr, values):
     prior = torch.as_tensor(spec["prior"], device=DEVICE)
     sums = torch.zeros(6, dtype=torch.float64, device=DEVICE)
-    for probabilities, truth in memberships(model, inputs, labels, column, indptr, values):
+    for probabilities, truth in memberships(model, hidden, labels, column, indptr, values):
         predicted = chosen(probabilities, fitted["threshold"])
         guessed = chosen(prior.expand_as(probabilities), fitted["threshold"])
         sums += torch.stack([torch.tensor(float(len(truth)), device=DEVICE), (predicted & truth).sum(), predicted.sum(), truth.sum(), (guessed & truth).sum(), guessed.sum()]).double()
@@ -89,10 +94,10 @@ def calibration_error(confidence, correct):
     return float(gaps.sum() / counts.sum())
 
 
-def categorical_report(model, inputs, labels, column, spec, fitted):
+def categorical_report(model, hidden, labels, column, spec, fitted):
     chosen, targets, losses, tops, confidences = [], [], [], [], []
     prior = torch.as_tensor(spec["prior"], device=DEVICE)
-    for scored, target in probabilities(model, inputs, labels, column, fitted):
+    for scored, target in probabilities(model, hidden, labels, column, fitted):
         target = target.long()
         chosen.append(scored.argmax(1))
         targets.append(target)
@@ -110,8 +115,8 @@ def categorical_report(model, inputs, labels, column, spec, fitted):
     return result
 
 
-def numeric_report(model, inputs, labels, column, spec):
-    output, target = collect(model, inputs, labels, column)
+def numeric_report(model, hidden, labels, column, spec):
+    output, target = collect(model, hidden, labels, column)
     predicted = numeric(output, spec)
     error = predicted - target
     return {"n": len(error), "mae": float(error.abs().mean()), "median_baseline_mae": float((target - spec["center"]).abs().mean()), "rmse": float(error.pow(2).mean().sqrt()),
@@ -129,14 +134,15 @@ def improvement(fields):
 @timed
 def report(model, inputs, labels, sets, specs, calibration):
     lists = {column: (indptr, values) for column, indptr, values in sets}
+    hidden = trunk(model, inputs)
     result = {}
     with torch.inference_mode():
         for column, (spec, fitted) in enumerate(zip(specs, calibration)):
             if spec["type"] == "numeric":
-                result[spec["name"]] = numeric_report(model, inputs, labels, column, spec)
+                result[spec["name"]] = numeric_report(model, hidden, labels, column, spec)
             elif spec["type"] == "set":
-                result[spec["name"]] = set_report(model, inputs, labels, column, spec, fitted, *lists[column])
+                result[spec["name"]] = set_report(model, hidden, labels, column, spec, fitted, *lists[column])
             else:
-                result[spec["name"]] = categorical_report(model, inputs, labels, column, spec, fitted)
+                result[spec["name"]] = categorical_report(model, hidden, labels, column, spec, fitted)
             result[spec["name"]]["improvement"] = improvement(result[spec["name"]])
     return result
