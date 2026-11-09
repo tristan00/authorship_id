@@ -13,10 +13,9 @@ def main():
     parser = argparse.ArgumentParser(prog="author_encoder", description="Pretrained LUAR author vectors and cosine similarity.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("download", help="Download the pinned pretrained model and tokenizer.")
-    commands.add_parser("texts", help=f"Rebuild author_texts with up to {TEXTS_PER_USER} distinct readable texts per author.")
-    vectors = commands.add_parser("vectors", help="Encode author_texts into author_vectors, resuming by author part.")
+    commands.add_parser("texts", help=f"Build author_texts with up to {TEXTS_PER_USER} distinct readable texts per author, unless its loaded months and code are unchanged.")
+    vectors = commands.add_parser("vectors", help="Encode author_texts into author_vectors, resuming by author part and restarting when the texts or encoder change.")
     vectors.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
-    vectors.add_argument("--reset", action="store_true")
     encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description=f'Each input line: {{"author": "name", "texts": ["text", ...]}}. Each author needs at least one usable text; up to {TEXTS_PER_USER} are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
     encode.add_argument("--input", type=Path, required=True)
     encode.add_argument("--output", type=Path, required=True, help="A new JSONL output file.")
@@ -37,7 +36,7 @@ def main():
         result = build()
     elif args.command == "vectors":
         from .predict import encode_store
-        result = encode_store(args.device, args.reset)
+        result = encode_store(args.device)
     elif args.command == "encode":
         from .predict import encode_file
         result = encode_file(args.input, args.output, args.device)

@@ -13,9 +13,9 @@ import pyarrow.compute as pc
 from database import client
 
 from . import LOG, clean, timed
-from .config import BATCH_USERS, DIMENSIONS, TEXTS_PER_USER
+from .config import BATCH_USERS, DIMENSIONS, LUAR, MAX_LENGTH, TEXTS_PER_USER
 from .model import load_model
-from .store import TABLES, parts, span
+from .store import TABLES, built_source, fingerprint, parts, span
 from .tokens import load_tokenizer, token_batches
 
 
@@ -87,7 +87,7 @@ def load_part(reader, tokenizer, low, high):
 
 
 @timed
-def store_part(writer, part, low, high, authors, lengths, found, seconds):
+def store_part(writer, source, part, low, high, authors, lengths, found, seconds):
     where, parameters = span(low, high)
     if writer.command(f"SELECT count() FROM author_vectors WHERE {where}", parameters=parameters):
         writer.command(f"DELETE FROM author_vectors WHERE {where}", parameters=parameters)
@@ -95,23 +95,37 @@ def store_part(writer, part, low, high, authors, lengths, found, seconds):
         values = pa.array(found.astype(np.float32).ravel())
         offsets = pa.array(np.arange(0, len(values) + 1, DIMENSIONS, dtype=np.int32))
         writer.insert_arrow("author_vectors", pa.table({"author": authors.cast(pa.string()), "texts": pa.array(lengths.astype(np.uint16)), "vector": pa.ListArray.from_arrays(offsets, values)}))
-    writer.insert("encoded_parts", [(part, low, high, len(authors), int(lengths.sum()), seconds)], column_names=("part", "low", "high", "authors", "texts", "seconds"))
+    writer.insert("encoded_parts", [(part, low, high, len(authors), int(lengths.sum()), seconds, source)], column_names=("part", "low", "high", "authors", "texts", "seconds", "source"))
 
 
 @timed
-def encode_store(device="cuda", reset=False):
+def vectors_source(db, ranges):
+    texts = built_source(db)
+    if texts is None:
+        raise ValueError("author_texts has no recorded source; build it first")
+    code = "".join((Path(__file__).parent / name).read_text(encoding="utf-8") for name in ("model.py", "tokens.py"))
+    return fingerprint(texts, ranges, LUAR, DIMENSIONS, MAX_LENGTH, TEXTS_PER_USER, code)
+
+
+@timed
+def encode_store(device="cuda"):
     db, reader, writer = client(), client(), client()
-    if reset:
-        db.command("DROP TABLE IF EXISTS author_vectors")
-        db.command("DROP TABLE IF EXISTS encoded_parts")
     for statement in TABLES:
         db.command(statement)
     ranges = parts(db)
-    done = {part: (low, high) for part, low, high in db.query("SELECT part, low, high FROM encoded_parts").result_rows}
-    if any(part >= len(ranges) or ranges[part] != bounds for part, bounds in done.items()):
-        raise ValueError("encoded_parts were written with other author ranges; rerun with --reset")
+    source = vectors_source(db, ranges)
+    stale = db.command("SELECT count() FROM encoded_parts WHERE source != {source:String}", parameters={"source": source})
+    if stale:
+        LOG.info("encode source=%s stale_parts=%d dropping author_vectors", source, stale)
+        db.command("DROP TABLE author_vectors")
+        db.command("DROP TABLE encoded_parts")
+        for statement in TABLES:
+            db.command(statement)
+    done = {row[0] for row in db.query("SELECT part FROM encoded_parts").result_rows}
     todo = [part for part in range(len(ranges)) if part not in done]
-    LOG.info("encode parts=%d done=%d todo=%d", len(ranges), len(done), len(todo))
+    LOG.info("encode source=%s parts=%d done=%d todo=%d", source, len(ranges), len(done), len(todo))
+    if not todo:
+        return {"source": source, "parts": len(ranges), "encoded": 0, "texts": 0}
     model = load_model(device)
     tokenizer = load_tokenizer()
     started, texts, stored = time.perf_counter(), 0, None
@@ -125,10 +139,10 @@ def encode_store(device="cuda", reset=False):
             found = vectors(model, batches, lengths) if len(authors) else None
             if stored is not None:
                 stored.result()
-            stored = saver.submit(store_part, writer, part, *ranges[part], authors, lengths, found, time.perf_counter() - tick)
+            stored = saver.submit(store_part, writer, source, part, *ranges[part], authors, lengths, found, time.perf_counter() - tick)
             texts += int(lengths.sum())
             elapsed = time.perf_counter() - started
             LOG.info("progress parts=%d/%d part=%d authors=%d texts=%d texts_per_s=%.0f eta_hours=%.2f", index, len(todo), part, len(authors), texts, texts / elapsed, elapsed / index * (len(todo) - index) / 3600)
         if stored is not None:
             stored.result()
-    return {"parts": len(ranges), "encoded": len(todo), "texts": texts}
+    return {"source": source, "parts": len(ranges), "encoded": len(todo), "texts": texts}

@@ -1,4 +1,6 @@
+import hashlib
 import time
+from pathlib import Path
 
 from database import NO_AUTHOR, client, in_range, sha_ranges
 
@@ -14,9 +16,28 @@ MENTION = r"(?i)(^|[^\p{L}\p{N}_])/?[ur]/[\p{L}\p{N}_-]+"
 TABLES = (
     "CREATE TABLE IF NOT EXISTS author_texts (author String CODEC(ZSTD(1)), text String CODEC(ZSTD(3))) ENGINE = MergeTree ORDER BY author",
     "CREATE TABLE IF NOT EXISTS author_vectors (author String CODEC(ZSTD(1)), texts UInt16, vector Array(Float32)) ENGINE = MergeTree ORDER BY author",
-    "CREATE TABLE IF NOT EXISTS encoded_parts (part UInt16, low String, high String, authors UInt64, texts UInt64, seconds Float32, finished_at DateTime('UTC') DEFAULT now()) "
+    "CREATE TABLE IF NOT EXISTS encoded_parts (part UInt16, low String, high String, authors UInt64, texts UInt64, seconds Float32, source String, finished_at DateTime('UTC') DEFAULT now()) "
     "ENGINE = MergeTree ORDER BY part",
+    "CREATE TABLE IF NOT EXISTS author_texts_source (fingerprint String, built_at DateTime('UTC') DEFAULT now()) ENGINE = MergeTree ORDER BY tuple()",
 )
+
+
+def fingerprint(*parts):
+    return hashlib.sha256(repr(parts).encode()).hexdigest()[:16]
+
+
+@timed
+def texts_source(db):
+    months = db.query("SELECT month, records, toString(loaded_at) FROM months ORDER BY month").result_rows
+    return fingerprint(months, TEXTS_PER_USER, AUTHOR_PARTS, TEXT_PARTS, Path(__file__).read_text(encoding="utf-8"))
+
+
+@timed
+def built_source(db):
+    for statement in TABLES:
+        db.command(statement)
+    rows = db.query("SELECT fingerprint FROM author_texts_source").result_rows
+    return rows[0][0] if rows else None
 
 
 @timed
@@ -43,6 +64,10 @@ def span(low, high):
 @timed
 def build():
     db = client()
+    source = texts_source(db)
+    if built_source(db) == source:
+        LOG.info("author_texts current source=%s", source)
+        return {"source": source, "built": False}
     ranges = parts(db)
     db.command("DROP TABLE IF EXISTS author_picks")
     db.command("CREATE TABLE author_picks (text_sha256 FixedString(32), author String) ENGINE = MergeTree ORDER BY text_sha256")
@@ -68,8 +93,9 @@ def build():
     db.command("EXCHANGE TABLES author_texts_next AND author_texts")
     db.command("DROP TABLE author_texts_next")
     db.command("DROP TABLE author_picks")
-    db.command("DROP TABLE IF EXISTS encoded_parts")
-    return {"author_parts": len(ranges), "picks": picks, "texts": texts}
+    db.command("TRUNCATE TABLE author_texts_source")
+    db.insert("author_texts_source", [(source,)], column_names=("fingerprint",))
+    return {"source": source, "built": True, "author_parts": len(ranges), "picks": picks, "texts": texts}
 
 
 @timed
