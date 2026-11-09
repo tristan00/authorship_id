@@ -2,7 +2,6 @@ import hashlib
 import json
 from pathlib import Path
 
-from claim_extraction.schema import BINARY, NO
 
 TARGETS = Path(__file__).with_name("targets.json")
 ROOT = Path(r"C:\reddit_data\attribute_model")
@@ -18,8 +17,6 @@ PREDICTION_BATCH = 16384
 INSERT_ROWS = 1 << 20
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
 VALUE_AUTHORS = 10
-DEFAULTS = {"native_language": "english", "sexual_orientation": "straight", "parental_status": "no children", "military_status": "never served", "smoking": "non-smoker", "diet": "eats meat",
-            **dict.fromkeys(BINARY, NO)}
 TEMPERATURE_ROWS = 1 << 16
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "epochs": 6}
 

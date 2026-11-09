@@ -15,7 +15,7 @@ from database import client
 
 from . import LOG, timed
 from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, THREADS, check_targets, validate
-from .model import AttributeModel, decide, numeric
+from .model import AttributeModel, numeric
 
 KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)"}
 VECTORS = "SELECT author, vector FROM author_vectors WHERE {where} ORDER BY author"
@@ -48,7 +48,7 @@ def load_model(path, targets):
 
 def decided(artifact, outputs):
     for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
-        yield spec, numeric(output, spec) if spec["type"] == "numeric" else decide((output / fitted["temperature"]).softmax(1), spec, fitted)
+        yield spec, numeric(output, spec) if spec["type"] == "numeric" else output.argmax(1)
 
 
 @timed

@@ -11,7 +11,7 @@ from author_encoder.store import parts, span
 from database import client
 
 from . import LOG, timed, write_json
-from .config import DEFAULTS, DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_targets, partition, validate
+from .config import DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_targets, partition, validate
 
 CLAIMS = "SELECT author, attribute, value FROM author_claims WHERE attribute IN {attributes:Array(String)}"
 VECTORS = "SELECT author, vector FROM author_vectors WHERE {where} AND author IN (SELECT author FROM labeled WHERE {where}) ORDER BY author"
@@ -37,8 +37,6 @@ def encode(values, name, kind):
         return np.where((numbers >= low) & (numbers <= high), numbers, np.nan), None
     counts = pc.value_counts(values).to_pylist()
     catalog = [item["values"] for item in sorted(counts, key=lambda item: (-item["counts"], item["values"])) if kind != "embedding" or item["counts"] >= VALUE_AUTHORS]
-    if name in DEFAULTS and DEFAULTS[name] not in catalog:
-        catalog.append(DEFAULTS[name])
     return pc.index_in(values, value_set=pa.array(catalog)).to_numpy().astype(np.float64), catalog
 
 

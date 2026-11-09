@@ -10,9 +10,9 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import DEFAULTS, GPU_MEMORY, PARAMETERS, SEED, SPLITS, TEMPERATURE_ROWS, validate
+from .config import GPU_MEMORY, PARAMETERS, SEED, SPLITS, TEMPERATURE_ROWS, validate
 from .data import load
-from .evaluate import DEVICE, collect, probabilities, report
+from .evaluate import DEVICE, collect, report
 from .model import AttributeModel, specifications
 
 INPUTS = ("users",)
@@ -48,12 +48,7 @@ def temperature(logits, target, batch=16384):
 @timed
 def categorical(model, inputs, labels, column, spec):
     sample, target = collect(model, inputs, labels, column, TEMPERATURE_ROWS)
-    fitted = {"temperature": temperature(sample, target.long())}
-    if spec["default"] is None:
-        return fitted
-    stated = 1 - spec["prior"][spec["default"]]
-    spreads = torch.cat([1 - scored[:, spec["default"]] for scored, _ in probabilities(model, inputs, labels, column, fitted, everyone=True)])
-    return fitted | {"threshold": float(spreads.kthvalue(max(1, round(len(spreads) * (1 - stated)))).values)}
+    return {"temperature": temperature(sample, target.long())}
 
 
 @timed
@@ -76,29 +71,20 @@ def placed(arrays, selected, device):
     return tuple(result)
 
 
-def effective(manifest, targets, arrays, selected):
-    stated = np.asarray(arrays["labels"][selected])
-    labels = stated.copy()
-    for column, name in enumerate(targets):
-        if name in DEFAULTS:
-            labels[np.isnan(stated[:, column]), column] = manifest["catalogs"][name].index(DEFAULTS[name])
-    return labels, stated
-
-
 def load_splits(manifest, targets, arrays):
     splits = np.asarray(arrays["splits"])
     selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
-    labeled = {name: effective(manifest, targets, arrays, indices) for name, indices in selected.items()}
-    specs = specifications(targets, manifest["catalogs"], labeled["train"][0], slice(None))
+    labeled = {name: np.asarray(arrays["labels"][indices]) for name, indices in selected.items()}
+    specs = specifications(targets, manifest["catalogs"], labeled["train"], slice(None))
     for name in ("validation", "calibration", "test"):
-        counts = np.isfinite(labeled[name][0]).sum(0)
+        counts = np.isfinite(labeled[name]).sum(0)
         if (counts < 100).any():
             raise ValueError(f"Fewer than 100 {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < 100)}")
     LOG.info("attribute model rows=%s", {name: len(indices) for name, indices in selected.items()})
     data = {}
     for name, indices in selected.items():
         device = DEVICE if name in ("train", "validation") else "cpu"
-        data[name] = (placed(arrays, indices, device), *(torch.as_tensor(array, dtype=torch.float32, device=device) for array in labeled[name][:1 if name == "train" else 2]))
+        data[name] = (placed(arrays, indices, device), torch.as_tensor(labeled[name], dtype=torch.float32, device=device))
     return specs, data
 
 
@@ -117,7 +103,7 @@ def capacities(model, specs, rows, batch):
 def fit(model, specs, data, parameters):
     inputs, labels = data["train"]
     capacity = capacities(model, specs, len(labels), parameters["batch"])
-    return run_epochs(model, len(labels), parameters, lambda index: model.loss(model(*(part[index] for part in inputs)), labels[index], capacity), lambda: score(model, *data["validation"][:2], specs))
+    return run_epochs(model, len(labels), parameters, lambda index: model.loss(model(*(part[index] for part in inputs)), labels[index], capacity), lambda: score(model, *data["validation"], specs))
 
 
 def run_epochs(model, rows, parameters, loss_of, validate):
@@ -192,7 +178,7 @@ def finish(model, manifest, specs, data, parameters, best, history, output):
     output = Path(output)
     authors = {name: len(split[1]) for name, split in data.items()}
     del data["train"]
-    calibration = calibrate(model, *data["calibration"][:2], specs)
+    calibration = calibrate(model, *data["calibration"], specs)
     evaluation = report(model, *data["test"], specs, calibration)
     for name, fields in evaluation.items():
         LOG.info("attribute model test %s %s", name, json.dumps(fields))
