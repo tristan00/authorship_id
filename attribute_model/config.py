@@ -8,7 +8,6 @@ TARGETS = Path(__file__).with_name("targets.json")
 ROOT = Path(r"C:\reddit_data\attribute_model")
 DATA = ROOT / "data"
 MODEL = ROOT / "model.pt"
-TUNE = ROOT / "tune"
 KINDS = {"numeric", "categorical", "embedding"}
 NUMERIC = {"age": (13, 100), "height": (120, 230), "weight": (30, 300), "income": (1000, 10_000_000)}
 SEED = 719
@@ -26,8 +25,6 @@ DEFAULTS = {"native_language": "english", "sexual_orientation": "straight", "par
             **dict.fromkeys(BINARY, NO)}
 TEMPERATURE_ROWS = 1 << 16
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "epochs": 6}
-TUNE_TRIALS = 18
-TUNE_SPACE = {"width": (512, 1024, 2048), "depth": (1, 2, 3), "expand": (1, 2), "dropout": (.1, .2, .3, .5), "rank": (64, 128, 256), "batch": (1024, 2048, 4096), "lr": (3e-4, 5e-4, 1e-3, 2e-3), "weight_decay": (.01, .1, .3)}
 
 
 def unique(pairs):
