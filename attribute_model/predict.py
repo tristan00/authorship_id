@@ -15,7 +15,7 @@ from clickhouse_connect.driver.binding import format_str, quote_identifier
 from database import author_ranges, client, host
 
 from . import LOG, timed
-from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, THREADS, VECTOR_RANGES
+from .config import DATA, DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, SPLITS, THREADS, VECTOR_RANGES
 from .evaluate import chosen
 from .model import AttributeModel, numeric
 
@@ -154,6 +154,10 @@ def stream(model, artifact, ranges, table, total, device):
 def predict_table(model_path, device="cuda"):
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     artifact = torch.load(model_path, map_location="cpu", weights_only=True)
+    splits = np.load(DATA / "splits.npy", mmap_mode="r")
+    prepared = {name: int(np.isin(splits, buckets).sum()) for name, buckets in SPLITS.items()}
+    if artifact["authors"] != prepared:
+        raise ValueError(f"{model_path} was trained on other prepared data ({artifact['authors']}) than {DATA} ({prepared})")
     model = build(artifact).to(device)
     db = client()
     db.command("DROP TABLE IF EXISTS author_predictions_next")
