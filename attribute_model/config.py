@@ -17,9 +17,6 @@ GPU_MEMORY = .9
 PREDICTION_BATCH = 16384
 INSERT_ROWS = 1 << 20
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
-STRICT_SUPPORT = 2.
-TRAIN_SUPPORT = 1.
-STRICT_SHARE = .7
 VALUE_AUTHORS = 10
 DEFAULTS = {"native_language": "english", "sexual_orientation": "straight", "parental_status": "no children", "military_status": "never served", "smoking": "non-smoker", "diet": "eats meat",
             **dict.fromkeys(BINARY, NO)}

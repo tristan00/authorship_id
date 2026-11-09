@@ -13,9 +13,9 @@ from database import client
 from . import LOG, timed, write_json
 from .config import DEFAULTS, DIMENSIONS, NUMERIC, SPLITS, VALUE_AUTHORS, check_targets, partition, validate
 
-CLAIMS = "SELECT author, attribute, value, support, share FROM author_claims WHERE attribute IN {attributes:Array(String)}"
+CLAIMS = "SELECT author, attribute, value FROM author_claims WHERE attribute IN {attributes:Array(String)}"
 VECTORS = "SELECT author, vector FROM author_vectors WHERE {where} AND author IN (SELECT author FROM labeled WHERE {where}) ORDER BY author"
-ARRAYS = ("users", "labels", "support", "share", "splits")
+ARRAYS = ("users", "labels", "splits")
 SPREAD_ROWS = 1 << 20
 
 
@@ -82,7 +82,6 @@ def prepare(directory, targets):
     position = pc.fill_null(pc.index_in(claims["author"], value_set=pa.array(authors, pa.string())), -1).to_numpy()
     shape = (len(authors), len(targets))
     labels = np.full(shape, np.nan, dtype=np.float32)
-    support, share = np.full(shape, np.nan, dtype=np.float16), np.full(shape, np.nan, dtype=np.float16)
     catalogs, excluded = {}, {}
     attributes = claims["attribute"]
     for column, (name, kind) in enumerate(targets.items()):
@@ -91,8 +90,6 @@ def prepare(directory, targets):
             raise ValueError(f"No observed labels for configured field {name}")
         rows = position[selected]
         labels[rows, column], catalog = encode(claims["value"].take(pa.array(selected)), name, kind)
-        support[rows, column] = claims["support"].take(pa.array(selected)).to_numpy()
-        share[rows, column] = claims["share"].take(pa.array(selected)).to_numpy()
         excluded[name] = int(len(selected) - np.isfinite(labels[rows, column]).sum())
         if catalog is not None:
             catalogs[name] = catalog
@@ -100,7 +97,7 @@ def prepare(directory, targets):
     training = np.flatnonzero(np.isin(splits, SPLITS["train"]))
     sample = np.asarray(vectors[training[::max(1, len(training) // SPREAD_ROWS)]], dtype=np.float32)
     features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
-    for name, array in (("labels", labels), ("support", support), ("share", share), ("splits", splits)):
+    for name, array in (("labels", labels), ("splits", splits)):
         np.save(staging / f"{name}.npy", array)
     write_json(staging / "authors.json", authors)
     counts = np.isfinite(labels).sum(0)
@@ -119,6 +116,6 @@ def load(directory, targets):
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     check_targets(targets, manifest["targets"])
     arrays = {name: np.load(directory / f"{name}.npy", mmap_mode="r", allow_pickle=False) for name in ARRAYS}
-    if arrays["users"].shape != (manifest["authors"], manifest["features"]["dimensions"]) or any(arrays[name].shape != (manifest["authors"], len(targets)) for name in ("labels", "support", "share")) or len(arrays["splits"]) != manifest["authors"]:
+    if arrays["users"].shape != (manifest["authors"], manifest["features"]["dimensions"]) or arrays["labels"].shape != (manifest["authors"], len(targets)) or len(arrays["splits"]) != manifest["authors"]:
         raise ValueError("Prepared arrays do not match the manifest")
     return manifest, arrays

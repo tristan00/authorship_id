@@ -9,10 +9,8 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
-from claim_extraction.schema import FLAIR_ATTRIBUTES
-
 from . import LOG, timed
-from .config import DEFAULTS, GPU_MEMORY, PARAMETERS, SEED, SPLITS, STRICT_SHARE, STRICT_SUPPORT, TEMPERATURE_ROWS, TRAIN_SUPPORT, validate
+from .config import DEFAULTS, GPU_MEMORY, PARAMETERS, SEED, SPLITS, TEMPERATURE_ROWS, validate
 from .data import load
 from .evaluate import DEVICE, collect, probabilities, report
 from .model import AttributeModel, specifications
@@ -78,24 +76,19 @@ def placed(arrays, selected, device):
     return tuple(result)
 
 
-def effective(manifest, targets, arrays, selected, training):
-    labels = np.asarray(arrays["labels"][selected])
-    support, share = (np.asarray(arrays[name][selected], dtype=np.float32) for name in ("support", "share"))
-    claimed = np.isfinite(support)
-    flair = np.isin(list(targets), list(FLAIR_ATTRIBUTES))
-    keep = support >= TRAIN_SUPPORT if training else ((support >= STRICT_SUPPORT) & (share >= STRICT_SHARE)) | flair
-    labels[claimed & ~keep] = np.nan
-    stated = labels.copy()
+def effective(manifest, targets, arrays, selected):
+    stated = np.asarray(arrays["labels"][selected])
+    labels = stated.copy()
     for column, name in enumerate(targets):
         if name in DEFAULTS:
-            labels[~claimed[:, column], column] = manifest["catalogs"][name].index(DEFAULTS[name])
+            labels[np.isnan(stated[:, column]), column] = manifest["catalogs"][name].index(DEFAULTS[name])
     return labels, stated
 
 
 def load_splits(manifest, targets, arrays):
     splits = np.asarray(arrays["splits"])
     selected = {name: np.flatnonzero(np.isin(splits, buckets)) for name, buckets in SPLITS.items()}
-    labeled = {name: effective(manifest, targets, arrays, indices, name == "train") for name, indices in selected.items()}
+    labeled = {name: effective(manifest, targets, arrays, indices) for name, indices in selected.items()}
     specs = specifications(targets, manifest["catalogs"], labeled["train"][0], slice(None))
     for name in ("validation", "calibration", "test"):
         counts = np.isfinite(labeled[name][0]).sum(0)
