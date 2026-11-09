@@ -328,10 +328,6 @@ pub fn py_int(s: &[char]) -> Option<i64> {
     Some(if negative { -value } else { value })
 }
 
-pub fn int(s: &[char]) -> i64 {
-    py_int(s).unwrap_or(0)
-}
-
 pub fn py_float(s: &[char]) -> Option<f64> {
     let ascii: String = strip_space(s).iter().map(|&c| digit_value(c).map_or(c, |d| char::from_digit(d, 10).unwrap())).filter(|&c| c != '_').collect();
     ascii.parse::<f64>().ok()

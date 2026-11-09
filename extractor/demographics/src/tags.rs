@@ -73,8 +73,8 @@ fn attached(lowered: &[char], end: usize, start: usize, automatic: bool, found: 
     }
 }
 
-fn height(feet: &[char], inches: i64) -> String {
-    rounded(((int(feet) * 12 + inches) as f64) * 2.54)
+fn height(feet: i64, inches: i64) -> String {
+    rounded(((feet * 12 + inches) as f64) * 2.54)
 }
 
 fn metric(m: &Match) -> String {
@@ -280,15 +280,15 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
         }
         for m in STATURE.iter_in(lowered, 0, played) {
             let start = m.start();
-            let Some(inches) = m.nonempty(2).or(m.nonempty(3)) else { continue };
-            let inches = int(inches);
-            if inches < 12 && int(m.group(1).unwrap()) * 12 + inches <= 86
+            let Some(inches) = m.nonempty(2).or(m.nonempty(3)).and_then(py_int) else { continue };
+            let Some(feet) = py_int(m.group(1).unwrap()) else { continue };
+            if inches < 12 && feet * 12 + inches <= 86
                 && (owned(lowered, start) || FIRST.test(sentence(lowered, start, m.end())) || WEIGHED.test(line(lowered, start)))
                 && !desired(lowered, start)
                 && !COMPARED.test(tail_sentence(lowered, start, 25))
                 && RANGE_AFTER.at(&lowered[m.end()..], 0).is_none()
             {
-                found.set("height", height(m.group(1).unwrap(), inches), start);
+                found.set("height", height(feet, inches), start);
             }
         }
     } else {
@@ -323,9 +323,16 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
         }
         for m in STATURE.iter_in(lowered, 0, played) {
             let start = m.start();
-            let inches = m.nonempty(2).or(m.nonempty(3)).map_or(0, int);
-            if inches < 12 && int(m.group(1).unwrap()) * 12 + inches <= 86 && !FOREIGN.test(tail_sentence(lowered, start, 25)) {
-                found.set("height", height(m.group(1).unwrap(), inches), start);
+            let inches = match m.nonempty(2).or(m.nonempty(3)) {
+                Some(stated) => {
+                    let Some(value) = py_int(stated) else { continue };
+                    value
+                }
+                None => 0,
+            };
+            let Some(feet) = py_int(m.group(1).unwrap()) else { continue };
+            if inches < 12 && feet * 12 + inches <= 86 && !FOREIGN.test(tail_sentence(lowered, start, 25)) {
+                found.set("height", height(feet, inches), start);
             }
         }
     }

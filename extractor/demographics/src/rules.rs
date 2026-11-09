@@ -148,8 +148,11 @@ fn table_of(t: &'static LazyLock<Table>, groups: &'static [usize]) -> impl Fn(&M
 }
 
 fn feet_inches(feet: Option<&[char]>, inches: Option<&[char]>) -> Option<String> {
-    let inches = inches.filter(|i| !i.is_empty()).map_or(0, int);
-    let total = int(feet.unwrap_or(&[])) * 12 + inches;
+    let inches = match inches.filter(|i| !i.is_empty()) {
+        Some(stated) => py_int(stated)?,
+        None => 0,
+    };
+    let total = py_int(feet?)? * 12 + inches;
     if inches < 12 && total <= 86 {
         Some(rounded(total as f64 * 2.54))
     } else {
@@ -219,13 +222,13 @@ fn age() -> Vec<Rule> {
                 return None;
             }
             match (m.nonempty(1), m.nonempty(2), m.nonempty(3)) {
-                (Some(year), _, _) => Some(int(year).to_string()),
-                (None, Some(short), _) => match int(short) {
+                (Some(year), _, _) => Some(py_int(year)?.to_string()),
+                (None, Some(short), _) => match py_int(short)? {
                     year @ 0..=12 => Some((2000 + year).to_string()),
                     year @ 30..=99 => Some((1900 + year).to_string()),
                     _ => None,
                 },
-                (None, None, Some(decade)) => Some((1900 + int(decade)).to_string()),
+                (None, None, Some(decade)) => Some((1900 + py_int(decade)?).to_string()),
                 (None, None, None) => unreachable!("born in matched without a year"),
             }
         }, h()),
@@ -441,7 +444,7 @@ fn weight() -> Vec<Rule> {
             })), sh()),
         said("body_weight", r#"[4-7](?<![\w.$'][4-7])\s?(?:'|ft)\s?\d{1,2}(?:\"|”|'')?\s*[,/]?\s+(\d{3})(?:\s?(?:lbs?|pounds))?(?![\w.%/'\"”])"#,
             alone(|m: &Match| {
-                let weight = int(m.group(1)?) as f64 * 0.4536;
+                let weight = py_int(m.group(1)?)? as f64 * 0.4536;
                 if weight <= 250.0 && !WANTING.test(tail_sentence(m.string, m.start(), 80)) { Some(rounded(weight)) } else { None }
             }), sh()),
     ]

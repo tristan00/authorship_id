@@ -206,7 +206,7 @@ fn starting(m: &Match, stat: bool) -> Option<String> {
             Some(found) if stat => found.group(1)?.to_vec(),
             _ => {
                 let context = if stat { STAT_LINE.test(row) } else { WEIGHTY.test(sentence(text, m.start(), m.end())) };
-                if int(amount) >= 150 && context { chars("lbs") } else { return None }
+                if py_int(amount)? >= 150 && context { chars("lbs") } else { return None }
             }
         },
     };
@@ -225,7 +225,7 @@ fn lost(m: &Match) -> Option<String> {
 }
 
 fn bra(m: &Match) -> Option<String> {
-    let band = int(m.group(1)?);
+    let band = py_int(m.group(1)?)?;
     if (28..=48).contains(&band) { Some(format!("{band}{}", st(m.group(2)?))) } else { None }
 }
 
@@ -242,7 +242,7 @@ fn clothing(m: &Match) -> Option<String> {
         "xx-large" => "xxl".to_string(),
         "extra small" => "xs".to_string(),
         _ if size.chars().next()?.is_ascii_digit() && !size.ends_with('x') && !size.ends_with("xl") => {
-            if int(&chars(size.split('/').next()?)) > 30 {
+            if py_int(&chars(size.split('/').next()?))? > 30 {
                 return None;
             }
             format!("size {size}")
