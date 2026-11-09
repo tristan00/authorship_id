@@ -15,6 +15,7 @@ PREDICTION_BATCH = 16384
 INSERT_ROWS = 1 << 20
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
 VALUE_AUTHORS = 10
+SPLIT_LABELS = 100
 CATEGORICAL_VALUES = 256
 TEMPERATURE_ROWS = 1 << 16
 THRESHOLDS = (.02, .05, .1, .15, .2, .3, .4, .5)

@@ -10,7 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import GPU_MEMORY, PARAMETERS, SEED, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
+from .config import GPU_MEMORY, PARAMETERS, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
 from .data import load
 from .evaluate import DEVICE, chosen, collect, memberships, report
 from .model import AttributeModel, specifications
@@ -121,8 +121,8 @@ def load_splits(manifest, arrays, sets):
     specs = specifications(targets, manifest["catalogs"], labeled["train"], lists["train"])
     for name in ("validation", "calibration", "test"):
         counts = np.isfinite(labeled[name]).sum(0)
-        if (counts < 100).any():
-            raise ValueError(f"Fewer than 100 {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < 100)}")
+        if (counts < SPLIT_LABELS).any():
+            raise ValueError(f"Fewer than {SPLIT_LABELS} {name} labels for {', '.join(spec['name'] for spec, count in zip(specs, counts) if count < SPLIT_LABELS)}")
     LOG.info("attribute model rows=%s", {name: len(indices) for name, indices in selected.items()})
     columns = {name: column for column, name in enumerate(targets)}
     data = {}

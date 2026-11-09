@@ -10,7 +10,7 @@ import pyarrow.compute as pc
 from database import author_ranges, author_span, client
 
 from . import LOG, timed, write_json
-from .config import CATEGORICAL_VALUES, DIMENSIONS, SPLITS, VALUE_AUTHORS, VECTOR_RANGES, partition, validate
+from .config import CATEGORICAL_VALUES, DIMENSIONS, SPLIT_LABELS, SPLITS, VALUE_AUTHORS, VECTOR_RANGES, partition, validate
 
 ATTRIBUTES = "SELECT attribute, kind FROM author_attributes ORDER BY attribute"
 CLAIMS = "SELECT author, attribute, value FROM author_claims WHERE attribute IN {attributes:Array(String)}"
@@ -109,28 +109,34 @@ def prepare(directory):
     (staging / "sets").mkdir()
     vectors, authors = read_vectors(db, names, staging / "users.npy")
     position = pc.fill_null(pc.index_in(claims["author"], value_set=pa.array(authors, pa.string())), -1).to_numpy()
-    labels = np.full((len(authors), len(kinds)), np.nan, dtype=np.float32)
-    targets, catalogs, excluded = {}, {}, {}
+    splits = np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors))
+    columns, targets, catalogs, excluded, insufficient = [], {}, {}, {}, {}
     attributes = claims["attribute"]
-    for column, (name, kind) in enumerate(kinds.items()):
+    for name, kind in kinds.items():
         selected = np.flatnonzero((position >= 0) & pc.equal(attributes, name).to_numpy(zero_copy_only=False))
-        if not len(selected):
-            raise ValueError(f"No observed labels for consolidated attribute {name}")
         rows = position[selected]
-        target, column_values, names, sets = encoded(name, kind, claims["value"].take(pa.array(selected)), rows, len(authors))
-        targets[name] = target
+        target, column_values, names, sets = encoded(name, kind, claims["value"].take(pa.array(selected)), rows, len(authors)) if len(selected) else (None, None, [], None)
+        column = np.full(len(authors), np.nan, dtype=np.float32)
+        if target == "set":
+            column[np.flatnonzero(np.diff(sets[0]))] = 1.
+        elif target is not None:
+            column[rows] = column_values
+        counts = {split: int(np.isfinite(column[np.isin(splits, buckets)]).sum()) for split, buckets in SPLITS.items()}
+        if target is None or min(counts.values()) < SPLIT_LABELS or (target != "numeric" and len(names) < 2):
+            insufficient[name] = {"labels": counts, "values": len(names or [])}
+            LOG.info("attribute %s not trainable labels=%s values=%d", name, counts, len(names or []))
+            continue
         if target == "set":
             np.save(staging / "sets" / f"{name}.indptr.npy", sets[0])
             np.save(staging / "sets" / f"{name}.values.npy", sets[1])
-            present = np.flatnonzero(np.diff(sets[0]))
-            labels[present, column] = 1.
-            excluded[name] = int(len(selected) - len(sets[1]))
-        else:
-            labels[rows, column] = column_values
-            excluded[name] = int(len(selected) - np.isfinite(labels[rows, column]).sum())
+        targets[name] = target
+        columns.append(column)
+        excluded[name] = int(len(selected) - (len(sets[1]) if target == "set" else np.isfinite(column[rows]).sum()))
         if names is not None:
             catalogs[name] = names
-    splits = np.fromiter(map(partition, authors), dtype=np.uint8, count=len(authors))
+    if not targets:
+        raise ValueError("No consolidated attribute has enough labels to train")
+    labels = np.stack(columns, 1)
     training = np.flatnonzero(np.isin(splits, SPLITS["train"]))
     sample = np.asarray(vectors[training[::max(1, len(training) // SPREAD_ROWS)]], dtype=np.float32)
     features = {"dimensions": DIMENSIONS, "center": sample.mean(0).tolist(), "spread": np.maximum(sample.std(0), 1e-4).tolist()}
@@ -139,13 +145,13 @@ def prepare(directory):
     write_json(staging / "authors.json", authors)
     counts = np.isfinite(labels).sum(0)
     manifest = {"targets": validate(targets), "catalogs": catalogs, "authors": len(authors), "source": source, "features": features,
-                "target_counts": {name: int(count) for name, count in zip(targets, counts)}, "excluded_values": excluded}
+                "target_counts": {name: int(count) for name, count in zip(targets, counts)}, "excluded_values": excluded, "insufficient": insufficient}
     write_json(staging / "manifest.json", manifest)
     del vectors
     if directory.exists():
         shutil.rmtree(directory)
     staging.rename(directory)
-    return {"authors": len(authors), "directory": str(directory), "targets": targets, "target_counts": manifest["target_counts"], "excluded_values": excluded}
+    return {"authors": len(authors), "directory": str(directory), "targets": targets, "target_counts": manifest["target_counts"], "excluded_values": excluded, "insufficient": insufficient}
 
 
 def load(directory):
