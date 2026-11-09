@@ -58,6 +58,23 @@ static WORDS: LazyLock<Re> = LazyLock::new(|| Re::new(r"[\w'-]+"));
 static MILESTONE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:passed|hit|crossed|topped|clear|cleared)\b"));
 static COMPARED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:more|less|extra|higher|lower|raise|diff|differential)\b"));
 static EARNERS: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:{KIN}|parents|family|you|your|u|we|someone|anyone|everyone|people)\b")));
+static AMERICAN: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"\b(?:usd|us dollars?|401\s?\(?k|403\s?\(?b|457\s?\(?b|roth (?:ira|401)|irs|w-?2|(?<![$\d.,])1099|fica|medicaid|fafsa|usa|united states|in the (?:us|states)|veterans affairs|va (?:disability|benefits|loan|rating)|",
+    r"alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming",
+    r")\b|\bus\$|\bu\.s\.")));
+static ABROAD: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:cad|aud|nzd|sgd|hkd|eur|euros?|gbp|inr|rupees?|lakhs?|canada|canadian|australia|australian|new zealand|singapore|hong kong)\b|\b(?:c|ca|a|au|nz|s|hk)\$|[€£₹]"));
+static SUBCONTINENT: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:pkr|pakistan|pakistani|npr|nepal|nepali|nepalese|lkr|sri lanka|sri lankan|bdt|bangladesh|bangladeshi|taka)\b"));
+static HOPED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:goal|goals|aim|aiming|hope|hoping|want|wanted|wanting|plan|planning|dream|could|would|will|might|may)\b"));
+static NAMED: LazyLock<Vec<(&str, &str, Re)>> = LazyLock::new(|| {
+    [("¥", "jpy", r"\b(?:yen|jpy)\b"), ("¥", "cny", r"\b(?:yuan|rmb|cny|renminbi)\b"), ("kr", "sek", r"\b(?:sek|kronor|swedish kron[ae])\b"),
+     ("kr", "nok", r"\b(?:nok|norwegian kroner?)\b"), ("kr", "dkk", r"\b(?:dkk|danish kroner?)\b"), ("kr", "isk", r"\b(?:isk|icelandic kron(?:a|ur))\b")]
+    .into_iter().map(|(symbol, code, pattern)| (symbol, code, Re::new(pattern))).collect()
+});
+static RATES: LazyLock<HashMap<String, f64>> = LazyLock::new(|| {
+    timed("work.rates", || data_file("currency_rates.tsv").lines().map(|line| {
+        let cells: Vec<&str> = line.split('\t').collect();
+        (cells[0].to_string(), cells[1].parse().unwrap())
+    }).collect())
+});
 
 pub(crate) const SELF_EMPLOYED: &str = "self-employed / freelance";
 pub(crate) const UNDERGRAD: &str = "undergraduate (year unstated)";
@@ -547,8 +564,59 @@ fn period(name: Option<&str>) -> Option<f64> {
 fn scale(name: Option<&[char]>) -> f64 {
     match name.map(st).as_deref() {
         Some("k" | "thousand" | "grand") => 1000.0,
+        Some("lpa" | "lakh" | "lakhs" | "lac" | "lacs") => 100_000.0,
         Some("mil" | "million") => 1_000_000.0,
+        Some("crore" | "crores") => 10_000_000.0,
         _ => 1.0,
+    }
+}
+
+fn code(marker: &str) -> Option<&'static str> {
+    let value = match marker {
+        "us$" | "usd" | "us dollar" | "us dollars" | "american dollar" | "american dollars" => "usd",
+        "€" | "eur" | "euro" | "euros" => "eur",
+        "£" | "gbp" | "pound" | "pounds" | "quid" => "gbp",
+        "₹" | "inr" => "inr",
+        "c$" | "ca$" | "cad" | "canadian dollar" | "canadian dollars" => "cad",
+        "a$" | "au$" | "aud" | "australian dollar" | "australian dollars" => "aud",
+        "nz$" | "nzd" => "nzd",
+        "s$" | "sgd" => "sgd",
+        "hk$" | "hkd" => "hkd",
+        "r$" | "brl" | "reais" => "brl",
+        "zł" | "pln" => "pln",
+        "jpy" | "yen" => "jpy",
+        "cny" | "rmb" | "yuan" => "cny",
+        "chf" => "chf",
+        "sek" => "sek",
+        "nok" => "nok",
+        "dkk" => "dkk",
+        _ => return None,
+    };
+    Some(value)
+}
+
+fn american(text: &[char]) -> bool {
+    AMERICAN.test(text) && !ABROAD.test(text)
+}
+
+fn named(text: &[char], marker: &str) -> Option<&'static str> {
+    match marker.trim_end_matches('.') {
+        "$" | "dollar" | "dollars" | "bucks" => american(text).then_some("usd"),
+        "rs" | "rupee" | "rupees" | "lpa" | "lakh" | "lakhs" | "lac" | "lacs" | "crore" | "crores" => (!SUBCONTINENT.test(text)).then_some("inr"),
+        _ => {
+            let found: Vec<&'static str> = NAMED.iter().filter(|(symbol, _, re)| *symbol == marker && re.test(text)).map(|(_, code, _)| *code).collect();
+            (found.len() == 1).then(|| found[0])
+        }
+    }
+}
+
+fn currency(m: &Match) -> Option<&'static str> {
+    let markers: Vec<String> = [1, 3, 4, 5].into_iter().filter_map(|number| m.gs(number)).collect();
+    let codes: HashSet<&'static str> = markers.iter().filter_map(|marker| code(marker)).collect();
+    match codes.len() {
+        0 => markers.iter().find_map(|marker| named(m.string, marker)),
+        1 => codes.into_iter().next(),
+        _ => None,
     }
 }
 
@@ -556,25 +624,26 @@ fn income(m: &Match) -> Option<String> {
     if contains(m.text(), "hourly") {
         return None;
     }
-    let name = m.gs(4).or_else(|| m.gs(5));
+    let name = m.gs(6).or_else(|| m.gs(7));
     let times = period(name.as_deref())?;
     if times > 1.0 && (MILESTONE.test(m.text()) || COMPARED.at(m.string, m.end()).is_some()) {
         return None;
     }
-    let digits: Vec<char> = m.group(1)?.iter().copied().filter(|&c| c != ',').collect();
-    let amount = py_float(&digits)? * scale(m.group(2).or(m.group(3))) * times;
-    if (1000.0..=10_000_000.0).contains(&amount) {
-        Some((amount as i64).to_string())
-    } else {
-        None
-    }
+    let rate = RATES[currency(m)?];
+    let digits: Vec<char> = m.group(2)?.iter().copied().filter(|&c| c != ',').collect();
+    let dollars = py_float(&digits)? * scale(m.group(3).or(m.group(4))) * times * rate;
+    (1000.0..=10_000_000.0).contains(&dollars).then(|| (dollars.round() as i64).to_string())
+}
+
+fn figures(m: &Match) -> Option<String> {
+    american(m.string).then(|| "100000".to_string())
 }
 
 fn earning(m: &Match) -> Option<String> {
     let text = m.string;
     let start = m.start();
     let left = clause(text, start);
-    if (owned(text, start, 50) || PERSONA.test_in(text, left, start)) && !EARNERS.test_in(text, left, start) {
+    if (owned(text, start, 50) || PERSONA.test_in(text, left, start)) && !EARNERS.test_in(text, left, start) && !HOPED.test_in(text, left, start) {
         income(m)
     } else {
         None

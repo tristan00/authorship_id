@@ -1732,7 +1732,7 @@
    "prompt": "person",
    "kind": "number",
    "describe": "What is the writer's income",
-   "unit": "stated currency per year",
+   "unit": "US dollars per year",
    "low": 0,
    "high": 10000000,
    "precision": 1

@@ -3,6 +3,9 @@ use crate::*;
 const ELIDED: &str = r"(?:^|[.!?\n]\s*)(?:also |currently |now |still |unfortunately |sadly |just |recently |happily )?";
 const STATED: &str = r"(?=\s*(?:$|[.,!;:)(\n-]|\b(?:for|since|and|now|right|currently|again|atm|rn|lol|but|so|too|myself|here|with|as|in|at)\b))";
 const ADVERB: &str = r"(?:(?:also|now|currently|still|actually|literally|basically|just|only|really|officially|finally|myself|technically|already|proudly|both|happily|full[- ]?time|part[- ]?time) )*";
+const BEFORE: &str = r"us\$|usd|c\$|ca\$|cad|a\$|au\$|aud|nz\$|nzd|s\$|sgd|hk\$|hkd|r\$|brl|€|eur|£|gbp|₹|inr|rs\.?|chf|sek|nok|dkk|pln|jpy|cny|rmb|¥|\$";
+const AFTER: &str = r"us dollars?|american dollars?|canadian dollars?|australian dollars?|us\$|usd|cad|aud|nzd|sgd|hkd|brl|reais|eur|euros?|gbp|pounds?|quid|inr|rupees?|chf|sek|nok|dkk|pln|zł|jpy|yen|cny|rmb|yuan|kr|dollars?|bucks|€|£|₹|¥|\$";
+const SCALE: &str = r"k|thousand|grand|mil|million|lpa|lakhs?|lacs?|crores?";
 const BMOD: &str = r"(?:(?!(?:local|favorite|favourite|usual|nearest|go-to|regular|closest|neighborhood|neighbourhood|nearby|preferred|dad's|mom's|mum's|parents'|family's|friend's|old)\b)[\w'&-]+ ){0,2}?";
 
 fn names(map: &Map) -> String {
@@ -483,10 +486,10 @@ pub fn build() -> Vec<Rule> {
     rules.push(said("financial_situation", r"\b(?:i'm|im|i am) (?:already )?(?:a )?(?:multi-?)?millionaire\b", fixed("wealthy"), sh));
     rules.push(said("financial_situation", r"\b(?:i'm|im|i am) (?:already |now )?(?:fi|financially independent)\b(?=\s*(?:$|[.,!;)]|\b(?:and|now|since|at)\b))|\bi retired early\b|(?<![\w.])\d{1,3}(?:\.\d+)?% (?:to )?fi(?:re)?\b", fixed("financially independent / retired early"), sh));
     rules.push(said("financial_situation", r"\b(?:i'm|im|i am|i've been|i have been) (?:currently |now |still )?on (?:benefits|welfare|universal credit|food stamps|centrelink)\b", fixed("on benefits"), sh));
-    let amount = concat!(r"(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly |an? |approximately |approx |more than |barely |only |just |(?:a bit|a little|slightly) (?:over|under|more than|less than) |just shy of |upwards of |north of )?",
-        r"\$?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|grand|mil|million)?(?:\s*(?:-|–|to)\s*\$?\d[\d,]*(?:\.\d+)?\s*(k|thousand|grand|mil|million)?)?",
-        r"\s*(?:(?:usd|cad|aud|eur|gbp|dollars|pounds|euros)\s*)?(?:(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b|(annually|yearly|monthly|hourly|weekly)\b|",
-        r"(?=\s*(?:$|[.,!;)+]|before|after|pre|post|gross|net|base|salary|total|tc|as|currently|now|right now|working|plus|and|but|so|with|which)))");
+    let amount = format!(concat!(r"(?:about |around |roughly |over |like |~|almost |just under |just over |close to |nearly |an? |approximately |approx |more than |barely |only |just |(?:a bit|a little|slightly) (?:over|under|more than|less than) |just shy of |upwards of |north of )?",
+        r"(?:({BEFORE})\s?)?(\d[\d,]*(?:\.\d+)?)\s*({SCALE})?(?:\s*(?:-|–|to)\s*(?:{BEFORE})?\s?\d[\d,]*(?:\.\d+)?\s*({SCALE})?)?",
+        r"\s*(?:({AFTER})(?![a-z])\s*)?(?:(?:a|per|/|an?|each)\s*(year|yr|annum|month|mo|hour|hr|week|wk)\b|(annually|yearly|monthly|hourly|weekly)\b|",
+        r"(?=\s*(?:$|[.,!;)+]|before|after|pre|post|gross|net|base|salary|total|tc|as|currently|now|right now|working|plus|and|but|so|with|which)))"), BEFORE = BEFORE, SCALE = SCALE, AFTER = AFTER);
     let paid = concat!(r"(?:\b(?:i|me) (?:currently |now |only |just |still )?(?:make|made|earn|earned|bring in|bring home|gross|grossed|net|netted|take home|clear|cleared|pull|pulled|pull in|get paid|got paid|passed|hit|crossed|topped)|",
         r"\b(?:i'm|im|i am) (?:currently |now |only |just |still )?(?:making|earning|paid|getting paid|bringing in|bringing home|pulling in|clearing|netting|grossing|taking home|(?:on|at)(?=\s+(?:about |around |like |~)?\$|\s+\d[\d,.]*\s*k\b))|\bmy (?:salary|income|pay|base|base salary|base pay|tc|total comp|total compensation|",
         r"take home|take-home|take home pay|comp|annual salary|gross income|net income|household income|paycheck|wage|hourly rate|rate) (?:is|was|went up to|of|:|=|is now|just hit|is around|is about|is like))");
@@ -500,7 +503,7 @@ pub fn build() -> Vec<Rule> {
     for pattern in &income_patterns {
         rules.push(rule("income", pattern, boxed(income), self_hedge));
     }
-    rules.push(rule("income", &six_figures, fixed("100000"), self_hedge));
+    rules.push(rule("income", &six_figures, boxed(figures), self_hedge));
     rules.push(said("income", &earning_pattern, boxed(earning), sh));
     let term = r"\bcurrently (?:studying|pursuing|enrolled|doing (?:my|a|an) (?:degree|bachelor'?s|masters?|master's|bsc|ba|bs|btech|undergrad))\b";
     rules.push(said("current_study_level", term, near(boxed(level)), sh));
