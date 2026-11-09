@@ -1,5 +1,5 @@
 use crate::database::{text, Database};
-use crate::rules::{blocked, consolidate, first, Evidence, Step, Tallies, Vocabulary, NEED, TEXT};
+use crate::rules::{blocked, consolidate, first, Attribute, Evidence, Step, Tallies, Vocabulary, NEED, TEXT};
 use crate::{log, parallel, timed};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ const BUCKET_SHIFT: u32 = 104;
 const STREAMS: usize = 8;
 const EXCLUDED: &str = "'', '[deleted]', '[removed]', 'AutoModerator'";
 const KEY: &str = "reinterpretAsUInt128(substring(text_sha256, 1, 16))";
-const CLAIMS: &str = "CREATE TABLE author_claims_next (author String, attribute LowCardinality(String), value String, support Float32, share Float32, candidates String) ENGINE = MergeTree ORDER BY (author, attribute)";
+const CLAIMS: &str = "CREATE TABLE author_claims_next (author String, attribute LowCardinality(String), value String) ENGINE = MergeTree ORDER BY (author, attribute)";
 
 struct TextClaims {
     keys: Vec<u128>,
@@ -144,6 +144,18 @@ struct Done {
     deferred: Vec<(String, Evidence)>,
 }
 
+fn attributes(database: &Database) -> Vec<Attribute> {
+    let mut rows = database.rows("SELECT attribute, kind, anchor, precision FROM claim_attributes ORDER BY attribute FORMAT RowBinary");
+    let mut found = Vec::new();
+    while !rows.done() {
+        let (name, kind, anchor) = (text(rows.bytes()), text(rows.bytes()), text(rows.bytes()));
+        found.push(Attribute { name, kind, anchor, precision: f64::from_le_bytes(rows.fixed()) });
+    }
+    assert!(!found.is_empty(), "claim_attributes is empty; claim extraction publishes it");
+    log(&format!("claim attributes={}", found.len()));
+    found
+}
+
 fn quoted(text: &str) -> String {
     format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'"))
 }
@@ -266,7 +278,7 @@ fn write(database: &Database, outbox: Receiver<Vec<u8>>) {
     let mut pending = Vec::with_capacity(INSERT_BYTES + (1 << 20));
     let mut flush = |pending: &mut Vec<u8>| {
         let insert = Instant::now();
-        database.insert("author_claims_next (author, attribute, value, support, share, candidates)", pending);
+        database.insert("author_claims_next (author, attribute, value)", pending);
         waited += insert.elapsed().as_secs_f64();
         inserts += 1;
         bytes += pending.len();
@@ -288,7 +300,7 @@ pub fn run(database: &Database, threads: usize) {
     timed("consolidate", || {
         let finished: u64 = database.command("SELECT count() FROM extracted_parts").trim().parse().unwrap();
         assert!(finished >= PARTS, "claim extraction has not finished every part: {finished}/{PARTS}");
-        let mut vocabulary = Vocabulary::new();
+        let mut vocabulary = Vocabulary::new(&timed("claim attributes", || attributes(database)));
         database.command("DROP TABLE IF EXISTS claimed_keys");
         database.command("CREATE TABLE claimed_keys (key UInt128) ENGINE = Set SETTINGS persistent = 0");
         let (texts, filters) = std::thread::scope(|scope| {

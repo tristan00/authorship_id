@@ -1,54 +1,32 @@
 use crate::database::put_string;
-use crate::schema::{decomposed, stored_field, BOT};
 use std::collections::{HashMap, HashSet};
 
 pub const TEXT: u32 = u32::MAX;
 pub const NEED: u32 = 1;
 const SHARE: f64 = 0.5;
-const CHILD_AGE: f64 = 18.0;
-const NOT_A_CHILD: [(&str, &[&str]); 3] = [
-    ("parental_status", &["has children"]),
-    ("relationship_status", &["married", "separated", "divorced", "widowed"]),
-    ("employment_status", &["retired"]),
-];
+const WIDE: f64 = 5.0;
+const FIRST_YEAR: i64 = 1900;
+const LAST_YEAR: i64 = 2100;
 const BOT_TEXTS: u32 = 3;
 const BOT_SHARE: f64 = 0.2;
 const GATE_COMPARISONS: u64 = 30;
 const GATE_SKILL: f64 = 0.25;
-const FAN: &str = "fan_";
 
-#[derive(Clone, Copy)]
-enum Span {
-    Absolute(f64),
-    Relative(f64),
+pub struct Attribute {
+    pub name: String,
+    pub kind: String,
+    pub anchor: String,
+    pub precision: f64,
 }
 
-impl Span {
-    fn close(self, left: f64, right: f64) -> bool {
-        match self {
-            Span::Absolute(amount) => (left - right).abs() <= amount,
-            Span::Relative(amount) => (left - right).abs() <= amount * left.max(right),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Numeric {
-    tolerance: Span,
-    wide: Span,
-    low: f64,
-    high: f64,
-}
-
-fn numeric(name: &str) -> Option<Numeric> {
-    let (tolerance, wide, low, high) = match name {
-        "age" => (Span::Absolute(1.0), Span::Absolute(5.0), 13.0, 100.0),
-        "height" => (Span::Absolute(2.0), Span::Absolute(5.0), 120.0, 230.0),
-        "weight" => (Span::Relative(0.05), Span::Relative(0.15), 30.0, 300.0),
-        "income" => (Span::Relative(0.1), Span::Relative(0.5), 1000.0, 10_000_000.0),
-        _ => return None,
-    };
-    Some(Numeric { tolerance, wide, low, high })
+fn year_of(seconds: u32) -> i64 {
+    let days = seconds as i64 / 86_400 + 719_468;
+    let era = days.div_euclid(146_097);
+    let day = days - era * 146_097;
+    let year = (day - day / 1460 + day / 36_524 - day / 146_096) / 365;
+    let within = day - (365 * year + year / 4 - year / 100);
+    let month = (5 * within + 2) / 153;
+    year + era * 400 + (month >= 10) as i64
 }
 
 #[derive(Default)]
@@ -78,59 +56,78 @@ impl Interner {
 }
 
 struct Claim {
-    bot: bool,
-    parts: Vec<(u32, u32)>,
+    marker: bool,
+    name: u32,
+    value: u32,
 }
 
 pub struct Vocabulary {
     names: Interner,
     values: Interner,
     pub subreddits: Interner,
-    numeric: Vec<Option<Numeric>>,
-    single: Vec<bool>,
+    precision: Vec<Option<f64>>,
+    set: Vec<bool>,
+    marker: Vec<bool>,
+    anchor: Vec<Option<u32>>,
+    years: Vec<u32>,
     numbers: Vec<Option<f64>>,
     claim_ids: HashMap<Vec<u8>, u32>,
     claims: Vec<Claim>,
     key: Vec<u8>,
-    age: u32,
-    adult: Vec<(u32, Vec<u32>)>,
 }
 
 impl Vocabulary {
-    pub fn new() -> Vocabulary {
+    pub fn new(attributes: &[Attribute]) -> Vocabulary {
         let mut vocabulary = Vocabulary {
             names: Interner::default(),
             values: Interner::default(),
             subreddits: Interner::default(),
-            numeric: Vec::new(),
-            single: Vec::new(),
+            precision: Vec::new(),
+            set: Vec::new(),
+            marker: Vec::new(),
+            anchor: Vec::new(),
+            years: Vec::new(),
             numbers: Vec::new(),
             claim_ids: HashMap::new(),
             claims: Vec::new(),
             key: Vec::new(),
-            age: 0,
-            adult: Vec::new(),
         };
-        vocabulary.age = vocabulary.name("age");
-        vocabulary.adult = NOT_A_CHILD.iter().map(|(field, values)| (vocabulary.name(field), values.iter().map(|value| vocabulary.values.id(value)).collect())).collect();
+        for attribute in attributes {
+            vocabulary.names.id(&attribute.name);
+            vocabulary.precision.push((attribute.kind == "number").then_some(attribute.precision));
+            vocabulary.set.push(attribute.kind == "set");
+            vocabulary.marker.push(attribute.kind == "marker");
+        }
+        vocabulary.anchor = attributes
+            .iter()
+            .map(|attribute| {
+                (!attribute.anchor.is_empty())
+                    .then(|| *vocabulary.names.ids.get(&attribute.anchor).unwrap_or_else(|| panic!("{} anchors to unknown attribute {}", attribute.name, attribute.anchor)))
+            })
+            .collect();
+        if vocabulary.anchor.iter().any(Option::is_some) {
+            vocabulary.years = (FIRST_YEAR..=LAST_YEAR).map(|year| vocabulary.number_value(&year.to_string())).collect();
+        }
         vocabulary
     }
 
-    fn name(&mut self, name: &str) -> u32 {
-        let id = self.names.id(name);
-        if id as usize == self.numeric.len() {
-            self.numeric.push(numeric(name));
-            self.single.push(!name.starts_with(FAN));
-        }
+    fn name(&self, name: &str) -> u32 {
+        *self.names.ids.get(name).unwrap_or_else(|| panic!("claimed attribute {name:?} is not in claim_attributes"))
+    }
+
+    fn number_value(&mut self, value: &str) -> u32 {
+        let id = self.values.id(value);
+        self.numbers.resize(self.values.len(), None);
+        self.numbers[id as usize] = Some(value.parse().unwrap_or_else(|error| panic!("numeric value {value:?} does not parse: {error}")));
         id
     }
 
     fn value(&mut self, name: u32, value: &str) -> u32 {
+        if self.precision[name as usize].is_some() {
+            return self.number_value(value);
+        }
         let id = self.values.id(value);
         self.numbers.resize(self.values.len(), None);
-        if self.numeric[name as usize].is_some() && self.numbers[id as usize].is_none() {
-            self.numbers[id as usize] = Some(value.parse().unwrap_or_else(|error| panic!("numeric value {value:?} does not parse: {error}")));
-        }
         id
     }
 
@@ -142,21 +139,10 @@ impl Vocabulary {
         if let Some(&id) = self.claim_ids.get(&self.key) {
             return id;
         }
-        let (attribute, value) = (String::from_utf8_lossy(attribute).into_owned(), String::from_utf8_lossy(value).into_owned());
-        let bot = attribute == BOT;
-        let parts = if bot {
-            Vec::new()
-        } else {
-            decomposed(&stored_field(&attribute), &value)
-                .into_iter()
-                .map(|(name, stated)| {
-                    let name = self.name(&name);
-                    (name, self.value(name, &stated))
-                })
-                .collect()
-        };
+        let name = self.name(&String::from_utf8_lossy(attribute));
+        let value = self.value(name, &String::from_utf8_lossy(value));
         let id = self.claims.len() as u32;
-        self.claims.push(Claim { bot, parts });
+        self.claims.push(Claim { marker: self.marker[name as usize], name, value });
         self.claim_ids.insert(self.key.clone(), id);
         id
     }
@@ -170,10 +156,19 @@ impl Vocabulary {
     }
 
     fn near(&self, name: u32, left: u32, right: u32) -> bool {
-        match self.numeric[name as usize] {
-            Some(numeric) => numeric.wide.close(self.number(left), self.number(right)),
+        match self.precision[name as usize] {
+            Some(precision) => (self.number(left) - self.number(right)).abs() <= WIDE * precision,
             None => left == right,
         }
+    }
+
+    fn stated(&self, claim: &Claim, time: u32) -> Option<(u32, u32)> {
+        let Some(target) = self.anchor[claim.name as usize] else {
+            return Some((claim.name, claim.value));
+        };
+        let year = year_of(time) - self.number(claim.value).round() as i64;
+        let index = usize::try_from(year - FIRST_YEAR).ok().filter(|&index| index < self.years.len())?;
+        Some((target, self.years[index]))
     }
 }
 
@@ -208,12 +203,16 @@ impl Evidence {
         self.docs += 1;
         if subreddit == TEXT {
             self.texts += 1;
-            self.flagged += claims.iter().any(|&claim| vocabulary.claims[claim as usize].bot) as u32;
+            self.flagged += claims.iter().any(|&claim| vocabulary.claims[claim as usize].marker) as u32;
         } else {
             self.flaired = true;
         }
         for &claim in claims {
-            for &(name, stated) in &vocabulary.claims[claim as usize].parts {
+            let claim = &vocabulary.claims[claim as usize];
+            if claim.marker {
+                continue;
+            }
+            if let Some((name, stated)) = vocabulary.stated(claim, time) {
                 self.items.push(Item { name, stated, doc, subreddit, time });
             }
         }
@@ -260,19 +259,14 @@ pub struct Decision {
     support: Vec<Support>,
 }
 
-fn tally(vocabulary: &Vocabulary, name: u32, values: &[Support], recent: bool) -> Option<Decision> {
-    let numeric = vocabulary.numeric[name as usize];
-    let support: Vec<Support> = match numeric {
-        Some(bounds) => values.iter().filter(|entry| (bounds.low..=bounds.high).contains(&vocabulary.number(entry.value))).copied().collect(),
-        None => values.to_vec(),
-    };
+fn tally(vocabulary: &Vocabulary, name: u32, support: &[Support], recent: bool) -> Option<Decision> {
     if support.is_empty() {
         return None;
     }
-    let scores: Vec<u32> = match numeric {
-        Some(bounds) => support
+    let scores: Vec<u32> = match vocabulary.precision[name as usize] {
+        Some(precision) => support
             .iter()
-            .map(|entry| support.iter().filter(|other| bounds.tolerance.close(vocabulary.number(entry.value), vocabulary.number(other.value))).map(|other| other.count).sum())
+            .map(|entry| support.iter().filter(|other| (vocabulary.number(entry.value) - vocabulary.number(other.value)).abs() <= precision).map(|other| other.count).sum())
             .collect(),
         None => support.iter().map(|entry| entry.count).collect(),
     };
@@ -286,7 +280,7 @@ fn tally(vocabulary: &Vocabulary, name: u32, values: &[Support], recent: bool) -
         }
     }
     let total: u32 = support.iter().map(|entry| entry.count).sum();
-    Some(Decision { name, best: support[best].value, score: scores[best], share: scores[best] as f64 / total as f64, support })
+    Some(Decision { name, best: support[best].value, score: scores[best], share: scores[best] as f64 / total as f64, support: support.to_vec() })
 }
 
 fn plurality(decision: &Decision) -> bool {
@@ -295,23 +289,24 @@ fn plurality(decision: &Decision) -> bool {
 }
 
 fn decide(vocabulary: &Vocabulary, found: &[(u32, Vec<Support>)], need: u32) -> Vec<Decision> {
-    let mut decided: Vec<Decision> = found
-        .iter()
-        .filter_map(|(name, values)| {
-            let decision = tally(vocabulary, *name, values, false)?;
-            if decision.score >= need && (decision.share > SHARE || plurality(&decision)) {
-                Some(decision)
-            } else if vocabulary.single[*name as usize] {
-                tally(vocabulary, *name, values, true).filter(|decision| decision.score >= need)
-            } else {
-                None
-            }
-        })
-        .collect();
-    if let Some(age) = decided.iter().position(|decision| decision.name == vocabulary.age) {
-        let adult = vocabulary.adult.iter().any(|(field, values)| decided.iter().any(|decision| decision.name == *field && values.contains(&decision.best)));
-        if vocabulary.number(decided[age].best) < CHILD_AGE && adult {
-            decided.remove(age);
+    let mut decided = Vec::new();
+    for (name, values) in found {
+        if vocabulary.set[*name as usize] {
+            let total: u32 = values.iter().map(|entry| entry.count).sum();
+            decided.extend(values.iter().filter(|entry| entry.count >= need).map(|entry| Decision {
+                name: *name,
+                best: entry.value,
+                score: entry.count,
+                share: entry.count as f64 / total as f64,
+                support: values.clone(),
+            }));
+            continue;
+        }
+        let Some(decision) = tally(vocabulary, *name, values, false) else { continue };
+        if decision.score >= need && (decision.share > SHARE || plurality(&decision)) {
+            decided.push(decision);
+        } else if let Some(recent) = tally(vocabulary, *name, values, true).filter(|decision| decision.score >= need) {
+            decided.push(recent);
         }
     }
     decided
@@ -408,63 +403,10 @@ pub fn blocked(vocabulary: &Vocabulary, tallies: &Tallies) -> Blocked {
     found
 }
 
-fn json_string(out: &mut String, text: &str) {
-    out.push('"');
-    for character in text.chars() {
-        match character {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            control if (control as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", control as u32)),
-            other => out.push(other),
-        }
-    }
-    out.push('"');
-}
-
 impl Decision {
-    pub fn attribute<'a>(&self, vocabulary: &'a Vocabulary) -> &'a str {
-        vocabulary.names.get(self.name)
-    }
-
-    pub fn value<'a>(&self, vocabulary: &'a Vocabulary) -> &'a str {
-        vocabulary.values.get(self.best)
-    }
-
-    pub fn support(&self) -> f32 {
-        self.score as f32
-    }
-
-    pub fn share(&self) -> f32 {
-        self.share as f32
-    }
-
-    pub fn candidates(&self, vocabulary: &Vocabulary) -> String {
-        let mut ranked: Vec<(&str, u32)> = self.support.iter().map(|entry| (vocabulary.values.get(entry.value), entry.count)).collect();
-        ranked.sort_by(|left, right| right.1.cmp(&left.1).then(left.0.cmp(right.0)));
-        let mut out = String::from("[");
-        for (index, (value, amount)) in ranked.iter().enumerate() {
-            if index > 0 {
-                out.push_str(", ");
-            }
-            out.push('[');
-            json_string(&mut out, value);
-            out.push_str(&format!(", {amount}]"));
-        }
-        out.push(']');
-        out
-    }
-
     pub fn encode(&self, vocabulary: &Vocabulary, author: &str, out: &mut Vec<u8>) {
         put_string(out, author);
-        put_string(out, self.attribute(vocabulary));
-        put_string(out, self.value(vocabulary));
-        out.extend_from_slice(&self.support().to_le_bytes());
-        out.extend_from_slice(&self.share().to_le_bytes());
-        put_string(out, &self.candidates(vocabulary));
+        put_string(out, vocabulary.names.get(self.name));
+        put_string(out, vocabulary.values.get(self.best));
     }
 }

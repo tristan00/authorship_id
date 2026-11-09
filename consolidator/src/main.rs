@@ -2,10 +2,8 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod database;
-mod file;
 mod rules;
 mod run;
-mod schema;
 
 use crossbeam_channel::bounded;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -56,9 +54,8 @@ fn main() {
             let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
             run::run(&database, option(&args, "--threads", "1").parse().unwrap());
         }
-        Some("decide") if args.len() >= 4 => file::decide(&args[2], &args[3]),
         _ => {
-            eprintln!("usage: consolidate run --host HOST [--port 8123] [--database reddit] [--threads N] | consolidate decide in.jsonl out.jsonl");
+            eprintln!("usage: consolidate run --host HOST [--port 8123] [--database reddit] [--threads N]");
             std::process::exit(2);
         }
     }
