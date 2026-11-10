@@ -8,6 +8,7 @@ const BOT_TEXTS: u32 = 3;
 const BOT_SHARE: f64 = 0.2;
 const GATE_COMPARISONS: u64 = 30;
 const GATE_SKILL: f64 = 0.25;
+const YEAR_SECONDS: f64 = 365.25 * 86_400.0;
 
 pub struct Attribute {
     pub name: String,
@@ -16,6 +17,8 @@ pub struct Attribute {
     pub precision: f64,
     pub unit: String,
     pub range: Option<(f64, f64)>,
+    pub bands: Vec<f64>,
+    pub at: u32,
 }
 
 fn years_per(attribute: &Attribute) -> f64 {
@@ -76,14 +79,33 @@ struct Anchor {
     years: Vec<u32>,
 }
 
+struct Bands {
+    at: u32,
+    bounds: Vec<f64>,
+    labels: Vec<u32>,
+}
+
+fn band_labels(bounds: &[f64]) -> Vec<String> {
+    bounds
+        .iter()
+        .enumerate()
+        .map(|(index, low)| match bounds.get(index + 1) {
+            Some(next) => format!("{low}-{}", next - 1.0),
+            None => format!("{low}+"),
+        })
+        .collect()
+}
+
 pub struct Vocabulary {
     names: Interner,
     values: Interner,
     pub subreddits: Interner,
     precision: Vec<Option<f64>>,
+    window: Vec<Option<f64>>,
     set: Vec<bool>,
     marker: Vec<bool>,
     anchor: Vec<Option<Anchor>>,
+    bands: Vec<Option<Bands>>,
     numbers: Vec<Option<f64>>,
     claim_ids: HashMap<Vec<u8>, u32>,
     claims: Vec<Claim>,
@@ -97,9 +119,11 @@ impl Vocabulary {
             values: Interner::default(),
             subreddits: Interner::default(),
             precision: Vec::new(),
+            window: Vec::new(),
             set: Vec::new(),
             marker: Vec::new(),
             anchor: Vec::new(),
+            bands: Vec::new(),
             numbers: Vec::new(),
             claim_ids: HashMap::new(),
             claims: Vec::new(),
@@ -108,11 +132,19 @@ impl Vocabulary {
         for attribute in attributes {
             vocabulary.names.id(&attribute.name);
             vocabulary.precision.push((attribute.kind == "number").then_some(attribute.precision));
+            vocabulary.window.push((attribute.kind == "number" && attribute.bands.is_empty()).then_some(attribute.precision));
             vocabulary.set.push(attribute.kind == "set");
             vocabulary.marker.push(attribute.kind == "marker");
         }
         vocabulary.anchor = attributes.iter().map(|attribute| (!attribute.anchor.is_empty()).then(|| vocabulary.anchored(attributes, attribute))).collect();
+        vocabulary.bands = attributes.iter().map(|attribute| (!attribute.bands.is_empty()).then(|| vocabulary.banded(attribute))).collect();
         vocabulary
+    }
+
+    fn banded(&mut self, attribute: &Attribute) -> Bands {
+        let labels = band_labels(&attribute.bands).iter().map(|label| self.values.id(label)).collect();
+        self.numbers.resize(self.values.len(), None);
+        Bands { at: attribute.at, bounds: attribute.bands.clone(), labels }
     }
 
     fn anchored(&mut self, attributes: &[Attribute], attribute: &Attribute) -> Anchor {
@@ -171,7 +203,7 @@ impl Vocabulary {
     }
 
     fn near(&self, name: u32, left: u32, right: u32) -> bool {
-        match self.precision[name as usize] {
+        match self.window[name as usize] {
             Some(precision) => (self.number(left) - self.number(right)).abs() <= WIDE * precision,
             None => left == right,
         }
@@ -184,6 +216,13 @@ impl Vocabulary {
         let year = year_of(time) - (self.number(claim.value) * anchor.elapsed).round() as i64;
         let index = usize::try_from(year - anchor.low).ok().filter(|&index| index < anchor.years.len())?;
         Some((anchor.target, anchor.years[index]))
+    }
+
+    fn band(&self, claim: &Claim, time: u32) -> Option<u32> {
+        let bands = self.bands[claim.name as usize].as_ref()?;
+        let age = self.number(claim.value) + (bands.at as f64 - time as f64) / YEAR_SECONDS;
+        let index = bands.bounds.partition_point(|&low| low <= age).checked_sub(1)?;
+        Some(bands.labels[index])
     }
 }
 
@@ -227,6 +266,9 @@ impl Evidence {
             if let Some((name, stated)) = vocabulary.stated(claim, time) {
                 self.items.push(Item { name, stated, doc, subreddit });
             }
+            if let Some(stated) = vocabulary.band(claim, time) {
+                self.items.push(Item { name: claim.name, stated, doc, subreddit });
+            }
         }
     }
 
@@ -266,7 +308,7 @@ pub struct Decision {
 }
 
 fn leader(vocabulary: &Vocabulary, name: u32, support: &[Support]) -> Option<u32> {
-    let scores: Vec<u32> = match vocabulary.precision[name as usize] {
+    let scores: Vec<u32> = match vocabulary.window[name as usize] {
         Some(precision) => support
             .iter()
             .map(|entry| support.iter().filter(|other| (vocabulary.number(entry.value) - vocabulary.number(other.value)).abs() <= precision).map(|other| other.count).sum())

@@ -15,7 +15,16 @@
    "low": 13,
    "high": 90,
    "precision": 1,
-   "anchor": "birth_year"
+   "anchor": "birth_year",
+   "bands": [
+    13,
+    18,
+    25,
+    35,
+    45,
+    55
+   ],
+   "at": "2026-09-30"
   },
   {
    "name": "birth_year",

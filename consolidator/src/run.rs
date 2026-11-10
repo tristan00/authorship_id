@@ -153,24 +153,50 @@ fn count_tied(counts: &mut HashMap<(u32, u8), u64>, tied: Vec<(u32, u8)>) {
     }
 }
 
-fn bounds() -> HashMap<String, (f64, f64)> {
+struct Described {
+    range: Option<(f64, f64)>,
+    bands: Vec<f64>,
+    at: u32,
+}
+
+fn seconds(date: &str) -> u32 {
+    let parts: Vec<i64> = date.split('-').map(|part| part.parse().unwrap_or_else(|error| panic!("date {date:?} does not parse: {error}"))).collect();
+    let (year, month, day) = (parts[0] - (parts[1] <= 2) as i64, parts[1], parts[2]);
+    let era = year.div_euclid(400);
+    let within = year - era * 400;
+    let day_of_era = within * 365 + within / 4 - within / 100 + (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
+    ((era * 146_097 + day_of_era - 719_468) * 86_400) as u32
+}
+
+fn described() -> HashMap<String, Described> {
     let text = std::fs::read_to_string(SCHEMA).unwrap_or_else(|error| panic!("cannot read {SCHEMA}: {error}"));
     let schema: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|error| panic!("{SCHEMA} does not parse: {error}"));
     let attributes = schema["attributes"].as_array().unwrap_or_else(|| panic!("{SCHEMA} has no attributes list"));
-    let found: HashMap<String, (f64, f64)> = attributes.iter().filter_map(|attribute| Some((attribute["name"].as_str()?.to_string(), (attribute["low"].as_f64()?, attribute["high"].as_f64()?)))).collect();
-    log(&format!("schema ranges={}", found.len()));
+    let found: HashMap<String, Described> = attributes
+        .iter()
+        .map(|attribute| {
+            let described = Described {
+                range: attribute["low"].as_f64().zip(attribute["high"].as_f64()),
+                bands: attribute["bands"].as_array().map_or(Vec::new(), |bands| bands.iter().map(|band| band.as_f64().unwrap()).collect()),
+                at: attribute["at"].as_str().map_or(0, seconds),
+            };
+            (attribute["name"].as_str().unwrap().to_string(), described)
+        })
+        .collect();
+    log(&format!("schema described={} banded={}", found.len(), found.values().filter(|entry| !entry.bands.is_empty()).count()));
     found
 }
 
 fn attributes(database: &Database) -> Vec<Attribute> {
-    let ranges = timed("schema ranges", bounds);
+    let described = timed("schema described", described);
     let mut rows = database.rows("SELECT attribute, kind, anchor, precision, unit FROM claim_attributes ORDER BY attribute FORMAT RowBinary");
     let mut found = Vec::new();
     while !rows.done() {
         let (name, kind, anchor) = (text(rows.bytes()), text(rows.bytes()), text(rows.bytes()));
         let precision = f64::from_le_bytes(rows.fixed());
-        let range = ranges.get(&name).copied();
-        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range });
+        let schema = described.get(&name);
+        let (range, bands, at) = schema.map_or((None, Vec::new(), 0), |entry| (entry.range, entry.bands.clone(), entry.at));
+        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range, bands, at });
     }
     assert!(!found.is_empty(), "claim_attributes is empty; claim extraction publishes it");
     log(&format!("claim attributes={}", found.len()));
@@ -182,9 +208,9 @@ fn publish(database: &Database, attributes: &[Attribute]) {
     database.command(OUTPUTS);
     let mut out = Vec::new();
     let mut published = 0;
-    for attribute in attributes.iter().filter(|attribute| attribute.kind != "marker" && attribute.anchor.is_empty()) {
+    for attribute in attributes.iter().filter(|attribute| attribute.kind != "marker" && (attribute.anchor.is_empty() || !attribute.bands.is_empty())) {
         put_string(&mut out, &attribute.name);
-        put_string(&mut out, &attribute.kind);
+        put_string(&mut out, if attribute.bands.is_empty() { attribute.kind.as_str() } else { "one" });
         published += 1;
     }
     database.insert("author_attributes_next (attribute, kind)", &out);
