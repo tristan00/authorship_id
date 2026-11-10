@@ -1014,14 +1014,9 @@
    "kind": "set",
    "describe": "What sexual-health status does the writer state",
    "values": [
-    "ddf / std-free",
-    "hiv negative",
+    "tested negative / std-free",
     "on prep",
-    "hiv positive",
-    "hsv-1",
-    "hsv-2",
-    "herpes / hsv (type unstated)",
-    "hpv"
+    "has an sti"
    ]
   },
   {
@@ -1895,9 +1890,7 @@
     "non-drinker",
     "rarely drinks",
     "social / occasional drinker",
-    "heavy drinker",
-    "drinker (frequency unstated)",
-    "california sober"
+    "heavy drinker"
    ]
   },
   {
@@ -2035,9 +2028,7 @@
    "describe": "Where is the writer in menopause",
    "values": [
     "perimenopause",
-    "menopause",
-    "post-menopause",
-    "surgical menopause"
+    "menopausal or post"
    ]
   },
   {

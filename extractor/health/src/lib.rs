@@ -109,8 +109,8 @@ pub const PHYSICAL_ATTRIBUTE: &str = "physical_conditions";
 pub fn home(attribute: &'static str, value: &str) -> &'static str {
     match value {
         "blind / low vision" | "one eye / monocular" | "colorblind" | "nearsighted" | "farsighted" | "astigmatism" | "glaucoma" | "cataract" | "keratoconus" => "vision",
-        "hiv positive" | "hsv-1" | "hsv-2" | "herpes / hsv (type unstated)" | "hpv" => "sexual_health_status",
-        "perimenopause" | "menopause" | "post-menopause" | "surgical menopause" => "menopause_stage",
+        "has an sti" => "sexual_health_status",
+        "perimenopause" | "menopausal or post" => "menopause_stage",
         _ => attribute,
     }
 }
