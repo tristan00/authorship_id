@@ -10,7 +10,7 @@ use std::io::{BufWriter, Write};
 const EXAMPLES: usize = 25;
 const SNIPPET: usize = 400;
 const OPEN: &str = "*";
-const FRAMES: [(&str, &str); 12] = [("location", "i live in {}."), ("nationality", "i am {}."), ("heritage", "my family is {}."), ("native_language", "my native language is {}."),
+const FRAMES: [(&str, &str); 10] = [("heritage", "my family is {}."), ("native_language", "my native language is {}."),
     ("other_languages", "i speak {}."), ("occupation", "i work as a {}."), ("field_of_study", "i study {}."), ("school_attended", "i go to {}."), ("medications", "i take {}."),
     ("sports_teams", "i am a {} fan."), ("time_zone", "my timezone is {}."), ("accent", "i have a {} accent.")];
 

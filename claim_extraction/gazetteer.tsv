@@ -225,7 +225,7 @@ san marino	country	san marino		san marino
 aland islands	country	aland islands		aland islands	
 saint martin	country	saint martin		saint martin	
 cook islands	country	cook islands		cook islands	
-bonaire saint eustatius and saba	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
+bonaire saint eustatius and saba	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
 palau	country	palau		palau	
 wallis and futuna	country	wallis and futuna		wallis and futuna	
 anguilla	country	anguilla		anguilla	
@@ -1148,13 +1148,13 @@ ilhas cook	country	cook islands		cook islands
 isole cook	country	cook islands		cook islands	
 wyspy cooka	country	cook islands		cook islands	
 cookeilanden	country	cook islands		cook islands	
-caribe neerlandés	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
-karibische niederlande	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
-pays bas caribéens	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
-países baixos caribenhos	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
-caraibi olandesi	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
-niderlandy karaibskie	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
-caribisch nederland	country	bonaire, saint eustatius and saba 		bonaire, saint eustatius and saba 	
+caribe neerlandés	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
+karibische niederlande	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
+pays bas caribéens	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
+países baixos caribenhos	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
+caraibi olandesi	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
+niderlandy karaibskie	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
+caribisch nederland	country	bonaire, saint eustatius and saba		bonaire, saint eustatius and saba	
 palaos	country	palau		palau	
 wallis y futuna	country	wallis and futuna		wallis and futuna	
 wallis und futuna	country	wallis and futuna		wallis and futuna	
@@ -5066,8 +5066,8 @@ penrhyn	region	penrhyn	penrhyn	cook islands
 pukapuka	region	pukapuka	pukapuka	cook islands	
 rakahanga	region	rakahanga	rakahanga	cook islands	
 rarotonga	region	rarotonga	rarotonga	cook islands	
-bonaire	region	bonaire	bonaire	bonaire, saint eustatius and saba 	
-sint eustatius	region	sint eustatius	sint eustatius	bonaire, saint eustatius and saba 	
+bonaire	region	bonaire	bonaire	bonaire, saint eustatius and saba	
+sint eustatius	region	sint eustatius	sint eustatius	bonaire, saint eustatius and saba	
 ngatpang	region	ngatpang	ngatpang	palau	
 sonsorol	region	sonsorol	sonsorol	palau	
 kayangel	region	kayangel	kayangel	palau	
@@ -43666,7 +43666,7 @@ basseterre	city	basseterre	saint george basseterre	saint kitts and nevis
 pago pago	city	pago pago	eastern district	american samoa	
 basse terre	city	basse-terre	guadeloupe	guadeloupe	
 mariehamn	city	mariehamn	mariehamn	aland islands	
-kralendijk	city	kralendijk	bonaire	bonaire, saint eustatius and saba 	
+kralendijk	city	kralendijk	bonaire	bonaire, saint eustatius and saba	
 harewood	city	harewood	british columbia	canada	
 road town	city	road town		british virgin islands	1
 saint george s	city	saint george's	saint george parish	grenada	

@@ -176,7 +176,7 @@ fn structure(m: &Match) -> V {
     } else if contains(text, "monogamous") {
         "monogamous"
     } else if SWINGING.test(text) {
-        "swinger / in the lifestyle"
+        "swinger"
     } else {
         "polyamorous"
     };

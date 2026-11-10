@@ -40,7 +40,13 @@ pub fn lifestyle_rules() -> &'static [Rule] {
 
 const SPECIFIC_PARENTS: [&str; 6] = ["single parent", "stepparent", "foster / adoptive parent", "grandparent", "boy mom / girl dad", "empty nester"];
 
+const CUCKOLDING: [&str; 5] = ["cuckold", "cuckquean", "hotwife", "vixen", "stag"];
+
 pub fn settle(found: &mut Found) {
+    let cuckolding: Vec<usize> = found.items.iter().filter(|(attribute, value, _, _)| attribute == "cuckolding_role" && CUCKOLDING.contains(&value.as_str())).map(|(_, _, position, _)| *position).collect();
+    for position in cuckolding {
+        found.set("relationship_structure", "cuckold / hotwife", position);
+    }
     if found.items.iter().any(|(attribute, value, _, _)| attribute == "parent_role" && SPECIFIC_PARENTS.contains(&value.as_str())) {
         found.items.retain(|(attribute, value, _, _)| !(attribute == "parent_role" && value == "parent"));
     }

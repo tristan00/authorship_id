@@ -6,6 +6,7 @@ mod patterns;
 use claimcore::*;
 use lexicon::{entry, region_code, tokens, Entry, Node, CONTINENTS, LEXICON};
 use patterns::*;
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use claimcore::HEDGE as DOUBT;
@@ -25,12 +26,21 @@ fn nation_of(word: Option<&[char]>) -> Option<&'static str> {
     LEXICON.nations.get(&st(word?)).copied()
 }
 
+static REGIONS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+    timed("location regions", || data_file("regions.tsv").leak().lines().skip(1).map(|line| line.split_once('\t').unwrap_or_else(|| panic!("regions.tsv: bad line {line:?}"))).collect())
+});
+
+fn region_of(country: &str) -> Option<&'static str> {
+    REGIONS.get(country).copied()
+}
+
 static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     let mut rules = vec![
-        rule("nationality", &loose_nation(), |m| nation_of(m.group(1)).map(String::from), hedge()),
-        rule("nationality", &as_nation(), |m| nation_of(m.group(1)).map(String::from), hedge()),
-        rule("nationality", &as_nation_start(), |m| nation_of(m.group(1)).map(String::from), hedge()),
-        needs(rule("nationality", &format!(r"(?<!his )(?<!her )(?<!their )(?<!its )(?<!your )\bfellow ({NATION})s?(?![\w-])(?=\s*(?:$|[.,!?;:)\n]|(?:here|and|but|too|lol)\b|(?:[a-z]+ ){{0,2}}?(?:brothers?|sisters?|guys?|girls?|man|woman|men|women|people|folks|redditors?|citizens?|friends?|kids|parents|mums?|moms?|dads?)\b))", NATION = &*S_NATION), |m| nation_of(m.group(1)).map(String::from), hedge()), &["fellow"]),
+        rule("nationality", &loose_nation(), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()),
+        rule("nationality", &as_nation(), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()),
+        rule("nationality", &as_nation_start(), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()),
+        rule("nationality", &format!(r"(?:\b(?:i'm|im|i am|as an?|we're|we are) (?:an? )?(?:proud )?|^{flair})european\b", flair = claimcore::flair!()), |_| Some("european".to_string()), hedge()),
+        needs(rule("nationality", &format!(r"(?<!his )(?<!her )(?<!their )(?<!its )(?<!your )\bfellow ({NATION})s?(?![\w-])(?=\s*(?:$|[.,!?;:)\n]|(?:here|and|but|too|lol)\b|(?:[a-z]+ ){{0,2}}?(?:brothers?|sisters?|guys?|girls?|man|woman|men|women|people|folks|redditors?|citizens?|friends?|kids|parents|mums?|moms?|dads?)\b))", NATION = &*S_NATION), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()), &["fellow"]),
         needs(rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:l[ae]nguage|tongue),?(?: which)? is\s+\**(\w+)\b|\b(\w+)\** is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) (?:also |actually )?(?:an? )?native \**(\w+)\** speaker\b|\bnative \**(\w+)\** speaker here\b|\b(?:i'm|im|i am|as) an? native speaker of \**(\w+)\b|\b(\w+)\**\s*\(native\)|\b(?:native(?: language)?|mother tongue|first language)\**\s*[:=-]\**\s*\**(\w+)\b|\b(?:i'm|im|i am) native in \**(\w+)\b",
             |m| spoken(m.first()), hedge()), &["native", "language", "tongue"]),
         rule("native_language", r"\b(\w+) is the only language i (?:speak|know)\b|\bas (?:a )?native (\w+) speakers?\b",
@@ -70,6 +80,7 @@ pub fn rules() -> &'static [Rule] {
 pub fn init() {
     timed("location init", || {
         LazyLock::force(&LEXICON);
+        LazyLock::force(&REGIONS);
         LazyLock::force(&RULES);
         for pattern in patterns::all() {
             pattern.test(&[]);
@@ -480,11 +491,14 @@ fn lived(entry: &Entry, end: usize, found: &mut Found, whole: bool) {
 }
 
 fn nation(lowered: &[char], start: usize, end: usize, entry: &Entry, kind: Option<&str>, line_end: usize, tagged: bool, found: &mut Found) {
+    let Some(region) = region_of(entry.country) else {
+        return;
+    };
     match kind {
-        Some("here" | "born" | "citizen") => found.set("nationality", entry.country, start),
+        Some("here" | "born" | "citizen") => found.set("nationality", region, start),
         _ => {
             if tagged && start < line_end && !ASKING.test_in(lowered, 0, start) && NOUN_AFTER.at(lowered, end).is_none() && TITLE.iter_in(lowered, 0, line_end).any(|tag| tag.end() <= start && start - tag.end() <= 25 || tag.start() >= end && tag.start() - end <= 25) {
-                found.set("nationality", entry.country, start);
+                found.set("nationality", region, start);
             }
         }
     }
@@ -688,7 +702,9 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         framed.push(opened[0]);
     }
     for (country, position) in framed {
-        found.set("nationality", country, position);
+        if let Some(region) = region_of(country) {
+            found.set("nationality", region, position);
+        }
     }
 }
 

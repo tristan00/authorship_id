@@ -39,7 +39,7 @@
   {
    "name": "generation",
    "prompt": "person",
-   "kind": "one",
+   "kind": "set",
    "describe": "Which generation does the writer say they belong to",
    "values": [
     "gen z",
@@ -155,7 +155,7 @@
   {
    "name": "gender_expression",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What gender expression label does the writer use for themselves",
    "values": [
     "femboy",
@@ -191,7 +191,7 @@
   {
    "name": "sexual_orientation",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What is the writer's sexual orientation",
    "values": [
     "straight",
@@ -322,7 +322,7 @@
   {
    "name": "sexual_experience",
    "prompt": "person",
-   "kind": "one",
+   "kind": "set",
    "describe": "How does the writer describe their sexual experience",
    "values": [
     "virgin",
@@ -345,9 +345,10 @@
     "open relationship",
     "ethically non-monogamous",
     "monogamous",
+    "cuckold / hotwife",
     "relationship anarchy",
-    "solo poly",
-    "swinger / in the lifestyle"
+    "swinger",
+    "solo poly"
    ]
   },
   {
@@ -458,7 +459,17 @@
    "name": "nationality",
    "prompt": "person",
    "kind": "set",
-   "describe": "What nationality or national origin does the writer claim"
+   "describe": "What nationality or national origin does the writer claim",
+   "values": [
+    "north american",
+    "british or irish",
+    "european",
+    "south asian",
+    "east or southeast asian",
+    "oceanian",
+    "latin american",
+    "middle eastern or african"
+   ]
   },
   {
    "name": "ethnicity",
@@ -1040,7 +1051,7 @@
   {
    "name": "sexual_health_status",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What sexual-health status does the writer state",
    "values": [
     "ddf / std-free",
