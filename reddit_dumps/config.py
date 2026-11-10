@@ -15,8 +15,3 @@ TORRENT_SETTINGS = {
     "urlseed_pipeline_size": 10,
     "urlseed_max_request_bytes": 64 * 1024 * 1024,
 }
-MAX_WINDOW_SIZE = 2**31
-
-CHUNK_SIZE = 2**20
-READ_SIZE = 2**22
-SLOTS = 4

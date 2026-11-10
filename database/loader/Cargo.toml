@@ -1,0 +1,24 @@
+[package]
+name = "loader"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "loader"
+path = "src/main.rs"
+
+[dependencies]
+mimalloc = { version = "0.1", default-features = false }
+ureq = { version = "2", default-features = false }
+crossbeam-channel = "0.5"
+sonic-rs = "0.5"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+memchr = "2"
+zstd = "0.13"
+
+[profile.release]
+opt-level = 3
+debug = false
+codegen-units = 16
+incremental = true
