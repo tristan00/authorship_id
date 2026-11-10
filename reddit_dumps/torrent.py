@@ -26,6 +26,7 @@ def add(ses, info, save_path, indices):
     params = lt.read_resume_data(resume.read_bytes()) if resume.exists() else lt.add_torrent_params()
     params.ti = info
     params.save_path = str(save_path)
+    params.flags &= ~(lt.torrent_flags.auto_managed | lt.torrent_flags.paused)
     params.piece_priorities = []
     priorities = [0] * info.num_files()
     smallest = min(indices, key=info.layout().file_size)
