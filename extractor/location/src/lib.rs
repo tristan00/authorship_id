@@ -29,6 +29,13 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     ]
 });
 
+static SPOKEN_LEAD: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:speak|speaks|speaking|spoke|spoken|learn|learning|learned|learnt|fluent(?: in)?|study|studying|[abc][12]|overseas|slices? of|for being)\s+(?:[a-z]+\s+)?\Z"));
+static SPOKEN_PAIR: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*/\s*(?:{})\b", LANGUAGES.replace(' ', "|"))));
+
+fn spoken(lowered: &[char], start: usize, end: usize) -> bool {
+    SPOKEN_LEAD.test_in(lowered, start.saturating_sub(30), start) || SPOKEN_PAIR.at(lowered, end).is_some()
+}
+
 pub fn geographic(word: &str) -> bool {
     CONTINENTS.split(' ').chain(LANGUAGES.split(' ')).any(|known| known == word)
         || LEXICON.nations.contains_key(word)
@@ -43,6 +50,8 @@ pub fn init() {
     timed("location init", || {
         LazyLock::force(&LEXICON);
         LazyLock::force(&RULES);
+        LazyLock::force(&SPOKEN_LEAD);
+        LazyLock::force(&SPOKEN_PAIR);
         for pattern in patterns::all() {
             pattern.test(&[]);
         }
@@ -502,6 +511,9 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         let country = current.country;
         let line = line_start(lowered, start);
         let is_nation = current.kind == "nation";
+        if is_nation && spoken(lowered, start, end) {
+            continue;
+        }
         if flair == Some(start) && end == tail {
             if is_nation {
                 framed.push((country, start));

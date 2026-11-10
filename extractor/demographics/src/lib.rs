@@ -173,10 +173,10 @@ pub(crate) static ETHNIC: LazyLock<Re> = LazyLock::new(|| {
 });
 
 pub(crate) static POSTERS: LazyLock<Table> = LazyLock::new(|| table(&[
-    ("m", "man"), ("f", "woman"), ("w", "woman"), ("fb", "woman"), ("fu", "woman"), ("futa", "woman"), ("tf", "trans woman"), ("tm", "trans man"),
+    ("m", "man"), ("f", "woman"), ("w", "woman"), ("fb", "woman"), ("fu", "woman"), ("futa", "woman"), ("tf", "trans woman"), ("tm", "trans man"), ("mtf", "trans woman"), ("ftm", "trans man"), ("t", "trans (unspecified)"),
     ("nb", "nonbinary"), ("wm", "man"), ("mwm", "man"), ("swm", "man"), ("dwm", "man"), ("bm", "man"), ("wf", "woman"),
 ]));
-pub(crate) static LOOKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![a-z0-9'’])(?:[\[\(]?(\d{2})(?:\s*/\s*\d{2})?[\]\)]?\s*)?[\[\(]?\s*(nb|mtf|ftm|tf|tm|futa|fb|fu|[mf])((?:[mf]|/\w+)*)\s*4\s*((?:[mfatr]|me|nb|[a-z](?=[a-z/]*\s*[\]\)]))[a-z/]*)\s*[\]\)]?(?:\s*[-–|:#]?\s*[\[\(]?(\d{2})(?!\d))?"));
+pub(crate) static LOOKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![a-z0-9'’])(?:[\[\(]?(\d{2})(?:\s*/\s*\d{2})?[\]\)]?\s*)?[\[\(]?\s*(nb|mtf|ftm|tf|tm|futa|fb|fu|[mft])((?:[mf]|/\w+)*)\s*4\s*((?:[mfatr]|me|nb|[a-z](?=[a-z/]*\s*[\]\)]))[a-z/]*)\s*[\]\)]?(?:\s*[-–|:#]?\s*[\[\(]?(\d{2})(?!\d))?"));
 pub(crate) static AGED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?=[\dmfwsdbtn])(?<![\w$£€#'/:+-])(?<![\w,]\.)(?<!\d,)(?:(\d{2})(?:\s?[/\\|-]?|,)\s?((?:[smd]?w|b)m|wf|mtf|ftm|tf|tm|fb|nb|[mf])(?:(?<=m)f(?![\w'])|(?<=f)m(?![\w']))?|((?:[smd]?w|b)m|tf|tm|fb|nb|[mfw])\s?[/'.,]?\s?(\d{2})(?:[mfa](?![\w'])|(?<=m\d\d)f\d{2}(?![\w'])|(?<=f\d\d)m\d{2}(?![\w']))?)(?!(?!_)[\w'%]|[-/]\d|-[a-z]\d)"));
 pub(crate) static COLORED_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\w\n]*(?:(?!(?:for|any|need|needs|want|wants|seeking|looking|into|like|likes|love|loves|and|or|with)\b)[a-z]+ )?(white|black|blk|mixed)\b(?!['-])"));
 pub(crate) static ORIENTED_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"[^\w\n]*(?:(?!(?:for|any|need|needs|want|wants|seeking|looking|into|like|likes|love|loves|and|or|with|not|no)\b)[a-z]+ )?(straight|str8|bi|bisexual|gay|pansexual)\b(?!['-]| to\b)(?! (?:\w+ ){{0,2}}{CROWD})")));

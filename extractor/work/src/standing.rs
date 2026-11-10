@@ -16,6 +16,17 @@ fn stated(attribute: &'static str, pattern: &str, value: &'static str) -> Rule {
 pub fn rules() -> Vec<Rule> {
     timed("work.standing", || {
         let mut rules = Vec::new();
+        let hours = |kind: &str| {
+            format!(concat!(r"\b(?:i|i'm|im|i am)(?: (?:currently|now|also|still|already|only))* (?:work|working) (?:a )?{kind}[- ]?time\b|",
+                r"(?:^", claimcore::flair!(), r"|[,;.!\n(]\s*|\band )(?:currently |now |also )?(?:work|working) {kind}[- ]?time\b|",
+                r"\bi (?:currently |now |also )?work (?:at|for|in) (?:a |an |the )?(?:[\w'-]+ ){{1,3}}{kind}[- ]?time\b"), kind = kind)
+        };
+        rules.push(stated("employment_status", &hours("full"), "employed full-time"));
+        rules.push(stated("employment_status", &hours("part"), "part-time"));
+        rules.push(stated("employment_status", concat!(r"\bi (?:was |got |have been |'ve been |just got |recently got )(?:just |recently )?(?:laid off|let go|made redundant)\b(?! (?:in|back in|from (?:my|a) (?:previous|old|last|first))\b)|",
+            r"\bi (?:just |recently )got fired\b|\bi (?:just |recently )?(?:quit|lost) my (?:job|position)(?: (?:last|this) (?:week|month))?\s*(?:$|[.,!;])"), "unemployed"));
+        rules.push(stated("employment_status", r"\b(?:i'm|im|i am) (?:currently |now |also |still )?(?:home |out )?on disability\b|\bi (?:can't|cannot|can not) work (?:due to|because of) (?:my )?(?:disabilit|health|illness|chronic)", "disabled / unable to work"));
+        rules.push(stated("employment_status", concat!(r"\b(?:i'm|im|i am) (?:an? )?(?:full[- ]?time |part[- ]?time )?freelance\b|(?:^", claimcore::flair!(), r"|[.!?\n]\s*)(?:an? )?freelance [\w-]+(?: [\w-]+)? here\b"), "self-employed / freelance"));
         let employed = [
             r"\b(?:i'm|im|i am) (?:currently |now |still |also |gainfully |happily |thankfully |luckily |finally )*employed\b(?! (?:full[- ]?time|part[- ]?time|by (?:my|the) (?:mom|dad|parents|family))\b)(?=\s*(?:$|[.,!;:)(\n-]|\b(?:and|but|so|now|at|as|by|in|with|for|again|too|lol|which|since|though)\b))",
             r"\b(?:i'm|im|i am|as) an? (?:\w+ )?working professional\b|\Ar/\w+: (?:an? )?working professional\b",
