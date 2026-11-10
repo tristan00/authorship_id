@@ -62,7 +62,18 @@ class AttributeModel(nn.Module):
             for slot, index in enumerate(self.embedding):
                 prior = torch.tensor(specifications[index]["prior"])
                 self.embeddings[slot].bias.copy_(prior.logit() if self.multiple[slot] else prior.log())
+        classes, shapes = {}, {}
+        for index in self.categorical:
+            classes.setdefault(len(specifications[index]["values"]), []).append(index)
+        for slot, index in enumerate(self.embedding):
+            shapes.setdefault((self.multiple[slot], len(specifications[index]["values"])), []).append(slot)
+        self.categorical_groups = [(size, len(heads)) for size, heads in classes.items()]
+        self.shapes = list(shapes.items())
+        self.layouts = {}
+        grouped = [index for heads in classes.values() for index in heads]
         buffers = {"numeric_targets": torch.tensor(self.numeric, dtype=torch.long), "categorical_targets": torch.tensor(self.categorical, dtype=torch.long),
+                   "categorical_order": torch.tensor(grouped, dtype=torch.long), "categorical_columns": torch.tensor([column for index in grouped for column in range(*self.slices[index])], dtype=torch.long),
+                   "embedding_targets": torch.tensor(self.embedding, dtype=torch.long),
                    "numeric_columns": torch.tensor([self.slices[index][0] for index in self.numeric], dtype=torch.long),
                    "center": torch.tensor([specifications[index]["center"] for index in self.numeric], dtype=torch.float32),
                    "scale": torch.tensor([specifications[index]["scale"] for index in self.numeric], dtype=torch.float32),
@@ -91,6 +102,19 @@ class AttributeModel(nn.Module):
             return F.linear(hidden, self.head.weight[start:end], self.head.bias[start:end])
         return self.embeddings[self.embedding.index(index)](hidden)
 
+    def layout(self, capacity):
+        key = None if capacity is None else tuple(capacity)
+        if key not in self.layouts:
+            groups = {}
+            for (multiple, size), slots in self.shapes:
+                for slot in slots:
+                    groups.setdefault((multiple, size, None if capacity is None else capacity[slot]), []).append(slot)
+            device = self.embedding_targets.device
+            with torch.inference_mode(False):
+                self.layouts[key] = ([(multiple, size, rows, slots, torch.tensor(slots, device=device), torch.tensor([self.embedding[slot] for slot in slots], device=device))
+                                      for (multiple, size, rows), slots in groups.items()], None if capacity is None else torch.tensor(capacity, device=device))
+        return self.layouts[key]
+
     def terms(self, hidden, labels, members, capacity=None):
         flat = self.head(hidden).float()
         sums = torch.zeros(len(self.specifications), device=flat.device)
@@ -103,19 +127,35 @@ class AttributeModel(nn.Module):
             loss = (normalized - flat[:, self.numeric_columns]).abs()
             sums[self.numeric_targets] = (loss * present[:, self.numeric_targets]).sum(0)
         if self.categorical:
-            nll = [(F.cross_entropy(flat[:, slice(*self.slices[index])], filled[:, index].long(), reduction="none") * present[:, index]).sum() for index in self.categorical]
-            sums = sums.index_copy(0, self.categorical_targets, torch.stack(nll))
-        for slot, index in enumerate(self.embedding):
-            rows = torch.arange(len(flat), device=flat.device) if capacity is None else torch.argsort((~present[:, index]).byte(), stable=True)[:capacity[slot]]
-            logits = self.embeddings[slot](hidden[rows]).float()
-            if self.multiple[slot]:
-                stated = members[index][rows].long()
-                nll = F.softplus(logits).sum(1) - F.pad(logits, (0, 1)).gather(1, stated).sum(1)
-            else:
-                nll = F.cross_entropy(logits, filled[rows, index].long(), reduction="none")
-            sums[index] = (nll * present[rows, index]).sum()
+            nll, first, column = [], 0, 0
+            for size, heads in self.categorical_groups:
+                targets = self.categorical_order[first:first + heads]
+                logits = flat.index_select(1, self.categorical_columns[column:column + heads * size]).view(-1, size)
+                nll.append((F.cross_entropy(logits, filled[:, targets].long().view(-1), reduction="none").view(len(flat), heads) * present[:, targets]).sum(0))
+                first, column = first + heads, column + heads * size
+            sums = sums.index_copy(0, self.categorical_order, torch.cat(nll))
+        if self.embedding:
+            groups, limits = self.layout(capacity)
+            order = None if capacity is None else torch.argsort((~present[:, self.embedding_targets]).byte(), dim=0, stable=True)
+            rows = [None if capacity is None else order[:capacity[slot], slot] for slot in range(len(self.embedding))]
+            logits = [self.embeddings[slot](hidden if capacity is None else hidden[rows[slot]]).float() for slot in range(len(self.embedding))]
+            parts = []
+            for multiple, size, count, slots, positions, columns in groups:
+                stacked = torch.stack([logits[slot] for slot in slots])
+                selected = None if capacity is None else order[:count].index_select(1, positions)
+                chosen = (present[:, columns] if capacity is None else present[selected, columns]).T
+                if multiple:
+                    stated = [members[self.embedding[slot]] if capacity is None else members[self.embedding[slot]][rows[slot]] for slot in slots]
+                    longest = max(part.shape[1] for part in stated)
+                    stated = torch.stack([F.pad(part.long(), (0, longest - part.shape[1]), value=size) for part in stated])
+                    nll = F.softplus(stacked).sum(2) - F.pad(stacked, (0, 1)).gather(2, stated).sum(2)
+                else:
+                    target = (filled[:, columns] if capacity is None else filled[selected, columns]).T.long()
+                    nll = F.cross_entropy(stacked.view(-1, size), target.reshape(-1), reduction="none").view(len(slots), -1)
+                parts.append((nll * chosen).sum(1))
+            sums = sums.index_copy(0, torch.cat([columns for *_, columns in groups]), torch.cat(parts))
             if capacity is not None:
-                overflow += (counts[index] - capacity[slot]).clamp_min(0)
+                overflow = (counts[self.embedding_targets] - limits).clamp_min(0).sum()
         return sums, counts, overflow
 
     def loss(self, hidden, labels, members, capacity=None):

@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from . import LOG, timed
 from .config import GPU_MEMORY, PARAMETERS, PUBLISH_MARGIN, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
 from .data import load, read, reader
-from .evaluate import DEVICE, chosen, collect, memberships, report, trunk
+from .evaluate import DEVICE, SET_WINDOW, WINDOW, Labeled, chosen, chunks, gather, groups, labeled, outputs, per_head, priors, report, totals, trunk
 from .model import AttributeModel, specifications
 
 INPUTS = ("users",)
@@ -45,58 +45,95 @@ def score(model, inputs, labels, sets, specs, columns, batch=2048):
     return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
 
 
-def temperature(logits, target, batch=16384):
-    log_t = torch.zeros(1, device=logits.device, requires_grad=True)
-    optimizer = torch.optim.LBFGS([log_t], lr=.1, max_iter=100)
+def sampled(data, limit, batch=WINDOW):
+    rows = data.rows
+    if len(rows) < limit:
+        return data
+    kept = int(torch.searchsorted(rows, (rows[limit - 1] // batch + 1) * batch))
+    return Labeled(rows[:kept], data.target[:kept], None, None)
 
-    def closure():
-        optimizer.zero_grad()
-        total = torch.zeros((), device=logits.device)
-        for start in range(0, len(logits), batch):
-            loss = F.cross_entropy(logits[start:start + batch].clone() / log_t.exp(), target[start:start + batch], reduction="sum") / len(logits)
-            loss.backward()
-            total += loss.detach()
-        return total
-    optimizer.step(closure)
-    return float(log_t.detach().exp())
+
+def temperatures(group, output, lr=.1, iterations=100, tolerance_grad=1e-7, tolerance_change=1e-9):
+    target = group.target.long()
+
+    def evaluate(position):
+        position = position.detach().requires_grad_()
+        loss = totals(F.cross_entropy(output / position.exp()[group.owner, None], target, reduction="none"), group.owner, group.counts) / group.counts
+        grad, = torch.autograd.grad(loss.sum(), position)
+        return loss.detach(), grad
+
+    position = torch.zeros(len(group.columns), device=DEVICE)
+    loss, grad = evaluate(position)
+    active = grad.abs() > tolerance_grad
+    scale = torch.ones_like(position)
+    for iteration in range(1, iterations + 1):
+        if iteration == 1:
+            direction = -grad
+            step = (1 / grad.abs()).clamp(max=1.) * lr
+        else:
+            change, moved = grad - previous, direction * step
+            curvature = change * moved
+            scale = torch.where(curvature > 1e-10, curvature / (change * change), scale)
+            direction = -grad * scale
+            step = torch.full_like(position, lr)
+        previous, last = grad, loss
+        active = active & (grad * direction <= -tolerance_change)
+        position = torch.where(active, position + step * direction, position)
+        if iteration == iterations or not bool(active.any()):
+            break
+        loss, grad = evaluate(position)
+        active = active & (grad.abs() > tolerance_grad) & ((direction * step).abs() > tolerance_change) & ((loss - last).abs() >= tolerance_change)
+    return position.exp().tolist()
 
 
 @timed
-def categorical(model, hidden, labels, column, spec):
-    sample, target = collect(model, hidden, labels, column, TEMPERATURE_ROWS)
-    return {"temperature": temperature(sample, target.long())}
+def categorical(model, hidden, data, specs, columns):
+    group = gather([sampled(data[column], TEMPERATURE_ROWS) if column in columns else data[column] for column in range(len(data))], columns)
+    output = outputs(model, hidden, group, len(specs[columns[0]]["values"]), WINDOW)
+    with torch.inference_mode(False):
+        return {column: {"temperature": value} for column, value in zip(columns, temperatures(group, output.clone()))}
 
 
 @timed
-def membership(model, hidden, labels, column, spec, indptr, values):
-    prior = torch.as_tensor(spec["prior"], device=DEVICE)
-    pairs = torch.zeros(2, len(THRESHOLDS), 2, device=DEVICE)
+def membership(model, hidden, data, specs, columns):
+    group = gather(data, columns)
+    heads, size = len(columns), len(specs[columns[0]]["values"])
+    prior = priors(specs, group)
+    guessed = torch.stack([chosen(prior, threshold) for threshold in THRESHOLDS])
+    model_pairs = torch.zeros(len(THRESHOLDS), 2, heads, dtype=torch.long, device=DEVICE)
     actual = 0
-    for probabilities, truth in memberships(model, hidden, labels, column, indptr, values):
+    stated = torch.zeros((heads, size), dtype=torch.long, device=DEVICE)
+    for owner, output, truth in chunks(model, hidden, group, size, SET_WINDOW):
+        probabilities = output.sigmoid()
         for slot, threshold in enumerate(THRESHOLDS):
-            for row, scored in enumerate((probabilities, prior.expand_as(probabilities))):
-                predicted = chosen(scored, threshold)
-                pairs[row, slot] += torch.stack([(predicted & truth).sum(), predicted.sum()])
-        actual += int(truth.sum())
-    scores = 2 * pairs[:, :, 0] / (pairs[:, :, 1] + actual)
-    best, prior_best = int(scores[0].argmax()), int(scores[1].argmax())
-    return {"threshold": THRESHOLDS[best], "f1": float(scores[0, best]), "prior_threshold": THRESHOLDS[prior_best], "prior_f1": float(scores[1, prior_best])}
+            predicted = chosen(probabilities, threshold)
+            model_pairs[slot, 0] += per_head((predicted & truth).sum(1), owner, heads)
+            model_pairs[slot, 1] += per_head(predicted.sum(1), owner, heads)
+        actual = actual + per_head(truth.sum(1), owner, heads)
+        stated += per_head(truth, owner, heads)
+    pairs = torch.stack([model_pairs, torch.stack([(guessed * stated).sum(2), guessed.sum(2) * group.counts], 1)]).float()
+    scores = 2 * pairs[:, :, 0] / (pairs[:, :, 1] + actual.float())
+    best = scores.argmax(1).tolist()
+    values = scores.tolist()
+    return {column: {"threshold": THRESHOLDS[best[0][slot]], "f1": values[0][best[0][slot]][slot], "prior_threshold": THRESHOLDS[best[1][slot]], "prior_f1": values[1][best[1][slot]][slot]}
+            for slot, column in enumerate(columns)}
+
+
+@timed
+def calibrated(model, hidden, data, specs):
+    result = {column: {} for column, spec in enumerate(specs) if spec["type"] == "numeric"}
+    for columns in groups(specs, ("categorical", "embedding")):
+        result |= categorical(model, hidden, data, specs, columns)
+    for columns in groups(specs, ("set",)):
+        result |= membership(model, hidden, data, specs, columns)
+    for column, spec in enumerate(specs):
+        LOG.info("attribute model calibrated %s %s", spec["name"], json.dumps(result[column]))
+    return [result[column] for column in range(len(specs))]
 
 
 @timed
 def calibrate(model, inputs, labels, sets, specs):
-    lists = {column: (indptr, values) for column, indptr, values in sets}
-    hidden = trunk(model, inputs)
-    result = []
-    for column, spec in enumerate(specs):
-        if spec["type"] == "numeric":
-            result.append({})
-        elif spec["type"] == "set":
-            result.append(membership(model, hidden, labels, column, spec, *lists[column]))
-        else:
-            result.append(categorical(model, hidden, labels, column, spec))
-        LOG.info("attribute model calibrated %s %s", spec["name"], json.dumps(result[-1]))
-    return result
+    return calibrated(model, trunk(model, inputs), labeled(labels, sets), specs)
 
 
 @timed
