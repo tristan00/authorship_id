@@ -1,6 +1,7 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+mod candidates;
 mod database;
 mod predict;
 mod prepare;
@@ -34,11 +35,12 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let database = || database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
     match args.get(1).map(String::as_str) {
+        Some("candidates") => candidates::run(&database(), &args[2..]),
         Some("prepare") => prepare::run(&database(), &args[2..]),
         Some("predict") => predict::run(&database(), &args[2..]),
         Some("texts") => texts::run(&database(), &args[2..]),
         _ => {
-            eprintln!("usage: attribute_io prepare|predict|texts ... --host HOST [--port 8123] [--database reddit]");
+            eprintln!("usage: attribute_io candidates|prepare|predict|texts ... --host HOST [--port 8123] [--database reddit]");
             std::process::exit(2);
         }
     }

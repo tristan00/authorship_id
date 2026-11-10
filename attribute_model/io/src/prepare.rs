@@ -14,9 +14,9 @@ use std::thread;
 use std::time::Instant;
 
 const DIMENSIONS: usize = 512;
-const VALUE_AUTHORS: usize = 10;
-const CATEGORICAL_VALUES: usize = 256;
-const SPLIT_LABELS: usize = 100;
+pub const VALUE_AUTHORS: usize = 10;
+pub const CATEGORICAL_VALUES: usize = 256;
+pub const SPLIT_LABELS: usize = 100;
 const SPREAD_ROWS: usize = 1 << 20;
 const SPLITS: [&str; 4] = ["train", "validation", "calibration", "test"];
 const BUCKETS: [usize; 10] = [0, 0, 0, 0, 0, 0, 0, 1, 2, 3];
@@ -24,16 +24,16 @@ const CLAIM_PARTS: usize = 16;
 const VECTOR_STREAMS: usize = 8;
 const VECTOR_CHUNKS: usize = 128;
 const WINDOW: usize = 16;
-const WRITE_BYTES: usize = 64 << 20;
+pub const WRITE_BYTES: usize = 64 << 20;
 const LABEL_BLOCK: usize = 4096;
 const FEATURE_BLOCK: usize = 32;
 const NEWLINE: &str = if cfg!(windows) { "\r\n" } else { "\n" };
 const VECTOR_LENGTH: [u8; 2] = [(DIMENSIONS & 0x7f | 0x80) as u8, (DIMENSIONS >> 7) as u8];
 
 #[derive(Default)]
-struct Attribute {
-    rows: Vec<(u32, u32)>,
-    values: Vec<String>,
+pub struct Attribute {
+    pub rows: Vec<(u32, u32)>,
+    pub values: Vec<String>,
 }
 
 struct Part {
@@ -59,15 +59,15 @@ enum Json {
     Map(Vec<(String, Json)>),
 }
 
-fn utf8(bytes: &[u8]) -> String {
+pub fn utf8(bytes: &[u8]) -> String {
     String::from_utf8(bytes.to_vec()).expect("clickhouse text is not UTF-8")
 }
 
-fn quoted(text: &str) -> String {
+pub fn quoted(text: &str) -> String {
     format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'"))
 }
 
-fn raw<T: Copy>(values: &[T]) -> &[u8] {
+pub fn raw<T: Copy>(values: &[T]) -> &[u8] {
     unsafe { std::slice::from_raw_parts(values.as_ptr().cast(), std::mem::size_of_val(values)) }
 }
 
@@ -148,17 +148,17 @@ fn advance(rows: &mut Rows, current: &mut Vec<u8>) -> bool {
     true
 }
 
-fn read_part(database: &Database, filter: &str, names: &str, count: usize) -> Part {
+fn read_part(database: &Database, filter: &str, names: &str, count: usize, vectored: bool) -> Part {
     let started = Instant::now();
     let indexes = (1..=count).map(|index| index.to_string()).collect::<Vec<_>>().join(", ");
     let mut rows = database.rows(&format!(
         "SELECT author, toUInt16(transform(attribute, [{names}], [{indexes}], 0)), value FROM author_claims WHERE {filter} AND attribute IN ({names}) ORDER BY author FORMAT RowBinary"
     ));
-    let mut vectors = database.rows(&format!("SELECT author FROM author_vectors WHERE {filter} ORDER BY author FORMAT RowBinary"));
+    let mut vectors = vectored.then(|| database.rows(&format!("SELECT author FROM author_vectors WHERE {filter} ORDER BY author FORMAT RowBinary")));
     let mut part = Part { authors: Vec::new(), attributes: (0..count).map(|_| Attribute::default()).collect() };
     let mut ids: Vec<HashMap<Vec<u8>, u32>> = (0..count).map(|_| HashMap::new()).collect();
     let (mut author, mut vector) = (Vec::new(), Vec::new());
-    let (mut first, mut more, mut labeled, mut claims) = (true, advance(&mut vectors, &mut vector), false, 0usize);
+    let (mut first, mut more, mut labeled, mut claims) = (true, vectors.as_mut().is_some_and(|vectors| advance(vectors, &mut vector)), false, 0usize);
     while !rows.done() {
         let next = rows.bytes();
         if first || next != author.as_slice() {
@@ -167,9 +167,9 @@ fn read_part(database: &Database, filter: &str, names: &str, count: usize) -> Pa
             author.clear();
             author.extend_from_slice(next);
             while more && vector < author {
-                more = advance(&mut vectors, &mut vector);
+                more = advance(vectors.as_mut().unwrap(), &mut vector);
             }
-            labeled = more && vector == author;
+            labeled = !vectored || (more && vector == author);
             if labeled {
                 part.authors.push(utf8(&author));
             }
@@ -197,10 +197,10 @@ fn read_part(database: &Database, filter: &str, names: &str, count: usize) -> Pa
     part
 }
 
-fn claims(database: &Database, kinds: &[(String, String)], names: &str) -> (Vec<String>, Vec<Attribute>) {
+pub fn claims(database: &Database, kinds: &[(String, String)], names: &str, vectored: bool) -> (Vec<String>, Vec<Attribute>) {
     let filters = ranges(database, CLAIM_PARTS);
     let parts: Vec<Part> = thread::scope(|scope| {
-        let handles: Vec<_> = filters.iter().map(|filter| scope.spawn(|| read_part(database, filter, names, kinds.len()))).collect();
+        let handles: Vec<_> = filters.iter().map(|filter| scope.spawn(|| read_part(database, filter, names, kinds.len(), vectored))).collect();
         handles.into_iter().map(|handle| handle.join().unwrap()).collect()
     });
     let mut authors: Vec<String> = Vec::new();
@@ -369,23 +369,23 @@ fn vectors(database: &Database, authors: &[String], names: &str, splits: &[u8], 
     (sample, picked)
 }
 
-fn catalog(claims: &Attribute, minimum: usize) -> Vec<String> {
-    let mut counts = vec![0usize; claims.values.len()];
-    for &(_, value) in &claims.rows {
+pub fn catalog(rows: &[(u32, u32)], values: &[String], minimum: usize) -> Vec<String> {
+    let mut counts = vec![0usize; values.len()];
+    for &(_, value) in rows {
         counts[value as usize] += 1;
     }
     let mut kept: Vec<usize> = (0..counts.len()).filter(|&value| counts[value] >= minimum).collect();
-    kept.sort_unstable_by(|&left, &right| counts[right].cmp(&counts[left]).then_with(|| claims.values[left].cmp(&claims.values[right])));
-    kept.into_iter().map(|value| claims.values[value].clone()).collect()
+    kept.sort_unstable_by(|&left, &right| counts[right].cmp(&counts[left]).then_with(|| values[left].cmp(&values[right])));
+    kept.into_iter().map(|value| values[value].clone()).collect()
 }
 
-fn indexed(claims: &Attribute, names: &[String]) -> Vec<Option<u32>> {
+pub fn indexed(values: &[String], names: &[String]) -> Vec<Option<u32>> {
     let positions: HashMap<&str, u32> = names.iter().enumerate().map(|(position, name)| (name.as_str(), position as u32)).collect();
-    claims.values.iter().map(|value| positions.get(value.as_str()).copied()).collect()
+    values.iter().map(|value| positions.get(value.as_str()).copied()).collect()
 }
 
-fn latest(claims: &Attribute, value: impl Fn(u32) -> f32) -> (Vec<(u32, f32)>, usize) {
-    let mut entries: Vec<(u32, f32)> = claims.rows.iter().map(|&(row, id)| (row, value(id))).collect();
+pub fn latest(rows: &[(u32, u32)], value: impl Fn(u32) -> f32) -> (Vec<(u32, f32)>, usize) {
+    let mut entries: Vec<(u32, f32)> = rows.iter().map(|&(row, id)| (row, value(id))).collect();
     entries.sort_by_key(|&(row, _)| row);
     let mut excluded = 0;
     let entries = entries
@@ -407,19 +407,19 @@ fn encode(name: &str, kind: &str, claims: &Attribute, splits: &[u8]) -> Encoded 
         match kind {
             "number" => {
                 let numbers: Vec<f32> = claims.values.iter().map(|value| value.parse::<f64>().unwrap_or_else(|_| panic!("{name}: number claim {value:?} is not a float")) as f32).collect();
-                let (entries, excluded) = latest(claims, |id| numbers[id as usize]);
+                let (entries, excluded) = latest(&claims.rows, |id| numbers[id as usize]);
                 (Some("numeric"), None, entries, None, excluded)
             }
             "one" => {
-                let common = catalog(claims, VALUE_AUTHORS);
-                let (names, target) = if common.len() > CATEGORICAL_VALUES { (common, "embedding") } else { (catalog(claims, 1), "categorical") };
-                let index = indexed(claims, &names);
-                let (entries, excluded) = latest(claims, |id| index[id as usize].map_or(f32::NAN, |position| position as f32));
+                let common = catalog(&claims.rows, &claims.values, VALUE_AUTHORS);
+                let (names, target) = if common.len() > CATEGORICAL_VALUES { (common, "embedding") } else { (catalog(&claims.rows, &claims.values, 1), "categorical") };
+                let index = indexed(&claims.values, &names);
+                let (entries, excluded) = latest(&claims.rows, |id| index[id as usize].map_or(f32::NAN, |position| position as f32));
                 (Some(target), Some(names), entries, None, excluded)
             }
             "set" => {
-                let names = catalog(claims, VALUE_AUTHORS);
-                let index = indexed(claims, &names);
+                let names = catalog(&claims.rows, &claims.values, VALUE_AUTHORS);
+                let index = indexed(&claims.values, &names);
                 let mut pairs: Vec<(u32, u32)> = claims.rows.iter().filter_map(|&(row, value)| index[value as usize].map(|position| (row, position))).collect();
                 pairs.sort_unstable();
                 let mut indptr = vec![0i64; splits.len() + 1];
@@ -666,7 +666,7 @@ fn prepare(database: &Database, directory: &Path, threads: usize) {
     let months = timed("months", || months(database));
     let kinds = timed("kinds", || kinds(database));
     let names = kinds.iter().map(|(name, _)| quoted(name)).collect::<Vec<_>>().join(", ");
-    let (authors, mut attributes) = timed("claims", || claims(database, &kinds, &names));
+    let (authors, mut attributes) = timed("claims", || claims(database, &kinds, &names, true));
     fs::create_dir_all(staging.join("sets")).unwrap();
     let splits = timed("splits", || splits(&authors, threads));
     let (order, position, bounds) = timed("layout", || layout(&splits));
