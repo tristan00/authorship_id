@@ -7,9 +7,10 @@ from database import LOGS, host, selected
 from database.load import load_month
 from database.server import counts, schema
 from reddit_dumps.catalog import month_range
-from reddit_dumps.download import delete, download
+from reddit_dumps.download import arrivals, delete
 
 from . import LOG, timed
+from .lock import Hold
 
 ROOT = Path(__file__).parents[1]
 
@@ -25,12 +26,13 @@ def rust(crate, binary, command, log, *args):
 @timed
 def load(start, end):
     schema()
-    for month in month_range(start, end):
-        download([month])
-        load_month(month)
+    for month in arrivals(month_range(start, end)):
+        with Hold(f"load {month}"):
+            load_month(month)
         delete(month)
         LOG.info("%s done", month)
-    counts()
+    with Hold("counts"):
+        counts()
 
 
 @timed
@@ -59,4 +61,5 @@ def run(start, end, loading, deriving):
     if loading:
         load(start, end)
     if deriving:
-        derive()
+        with Hold("derive"):
+            derive()

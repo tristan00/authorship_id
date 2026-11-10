@@ -5,7 +5,7 @@ from database import LOGS
 from reddit_dumps import setup_logging
 
 from . import catalog, log
-from .download import download
+from .download import arrivals
 
 
 def main():
@@ -15,7 +15,8 @@ def main():
     args = parser.parse_args()
     setup_logging(LOGS / "download.log")
     try:
-        download(catalog.month_range(args.start, args.end))
+        for _ in arrivals(catalog.month_range(args.start, args.end)):
+            pass
     except Exception:
         log.exception("download failed")
         sys.exit(1)

@@ -3,7 +3,7 @@ TORRENT_URL = "https://academictorrents.com/download/{}.torrent"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 
 KINDS = ("submissions", "comments")
-MAX_ACTIVE_MONTHS = 2
+MAX_ACTIVE_MONTHS = 6
 PROGRESS_SECONDS = 30
 
 ALERT_TIMEOUT = 120

@@ -1,4 +1,6 @@
+import queue
 import shutil
+import threading
 import time
 from dataclasses import dataclass
 
@@ -53,24 +55,46 @@ def start_jobs(ses, pending, active):
 
 
 @timed
-def download(months):
+def download(months, finished):
     ses = torrent.session()
     pending, active = build_jobs(months), []
-    last = 0.0
+    began, last, fetched = time.monotonic(), 0.0, 0
     while pending or active:
         start_jobs(ses, pending, active)
         torrent.log_alerts(ses.pop_alerts())
         for job in list(active):
             if len(torrent.completed(job.handle, job.info, job.files.values())) == len(job.files):
+                fetched += job.handle.status().total_payload_download
                 torrent.remove(ses, job.handle, job.save_path)
                 active.remove(job)
                 log.info("%s done in %.0f min", job.month, (time.monotonic() - job.started) / 60)
+                finished(job.month)
         if time.monotonic() - last >= PROGRESS_SECONDS:
             last = time.monotonic()
             for job in active:
                 log.info("%s %s", job.month, torrent.describe(job.handle, job.started))
-            log.info("pending months %d, active %d", len(pending), len(active))
+            statuses = [job.handle.status() for job in active]
+            total = fetched + sum(status.total_payload_download for status in statuses)
+            log.info("pending months %d, active %d, aggregate now %.1f MB/s average %.1f MB/s over %.0f min", len(pending), len(active),
+                     sum(status.download_rate for status in statuses) / 1e6, total / max(last - began, 1) / 1e6, (last - began) / 60)
         time.sleep(1)
+
+
+def arrivals(months):
+    done = queue.Queue()
+
+    def fetch():
+        try:
+            download(months, done.put)
+        except BaseException as error:
+            done.put(error)
+
+    threading.Thread(target=fetch, name="download", daemon=True).start()
+    for _ in months:
+        month = done.get()
+        if isinstance(month, BaseException):
+            raise month
+        yield month
 
 
 def files(month):
