@@ -302,14 +302,10 @@
    "kind": "one",
    "describe": "How does the writer describe their sexual experience",
    "values": [
-    "virgin",
-    "kissless virgin",
-    "inexperienced",
+    "no experience",
+    "little experience",
     "experienced",
-    "new to this / first timer",
-    "nbsb (no boyfriend since birth)",
-    "celibate",
-    "sexually active"
+    "celibate"
    ]
   },
   {
@@ -534,7 +530,7 @@
   {
    "name": "religious_upbringing",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What religion was the writer raised in",
    "values": [
     "catholic",
@@ -1151,24 +1147,10 @@
    "name": "mbti_type",
    "prompt": "person",
    "kind": "one",
-   "describe": "What is the writer's MBTI type",
+   "describe": "Is the writer's MBTI type intuitive (N) or sensing (S)",
    "values": [
-    "intj",
-    "intp",
-    "entj",
-    "entp",
-    "infj",
-    "infp",
-    "enfj",
-    "enfp",
-    "istj",
-    "isfj",
-    "estj",
-    "esfj",
-    "istp",
-    "isfp",
-    "estp",
-    "esfp"
+    "intuitive",
+    "sensing"
    ]
   },
   {
@@ -1192,14 +1174,11 @@
    "name": "instinctual_variant",
    "prompt": "person",
    "kind": "one",
-   "describe": "What is the writer's enneagram instinctual stacking",
+   "describe": "Which enneagram instinct comes first in the writer's instinctual stacking",
    "values": [
-    "sp/sx",
-    "sp/so",
-    "sx/sp",
-    "sx/so",
-    "so/sp",
-    "so/sx"
+    "sp",
+    "sx",
+    "so"
    ]
   },
   {
@@ -1230,20 +1209,11 @@
    "name": "sun_sign",
    "prompt": "person",
    "kind": "one",
-   "describe": "What is the writer's sun sign",
+   "describe": "What is the modality of the writer's sun sign (cardinal: aries, cancer, libra, capricorn; fixed: taurus, leo, scorpio, aquarius; mutable: gemini, virgo, sagittarius, pisces)",
    "values": [
-    "aries",
-    "taurus",
-    "gemini",
-    "cancer",
-    "leo",
-    "virgo",
-    "libra",
-    "scorpio",
-    "sagittarius",
-    "capricorn",
-    "aquarius",
-    "pisces"
+    "cardinal",
+    "fixed",
+    "mutable"
    ]
   },
   {
@@ -1460,29 +1430,15 @@
   {
    "name": "diet",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What diet does the writer follow",
    "values": [
     "vegan",
-    "plant-based",
     "vegetarian",
     "carnivore",
+    "keto / low carb",
     "omnivore / meat eater",
-    "paleo",
-    "intermittent fasting",
-    "gluten-free",
-    "high protein",
-    "pescatarian",
-    "flexitarian",
-    "calorie counting",
-    "halal",
-    "kosher",
-    "keto",
-    "low carb",
-    "sugar free",
-    "low fodmap",
-    "dairy free",
-    "mediterranean diet"
+    "halal / kosher"
    ]
   },
   {
@@ -1785,11 +1741,7 @@
    "kind": "set",
    "describe": "Which alterhuman or furry identity does the writer claim",
    "values": [
-    "therian",
-    "otherkin",
-    "fictionkin",
     "alterhuman",
-    "polymorphkin",
     "furry"
    ]
   },

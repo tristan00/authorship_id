@@ -15,21 +15,17 @@ regex!(NOT_SEXUAL, r"\b(?:trader|trading|driver|driving|player|owner|developer|p
 fn kind(m: &Match) -> V {
     let text = m.text();
     if contains(text, "kissless") {
-        Some("kissless virgin")
+        Some("no experience")
     } else if contains(text, "inexperienced") {
-        Some("inexperienced")
-    } else if contains(text, "experienced") {
+        Some("little experience")
+    } else if contains(text, "experienced") || contains(text, "sexually active") {
         Some("experienced")
     } else if contains(text, "celiba") {
         Some("celibate")
-    } else if contains(text, "sexually active") {
-        Some("sexually active")
-    } else if contains(text, "nbsb") {
-        Some("nbsb (no boyfriend since birth)")
     } else if contains(text, "new") || contains(text, "first") || contains(text, "noob") {
-        Some("new to this / first timer")
+        Some("little experience")
     } else {
-        Some("virgin")
+        Some("no experience")
     }
 }
 
@@ -75,8 +71,8 @@ pub fn build() -> Vec<Rule> {
         needs(r("sexual_experience", &format!(r"\b(?:and|but|&) (?:i'm |im |i am )?still an? (?:kissless )?virgin\b{NOT_VIRGIN}|\bas an? (?:{NOT}[\w-]+ )?(?:kissless )?virgin,? (?:i|i'm|im|i've|my|myself)\b|(?:^{flair}|[\n.!?]\s*)(?:kissless )?virgin here\b", flair = claimcore::flair!()),
           |m| if SPEAKER.test_in(m.string, sentence(m).0, m.end()) || AGED.test_in(m.string, sentence(m).0, m.start()) || contains(m.text(), "virgin here") { own(m) } else { None }, self_hedge()), &["virgin"]),
         needs(r("sexual_experience", &format!(r"{HEADER}(?:[\w-]+ ){{0,2}}?(?:kissless )?virgin{LOOSE_FOLLOW}{NOT_VIRGIN}"), |m| if spoken(m) { kind(m) } else { None }, TAGGED), &["virgin"]),
-        needs(r("sexual_experience", r"\b(?:я|мне \d+ (?:лет|год|года)),? (?:\w+ )?девственни(?:к|ца)\b", |m| stated(m, &STATED, || Some("virgin")), TAGGED), &["девственни"]),
-        needs(r("sexual_experience", r"\b(?:sou|soy|je suis|sono|ich bin|jestem)(?: (?:ainda|todavía|todavia|aún|aun|encore|toujours|ancora|noch|wciąż|nadal))? (?:una? )?(?:virgem|virgen|vierge|puceau|pucelle|vergine|jungfrau|dziewicą|prawiczkiem)\b", |m| stated(m, &STATED, || Some("virgin")), TAGGED), &["virg", "vierge", "puce", "jungfrau", "dziewic", "prawicz"]),
+        needs(r("sexual_experience", r"\b(?:я|мне \d+ (?:лет|год|года)),? (?:\w+ )?девственни(?:к|ца)\b", |m| stated(m, &STATED, || Some("no experience")), TAGGED), &["девственни"]),
+        needs(r("sexual_experience", r"\b(?:sou|soy|je suis|sono|ich bin|jestem)(?: (?:ainda|todavía|todavia|aún|aun|encore|toujours|ancora|noch|wciąż|nadal))? (?:una? )?(?:virgem|virgen|vierge|puceau|pucelle|vergine|jungfrau|dziewicą|prawiczkiem)\b", |m| stated(m, &STATED, || Some("no experience")), TAGGED), &["virg", "vierge", "puce", "jungfrau", "dziewic", "prawicz"]),
         needs(r("sexual_experience", &format!(r"{ME} (?:(?:pretty|very|quite|so|super|completely|totally|fairly|somewhat|a bit|kinda|relatively|still|sexually|also|rather|extremely|really) ){{0,2}}inexperienced\b(?! (?:in|with|at|when it comes to) (?!bed\b|sex\b|the bedroom\b|this\b|kink|bdsm|men\b|women\b|guys\b|girls\b))"), sexual, self_hedge()), &["inexperienced"]),
         needs(r("sexual_experience", &format!(r"{HEADER}(?:[\w-]+ ){{0,2}}?(?:very |sexually )?(?:inexperienced|experienced) {KINKY_FOLLOW}\b|(?:^{flair}|[\n.!?]\s*)(?:(?:very|well|sexually) )?(?:inexperienced|experienced) {KINKY_FOLLOW} (?:here|looking|seeking|for|from|in)\b|(?:^{flair}|[\n.!?]\s*)(?:(?:very|well|sexually) )?experienced with (?:couples|women|men|girls|guys|both)\b", flair = claimcore::flair!()), |m| if spoken(m) { sexual(m) } else { None }, TAGGED), &["experienced"]),
         needs(r("sexual_experience", &format!(r"{ME} (?:(?:very|well|quite|sexually|also|pretty|really|super|highly|fairly|an|a) ){{0,2}}experienced(?: {KINKY_FOLLOW}\b|(?=\s*(?:[,.!;:)\n]|$|(?:and|but|so|too|here|with (?:women|men|couples|girls|guys|both)|in (?:bed|the lifestyle|kink|bdsm))\b)))"), sexual, self_hedge()), &["experienced"]),
