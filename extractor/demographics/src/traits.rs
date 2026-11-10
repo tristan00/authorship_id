@@ -41,18 +41,16 @@ static ENDOWED: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"(?:\b(?:i|i've|ive) (?:have|got|'ve got|ve got|have got|'m packing|am packing|'m sporting|am sporting|measure|measured)|\bmy|\bi'm|\bim|\bi am|\bhung|\bhung with|\bsporting|\bpacking|\bme)",
     r"(?: (?:a|an|about|around|roughly|nearly|almost|just|only|over|under|like|maybe|solid|nice|thick|fat|big|decent|average|hard|rock|exactly|barely|very|well|hung|uncut|cut|bwc|bbc|girthy|juicy|curved|massive|huge|long))* $"
 )));
-static LISTED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^(?:r/\w+:\s*)?|[\n(\[\]|,/;:.!?-])\s*$"));
+static LISTED: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"(?:^", claimcore::flair!(), r"|[\n(\[\]|,/;:.!?-])\s*$")));
 static WITH: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bw(?:ith|/) (?:an? )?(?:(?:thick|fat|big|hard|long|girthy|nice|huge|massive|uncut|cut|juicy|curved) )*$"));
 static PHALLIC_TEXT: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:cock|dick|penis|bwc|bbc|uncut|girth|girthy|hung|erect|circumcised)\b"));
 static UNIT_IN_LINE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\d\s*(kgs?|kilos?|lbs?|pounds)\b"));
-static STAT_LINE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:cw|gw|hw|current weight|goal weight|weight|lbs?|kgs?|pounds)\b"));
-static WEIGHTY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:lose|losing|lost|weight|weigh|weighed|calories|cals|deficit|scale|tirz\w*|zep\w*|sema\w*|ozempic|wegovy|mounjaro|glp-?1|reta\w*|diet|cw|gw|sw)\b"));
 static PRONOUNED: LazyLock<Re> = LazyLock::new(|| {
     let token = r"(?:she|he|they|it|xe|ze|zie|fae|ey|ve|any|all|her|him|them|its|hers|his|xem|xir|xyr|xey|zir|zim|zem|hir|faer|faeself|em|eir|ver|vis|ae|aer|star|moon|void|thon)";
     Re::new(&format!(r"(?<![\w/])({token}(?:\s?/\s?{token})+(?:\s+pronouns)?|any pronouns)(?![\w/])"))
 });
 static PRONOUN_SAID: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:\bmy pronouns(?: are| r| is)?|\bpronouns[*_\s]*(?:are|[:=-])[*_]*|\bi (?:use|go by|prefer|'m fine with|am fine with|answer to)|\b(?:i'm|im|i am) [^.!?\n]{0,60}?)\s*[\(\[]?\s*$"));
-static PRONOUN_LABEL: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^(?:r/\w+:\s*)?|[\n(\[|,;:-]|(?<![\w.$#/])\d{2})\s*$"));
+static PRONOUN_LABEL: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"(?:^", claimcore::flair!(), r"|[\n(\[|,;:-]|(?<![\w.$#/])\d{2})\s*$")));
 static PRONOUN_HERE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*[\)\]]?\s*(?:here|pronouns|prns)\b"));
 static SKIN_TYPED: LazyLock<Re> = LazyLock::new(|| {
     let word = r"(?:oily|dry|combination|combo|combi|normal|sensitive|acne[- ]?prone|reactive|dehydrated|easily irritated|breakout[- ]prone|very|super|really|extremely|quite|pretty|slightly|somewhat|kinda|naturally|severely|mostly|leaning|and|or|but|to|a bit|a little|af|asf)";
@@ -92,7 +90,7 @@ fn told(m: &Match) -> bool {
 }
 
 fn plain(lowered: &[char], start: usize, end: usize) -> bool {
-    !SELF_LIMIT.test_in(lowered, clause(lowered, start).max(start.saturating_sub(40)), start) && !question(lowered, end)
+    !hedged(lowered, start, end, self_hedge())
 }
 
 fn generation(m: &Match) -> Option<String> {
@@ -185,40 +183,27 @@ fn endowed(m: &Match, explicit: bool) -> bool {
     MEASURED.test(line(text, start)) || (first.contains(&'4') && LOOKING.test(first)) || AGED.test(first) || (listed && FIRST.test(sentence(text, start, m.end())))
 }
 
-fn kilograms(amount: &[char], unit: &[char]) -> Option<f64> {
-    let amount = py_float(&st(amount).replace(',', ".").chars().collect::<Vec<_>>())?;
-    let unit = st(unit);
-    Some(if unit.starts_with('k') {
-        amount
-    } else if unit.starts_with("st") {
-        amount * 6.35
-    } else {
-        amount * 0.4536
-    })
+fn in_kilos(amount: &[char], unit: &[char]) -> Option<f64> {
+    kilograms(py_float(&st(amount).replace(',', ".").chars().collect::<Vec<_>>())?, unit)
 }
 
 fn starting(m: &Match, stat: bool) -> Option<String> {
     let text = m.string;
     let amount = m.group(1)?;
     let row = line(text, m.start());
-    let unit: Vec<char> = match m.nonempty(2).or(m.nonempty(3)) {
-        Some(unit) => unit.to_vec(),
-        None => match UNIT_IN_LINE.find(row) {
-            Some(found) if stat => found.group(1)?.to_vec(),
-            _ => {
-                let context = if stat { STAT_LINE.test(row) } else { WEIGHTY.test(sentence(text, m.start(), m.end())) };
-                if py_int(amount)? >= 150 && context { chars("lbs") } else { return None }
-            }
-        },
+    let unit = match m.nonempty(2).or(m.nonempty(3)) {
+        Some(unit) => unit,
+        None if stat => UNIT_IN_LINE.find(row)?.group(1)?,
+        None => return None,
     };
-    let kilos = kilograms(amount, &unit)?;
+    let kilos = in_kilos(amount, unit)?;
     if (40.0..=320.0).contains(&kilos) { Some(rounded(kilos)) } else { None }
 }
 
 fn lost(m: &Match) -> Option<String> {
     for (a, b) in [(1, 2), (3, 4), (5, 6)] {
         if let (Some(amount), Some(unit)) = (m.nonempty(a), m.nonempty(b)) {
-            let kilos = kilograms(amount, unit)?;
+            let kilos = in_kilos(amount, unit)?;
             return if (1.0..=250.0).contains(&kilos) { Some(rounded(kilos)) } else { None };
         }
     }
@@ -288,12 +273,12 @@ fn appearance() -> Vec<Rule> {
             let first = line(m.string, 0);
             if !told(m) && (MEASURED.test(line(m.string, m.start())) || AGED.test(first) || (first.contains(&'4') && LOOKING.test(first))) { eye(m) } else { None }
         }), sh()),
-        said("eye_color", &format!(r"(?:^(?:r/\w+:\s*)?|(?<=[\n,;|/().:])|(?<=\band))\s*{EYE_ADJ}{EYE}(?: eyes\b|[- ]eyed\b)"), personal(alone(|m: &Match| if told(m) { None } else { eye(m) })), sh()),
+        said("eye_color", &format!(r"(?:^{flair}|(?<=[\n,;|/().:])|(?<=\band))\s*{EYE_ADJ}{EYE}(?: eyes\b|[- ]eyed\b)", flair = claimcore::flair!()), personal(alone(|m: &Match| if told(m) { None } else { eye(m) })), sh()),
         said("hair_type", &format!(r"(?:\b(?:i have|i've got|i got|i also have|my)|(?<=, )have|(?<=\band )have) {HAIR_ADJ}{CURL}{HAIR_TAIL} hair\b"), alone(curl), h()),
         said("hair_type", &format!(r"\bmy hair(?: is|'s| has always been| is naturally) (?:(?:naturally|very|super|really|pretty|quite|kinda|kind of|extremely|so|also|thick|thin|fine|long|short|and|more|mostly),? )*{CURL}\b(?! (?:now|again|after|when|because)\b)"), curl, h()),
         said("hair_type", r"(?<![\w.$/#+-])([1-4])[abc](?:\s?[/-]\s?[1-4]?[abc])*(?: (?:type|curly|wavy|coily|kinky|curls|waves|coils|hair|ringlets))+\b|\bhair(?: type)?\s*(?:is|:|=|-)\s*(?:type\s*)?([1-4])[abc]\b", personal(alone(|m: &Match| if desired(m.string, m.start()) { None } else { curl(m) })), sh()),
         said("skin_type", &format!(r"\bi(?:'ve| have)? (?:(?:still|also|always|now|currently|really|just|recently|constantly|often|easily) )*(?:have|get|struggle with|suffer from|deal with|'ve had|have had|battle|fight) (?:(?:really|very|super|bad|severe|hormonal|cystic|adult|persistent|mild|moderate|chronic|constant|stubborn|terrible|horrible|some|a lot of|lots of|frequent) )*(?:acne|breakouts|pimples|cystic acne)\b(?! (?:scars?|marks?|scarring)\b)(?! (?:on|in|around) (?:my )?(?:balls|butt|ass|scalp|groin|thighs|legs|vulva|labia|penis|dick|nipples?|armpits?)\b)|{IM} (?:(?:very|super|really|extremely|so|also|still|quite|pretty) )*(?:acne[- ]?prone|prone to (?:acne|breakouts))\b"), fixed("acne-prone"), h()),
-        said("hair_type", &format!(r"(?:^(?:r/\w+:\s*)?|(?<=[\n,;|/().:])|(?<=\band))\s*(?:(?:long|short|thick|thin|fine|coarse|heavy|frizzy|dark|light|black|brown|blonde?|red|medium|shoulder[- ]length),? )*{CURL}{HAIR_TAIL} hair\b"), personal(alone(|m: &Match| if told(m) { None } else { curl(m) })), sh()),
+        said("hair_type", &format!(r"(?:^{flair}|(?<=[\n,;|/().:])|(?<=\band))\s*(?:(?:long|short|thick|thin|fine|coarse|heavy|frizzy|dark|light|black|brown|blonde?|red|medium|shoulder[- ]length),? )*{CURL}{HAIR_TAIL} hair\b", flair = claimcore::flair!()), personal(alone(|m: &Match| if told(m) { None } else { curl(m) })), sh()),
         said("hair_strand_width", r"\b(?:i have|i've got|i got|my) (?:(?:very|super|really|extremely|naturally|thin|long|short|straight|wavy|curly|and|thick|soft|dark|light|black|brown|blonde?)[, ]+)*(fine|coarse)(?:[, ]+(?:and |but )?(?:very |super )?(?:thin|thick|straight|wavy|curly|soft|dense|long|short|dark|light|black|brown|blonde?))* (?:hair|strands)\b", alone(|m: &Match| m.first_s()), h()),
         said("hair_strand_width", r"\bmy (?:hair )?strands (?:are|is) (?:(?:very|super|really|extremely|naturally|pretty|quite) )*(fine|coarse|medium)\b|\bhair(?: type)?[*_\s]*[:=-][*_\s]*(?:[\w-]+[, ]+){0,3}?(fine|coarse)\b", personal(alone(|m: &Match| m.first_s())), h()),
         said("hair_strand_width", r"\bmy (?:hair(?: strands)?|strands)(?: is| are|'s) (?:(?:very|super|really|extremely|naturally|pretty|quite|on the) )*(coarse|fine(?=,? (?:and |but )?(?:thin|straight|wavy|curly|soft|flat|limp|silky|thick|low|high|dense)\b))", |m: &Match| m.first_s(), h()),
@@ -307,18 +292,18 @@ fn appearance() -> Vec<Rule> {
                 let level = st(m.first()?);
                 if level.ends_with("high") || level.ends_with("higher") { Some("high / thick".to_string()) } else if level.ends_with("low") || level.ends_with("lower") { Some("low".to_string()) } else { Some("medium".to_string()) }
             })), sh()), &["density"]),
-        said("hair_density", r"(?:^(?:r/\w+:\s*)?|(?<=[\n,;|/().:])|(?<=\band))\s*(?:(?:naturally|very|super|really|relatively|quite|fairly|long|short|medium|straight|wavy|curly|dark|light|black|brown|blonde?|gray|grey|red|layered|fine|soft)[, ]+)*thick(?:[, ]+(?:and )?(?:straight|wavy|curly|dark|light|black|brown|blonde?|gray|grey|red|layered|long|short))* hair\b",
+        said("hair_density", concat!(r"(?:^", claimcore::flair!(), r"|(?<=[\n,;|/().:])|(?<=\band))\s*(?:(?:naturally|very|super|really|relatively|quite|fairly|long|short|medium|straight|wavy|curly|dark|light|black|brown|blonde?|gray|grey|red|layered|fine|soft)[, ]+)*thick(?:[, ]+(?:and )?(?:straight|wavy|curly|dark|light|black|brown|blonde?|gray|grey|red|layered|long|short))* hair\b"),
             personal(alone(|m: &Match| if told(m) { None } else { Some("high / thick".to_string()) })), sh()),
         said("hair_density", r"\b(?:i have|i've got|i got|my) (?:(?:very|super|really|extremely|naturally|relatively|quite|fairly|pretty|long|short|straight|wavy|curly|coarse|dark|black|brown|blonde?|and|so),? )*thick(?:,? (?:and )?(?:straight|wavy|curly|coily|kinky|frizzy|coarse|heavy|healthy|natural|shiny|soft|silky|long|short|dark|light|black|brown|blonde?|red|ginger|auburn|grey|gray|luscious|beautiful|gorgeous|full|textured))? hair\b|\bmy hair(?: is|'s) (?:(?:very|super|really|extremely|naturally|pretty|quite|so|also|long|and),? )*thick\b(?! (?:now|again)\b)",
             alone(fixed("high / thick")), h()),
         said("hair_porosity", r"\b(?:i have|i've got|i got|my hair(?: is|'s)?|my|i'm|im|i am)(?: [\w-]+){0,3}? (low|high|mixed|medium|normal)[- ]porosity\b", alone(porosity), h()),
-        said("hair_porosity", r"\bporosity\s*(?:is|[:=-])\s*(low|high|mixed|medium|normal)\b|(?:^(?:r/\w+:\s*)?|(?<=[\n,;|.(/]))\s*(low|high|mixed|medium|normal)[- ]porosity\b", personal(alone(porosity)), sh()),
+        said("hair_porosity", concat!(r"\bporosity\s*(?:is|[:=-])\s*(low|high|mixed|medium|normal)\b|(?:^", claimcore::flair!(), r"|(?<=[\n,;|.(/]))\s*(low|high|mixed|medium|normal)[- ]porosity\b"), personal(alone(porosity)), sh()),
         said("skin_tone", &format!(r"\b(?:i have|i've got|i got|my) {tone_mod}{tone}[- ](?:skin|skinned|complexion|skin tone)\b(?!\s*(?:care|routine|people|folks|girls|guys|women|men))"), alone(|m: &Match| get(&TONES, m.first())), h()),
         said("skin_tone", &format!(r"{IM} (?:(?:very|super|really|naturally|quite|pretty|so|also|a|an|kinda|kind of|more|fairly|relatively|extremely) )*{tone_mod}{tone}[- ](?:skin|skinned|complexion|toned)\b(?! (?:people|folks|girls|guys|women|men)\b)|{IM} (?:(?:very|super|really|naturally|quite|pretty|so|also|kinda|fairly|extremely|incredibly|ghostly) )*(pale|tanned)\b(?! (?:with|from|after|in|and shaking)\b)"),
             |m: &Match| get(&TONES, m.first()), h()),
-        said("skin_tone", &format!(r"(?:^(?:r/\w+:\s*)?|(?<=[\n,;|/().:])|(?<=\band))\s*{tone_mod}{tone}[- ](?:skin|skinned|complexion)\b(?!\s*(?:care|routine|people|folks|girls|guys|women|men))"), personal(alone(|m: &Match| if told(m) { None } else { get(&TONES, m.first()) })), sh()),
+        said("skin_tone", &format!(r"(?:^{flair}|(?<=[\n,;|/().:])|(?<=\band))\s*{tone_mod}{tone}[- ](?:skin|skinned|complexion)\b(?!\s*(?:care|routine|people|folks|girls|guys|women|men))", flair = claimcore::flair!()), personal(alone(|m: &Match| if told(m) { None } else { get(&TONES, m.first()) })), sh()),
         said("skin_tone", r"\b(?:i'm|im|i am|sou|soy|ako ay|ako'y) (?:(?:a|an|medyo|bit|kinda|kind of|pretty|very|naturally) )*(moreno|morena)\b(?! (?:valley|family)\b)", fixed("moreno / morena"), h()),
-        said("skin_tone", r"(?:^(?:r/\w+:\s*)?|(?<=[\n,;|/(]))\s*(?:(?:light|dark|cute|chinito|tall|chubby|slim) )?(moreno|morena)(?=\s*(?:[,;|/)\n.!]|$|na\b|and\b|&|with\b|guy\b|girl\b|man\b|woman\b|male\b|female\b|here\b))", personal(alone(|m: &Match| if told(m) { None } else { Some("moreno / morena".to_string()) })), sh()),
+        said("skin_tone", concat!(r"(?:^", claimcore::flair!(), r"|(?<=[\n,;|/(]))\s*(?:(?:light|dark|cute|chinito|tall|chubby|slim) )?(moreno|morena)(?=\s*(?:[,;|/)\n.!]|$|na\b|and\b|&|with\b|guy\b|girl\b|man\b|woman\b|male\b|female\b|here\b))"), personal(alone(|m: &Match| if told(m) { None } else { Some("moreno / morena".to_string()) })), sh()),
         said("skin_tone", r"\b(?:i'm|im|i am) (fair|light|light-medium|medium|tan|deep)[- ](?:to[- ])?(?:medium[- ])?(?:neutral|warm|cool|olive)\b", |m: &Match| get(&TONES, Some(&chars(&st(m.group(1)?).replace("light-medium", "light")))), h()),
         said("skin_tone", r"\b(?:i'm|im|i am) (?:an? )?(?:(?:fair|light|light-medium|medium|tan|deep|neutral|warm|cool|muted|leaning|true|cool-leaning|warm-leaning|neutral-warm|neutral-cool)[- ,/]+){1,4}(olive)\b(?! (?:oil|tree|garden|green|branch)\b)|\b(?:i'm|im|i am) (?:an? )?(olive)(?=[- ](?:skin|skinned|toned|complexion|undertones?)\b)", fixed("olive"), h()),
     ]
@@ -328,24 +313,24 @@ fn identity() -> Vec<Rule> {
     vec![
         said("generation", &format!(r"{IM} (?:(?:also|just|still|technically|basically|literally|actually|definitely|officially|a|an|the|proud|proudly|young|younger|old|older|elder|early|mid|middle|late|core|geriatric|ancient|baby|oldest|youngest|tail[- ]end|solidly|firmly|squarely|elderly|part of|one of those|very|on the cusp of|considered|an elder|an older|an early|a late|a young|an old) )*{GEN}\b{GEN_AFTER}"), generation, h()),
         said("generation", &format!(r"\bas an? (?:(?:young|younger|old|older|elder|early|late|fellow|proud|middle|core) )?{GEN}\b{GEN_AFTER}(?!['’]s)"), generation, h()),
-        said("generation", &format!(r"(?:^(?:r/\w+:\s*)?|[.!?,;(\n] *|\bfellow )(?:(?:young|younger|old|older|elder|early|late) )?{GEN} here\b"), generation, sh()),
+        said("generation", &format!(r"(?:^{flair}|[.!?,;(\n] *|\bfellow )(?:(?:young|younger|old|older|elder|early|late) )?{GEN} here\b", flair = claimcore::flair!()), generation, sh()),
         said("generation", r"\b(?:we|us|fellow) (?:(?:older|younger|elder|early|late|old|young) )?(millennials|millenials|gen ?zers|gen ?xers|boomers|zoomers|xennials|zillennials|gen z|gen x)\b(?! (?:who|that)\b)", generation, h()),
         said("gender_expression", &format!(r"{IM} (?:(?:also|just|still|a|an|the|proud|proudly|cute|little|lil|pretty|submissive|sub|shy|horny|young|white|black|asian|latino|chubby|skinny|slim|petite|curvy|thick|soft|feminine|girly|slutty|naughty|needy|caged|good|total|hairy|smooth|bi|gay|straight|trans|cis|lesbian|nonbinary|non-binary|enby|fem|bottom|top|kinda|very|super|more|really|mostly|sweet|obedient|dommy|bratty|nerdy|closeted|secret|discreet|virgin) )*{EXPRESSION}\b(?![-'/])(?! (?:for|about|when|with|of|like|porn|content|captions?|hypno|stuff|ones?)\b)"),
             group(&EXPRESSIONS, 1), h()),
-        said("gender_expression", &format!(r"(?:^(?:r/\w+:\s*)?|[\s,(\[|])(?:(?:\d{{2}}|cute|young|horny|sub|submissive|shy|chubby|slim|skinny|white|black|asian|latino|bi|gay|straight|trans|feminine|girly|slutty|curious|closeted|discreet),? )*(femboy|femboi|sissy|crossdresser|cd|tomboy|butch|masc) (?:(?:bottom|top|boy|guy|girl|slut|bitch|bi|gay|sub) )?(?:here|looking|seeking|needs?|wants?|for|4|available)\b"),
+        said("gender_expression", &format!(r"(?:^{flair}|[\s,(\[|])(?:(?:\d{{2}}|cute|young|horny|sub|submissive|shy|chubby|slim|skinny|white|black|asian|latino|bi|gay|straight|trans|feminine|girly|slutty|curious|closeted|discreet),? )*(femboy|femboi|sissy|crossdresser|cd|tomboy|butch|masc) (?:(?:bottom|top|boy|guy|girl|slut|bitch|bi|gay|sub) )?(?:here|looking|seeking|needs?|wants?|for|4|available)\b", flair = claimcore::flair!()),
             mine(alone(|m: &Match| if desired(m.string, m.start()) { None } else { get(&EXPRESSIONS, m.group(1)) })), sh()),
-        said("gender_expression", &format!(r"{IM} (?:an? )?stud(?: lesbian| dyke)\b|(?:^(?:r/\w+:\s*)?|[\n(\[|/,] *)stud lesbian\b|\bstud(?=/(?:butch|masc|lesbian|wlw)\b)"), mine(alone(fixed("stud"))), h()),
+        said("gender_expression", &format!(r"{IM} (?:an? )?stud(?: lesbian| dyke)\b|(?:^{flair}|[\n(\[|/,] *)stud lesbian\b|\bstud(?=/(?:butch|masc|lesbian|wlw)\b)", flair = claimcore::flair!()), mine(alone(fixed("stud"))), h()),
         said("gender_expression", &format!(r"\bas an? (?:[\w-]+ )?{EXPRESSION}\b(?!['’]s)(?! (?:porn|content|captions?)\b)"), group(&EXPRESSIONS, 1), h()),
         said("romantic_orientation", &format!(r"{IM} (?:(?:also|just|still|a|an|probably|definitely|actually|proudly|kinda|sort of|kind of|very|pretty|somewhat|more) )*(?:(?!not\b|never\b|no\b)[\w-]+ ){{0,2}}?(?:{ROMANTIC}|(aro))\b(?![-/])"), romantic, h()),
-        said("romantic_orientation", &format!(r"(?:^(?:r/\w+:\s*)?|[\n(\[|/,]|\band\b)\s*{ROMANTIC}\b(?! (?:people|folks|community|ones|persons?|representation|characters?|flags?|spectrum|facts?|is|isn't|means|are)\b)|{ROMANTIC} (?:asexual|ace|lesbian|gay|bisexual|woman|man|girl|guy|person|enby)\b"), mine(alone(romantic)), sh()),
+        said("romantic_orientation", &format!(r"(?:^{flair}|[\n(\[|/,]|\band\b)\s*{ROMANTIC}\b(?! (?:people|folks|community|ones|persons?|representation|characters?|flags?|spectrum|facts?|is|isn't|means|are)\b)|{ROMANTIC} (?:asexual|ace|lesbian|gay|bisexual|woman|man|girl|guy|person|enby)\b", flair = claimcore::flair!()), mine(alone(romantic)), sh()),
         said("romantic_orientation", &format!(r"\bas an? (?:[\w-]+ )?{ROMANTIC}\b(?! (?:people|folks)\b)"), romantic, h()),
         said("transition_care", r"\b(?:i(?:'m| am|m)|i've been|ive been|i have been) (?:(?:currently|now|still|finally|also|officially|just) )*on (?:hrt|estrogen|estradiol|testosterone|t|e|hormones)\b(?! (?:mobile|time|track|the|my|a)\b)|\bi (?:started|began|have been taking|'ve been taking|am taking|'m taking) (?:taking )?(?:hrt|estrogen|estradiol|testosterone|t|e)\b(?! (?:mobile|time|the|my|a)\b)",
             transitioned("hormone therapy"), h()),
-        said("transition_care", r"(?:^(?:r/\w+:\s*)?|[.!?\n,(] *|\b(?:i'm|im|i am|been) )(?:about |almost |over |nearly )?(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an) (?:years?|yrs?|months?|mos?|weeks?|wks?) (?:(?:on |of |into )?hrt|(?:on|of|into) (?:e|t|estrogen|testosterone|estradiol))\b", transitioned("hormone therapy"), h()),
+        said("transition_care", concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n,(] *|\b(?:i'm|im|i am|been) )(?:about |almost |over |nearly )?(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an) (?:years?|yrs?|months?|mos?|weeks?|wks?) (?:(?:on |of |into )?hrt|(?:on|of|into) (?:e|t|estrogen|testosterone|estradiol))\b"), transitioned("hormone therapy"), h()),
         said("transition_care", &format!(r"{HAD} (?:my |an? )?(top surgery|bottom surgery|srs|grs|gcs|vaginoplasty|phalloplasty|phallo|metoidioplasty|meta|ffs|facial femini[sz]ation(?: surgery)?|hysterectomy|orchiectomy|orchidectomy|orchi)\b"), surgery, h()),
         said("transition_care", &format!(r"{IM} (?:still |currently |very |completely )?pre[- ]?(?:transition|hrt|t|e|everything)\b"), transitioned("pre-transition"), h()),
         said("transition_care", &format!(r"{IM} (?:a |an |also |now |just )?(?:detrans|detransitioner|detransitioned|detransitioning)\b|\bi (?:have |'ve |had )?(?:recently |since |already |eventually )?detransitioned\b|\bas an? detrans(?:itioner)?\b"), fixed("detransitioned"), h()),
-        said("transition_care", &format!(r"{IM} (?:(?:still|currently|now|also|finally|officially|a|an|\d+ (?:days?|weeks?|months?|years?)) )*(pre|post)[- ]?op\b(?! (?:diet|liquid|bariatric|gastric|sleeve|bypass|wls|vsg|rny)\b)|(?:^(?:r/\w+:\s*)?|[\n(\[|,] *)(pre|post)[- ]?op (?:trans|transgender|transsexual|mtf|ftm|tgirl|ts)\b(?! (?:women|men|folks|people|girls|guys|persons)\b)"),
+        said("transition_care", &format!(r"{IM} (?:(?:still|currently|now|also|finally|officially|a|an|\d+ (?:days?|weeks?|months?|years?)) )*(pre|post)[- ]?op\b(?! (?:diet|liquid|bariatric|gastric|sleeve|bypass|wls|vsg|rny)\b)|(?:^{flair}|[\n(\[|,] *)(pre|post)[- ]?op (?:trans|transgender|transsexual|mtf|ftm|tgirl|ts)\b(?! (?:women|men|folks|people|girls|guys|persons)\b)", flair = claimcore::flair!()),
             alone(mine(|m: &Match| if TRANSY.test(m.string) && !BARIATRIC.test(m.string) { Some(format!("{}-op", st(either(m, &[1, 2])?))) } else { None })), h()),
         said("transition_care", r"\bi (?:was|am|'m|got|went|have been|'ve been) (?:put |started |also |still |currently )?on (?:puberty |hormone |t |e )?blockers\b|\bi (?:took|take|started|was given) (?:puberty |hormone )?blockers\b", transitioned("puberty blockers"), h()),
         said("transition_care", r"\bi(?:'ve| have| had)? (?:(?:already|also|just|recently|finally|been) )*(?:had|got|done|did|started|doing|getting) (?:my |some |a few |\d+ )?(?:sessions? of |rounds? of |treatments? of )?(?:laser hair removal|electrolysis)\b", transitioned("hair removal"), h()),
@@ -372,7 +357,7 @@ fn measures() -> Vec<Rule> {
         said("bra_size", &format!(r"\b(?:i(?:'m| am|m) (?:(?:a|an|now|currently|naturally|only|barely|like|about|around|almost|technically|actually|still|natural|full) )+|i wear an? |i(?:'m| am) wearing an? |i fit (?:in|into) an? )(\d{{2}}){BRA_CUP}\b(?!['-])(?! (?:years?|yo|y/o)\b)"), worn, h()),
         said("bra_size", r"(?<![\w.$#/-])(\d{2}) ?(aa|dddd|ddd|dd|ff|gg|hh|[a-k]) ?(?:cups?|bra|tits|titties|boobs|breasts|bust)\b", mine(alone(|m: &Match| if desired(m.string, m.start()) { None } else { bra(m) })), sh()),
         said("bra_size", r"\b(?:i(?:'m| am|m) (?:an? |now an? |like an? |a natural |naturally an? )|i have (?:an? |(?!a cup\b(?! (?:boobs|tits|titties|breasts)\b)))|i wear an? |my )(aa|dddd|ddd|dd|ff|gg|hh|[a-k])[- ]cups?\b", cup, h()),
-        said("bra_size", r"(?:^(?:r/\w+:\s*)?|(?<=[\n,;|/(]))\s*(\d{2})(aa|dddd|ddd|dd|ff|gg|hh|[a-e])\s*(?=[,;|/)\n]|$)", personal(alone(|m: &Match| if told(m) { None } else { bra(m) })), sh()),
+        said("bra_size", concat!(r"(?:^", claimcore::flair!(), r"|(?<=[\n,;|/(]))\s*(\d{2})(aa|dddd|ddd|dd|ff|gg|hh|[a-e])\s*(?=[,;|/)\n]|$)"), personal(alone(|m: &Match| if told(m) { None } else { bra(m) })), sh()),
         said("clothing_size", &format!(r"\bi (?:usually |normally |typically |generally |always |mostly |currently |now |can |only )?(?:wear|fit into|fit in) (?:an? |the |in |into )?(?:size |sz )?(?:{LETTER_SIZE}|(?<=size )(s|m|l|small|medium|large))\b(?![-'/])(?! (?:shoes?|feet|boots?|sneakers?)\b)"), clothing, h()),
         said("clothing_size", &format!(r"{IM} (?:a |an |usually a |normally a |typically a |now a |currently a |about a |like a )?(?:size |sz )(\d{{1,2}}(?:/\d{{1,2}})?|xxs|xs|s|m|l|xl|xxl|xxxl|[2-6]x)\b(?![-'/.])(?! (?:shoes?|feet|foot|boots?|sneakers?|in shoes|in men's|shoe)\b)|{IM} (?:an? |usually an? |typically an? )?{LETTER_SIZE}\b(?![-'/])(?=\s*(?:[,.;!)\n]|$|in\b|size\b|and\b|or\b|(?:shirts?|tops?|pants|jeans|dress|hoodies?|t-?shirts?|tees)\b))|{IM} (?:an? |usually an? |typically an? )?(small|medium|large)(?= in (?:\w+ ){{0,2}}?(?:clothes|shirts?|tops?|pants|jeans|everything|dresses|hoodies|jackets|t-shirts|tees|scrubs|men's|women's)\b| size\b)"), clothing, h()),
         said("clothing_size", r"\b(?:my (?:dress|clothing|clothes|jean|jeans|pant|pants|shirt|top) size(?: is|:)?|(?:dress|clothing|clothes|jean|pant|shirt|top) size\s*[:=-])\s*(?:an? |a size |size |usually |about |around )*(\d{1,2}(?:/\d{1,2})?|xxs|xs|s|m|l|xl|xxl|xxxl|[2-6]x|small|medium|large)\b", alone(clothing), h()),
@@ -381,11 +366,11 @@ fn measures() -> Vec<Rule> {
         said("shoe_size", r"\b(?:my|i have|i've got|i got) (?:(?:size|us|uk|eu|men's|women's) )+(\d{1,2}(?:[.,]5)?)(?:w| wide)? (?:feet|shoes?|sneakers|boots)\b", shoe, h()),
         said("starting_weight", r"(?<![\w/])(?<!\ba )(?<!\bthe )(?<!\byour )(?<!\bhis )(?<!\bher )(?<!\btheir )(?<!\bof )(?:sw|starting weight|start weight|starting wt|start wt)\s*(?:was|is|of|:|=|-|~)?\s*(?:about |around |roughly |~)?(\d{2,3}(?:[.,]\d)?)\s*(lbs?|pounds|kgs?|kilos?)?\b(?!\s*(?:mg|mcg|ml|%|cm|in\b))",
             alone(|m: &Match| starting(m, true)), sh()),
-        said("starting_weight", r"(?:\bi(?:'ve| have)? |(?:^(?:r/\w+:\s*)?|[.!?\n]) *)(?:(?:originally|initially|first) )?(?:started (?:out )?(?:at|around|about)|went from|gone from|dropped from|came down from|got down from)\s+(?:about |around |roughly |~)?(\d{2,3}(?:[.,]\d)?)(?!\d)\s*(lbs?|pounds|kgs?|kilos?)?(?!\s*(?:mg|mcg|µg|ug|ng|iu|ml|units?|%|k\b|calories|cals?|kcal|steps|mhz|ghz|hz|bpm|mph|km|miles|dollars|usd|points|pts|ft|feet|cm|in\b|inches|days|weeks|months|years|hours|minutes|lpa|per|a day|/))(?:\s*\([^)\n]{0,20}\))?(?:\s*(?:to|->|→|down to)\s*(?:about |around |~)?\d{2,3}(?:[.,]\d)?\s*(lbs?|pounds|kgs?|kilos?)?)?",
+        said("starting_weight", concat!(r"(?:\bi(?:'ve| have)? |(?:^", claimcore::flair!(), r"|[.!?\n]) *)(?:(?:originally|initially|first) )?(?:started (?:out )?(?:at|around|about)|went from|gone from|dropped from|came down from|got down from)\s+(?:about |around |roughly |~)?(\d{2,3}(?:[.,]\d)?)(?!\d)\s*(lbs?|pounds|kgs?|kilos?)?(?!\s*(?:mg|mcg|µg|ug|ng|iu|ml|units?|%|k\b|calories|cals?|kcal|steps|mhz|ghz|hz|bpm|mph|km|miles|dollars|usd|points|pts|ft|feet|cm|in\b|inches|days|weeks|months|years|hours|minutes|lpa|per|a day|/))(?:\s*\([^)\n]{0,20}\))?(?:\s*(?:to|->|→|down to)\s*(?:about |around |~)?\d{2,3}(?:[.,]\d)?\s*(lbs?|pounds|kgs?|kilos?)?)?"),
             alone(|m: &Match| starting(m, false)), sh()),
-        said("weight_lost", &format!(r"(?:\bi(?:'ve|ve| have| had)?\s+|(?:^(?:r/\w+:\s*)?|[.!?\n])\s*)(?:(?:already|just|finally|officially|now|since|recently|also|so far|successfully|managed to|been able to|actually|even|have|total)\s+)*(?:lost|dropped|shed)\s+(?:about |around |over |almost |nearly |roughly |like |a total of |more than |close to |just over |just under |~|exactly |another |an additional )?(\d{{1,3}}(?:[.,]\d)?)\s*\+?\s*{POUNDS}\b(?! (?:of (?:muscle|water)|in (?:a |one )?(?:day|week)))"),
+        said("weight_lost", &format!(r"(?:\bi(?:'ve|ve| have| had)?\s+|(?:^{flair}|[.!?\n])\s*)(?:(?:already|just|finally|officially|now|since|recently|also|so far|successfully|managed to|been able to|actually|even|have|total)\s+)*(?:lost|dropped|shed)\s+(?:about |around |over |almost |nearly |roughly |like |a total of |more than |close to |just over |just under |~|exactly |another |an additional )?(\d{{1,3}}(?:[.,]\d)?)\s*\+?\s*{POUNDS}\b(?! (?:of (?:muscle|water)|in (?:a |one )?(?:day|week)))", flair = claimcore::flair!()),
             alone(lost), h()),
-        said("weight_lost", r"\b(?:i'm|im|i am)\s+(?:(?:now|currently|officially|finally|already|just|about|around|over)\s+)*down\s+(?:about |around |over |almost |nearly |~)?(\d{1,3}(?:[.,]\d)?)\s*(lbs?|pounds|kgs?|kilos?)\b|(?:^(?:r/\w+:\s*)?|[.!?\n])\s*(?:(?:now|currently|officially)\s+)?down\s+(?<![\d.,])(\d{1,3}(?:[.,]\d)?)\s*(lbs?|pounds|kgs?|kilos?)\b|(?:^(?:r/\w+:\s*)?|[.!?\n(,]\s*|\b(?:i'm|im|i am|and|at|now|officially|over|almost|nearly)\s+)(?<![\d.,])(\d{1,3}(?:[.,]\d)?)\+?\s*(lbs?|pounds|kgs?|kilos?)\s+(?:down|lost)\b(?! (?:by|from|for|to)\b)",
+        said("weight_lost", concat!(r"\b(?:i'm|im|i am)\s+(?:(?:now|currently|officially|finally|already|just|about|around|over)\s+)*down\s+(?:about |around |over |almost |nearly |~)?(\d{1,3}(?:[.,]\d)?)\s*(lbs?|pounds|kgs?|kilos?)\b|(?:^", claimcore::flair!(), r"|[.!?\n])\s*(?:(?:now|currently|officially)\s+)?down\s+(?<![\d.,])(\d{1,3}(?:[.,]\d)?)\s*(lbs?|pounds|kgs?|kilos?)\b|(?:^", claimcore::flair!(), r"|[.!?\n(,]\s*|\b(?:i'm|im|i am|and|at|now|officially|over|almost|nearly)\s+)(?<![\d.,])(\d{1,3}(?:[.,]\d)?)\+?\s*(lbs?|pounds|kgs?|kilos?)\s+(?:down|lost)\b(?! (?:by|from|for|to)\b)"),
             alone(|m: &Match| if desired(m.string, m.start()) { None } else { lost(m) }), h()),
     ]
 }
@@ -457,7 +442,7 @@ fn pronouns(set: &[char]) -> Vec<&'static str> {
 }
 
 pub fn force() {
-    for re in [&NARRATED, &BARIATRIC, &SHOD, &PRONOUN_END, &TRANSY, &HAIRY, &SOFT_AFTER, &ENDOWED, &LISTED, &WITH, &PHALLIC_TEXT, &UNIT_IN_LINE, &STAT_LINE, &WEIGHTY, &PRONOUNED, &PRONOUN_SAID, &PRONOUN_LABEL, &PRONOUN_HERE, &SKIN_TYPED, &SKIN_WORDS, &BUSTY] {
+    for re in [&NARRATED, &BARIATRIC, &SHOD, &PRONOUN_END, &TRANSY, &HAIRY, &SOFT_AFTER, &ENDOWED, &LISTED, &WITH, &PHALLIC_TEXT, &UNIT_IN_LINE, &PRONOUNED, &PRONOUN_SAID, &PRONOUN_LABEL, &PRONOUN_HERE, &SKIN_TYPED, &SKIN_WORDS, &BUSTY] {
         LazyLock::force(re);
     }
     for t in [&EYES, &CURLS, &TONES, &EXPRESSIONS, &SKIN_TYPES] {

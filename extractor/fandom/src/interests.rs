@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 const IM: &str = r"(?:i'm|im|i am)";
 const ADV: &str = r"(?: (?:also|now|currently|still|mainly|mostly|only|just|actually|really|primarily|usually|exclusively|personally|recently|finally|already|can))*";
-const OPEN: &str = r"(?:^(?:r/\w+:\s*)?|[.!?\n,(]\s*)";
+const OPEN: &str = concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n,(]\s*)");
 const RIG_FLAIR: &str = r"\Ar/\w*(?:pc|amd|nvidia|intel|radeon|geforce|hardware|overclock|battlestation)\w*: [^\n]*?(?<![\w-])";
 const HERE: &str = r"(?:a |an |just a |fellow |another |proud )?";
 

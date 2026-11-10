@@ -40,7 +40,7 @@ fn former() -> Vec<Rule> {
     let label = format!(r"(?:ex[- ]?{LABEL}|(?:former|formerly|lapsed|recovering) (?:an? )?{LABEL})\b{NOT_PLACE}");
     vec![
         r("former_religion", &format!(r"(?:i(?<=\bi)(?:'m| am|m| m|'ve been| have been)|{AS}) (?:an? )?(?:(?!not\b|never\b|no\b|an?\b)[\w-]+ ){{0,2}}?(?:an? )?{label}"), |m| get(LEFT, m.first()), self_hedge()),
-        r("former_religion", &format!(r"(?:\A(?:r/\w+:)?|[.!?\n(])\W*(?:(?:a|an|another|also|fellow|proud|closeted|happily|cradle) )*{label}(?: (?:here|myself)\b|(?: too)?[ \t]*(?:[.!,|]|\n|\Z))|\|[ \t]*ex[- ]?{LABEL}[ \t]*(?:\||\n|\Z)"), |m| get(LEFT, m.first()), self_hedge()),
+        r("former_religion", &format!(r"(?:\A{flair}|[.!?\n(])\W*(?:(?:a|an|another|also|fellow|proud|closeted|happily|cradle) )*{label}(?: (?:here|myself)\b|(?: too)?[ \t]*(?:[.!,|]|\n|\Z))|\|[ \t]*ex[- ]?{LABEL}[ \t]*(?:\||\n|\Z)", flair = claimcore::flair!()), |m| get(LEFT, m.first()), self_hedge()),
         r("former_religion", &format!(r"i(?<=\bi)(?:'ve| have)?(?: (?!not\b|never\b|almost\b|nearly\b|havent\b|didnt\b|dont\b|cant\b|wont\b|could\b|would\b|should\b|might\b|will\b|want\b|wanted\b|wanna\b|can\b|cannot\b)\w+){{0,2}}? (?:left|deconverted from|walked away from|renounced|abandoned|apostati[sz]ed from) {LEFT_FAITH}\b"), |m| get(LEFT, m.first()), self_hedge()),
         r("former_religion", r"i(?<=\bi)(?:'ve| have)? (?:(?!not\b|never\b|no\b|havent\b|hadnt\b|didnt\b|dont\b|cant\b|wont\b|almost\b|nearly\b)\w+ )?deconverted\b(?! from\b)", constant(UNSTATED), self_hedge()),
     ]

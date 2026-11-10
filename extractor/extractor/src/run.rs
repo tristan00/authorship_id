@@ -1,6 +1,7 @@
 use crate::database::{put_string, string, Database};
 use claimcore::{log, timed, Re};
 use crossbeam_channel::bounded;
+use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{BufReader, Read};
 use std::sync::LazyLock;
@@ -9,6 +10,8 @@ use std::time::Instant;
 const PARTS: usize = 256;
 const BATCH: usize = 1024;
 const INSERT_BYTES: usize = 64 << 20;
+const GATED: [&str; 2] = ["occupation", "location"];
+const SHARE: f64 = 0.05;
 const TABLES: [&str; 4] = [
     "CREATE TABLE IF NOT EXISTS claim_attributes (attribute String, kind String, anchor String, precision Float64, unit String) ENGINE = MergeTree ORDER BY attribute",
     "CREATE TABLE IF NOT EXISTS text_claims (text_sha256 FixedString(32), attribute LowCardinality(String), value String, position UInt32) ENGINE = MergeTree ORDER BY (text_sha256, attribute)",
@@ -177,6 +180,33 @@ fn flair_claims(flair: &str) -> Vec<(String, String)> {
     found
 }
 
+type Claim = (String, String, String, String);
+
+fn put_claim(out: &mut Vec<u8>, (subreddit, flair, attribute, value): &Claim) {
+    put_string(out, subreddit);
+    put_string(out, flair);
+    put_string(out, attribute);
+    put_string(out, value);
+}
+
+fn gated(held: Vec<Claim>, flairs: &HashMap<String, u64>) -> Vec<Claim> {
+    timed("gate", || {
+        let mut yielding: HashMap<(&str, &str), HashSet<&str>> = HashMap::new();
+        for (subreddit, flair, attribute, _) in &held {
+            yielding.entry((subreddit.as_str(), attribute.as_str())).or_default().insert(flair.as_str());
+        }
+        let open: HashSet<(String, String)> = yielding
+            .into_iter()
+            .filter(|((subreddit, _), found)| found.len() as f64 >= SHARE * flairs[*subreddit] as f64)
+            .map(|((subreddit, attribute), _)| (subreddit.to_string(), attribute.to_string()))
+            .collect();
+        let total = held.len();
+        let kept: Vec<Claim> = held.into_iter().filter(|(subreddit, _, attribute, _)| open.contains(&(subreddit.clone(), attribute.clone()))).collect();
+        log(&format!("gate share={SHARE} held={total} kept={} subreddits_open={}", kept.len(), open.len()));
+        kept
+    })
+}
+
 pub fn flairs(database: &Database, threads: usize) {
     timed("flairs", || {
         for table in TABLES {
@@ -187,6 +217,7 @@ pub fn flairs(database: &Database, threads: usize) {
         let started = Instant::now();
         let mut stream = BufReader::with_capacity(1 << 20, database.stream("SELECT DISTINCT subreddit, assumeNotNull(author_flair_text) FROM records WHERE author_flair_text != '' FORMAT RowBinary"));
         let (mut seen, mut claims, mut pending) = (0u64, 0u64, Vec::with_capacity(INSERT_BYTES + (1 << 20)));
+        let (mut held, mut counts): (Vec<Claim>, HashMap<String, u64>) = (Vec::new(), HashMap::new());
         parallel(
             threads,
             move |tasks| {
@@ -204,21 +235,30 @@ pub fn flairs(database: &Database, threads: usize) {
             |batch: Vec<(String, String)>| {
                 let mut out = Vec::new();
                 let mut found = 0u64;
+                let mut gate = Vec::new();
+                let mut subreddits: HashMap<String, u64> = HashMap::new();
                 for (subreddit, flair) in &batch {
+                    *subreddits.entry(subreddit.clone()).or_default() += 1;
                     for (attribute, value) in flair_claims(&format!("r/{subreddit}: {flair}")) {
                         let Some(value) = crate::contracted(&attribute, &value) else { continue };
-                        put_string(&mut out, subreddit);
-                        put_string(&mut out, flair);
-                        put_string(&mut out, &attribute);
-                        put_string(&mut out, &value);
-                        found += 1;
+                        let claim = (subreddit.clone(), flair.clone(), attribute, value);
+                        if GATED.contains(&claim.2.as_str()) {
+                            gate.push(claim);
+                        } else {
+                            put_claim(&mut out, &claim);
+                            found += 1;
+                        }
                     }
                 }
-                (batch.len() as u64, found, out)
+                (batch.len() as u64, found, out, gate, subreddits)
             },
-            |(count, found, out): (u64, u64, Vec<u8>)| {
+            |(count, found, out, gate, subreddits): (u64, u64, Vec<u8>, Vec<Claim>, HashMap<String, u64>)| {
                 seen += count;
                 claims += found;
+                held.extend(gate);
+                for (subreddit, number) in subreddits {
+                    *counts.entry(subreddit).or_default() += number;
+                }
                 pending.extend_from_slice(&out);
                 if pending.len() >= INSERT_BYTES {
                     database.insert("flair_claims (subreddit, flair, attribute, value)", &pending);
@@ -226,6 +266,10 @@ pub fn flairs(database: &Database, threads: usize) {
                 }
             },
         );
+        for claim in gated(held, &counts) {
+            put_claim(&mut pending, &claim);
+            claims += 1;
+        }
         if !pending.is_empty() {
             database.insert("flair_claims (subreddit, flair, attribute, value)", &pending);
         }

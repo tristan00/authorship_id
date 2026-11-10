@@ -87,8 +87,8 @@ fn item() -> String {
 }
 
 regex!(ASTRO, format!("(?:{})(?:{}{SEP})*$", astro_lead(), item()));
-regex!(OPENING, format!(r"^(?:r/\w+:)?\W*{}{SEP}(?:{}{SEP})*$", strict_item(), item()));
-regex!(BARE_START, r"^(?:r/\w+:)?\W*$");
+regex!(OPENING, format!(r"^{flair}\W*{}{SEP}(?:{}{SEP})*$", strict_item(), item(), flair = claimcore::flair!()));
+regex!(BARE_START, concat!(r"^", claimcore::flair!(), r"\W*$"));
 regex!(LINE_BEFORE, format!(r"[^\w\n]*(?:{}{SEP})*", item()));
 regex!(LINE_AFTER, format!(r"(?:{SEP}{})*[^\w\n]*", item()));
 regex!(LINE_ITEMS, format!(r"[^\w\n]*(?:{}{SEP})*", item()));

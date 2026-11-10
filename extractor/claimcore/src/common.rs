@@ -17,6 +17,7 @@ pub static SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"when i was|back when)\b|n't\b"
 )));
 static ASKED: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^.!?\n,;]{0,40}\?"));
+static BOUNDARY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:because|cause|cuz|coz|cos|bc|since|and|but|so|although|though|as)\b"));
 static SUBORDINATE: LazyLock<Re> = LazyLock::new(|| Re::new(r"if|unless|whether|when i was|back when|before i was|wish|hope|imagine|pretend"));
 static NEGATION: LazyLock<Re> = LazyLock::new(|| Re::new(r"n't|not|never|no longer|anymore"));
 static SUBJECT: LazyLock<Re> = LazyLock::new(|| Re::new(r"i(?:m|ve)?\b"));
@@ -71,18 +72,22 @@ pub fn asked(text: &[char], end: usize) -> bool {
 
 fn qualifies(text: &[char], hedge: &Match, start: usize) -> bool {
     let word = hedge.text();
+    let between = &text[hedge.end()..start];
+    if BOUNDARY.test(between) {
+        return false;
+    }
     if SUBJECT.at(text, start).is_none() || SUBORDINATE.fullmatch(word, 0, word.len()).is_some() {
         return true;
     }
-    let between = &text[hedge.end()..start];
     BRIDGE.test(between) && !(NEGATION.fullmatch(word, 0, word.len()).is_some() && between.iter().all(|c| !c.is_alphanumeric()))
 }
 
+pub fn limited(text: &[char], start: usize, pattern: &Re) -> bool {
+    pattern.iter_in(text, clause(text, start).max(start.saturating_sub(40)), start).any(|hedge| qualifies(text, &hedge, start))
+}
+
 pub fn hedged(text: &[char], start: usize, end: usize, pattern: Hedge) -> bool {
-    match pattern {
-        None => false,
-        Some(pattern) => pattern.iter_in(text, clause(text, start).max(start.saturating_sub(40)), start).any(|hedge| qualifies(text, &hedge, start)) || asked(text, end),
-    }
+    pattern.is_some_and(|pattern| limited(text, start, pattern) || asked(text, end))
 }
 
 pub type ValueFn = Box<dyn Fn(&Match) -> Option<String> + Send + Sync>;

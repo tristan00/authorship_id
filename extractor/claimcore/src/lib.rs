@@ -15,6 +15,13 @@ pub use text::*;
 pub const DATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../claim_extraction");
 pub const SINGLE: [&str; 2] = ["age", "gender"];
 
+#[macro_export]
+macro_rules! flair {
+    () => {
+        r"(?:r/\w+:\s*)?"
+    };
+}
+
 pub fn data_file(name: &str) -> String {
     std::fs::read_to_string(format!("{DATA}/{name}")).unwrap_or_else(|error| panic!("cannot read {name}: {error}"))
 }

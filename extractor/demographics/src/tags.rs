@@ -2,7 +2,7 @@ use crate::*;
 use claimcore::*;
 use std::sync::LazyLock;
 
-static SPOKEN: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:r/\w+:\s*)?\W*(?:i'm|im|i am)\b"));
+static SPOKEN: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(claimcore::flair!(), r"\W*(?:i'm|im|i am)\b")));
 static MEASURE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*(?:(?!in\b){UNITS}\b|\d{{1,2}}\s?s\b|(?:a|per) (?:year|season|week|month)\b|away\b|(?:fee|fees|deal|transfer|contract|budget|views|plays|streams|subscribers|followers)\b)")));
 static HERE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W{0,2}(?:here|hmu|lmk|dm me)\b"));
 static THIS_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bthis $"));
@@ -10,8 +10,8 @@ static MY_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bmy\s?[\(\[]$"));
 static AGE_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bage\s*[:=-]\s*$"));
 static UNIT_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*{UNITS}")));
 static ADDRESSED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:you|your|u|ur)\b"));
-static LEADING_AGE: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:r/\w+:\s*)?\W{0,3}\d{2}(?![\d%.,'/:-])"));
-static LEADING_TAG: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:r/\w+:\s*)?(?:\W*\d{2},?\s|\W*[\[\(]\d{2}[\]\)])"));
+static LEADING_AGE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(claimcore::flair!(), r"\W{0,3}\d{2}(?![\d%.,'/:-])")));
+static LEADING_TAG: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(claimcore::flair!(), r"(?:\W*\d{2},?\s|\W*[\[\(]\d{2}[\]\)])")));
 static RANGE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:-|–|to|or)\s*\d(?!\d)"));
 static BODILY: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:/\w+)? (?:facial|body|pubic|chest|arm|leg|beard)\b"));
 static HAIR_HINT: LazyLock<Re> = LazyLock::new(|| Re::new(r"hair|blond|brunette|redhead|ginger|bald|shaved head"));
@@ -19,7 +19,7 @@ static BALD_PART: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:\w+\s+)?(?:pus
 static BALD_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:[,;|/)\n.!&+]|$|and\b|with\b|w/|(?:\w+ )?(?:guy|man|dude|male|daddy|dad|bear|head|headed|white|black|asian|latino|bearded|chubby|fat|bi|gay|straight|married|top|bottom|here|m|f)\b)"));
 static BALD_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:go|going|gone|goes|went|to|be|being|getting|get|gets|or|keep|keeping|turn|turning|almost|half|partially|not|never|starting)\W+$"));
 static DEGREES: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:\(\s*-?\d|°|degrees\b)|\s+(?:there|outside|inside|indoors)\b"));
-static FLAIR: LazyLock<Re> = LazyLock::new(|| Re::new(r"^(?:r/\w+:\s*)?([^\n?]{1,60})$"));
+static FLAIR: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"^", claimcore::flair!(), r"([^\n?]{1,60})$")));
 static FLAIR_WORD: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![\w-])(non[- ]?binary|enby|agender|genderfluid|genderqueer|demigirl|demiboy|bigender|transfem|transmasc|trans (?:woman|girl|man|guy|frau)|transwoman|transman|mtf|ftm|male|female|lesbian|gay|bisexual|bi|pansexual|asexual|aroace|queer|demisexual|omnisexual|sapphic)(?![\w-])"));
 static FLAIR_TOKEN: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\W\d_]+"));
 static FLAIR_FILLER: LazyLock<Re> = LazyLock::new(|| Re::new(r"^(?:non|binary|enby|agender|genderfluid|genderqueer|demigirl|demiboy|bigender|transfem|transmasc|trans|transgender|woman|girl|man|guy|frau|transwoman|transman|mtf|ftm|male|female|lesbian|gay|bisexual|bi|pansexual|asexual|aroace|ace|aro|queer|demisexual|omnisexual|sapphic|fem|femme|masc|cis|he|him|his|she|her|they|them|it|its|any|all|pronouns|xe|xem|flag|pride|irl|lurker|and|or|also|proud|i|im|m|am)$"));

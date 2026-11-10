@@ -668,7 +668,7 @@ fn foreign(tongue: Option<&'static Language>, lowered: &[char], found: &mut Foun
     let links = &FOREIGN.links;
     let mut buffer: Key = Vec::new();
     for m in language.cue.iter(lowered) {
-        if language.hedge.test_in(lowered, clause(lowered, m.start()), m.start()) || question(lowered, m.end()) || quoted(lowered, m.start()) {
+        if language.hedge.test_in(lowered, clause(lowered, m.start()), m.start()) || asked(lowered, m.end()) || quoted(lowered, m.start()) {
             continue;
         }
         let stop = FOREIGN_END.find_from(lowered, m.end()).map_or(lowered.len(), |s| s.start());
@@ -802,7 +802,7 @@ pub fn ailments(lowered: &[char], found: &mut Found) {
     }
     if moody {
         if let Some(unnamed) = UNNAMED.find(lowered) {
-            if !question(lowered, unnamed.end()) && !HEDGE.test_in(lowered, clause(lowered, unnamed.start()), unnamed.start()) && !quoted(lowered, unnamed.start()) {
+            if !asked(lowered, unnamed.end()) && !HEDGE.test_in(lowered, clause(lowered, unnamed.start()), unnamed.start()) && !quoted(lowered, unnamed.start()) {
                 let values: HashSet<&str> = MOOD_NAMES.iter(lowered).map(|m| lexicons.moods[m.group(1).unwrap()]).collect();
                 if values.len() == 1 {
                     found.set("mental_and_developmental_conditions", values.into_iter().next().unwrap(), unnamed.start());

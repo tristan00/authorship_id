@@ -81,7 +81,7 @@ pub fn rules() -> Vec<Rule> {
         let night = [
             format!(r"{SUBJECT} {NOW}(?:work|do|pull) (?:the |a )?{NIGHTS}\b{NOT_NIGHT}"),
             format!(r"\b{AM} {NOW}(?:working (?:the |a )?{NIGHTS}|on {NIGHTS}|on the (?:night|overnight|graveyard|third) shift|an? (?:permanent )?(?:night ?shift|overnight|graveyard|third shift) (?:\w+ )?(?:worker|nurse|rn|cna|tech|technician|guard|security|cashier|associate|stocker|operator|driver|clerk|attendant|supervisor|manager|employee|auditor|baker|doctor|medic|paramedic|emt|officer|cop|guy|girl|person))\b{NOT_NIGHT}"),
-            format!(r"(?:^(?:r/\w+:\s*)?|[.!?\n]\s*)(?:currently |now |still |also )?(?:work|working) (?:the )?{NIGHTS}\b{NOT_NIGHT}(?! (?:is|are|was|can|could|will|would|sucks|really|makes|has|have)\b)"),
+            format!(r"(?:^{flair}|[.!?\n]\s*)(?:currently |now |still |also )?(?:work|working) (?:the )?{NIGHTS}\b{NOT_NIGHT}(?! (?:is|are|was|can|could|will|would|sucks|really|makes|has|have)\b)", flair = claimcore::flair!()),
             r"\b(?:i'm|im|i am) (?:an? )?night ?shifter\b|(?<!quit )(?<!lost )(?<!left )(?<!after )(?<!last )\bmy (?:night ?shifts|overnight shifts|graveyard shifts|night ?shift (?:job|schedule|hours))\b|\bas an? night ?shift(?:er| worker| nurse)\b".to_string(),
         ];
         for pattern in &night {
@@ -103,9 +103,9 @@ pub fn rules() -> Vec<Rule> {
         let twelve = format!(r"{SUBJECT} {NOW}(?:work|do|pull) {COUNT}{TWELVE}\b|{SUBJECT} {NOW}(?:work|do) {COUNT}12s\b|\b(?:i'm|im|i am) {NOW}(?:working|on|doing) {COUNT}{TWELVE}\b|(?<!after )(?<!last )\bmy {TWELVE}\b");
         rules.push(stated("work_schedule", &twelve, "12-hour shifts"));
 
-        let homeschooled = concat!(r"(?:\b(?:i was|i got|i grew up|i've been|ive been|i have been|i'm|im|i am|i myself was|i too was|we were|me and (?:my )?(?:[\w']+ ){1,3}were)|(?:^(?:r/\w+:\s*)?|[.!?\n]\s*)(?:was|been)|\bas (?:someone|somebody|a person|an? [\w-]+(?: [\w-]+)?) who (?:was|got))(?: (?:also|actually|mostly|partially|partly|briefly|completely|fully|entirely|technically|both|all))* ",
+        let homeschooled = concat!(concat!(r"(?:\b(?:i was|i got|i grew up|i've been|ive been|i have been|i'm|im|i am|i myself was|i too was|we were|me and (?:my )?(?:[\w']+ ){1,3}were)|(?:^", claimcore::flair!(), r"|[.!?\n]\s*)(?:was|been)|\bas (?:someone|somebody|a person|an? [\w-]+(?: [\w-]+)?) who (?:was|got))(?: (?:also|actually|mostly|partially|partly|briefly|completely|fully|entirely|technically|both|all))* "),
             r"home[- ]?(?:schooled|educated)\b|\bas an? (?:former |ex-?|fellow )?(?:home[- ]?schooled (?:kid|child|student|person|teen)|homeschooler)\b|\bi was an? home[- ]?school(?:ed)? (?:kid|child|student)\b|",
-            r"(?:^(?:r/\w+:\s*)?|[.!?\n]\s*)(?:an? )?(?:former |ex-?)?home[- ]?schooled (?:kid|child|student) here\b");
+            concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n]\s*)(?:an? )?(?:former |ex-?)?home[- ]?schooled (?:kid|child|student) here\b"));
         rules.push(stated("schooling", homeschooled, "homeschooled"));
         let boarding = concat!(r"(?:\bi (?:also |both |actually )?|\bas (?:someone|somebody|a person|an? [\w-]+(?: [\w-]+)?) who (?:also |actually )?)(?:went to|attended|was (?:at|in|sent to)|grew up (?:in|at)|spent (?:\w+ ){1,3}(?:at|in)|got sent to) (?:an? )?(?:\w+ )?boarding schools?\b|",
             r"\b(?:i've|ive|i have) been (?:at|in) (?:an? )?boarding school\b|\b(?:i'm|im|i am) (?:currently |still )?(?:at|in) (?:an? )?boarding school\b");
@@ -120,11 +120,11 @@ pub fn rules() -> Vec<Rule> {
             r"i come from|i came from|we come from|i belong to|i'm part of|i am part of|i'm considered|i am considered|i consider myself|my family (?:is|was|are|were)|my parents (?:are|were)|i was born into|i was raised in|i grew up in)",
             r"(?: (?:a|an|the|very|solidly|firmly|comfortably|pretty|fairly|squarely|solid|typical|humble|good|proud|relatively|financially|technically|basically|just|still|now|also|from|in|into|part of|definitely|rural|poor|struggling|actually|really|probably|considered))*? ");
         rules.push(rule("social_class", &format!(r"{belong}{CLASS}{CLASS_END}"), scoped(Box::new(class)), self_hedge()));
-        rules.push(rule("social_class", &format!(r"(?:^(?:r/\w+:\s*)?|[.!?\n]\s*)(?:i'm |im |i am |we're |we are )?(?:proudly |also )?(?:part of|a (?:proud )?member of) the {CLASS}{CLASS_END}"), scoped(Box::new(class)), self_hedge()));
-        rules.push(rule("social_class", &format!(r"(?:(?:^(?:r/\w+:\s*)?|[.!?\n,]\s*)|\bi(?:'m| am)? (?:[\w'-]+ ){{0,4}}?)as an? (?:proud |\w+ )?{CLASS}(?= (?:person|man|woman|guy|family|kid|american|worker|household|immigrant|parent|mom|dad|individual)\b)"), scoped(Box::new(class)), self_hedge()));
+        rules.push(rule("social_class", &format!(r"(?:^{flair}|[.!?\n]\s*)(?:i'm |im |i am |we're |we are )?(?:proudly |also )?(?:part of|a (?:proud )?member of) the {CLASS}{CLASS_END}", flair = claimcore::flair!()), scoped(Box::new(class)), self_hedge()));
+        rules.push(rule("social_class", &format!(r"(?:(?:^{flair}|[.!?\n,]\s*)|\bi(?:'m| am)? (?:[\w'-]+ ){{0,4}}?)as an? (?:proud |\w+ )?{CLASS}(?= (?:person|man|woman|guy|family|kid|american|worker|household|immigrant|parent|mom|dad|individual)\b)", flair = claimcore::flair!()), scoped(Box::new(class)), self_hedge()));
 
         let debt_free = format!(r"{NOT_WHEN}\b(?:i'm|im|i am|we're|we are|i've been|ive been|i have been|we've been|i became|we became)(?: (?:now|finally|officially|completely|totally|fully|entirely|100%|currently|also|still|happily|proudly|consumer))* debt[- ]free\b|")
-            + r"(?:^(?:r/\w+:\s*)?|[.!?\n]\s*)(?:now |finally |officially )?debt[- ]free(?= since\b|\s*(?:$|[.!\n]))";
+            + concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n]\s*)(?:now |finally |officially )?debt[- ]free(?= since\b|\s*(?:$|[.!\n]))");
         rules.push(stated("financial_situation", &debt_free, "debt-free"));
 
         let employed = [
@@ -154,7 +154,7 @@ pub fn rules() -> Vec<Rule> {
             format!(r"\b(?:i'm|im|i am) (?:currently |now |still |just |also )?an? {RESIDENT_YEAR}(?:resident|fellow)\b(?! (?:of|in|at) (?:the )?(?:dorm|hall|building)s?\b)"),
             r"\b(?:i'm|im|i am|as) (?:currently |now |still |just |also )?an? (?:resident (?:physician|doctor|surgeon|psychiatrist|pharmacist|dentist|vet)|(?:medical|surgical|clinical) (?:resident|fellow))\b".to_string(),
             format!(r"\b(?:i'm|im|i am) (?:currently |now |still |also )?(?:in|doing|finishing|halfway through|in the middle of) (?:my |a )?(?:(?:first|second|third|fourth|fifth|final|last|\d(?:st|nd|rd|th)) year of )?(?:{SPECIALTY} )?(?:residency\b(?! (?:application|status|permit|card|visa|requirements?)\b)|{SPECIALTY} fellowship\b)"),
-            r"\b(?:i'm|im|i am|as) an? pgy-?[1-8]\b|(?:^(?:r/\w+:\s*)?|\n)[ \t>*#-]*pgy-?[1-8]\b".to_string(),
+            concat!(r"\b(?:i'm|im|i am|as) an? pgy-?[1-8]\b|(?:^", claimcore::flair!(), r"|\n)[ \t>*#-]*pgy-?[1-8]\b").to_string(),
         ];
         for pattern in &residency {
             rules.push(stated("current_study_level", pattern, "resident / fellow"));

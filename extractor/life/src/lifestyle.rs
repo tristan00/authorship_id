@@ -72,7 +72,7 @@ const VA: &str = r"(?:(?!\bnot\b|n't\b|\bnever\b)[^.!?\n]){0,40}?\b(?:va claim|v
 
 regex!(TAG_NEAR, r"(?<![\w$#.,'/:+-])(?:\d{2} ?(?:[mf]|male|female|yo|y/o|yrs?|years? old)|[mf] ?\d{2}|(?:\d{2} ?)?[\[\(]?[mf]4[mfa]\w*[\]\)]?)(?![\w'%])");
 regex!(NOT_SELF, r"\b(?:if|would|wish|hope|not|never|ex|former|raised|born|for|looking|seeking|into|with|any|wants?|loves?|likes?|prefers?|dating|interfaith|than|like|non|anti|no|other|lapsed)\b|\b(?:a|an|the|by|real|some|your|his|her|their)\s+$");
-regex!(LISTED_LINE, r"[ \t]*(?:r/\w+:[ \t]*)?(?:[-*•]|\d+[.)])?[ \t]*(?:(?!not\b|no\b|anti\b|ex\b|non\b|former\b)[\w-]+ )?(.+)");
+regex!(LISTED_LINE, concat!(r"[ \t]*", claimcore::flair!(), r"(?:[-*•]|\d+[.)])?[ \t]*(?:(?!not\b|no\b|anti\b|ex\b|non\b|former\b)[\w-]+ )?(.+)"));
 regex!(LISTED_ITEM, r"[ \t]*(?:(?!not\b|no\b|anti\b|ex\b|non\b|former\b)[\w-]+ )?(.+)");
 regex!(SELF_NEAR, r"\b(?:i|i'm|im|i've|ive|me|my|we)\b");
 regex!(OTHER_NEAR, r"\b(?:you|he|she|they|people|someone|somebody|anyone|everyone|his|her|their|your|friends?|dad|mom|father|mother|grandfather|grandpa|granddad|uncle|brother|sister|cousin|husband|wife|spouse|boyfriend|girlfriend|fiance|fiancee|partner|kids?|son|daughter)\b");
@@ -362,7 +362,7 @@ fn profile_vet(m: &Match) -> V {
 }
 
 fn opening(word: &str) -> String {
-    format!(r"(?:\Ar/\w+:\s*{word}|{word}(?:(?<=^{word})|(?<=[.!?\n(]{word})|(?<=[.!?\n(] {word})|(?<=[.!?\n]  {word})))")
+    format!(r"(?:\A{flair}{word}|{word}(?:(?<=^{word})|(?<=[.!?\n(]{word})|(?<=[.!?\n(] {word})|(?<=[.!?\n]  {word})))", flair = claimcore::flair!())
 }
 
 fn piped(m: &Match, table: &Tab) -> V {
@@ -403,8 +403,8 @@ fn religion() -> Vec<Rule> {
         r("religion", &format!(r"r(?<=\br)eligion[ \t*_]*[:=][ \t*_]*(?:(?:roman|devout|practicing|practising|non-?denominational|born again|sunni|shia) )?({FAITH})\b"), faith_of, self_hedge()),
         r("religion", &format!(r"i(?<=\bi){ME} (?:an? )?(?:\w+ )?(agnostic)[- ](?:atheist|christian|theist|catholic|deist|pagan|buddhist|jew|muslim)\b"), |m| get(RELIGIONS, m.group(1)), self_hedge()),
         r("religion", &format!(r"\b(?!witch\b|spiritual\b|humanist\b)({FAITH})\b(?!'?s\b| (?:girls|guys|women|men|couples|husband|partner|family|families|people|friends?|community|folks|countries|country|ladies|dudes|boys|females|males|mythology)\b)"), profiled, self_hedge()),
-        r("religion", &format!(r"\A(?:r/\w+:)?\W*(?:\d{{2}}\s*[mf]?\W*)?(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?({FAITH}) (?:couple|guy|girl|man|woman|male|female|m|f|dad|mom|here|only)\b"), faith_of, self_hedge()),
-        r("religion", &format!(r"\A(?:r/\w+:)?\W*(?:(?:yes|yep|yeah|yup|yea|well|me|personally|myself)\W+)?(?!witch\b|spiritual\b|humanist\b)(?:(?:roman|devout|practicing|practising|proud|non-?denominational|born again) )?({FAITH})[ \t]*(?:[.!]|\n|\Z|\p{{So}})"), faith_of, self_hedge()),
+        r("religion", &format!(r"\A{flair}\W*(?:\d{{2}}\s*[mf]?\W*)?(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?({FAITH}) (?:couple|guy|girl|man|woman|male|female|m|f|dad|mom|here|only)\b", flair = claimcore::flair!()), faith_of, self_hedge()),
+        r("religion", &format!(r"\A{flair}\W*(?:(?:yes|yep|yeah|yup|yea|well|me|personally|myself)\W+)?(?!witch\b|spiritual\b|humanist\b)(?:(?:roman|devout|practicing|practising|proud|non-?denominational|born again) )?({FAITH})[ \t]*(?:[.!]|\n|\Z|\p{{So}})", flair = claimcore::flair!()), faith_of, self_hedge()),
         r("religion", &format!(r"\|[ \t]*({FAITH})[ \t]*(?=\||\n|\Z)"), |m| piped(m, RELIGIONS), self_hedge()),
         needs(r("religion", &format!(r"(?<![\w'-])({FAITH})(?![\w'-])"), |m| if flair(m) { faith_of(m) } else { None }, TAGGED), &keys(RELIGIONS)),
         r("religion", &format!(r"i(?<=\bi)(?:'ve| have)? (?:\w+ )?(?:converted|reverted|came|come|returned|turned) to ({ISM})\b|i(?<=\bi)(?:'ve| have)? (?:\w+ )?joined (the catholic church|the orthodox church|the lds church)\b"),
@@ -421,7 +421,7 @@ fn religion() -> Vec<Rule> {
               let place = m.g(1);
               Some(if ["mosque", "masjid", "imam"].contains(&place.as_str()) { "muslim" } else if ["synagogue", "shul", "rabbi"].contains(&place.as_str()) { "jewish" } else { "christian (unspecified)" })
           }, self_hedge()),
-        r("religion", &format!(r"(?:i(?<=\bi){ME}|{ASX}) (?:an? )?(?:(?:practicing|practising|devout|proud|traditional|twelver) )?(sunni|shia|shi'?ite)(?: muslim)?\b|\A(?:r/\w+:)?\W*(?:(?:devout|practicing|practising|proud|traditional) )?(sunni|shia)(?: muslim)?[ \t]*(?:[.!]|\n|\Z)"),
+        r("religion", &format!(r"(?:i(?<=\bi){ME}|{ASX}) (?:an? )?(?:(?:practicing|practising|devout|proud|traditional|twelver) )?(sunni|shia|shi'?ite)(?: muslim)?\b|\A{flair}\W*(?:(?:devout|practicing|practising|proud|traditional) )?(sunni|shia)(?: muslim)?[ \t]*(?:[.!]|\n|\Z)", flair = claimcore::flair!()),
           |m| Some(if contains(m.text(), "sunni") { "sunni" } else { "shia" }), self_hedge()),
         r("religion", &format!(r"i(?<=\bi)(?:'m| am| m|m) (?:also |very |quite |pretty |deeply |fairly |really |super |extremely |a |a very |a deeply )?religious(?: person| guy| girl| man| woman)?\b(?! (?:about|with|when|af|asf)\b| (?:an? )?(?:{FAITH})\b)|i(?<=\bi) (?:do |still |truly |firmly |definitely )?believe in (?:a )?god(?=[ \t]*(?:[.!,;\n]|$))|i(?<=\bi)(?:'m| am) a jain\b|a(?<=\ba)s a jain\b"),
           |m| Some(if contains(m.text(), "jain") { "jain" } else { "religious (unspecified)" }), self_hedge()),
@@ -436,14 +436,14 @@ fn political(LISTED: &str, attribute: &'static str) -> Vec<Rule> {
     vec![
         sided(attribute, &format!(r"i(?<=\bi){ME} {FREE}?(?:a |an )?{FREE}?{FILLER}({PARTY})\b(?! (?:party|drama|enjoyer|candidate|politician|media|news|state|areas?|policies|policy|government|friends?|with|about|when|in terms|on|in my|of|arts|education|college|degree|use|amount|drinker|smoker|pain|exercise|interpretation|reading|translation|estimate|side|approach|socialism|capitalism|communism|sized|drinking)\b)"),
           |m| if quoted(m) || loose(m) || SCOPED.test_in(m.string, back(m, 30), m.start()) { None } else { ideology(m, 1) }, TAGGED),
-        sided(attribute, &format!(r"i(?<=\bi)(?:'ve| have|'d| would)? (?:always |would |'d )?(?:consider myself|identify as|would call myself|call myself|describe myself as|consider myself to be|see myself as|view myself as|viewed myself as|saw myself as|define myself as) (?:a |an )?(?:\w+ )?({PARTY})\b|i(?<=\bi)(?:'m| am) a registered (democrat|republican)\b|(?:\A(?:r/\w+: *)?|[.!?\n] *)(?:a )?registered (democrat|republican)\b|i(?<=\bi) (?:\w+ )?lean(?:s)? (?:more |pretty |very |slightly |a bit |a little |heavily |strongly |hard )?(?:to the |towards the |toward the |towards |toward )?(left|right|liberal|conservative|progressive|libertarian|socialist)\b(?! (?:on|against|into|over|back|forward|in)\b)"),
+        sided(attribute, &format!(r"i(?<=\bi)(?:'ve| have|'d| would)? (?:always |would |'d )?(?:consider myself|identify as|would call myself|call myself|describe myself as|consider myself to be|see myself as|view myself as|viewed myself as|saw myself as|define myself as) (?:a |an )?(?:\w+ )?({PARTY})\b|i(?<=\bi)(?:'m| am) a registered (democrat|republican)\b|(?:\A{flair}|[.!?\n] *)(?:a )?registered (democrat|republican)\b|i(?<=\bi) (?:\w+ )?lean(?:s)? (?:more |pretty |very |slightly |a bit |a little |heavily |strongly |hard )?(?:to the |towards the |toward the |towards |toward )?(left|right|liberal|conservative|progressive|libertarian|socialist)\b(?! (?:on|against|into|over|back|forward|in)\b)", flair = claimcore::flair!()),
           |m| ideology(m, 1).or_else(|| ideology(m, 2)).or_else(|| ideology(m, 3)).or_else(|| ideology(m, 4)).or_else(|| m.group(4).map(|g| if eq(g, "left") { "left-leaning / centre-left" } else { "right-leaning / centre-right" })), self_hedge()),
         sided(attribute, &format!(r"(?:w(?<=\bw)e|u(?<=\bu)s) ({PARTY})s\b|m(?<=\bm)e and (?:every|other|fellow|all the) ({PARTY})s?\b|c(?<=\bc)ent(?:er|re)[- ](left|right)(?: \w+){{0,2}} here\b|i(?<=\bi)(?:'m| am) (?:a )?maga\b|i(?<=\bi) (?:\w+ )?(?:voted|vote|will vote|am voting|'m voting) (?:for )?(republican|gop|democrat)\b"),
           |m| if contains(m.text(), "maga") { Some("maga / trump supporter") } else { ideology(m, 1).or_else(|| ideology(m, 2)).or_else(|| get(VOTED, m.group(4))).or_else(|| m.group(3).and_then(|_| side(m.text()))) }, self_hedge()),
         sided(attribute, &format!(r"{ASX} an? (?:(?!former\b|ex\b|non\b|anti\b)\w+ )?({PARTY})\b(?! (?:as|party|candidate|politician|media|news|state|areas?|policies|policy|government|friends?|arts|education|college|degree|use|amount|drinker|smoker|pain|exercise|interpretation|reading|translation|estimate|side|approach|socialism|capitalism|communism|operations?|business|company|players?|users?|levels?|amounts?)\b)"),
           |m| ideology(m, 1), hedge()),
         sided(attribute, r"he(?<=\bhe)re\b", |m| labelled(m, &POLITICS_HERE, POLITICS), self_hedge()),
-        sided(attribute, &format!(r"\A(?:r/\w+:)?\W*\d{{2}} ?(?:[mf]|yo|y/o|years? old)?\W*(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?(?:(?!looking\b|seeking\b|for\b|wants?\b|with\b|ex\b|former\b|non\b|not\b|and\b|anti\b)[\w-]+ ){{0,2}}({PARTY})\b(?! (?:girls?|guys?|women|men|females?|males?|partner|wife|husband|party|media|state|city|area|town)\b)"), |m| ideology(m, 1), self_hedge()),
+        sided(attribute, &format!(r"\A{flair}\W*\d{{2}} ?(?:[mf]|yo|y/o|years? old)?\W*(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?(?:(?!looking\b|seeking\b|for\b|wants?\b|with\b|ex\b|former\b|non\b|not\b|and\b|anti\b)[\w-]+ ){{0,2}}({PARTY})\b(?! (?:girls?|guys?|women|men|females?|males?|partner|wife|husband|party|media|state|city|area|town)\b)", flair = claimcore::flair!()), |m| ideology(m, 1), self_hedge()),
         sided(attribute, LISTED, listed, self_hedge()),
         needs(sided(attribute, &format!(r"(?<![\w'-])({PARTY})(?![\w'-])"), |m| if flair(m) && !eq(m.text(), "moderate") { ideology(m, 1) } else { None }, TAGGED), &keys(POLITICS)),
         needs(sided(attribute, &format!(r"(?<![\w'-])({PARTY})\b"), |m| if CHAIN.test_in(m.string, sentence_start(m), m.start()) { ideology(m, 1) } else { None }, self_hedge()), &[",", "and", "&", "/"]),
@@ -471,9 +471,9 @@ fn diet() -> Vec<Rule> {
           |m| { let word = m.first()?; get(DIETS, Some(word)).or(Some(if contains(word, "tar") { "vegetarian" } else { "vegan" })) }, self_hedge()),
         r("diet", concat!(r"i(?<=\bi)(?:'m| am| have| was diagnosed with| got diagnosed with|'ve got| also have)? (?:a )?(?:celiac|coeliac)\b|m(?<=\bm)y (?:celiac|coeliac)\b|i(?<=\bi)(?: (?:eat|am|have to (?:eat|be|stay)|keep|went|stay)|'m) (?:strictly |completely |100% )?gluten[- ]free\b|t(?<=\bt)he gf diet\b",
           r"|i(?<=\bi)(?:'m| am) (?:\w+ )?(?:gluten|wheat)[- ]intolerant\b|i(?<=\bi) (?:can't|cannot|can not|can't really) (?:have|eat|do|tolerate) (?:any )?(?:gluten|wheat)\b|(?<!\bshould )(?<!\bcould )(?<!\bwould )(?<!\bcan )(?<!\bdo )(?<!\bdid )(?<!\bwill )i(?<=\bi) (?:\w+ )?(?:cut|cutting) out (?:\w+ and )?gluten\b(?! for\b)"), constant("gluten-free"), self_hedge()),
-        r("diet", r"i(?<=\bi)(?:'m| am) (?:on |doing )?(?:a |strict )?(keto)\b(?! (?:friendly|recipe))|i(?<=\bi) (?:do|eat|follow|went) (keto|ketogenic|low[- ]carb)\b|(?:\A(?:r/\w+: *)?|[.!?\n] ?)been (?:doing|on|eating) (?:strict |clean |dirty |lazy )?(keto|low[- ]carb)\b(?! (?:friendly|recipe))",
+        r("diet", concat!(r"i(?<=\bi)(?:'m| am) (?:on |doing )?(?:a |strict )?(keto)\b(?! (?:friendly|recipe))|i(?<=\bi) (?:do|eat|follow|went) (keto|ketogenic|low[- ]carb)\b|(?:\A", claimcore::flair!(), r"|[.!?\n] ?)been (?:doing|on|eating) (?:strict |clean |dirty |lazy )?(keto|low[- ]carb)\b(?! (?:friendly|recipe))"),
           |m| Some(if contains(m.text(), "carb") { "low carb" } else { "keto" }), self_hedge()),
-        r("diet", r"i(?<=\bi)(?:'m| am|'ve been| have been)? (?:(?!not\b|never\b|no\b|dont\b|didnt\b|stopped\b|quit\b|used\b|tried\b|want\b|wanted\b)\w+ )?(?:do|doing|on|following|follow|practice|practicing|eat|eating) (?:a |an |strict |mostly )?(intermittent fasting|omad|paleo|high[- ]protein)(?: diet)?\b|(?:\A(?:r/\w+: *)?|[.!?\n] ?)been (?:doing|on|eating) (?:a |strict )?(intermittent fasting|omad)\b",
+        r("diet", concat!(r"i(?<=\bi)(?:'m| am|'ve been| have been)? (?:(?!not\b|never\b|no\b|dont\b|didnt\b|stopped\b|quit\b|used\b|tried\b|want\b|wanted\b)\w+ )?(?:do|doing|on|following|follow|practice|practicing|eat|eating) (?:a |an |strict |mostly )?(intermittent fasting|omad|paleo|high[- ]protein)(?: diet)?\b|(?:\A", claimcore::flair!(), r"|[.!?\n] ?)been (?:doing|on|eating) (?:a |strict )?(intermittent fasting|omad)\b"),
           |m| { let word = m.g(1); Some(if word == "paleo" { "paleo" } else if word.starts_with("high") { "high protein" } else { "intermittent fasting" }) }, self_hedge()),
         r("diet", r"i(?<=\bi) (?:don't|do not|dont) eat (meat|any meat|animal products)\b|i(?<=\bi)(?:'m| am) (?:fully |mostly |\d+% )?(plant[- ]based)\b|i(?<=\bi) eat (plant[- ]based)\b", |m| Some(if contains(m.text(), "meat") { "vegetarian" } else { "plant-based" }), self_hedge()),
         r("diet", r"i(?<=\bi) eat meat\b|i(?<=\bi)'?m a (?:meat eater|omnivore)\b", constant("omnivore / meat eater"), hedge()),
@@ -487,7 +487,7 @@ fn diet() -> Vec<Rule> {
         r("diet", r"here(?<=\bhere)\b", |m| labelled(m, &DIET_HERE, DIETS), self_hedge()),
         r("diet", r"i(?<=\bi)(?:'ve been| went| became| turned) (vegan|vegetarian|pescatarian)\b|been(?<=\bbeen) (?:strictly |completely |fully |mostly )?(vegan|vegetarian|pescatarian|gluten[- ]free|keto|low[- ]carb)\b|went(?<=\bwent) (vegan|vegetarian|pescatarian|gluten[- ]free|keto|low[- ]carb)\b", |m| get(DIETS, m.first()), self_hedge()),
         r("diet", &format!(r"(?:b(?<=\bb)eing|b(?<=\bb)ecoming|g(?<=\bg)oing|s(?<=\bs)witched to|s(?<=\bs)witching to) {TAKEN}(?![,\s]+(?:you|u)\b)"), own, self_hedge()),
-        r("diet", r"\A(?:r/\w+:)?\W*(?:(?:mostly|strict|strictly|proud) )?(vegan|vegetarian|pescatarian|pescetarian|flexitarian)[ \t]*(?:[.!]|\n|\Z)", |m| get(DIETS, m.group(1)), self_hedge()),
+        r("diet", concat!(r"\A", claimcore::flair!(), r"\W*(?:(?:mostly|strict|strictly|proud) )?(vegan|vegetarian|pescatarian|pescetarian|flexitarian)[ \t]*(?:[.!]|\n|\Z)"), |m| get(DIETS, m.group(1)), self_hedge()),
     ]
 }
 
@@ -562,7 +562,7 @@ fn military() -> Vec<Rule> {
         r("military_status", &format!(r"(?:y(?<=\by)ears?|y(?<=\by)rs?|d(?<=\bd)ecades?) (?:(?:in|of service in|serving in|with|of active[- ]duty in|on active[- ]duty in) (?:the )?{BRANCH}|(?:of )?(?:military|active[- ]duty|naval|army|navy|marine corps|air force) service\b)|(?:y(?<=\by)ears?|y(?<=\by)rs?) (?:of )?active[- ]duty\b"), counted, self_hedge()),
         r("military_status", &format!(r"i(?<=\bi)n(?:to)? the {BRANCH}(?! (?:blue|painter|surplus|times|store|green|issue|knife|boots?|jacket|style|museum|industrial|base)\b)"), within, self_hedge()),
         r("military_status", r"her(?<=\bher)e\b", here_label, self_hedge()),
-        r("military_status", r"\A(?:r/\w+:)?\W*(?:(?:proud|disabled|combat|retired|army|navy|marine|air force|usmc|military) )?(?:vet|veteran)[ \t]*(?:[.!]|\n|\Z)", constant("veteran"), self_hedge()),
+        r("military_status", concat!(r"\A", claimcore::flair!(), r"\W*(?:(?:proud|disabled|combat|retired|army|navy|marine|air force|usmc|military) )?(?:vet|veteran)[ \t]*(?:[.!]|\n|\Z)"), constant("veteran"), self_hedge()),
         r("military_status", r"(?<=, )(?:a )?(?:(?:proud|disabled|combat|retired|army|navy|marine|military) )?(?:vet|veteran)(?=[ \t]*(?:[,.;/!\n]|$))", profile_vet, self_hedge()),
         r("military_status", r"i(?<=\bi) did (?:my|a|two|three|four|\d+) (?:army |navy |marine |military |combat |overseas )?tours?\b|i(?<=\bi) was in (?:a|an|the) (?:\w+ ){0,2}(?:infantry|artillery|armor|armored|cavalry|airborne|naval|army|military|national guard) (?:unit|battalion|regiment|company|division|platoon|brigade|squadron)\b", veteran_if_service, self_hedge()),
         r("military_status", &format!(r"i(?<=\bi){ME} (?:currently |still )?with the {BRANCH}"), service, self_hedge()),
@@ -577,7 +577,7 @@ fn military() -> Vec<Rule> {
         r("military_status", r"w(?<=\bw)e (?:(?:military|army|navy|marine|combat|disabled|old|us) )?(?:vets|veterans)\b|(?:v(?<=\bv)ets|v(?<=\bv)eterans) (?:like|such as) (?:me|myself)\b", served, self_hedge()),
         r("military_status", &format!(r"{AS} (?:an? )?(?:former|ex|retired|prior)[- ]?{SERVED_NOUN}"), served, self_hedge()),
         r("military_status", &format!(r"{former} {SERVED_NOUN}|{retired} {SERVED_NOUN}|{prior} {SERVED_NOUN}|{ex}[- ]?{SERVED_NOUN}|{was} in the {BRANCH}|{also} an? (?:\w+ )?(?:vet|veteran)\b(?! (?:player|gamer|member|user|fan|of (?:the|this))\b)", former = opening("former"), retired = opening("retired"), prior = opening("prior"), ex = opening("ex"), was = opening("was"), also = opening("also")), served, self_hedge()),
-        r("military_status", r"\A(?:r/\w+:)?\W*\d{2}\s*[mf]?\W*(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?(?:[\w-]+ ){0,2}(?:(?:us |u\.s\. )?(?:army|navy|marine|air force|usaf|usmc|military|combat|coast guard) )?(?:vet|veteran)\b", served, self_hedge()),
+        r("military_status", concat!(r"\A", claimcore::flair!(), r"\W*\d{2}\s*[mf]?\W*(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?(?:[\w-]+ ){0,2}(?:(?:us |u\.s\. )?(?:army|navy|marine|air force|usaf|usmc|military|combat|coast guard) )?(?:vet|veteran)\b"), served, self_hedge()),
     ]
 }
 
@@ -590,7 +590,7 @@ fn branches() -> Vec<Rule> {
           |m| if OTHER_NEAR.test_in(m.string, sentence_start(m), m.start()) { None } else { branch(m) }, self_hedge()),
         r("military_branch", &format!(r"(?:i(?<=\bi){ME} (?:a |an )?|{AS} an? )(?:proud |disabled |combat |retired |former |old )?{BRANCHES} (?:vet|veteran|retiree)\b|i(?<=\bi){ME} (?:a |an )?(?:former |retired |ex[- ]?|active duty |proud )?(marine|airman)\b(?! (?:biolog\w*|scien\w*|life|ecolog\w*|mammals?|engineer\w*|corps of|tech\w*|mechanic\w*|electrician\w*|surveyor\w*)\b)"),
           |m| if OTHER_NEAR.test_in(m.string, sentence_start(m), m.start()) { None } else { branch(m) }, self_hedge()),
-        r("military_branch", &format!(r"i(?<=\bi){ME} (?:a |an )?(?:(?!of\b|with\b|for\b|to\b|like\b|not\b|never\b|no\b|than\b)[\w-]+,? ){{1,6}}?{VETS} (?:vet|veteran|retiree)\b|(?:\A(?:r/\w+: *)?|[.!?\n] *)(?:\d{{2}} ?[mf]? )?(?:a |an )?(?:proud |disabled |combat |retired |former )?{VETS} (?:vet|veteran|retiree)\b|(?:s(?<=\bs)erving|s(?<=\bs)tationed) in the {BRANCHES}\b|m(?<=\bm)y (?:pension|retirement|service|time|years|career|enlistment|contract) (?:from|in|with) the {BRANCHES}\b"),
+        r("military_branch", &format!(r"i(?<=\bi){ME} (?:a |an )?(?:(?!of\b|with\b|for\b|to\b|like\b|not\b|never\b|no\b|than\b)[\w-]+,? ){{1,6}}?{VETS} (?:vet|veteran|retiree)\b|(?:\A{flair}|[.!?\n] *)(?:\d{{2}} ?[mf]? )?(?:a |an )?(?:proud |disabled |combat |retired |former )?{VETS} (?:vet|veteran|retiree)\b|(?:s(?<=\bs)erving|s(?<=\bs)tationed) in the {BRANCHES}\b|m(?<=\bm)y (?:pension|retirement|service|time|years|career|enlistment|contract) (?:from|in|with) the {BRANCHES}\b", flair = claimcore::flair!()),
           |m| if OTHER_NEAR.test_in(m.string, sentence_start(m), m.start()) { None } else { branch(m) }, self_hedge()),
     ]
 }
@@ -633,7 +633,7 @@ fn gated(rules: Vec<Rule>, LISTED: &str) -> Vec<Rule> {
 #[allow(non_snake_case)]
 pub fn build() -> Vec<Rule> {
     let PARTY = party();
-    let LISTED = format!(r"(?:(?<![^\n|])|\Ar/\w+:)[ \t]*(?:(?:[-*•]|\d+[.)])[ \t]*)?(?:[\w-]+ )?(?:{PARTY})[ \t.!]*(?![^\n|])");
+    let LISTED = format!(r"(?:(?<![^\n|])|\A{flair})[ \t]*(?:(?:[-*•]|\d+[.)])[ \t]*)?(?:[\w-]+ )?(?:{PARTY})[ \t.!]*(?![^\n|])", flair = claimcore::flair!());
     let mut rules = shared::scoped_rules(religion());
     for attribute in ["political_ideology", "party_affiliation"] {
         rules.extend(shared::scoped_rules(political(&LISTED, attribute)));

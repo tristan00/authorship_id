@@ -16,7 +16,7 @@ pub static OTHERS: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"\b(?:a|an|said|got|it's|its|costs?|paid|worth) $|\b(?:my|his|her|their|our|your|he|she|him|boyfriend|girlfriend|bf|gf|husband|wife|hubby|partner|fianc\w*|spouse|ex|friend|son|daughter|brother|sister|mom|dad|mother|",
     r"father|dom|sub|guy|girl|man|woman|someone|somebody|with|e\.g|eg|example|like|for|to|and|older|younger|current|new|another|this|that|the)\W*$"
 )));
-pub static SELF: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:\b(?:i|me|myself|i'm|im|i am|ich|moi|yo|as|bin)(?:\s+an?)?|^(?:r/\w+:\s*)?)\W*$"));
+pub static SELF: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"(?:\b(?:i|me|myself|i'm|im|i am|ich|moi|yo|as|bin)(?:\s+an?)?|^", claimcore::flair!(), r")\W*$")));
 
 const BASE_GENDERS: &[(&str, &str)] = &[
     ("guy", "man"), ("man", "man"), ("dude", "man"), ("male", "man"), ("boy", "man"), ("bloke", "man"), ("lad", "man"), ("gentleman", "man"), ("dad", "man"), ("father", "man"),
@@ -119,13 +119,13 @@ pub static THIRD: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:she|he|her|his|
 pub static WANTED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:you|your|be|in|for|not|no|if|want|wants|like|love|seeking|looking|lover|into|keep|stay|get|getting|staying|keeping|become|becoming|myself|it|it's|its|that's|which|pain)\W+(?:\w+\W+)?$"));
 pub static FOREIGN: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:looking for|seeking|want|wants|you|your|under|over|unter|than|at least|taller|shorter|between|she|he|her|his|wife|husband|gf|bf|dad|mom|mum|mother|father|brother|sister|son|daughter|boyfriend|girlfriend|friend)\b"));
 pub static CLOSING: LazyLock<Re> = LazyLock::new(|| Re::new(r"[\(\[](\d{2})[\)\]][^\w\n]*(?:\n|$)"));
-pub static START: LazyLock<Re> = LazyLock::new(|| Re::new(r"^(?:r/\w+:\s*)?\W{0,3}(\d{2})(?=\s*[\[\(]?\s*[mf]?\s*4\s*[mfatr]|\s*[\[\(]\s*[mf]\s*[\]\)]|\s*,?\s+(?:[mf]|male|female)\b)"));
+pub static START: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"^", claimcore::flair!(), r"\W{0,3}(\d{2})(?=\s*[\[\(]?\s*[mf]?\s*4\s*[mfatr]|\s*[\[\(]\s*[mf]\s*[\]\)]|\s*,?\s+(?:[mf]|male|female)\b)")));
 pub const PARTNERS: &str = r"(?:girlfriend|boyfriend|gf|bf|partner|friend|friends|ex|neighbor|neighbour|coworker|boss)\b";
 pub const BODY_NOUNS: &str = r"(?:build|built|body|bod|frame|figure|shape|girl|guy|woman|man|boy|boi|bro|bull|stud|jock|twink|femboy|sub|dom|cub|otter|bottom|top|vers|bear|daddy|milf|hotwife|wife|husband|hubby|mom|mum|dad|grandpa|grandma|lady|gal|chick|dude|male|female|married|single|f|m|here|latina|latino|black|white|asian|blonde|brunette|boyfriend|girlfriend|bf|gf|breeder|slut|sissy|cuck|queen|king|baddie|babe|teen|mommy)\b";
 pub const CROWD: &str = r"(?:guys|girls|women|men|ladies|tops|bottoms|bulls|bros|dudes|couples|people|queens|wives|moms|milfs|daddies|bears|twinks|chicks|females|males|chasers)\b";
 pub const DESIRED_PATTERN: &str = r"n't\b|\bain'?t\b|\b(?<!-)(?:looking|look for|seeking|thing for|searching for|prefer\w*|pref|into|love|loves|like|likes|interested in|any|bonus|must|not|isn't|no|if|you|your|you're|ur)\b";
 pub static DESIRED: LazyLock<Re> = LazyLock::new(|| Re::new(DESIRED_PATTERN));
-pub static DESCRIBED: LazyLock<Re> = LazyLock::new(|| Re::new(&(r"(?:^(?:r/\w+:\s*)?|[\s,.!/(|+-])(?<!slim )(?<!skinny )(?<!body )(?<!% )(?<!\dg )(thin|lean|fit|muscled|shredded|jacked|buff|fat|tiny|average|ripped|hourglass|rellenita|gordita|flaca)".to_string()
+pub static DESCRIBED: LazyLock<Re> = LazyLock::new(|| Re::new(&(concat!(r"(?:^", claimcore::flair!(), r"|[\s,.!/(|+-])(?<!slim )(?<!skinny )(?<!body )(?<!% )(?<!\dg )(thin|lean|fit|muscled|shredded|jacked|buff|fat|tiny|average|ripped|hourglass|rellenita|gordita|flaca)").to_string()
     + &format!(r"(?! (?:\w+ ){{0,2}}{CROWD})(?= (?:\w+ ){{0,2}}?{BODY_NOUNS}| (?:and |but |with |w/ |af\b|asf\b|\d)|[\s,.!/)|]*$|\s*[,/|.!&+])"))));
 pub static WANTING: LazyLock<Re> = LazyLock::new(|| Re::new(&(r"\b(?:want|wants|wish|wished|need|needs)\b|".to_string() + DESIRED_PATTERN)));
 pub static ETHNIC: LazyLock<Re> = LazyLock::new(|| {
@@ -153,21 +153,17 @@ pub static WORDED: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"(?=[\dmf])
 pub static BRACKETED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?=[\d(\[mf])(?<![\w$#.,'/:+-])(?:(\d{2})\s?[\(\[]\s*([mf])\s*[\)\]]|[\(\[](\d{2})[\)\]]\s?(m|f|male|female)\b|([mf])\s?[\(\[](\d{2})[\)\]]|[\(\[]([mf])[\)\]]\s?(\d{2})\b)"));
 pub static COMPARED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:is|was|are|were|be|being|than|of|to|from|between|claims|claimed|like|avg|average|mine's|mines|u|ur|you|your|you're|she|he|her|his|they|their|wife|husband|gf|bf|under|over|at least|taller|shorter|e\.g)\b"));
 pub static SIZED: LazyLock<Re> = LazyLock::new(|| Re::with(r"(?<![\w.$'])[4-7]\s?(?:'|ft)\s?\d{1,2}\b.{0,30}?\b\d{2,3}\s?(?:lbs?|kg|pounds)\b", claimcore::re::S));
-pub static GREETED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^(?:r/\w+:\s*)?|[.!?\n,;:(] *|\b(?:hey|hi|hello|yo|sup)\W+(?:\w+\W+)?)$"));
+pub static GREETED: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n,;:(] *|\b(?:hey|hi|hello|yo|sup)\W+(?:\w+\W+)?)$")));
 pub static NOWADAYS: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i was|i started at|started at|i got \w+ at|when i was|since i was) (?:about |around )?(?:\d{1,2}|[a-z]+)\b[^.!?\n]{0,40}?,? (?:and |but |i'm |im |i am )*$"));
 pub static NAMED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i'm|im|i am|my name is|my name's) [a-z]+$"));
 pub static COLORED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:white|black|asian|latino|latina|hispanic|indian|arab|mixed)[,\s]+(\d{2})\b(?![\d%.,]\d|\s*(?:min|mins|minutes|hours|days|years|yrs|percent|k|m|lbs|kg|inch|inches|cm)\b)"));
-pub static OPENING: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^(?:r/\w+:\s*)?|\n)\W*(?:(\d{2})\s?(?:yo|y/o|yrs?|years? old)?[\s,]+(?:(?!(?:is|was|are|the|a|an|my|your|his|her|their|and|or|of|for|to|with)\b)[a-z]+\s){0,2}?(m|f|male|female|guy|girl|man|woman|dude|bro|wife|mom|milf|hotwife|dad|daddy|bwc|bbc|bull|twink|femboy|stud)\b(?!')|(?:a\s)?(?:(?!trans\b)[a-z]+\s)?(wife|milf|hotwife|mom|mum|mommy|daddy|dad|bro|guy|girl|woman|man|lady)(?:\s+of\s+\d|[\s,]*(\d{2}))\b(?=[\s,.!]|$))"));
+pub static OPENING: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(r"(?:^", claimcore::flair!(), r"|\n)\W*(?:(\d{2})\s?(?:yo|y/o|yrs?|years? old)?[\s,]+(?:(?!(?:is|was|are|the|a|an|my|your|his|her|their|and|or|of|for|to|with)\b)[a-z]+\s){0,2}?(m|f|male|female|guy|girl|man|woman|dude|bro|wife|mom|milf|hotwife|dad|daddy|bwc|bbc|bull|twink|femboy|stud)\b(?!')|(?:a\s)?(?:(?!trans\b)[a-z]+\s)?(wife|milf|hotwife|mom|mum|mommy|daddy|dad|bro|guy|girl|woman|man|lady)(?:\s+of\s+\d|[\s,]*(\d{2}))\b(?=[\s,.!]|$))")));
 pub static WORDY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\w"));
 pub static LOAD: LazyLock<Re> = LazyLock::new(|| Re::new(r#"(?:\b(?:under|over|than|lose|losing|lost|gain|gained|gaining|by|of|an?|the|another|extra|to|from|bench|squat|lift|lifting|carry|carrying)\s*|(?<!['’"”])(?<!['’"”]\d)(?<![a-z]\d)[-–/\d]\s*)\W?$"#));
 static CAR_FLAIR: LazyLock<Re> = LazyLock::new(|| Re::new(r"^r/(?:bmw\w*|[efg]\d{2}\w*|cars|cartalk\w*|autos):"));
 static CHASSIS_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:bmw|m[1-8]|x[1-7]|z[1-8]|[eg]\d{2}|\d{3}(?:i|d|e|xi|xd|ci|is))\b|(?:'\d{2}|\b(?:19|20)\d{2})[\s,/|(-]*$"));
 static CHASSIS_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"[\s,/|-]*(?:m[1-8]|x[1-7]|z[1-8]|i[3-8]|m?\d{3}(?:i|d|e|xi|xd|ci|is)|[eg]\d{2}|[1-8] ?series|xdrive|sdrive|competition|comp|touring|gran coupe|m ?sport|lci|zcp|[56]mt|swap\w*|engine)\b"));
 static PREFIXED: LazyLock<Re> = LazyLock::new(|| Re::new(r"r/\w+:\s*"));
-pub const BOUNDARY: &str = r"\b(?:because|cause|cuz|coz|cos|bc|since|and|but|so|although|though|as)\b";
-pub static ASKED: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^.!?\n,;]{0,40}\?"));
-pub static LIMIT: LazyLock<Re> = LazyLock::new(|| Re::with(&format!(r"(?:{})(?!.*{BOUNDARY})", HEDGE.pattern), claimcore::re::S));
-pub static SELF_LIMIT: LazyLock<Re> = LazyLock::new(|| Re::with(&format!(r"(?:{})(?!.*{BOUNDARY})", SELF_HEDGE.pattern), claimcore::re::S));
 
 pub fn escaped_longest<'a>(words: impl IntoIterator<Item = &'a str>) -> String {
     let mut escaped: Vec<String> = words.into_iter().map(escape).collect();
@@ -209,6 +205,16 @@ pub fn unclaimed(lowered: &[char], start: usize) -> bool {
         Some(wanted) => !FIRST.test_in(prefix, wanted.end(), prefix.len()),
         None => false,
     }
+}
+
+pub fn kilograms(amount: f64, unit: &[char]) -> Option<f64> {
+    let factor = match st(unit).as_str() {
+        "kg" | "kgs" | "kilo" | "kilos" | "kilogram" | "kilograms" => 1.0,
+        "lb" | "lbs" | "pound" | "pounds" => 0.4536,
+        "st" | "stone" => 6.35,
+        _ => return None,
+    };
+    Some(amount * factor)
 }
 
 pub fn chassis(lowered: &[char], start: usize, end: usize) -> bool {
@@ -254,7 +260,7 @@ pub fn init() {
         LazyLock::force(&rules::RULES);
         for re in [&OTHERS, &SELF, &STATURE, &GIRTH, &PARTY, &HAIRED, &ORIENTED, &METRIC, &SHAPED, &PHALLIC, &DIGIT, &PAIR, &COUNTED, &GAME, &AD, &YEARS_OLD, &THIRD, &WANTED, &FOREIGN, &CLOSING, &START,
             &DESIRED, &DESCRIBED, &WANTING, &ETHNIC, &LOOKING, &AGED, &SENTENCE, &INTENSE, &ATTACHED, &COLORED_AFTER, &ORIENTED_AFTER, &FIRST, &WEIGHED, &MEASURED, &SPEAKER, &WORDED, &BRACKETED,
-            &COMPARED, &SIZED, &GREETED, &NOWADAYS, &NAMED, &COLORED, &OPENING, &WORDY, &LOAD, &ASKED, &LIMIT, &SELF_LIMIT, &CAR_FLAIR, &CHASSIS_BEFORE, &CHASSIS_AFTER, &PREFIXED] {
+            &COMPARED, &SIZED, &GREETED, &NOWADAYS, &NAMED, &COLORED, &OPENING, &WORDY, &LOAD, &CAR_FLAIR, &CHASSIS_BEFORE, &CHASSIS_AFTER, &PREFIXED] {
             LazyLock::force(re);
         }
         tags::force();

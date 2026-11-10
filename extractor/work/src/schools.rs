@@ -107,14 +107,14 @@ pub(crate) fn rules() -> Vec<Rule> {
         format!(r"{VERB}(?:studied|study) (?:[\w-]+ ){{1,3}}?at (?:the )?"),
         format!(r"{VERB}(?:did|completed|finished|got|earned|received|have|hold) (?:my |a |an |both )?(?:[\w'-]+ ){{0,2}}?{DEGREE}(?: degree)? (?:at|from) (?:the )?"),
         format!(r"{AM}(?:attending|studying at|enrolled at|enrolled in|an? (?:[\w'-]+ ){{0,3}}?(?:student|undergrad|freshman|sophomore|junior|senior|alum|alumnus|alumna|graduate|grad) (?:here )?(?:at|of|from)) (?:the )?"),
-        r"(?:^(?:r/\w+:\s*)?|[.!?\n]\s*)(?:currently |now )?(?:studying|enrolled) at (?:the )?".to_string(),
+        concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n]\s*)(?:currently |now )?(?:studying|enrolled) at (?:the )?").to_string(),
         r"\bmy (?:current )?(?:uni|university|college|school|alma mater)(?:'s| is| was) (?:the )?".to_string(),
     ];
     let weak = [
         format!(r"{VERB}(?:go|went) to (?:the )?"),
         format!(r"{AM}at (?:the )?"),
         format!(r"{AM}an? (?:[\w'-]+ ){{0,3}}?student (?:here )?in (?:the )?"),
-        r"(?:^(?:r/\w+:\s*)?|\n)[^\w\n]*(?:university|uni|college|school|alma mater|education)[^\w\n]{0,4}?[:=][^\w\n]{0,4}(?:the )?".to_string(),
+        concat!(r"(?:^", claimcore::flair!(), r"|\n)[^\w\n]*(?:university|uni|college|school|alma mater|education)[^\w\n]{0,4}?[:=][^\w\n]{0,4}(?:the )?").to_string(),
     ];
     let mut out: Vec<Rule> = Vec::new();
     for pattern in &strong {
@@ -125,7 +125,7 @@ pub(crate) fn rules() -> Vec<Rule> {
     }
     let roles = r"\b(?:i'm|im|i am|as) (?:an? )(?:current |proud |former |recent |fellow )?(?=[^\n.!?,]{2,60}?\b(?:alum|alumnus|alumna|alumni|grad|graduate|student|undergrad|freshman|sophomore|junior|senior|[123]l)\b)";
     out.push(needs(said(ATTRIBUTE, roles, Box::new(role), &SELF_HEDGE), &["alum", "grad", "student", "freshman", "sophomore", "junior", "senior", "1l", "2l", "3l"]));
-    let lines = r"(?:^(?:r/\w+:\s*)?|[\n(|•]\s*|[.!?]\s+)(?:an? |fellow |proud |another )?(?=[^\n.!?]{2,60}?(?:\b(?:alum|alumnus|alumna|grad|graduate|class of)\b|'\d\d\b))";
+    let lines = concat!(r"(?:^", claimcore::flair!(), r"|[\n(|•]\s*|[.!?]\s+)(?:an? |fellow |proud |another )?(?=[^\n.!?]{2,60}?(?:\b(?:alum|alumnus|alumna|grad|graduate|class of)\b|'\d\d\b))");
     out.push(needs(said(ATTRIBUTE, lines, Box::new(signed), &SELF_HEDGE), &["alum", "grad", "class of", "'1", "'2", "'9"]));
     out
 }
