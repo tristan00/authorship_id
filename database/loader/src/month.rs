@@ -8,13 +8,6 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::Relaxed};
 use std::time::Instant;
 
 const CHUNK: usize = 4 << 20;
-const THREAD_PRIORITY_HIGHEST: i32 = 2;
-
-#[link(name = "kernel32")]
-extern "system" {
-    fn GetCurrentThread() -> isize;
-    fn SetThreadPriority(thread: isize, priority: i32) -> i32;
-}
 const SPARE: usize = 1 << 16;
 const PART_ROWS: usize = 65_536;
 const ENCODERS: usize = 2;
@@ -77,9 +70,6 @@ fn fill(reader: &mut impl Read, buffer: &mut [u8]) -> usize {
 }
 
 fn decode(path: &Path, comment: bool, chunks: &Sender<Chunk>, free: &Receiver<Vec<u8>>, stage: &Stage, run: Instant) {
-    if unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) } == 0 {
-        panic!("cannot raise the decode thread priority: {}", std::io::Error::last_os_error());
-    }
     timed(&format!("decode {}", path.display()), || {
         let mut file = File::open(path).unwrap_or_else(|error| panic!("cannot open {}: {error}", path.display()));
         let mut header = Vec::new();
