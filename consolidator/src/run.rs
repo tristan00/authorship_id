@@ -142,14 +142,14 @@ struct Done {
     rows: Vec<u8>,
     authors: u64,
     decided: u64,
-    tied: Vec<u32>,
+    tied: Vec<(u32, u8)>,
     tallies: Tallies,
     deferred: Vec<(String, Evidence)>,
 }
 
-fn count_tied(counts: &mut HashMap<u32, u64>, tied: Vec<u32>) {
-    for name in tied {
-        *counts.entry(name).or_default() += 1;
+fn count_tied(counts: &mut HashMap<(u32, u8), u64>, tied: Vec<(u32, u8)>) {
+    for outcome in tied {
+        *counts.entry(outcome).or_default() += 1;
     }
 }
 
@@ -400,7 +400,7 @@ pub fn run(database: &Database, threads: usize) {
                         }
                         (out, count, names)
                     },
-                    |(out, count, names): (Vec<u8>, u64, Vec<u32>)| {
+                    |(out, count, names): (Vec<u8>, u64, Vec<(u32, u8)>)| {
                         rows.send(out).unwrap();
                         decided += count;
                         count_tied(&mut tied, names);
@@ -414,12 +414,16 @@ pub fn run(database: &Database, threads: usize) {
         database.command("DROP TABLE author_claims_next");
         database.command("DROP TABLE claimed_keys");
         timed("author attributes", || publish(database, &described));
-        let mut tied: Vec<(&str, u64)> = tied.into_iter().map(|(name, count)| (vocabulary.attribute(name), count)).collect();
-        tied.sort_unstable();
-        for (attribute, count) in &tied {
-            log(&format!("no plurality attribute={attribute} authors={count}"));
+        let mut outcomes: HashMap<&str, [u64; 3]> = HashMap::new();
+        for ((name, outcome), count) in tied {
+            outcomes.entry(vocabulary.attribute(name)).or_default()[outcome as usize] += count;
         }
-        log(&format!("no plurality authors={}", tied.iter().map(|entry| entry.1).sum::<u64>()));
+        let mut outcomes: Vec<(&str, [u64; 3])> = outcomes.into_iter().collect();
+        outcomes.sort_unstable();
+        for (attribute, [agreed, conflicted, tied]) in &outcomes {
+            log(&format!("outcomes attribute={attribute} authors={} conflicted={} no_plurality={tied}", agreed + conflicted + tied, conflicted + tied));
+        }
+        log(&format!("no plurality authors={}", outcomes.iter().map(|entry| entry.1[2]).sum::<u64>()));
         log(&format!("author claims authors={authors} rows={decided}"));
     });
 }

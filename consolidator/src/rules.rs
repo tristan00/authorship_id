@@ -287,21 +287,27 @@ fn leader(vocabulary: &Vocabulary, name: u32, support: &[Support]) -> Option<u32
     (scores[best] as f64 / total as f64 > SHARE || plurality).then_some(support[best].value)
 }
 
-fn decide(vocabulary: &Vocabulary, found: &[(u32, Vec<Support>)]) -> (Vec<Decision>, Vec<u32>) {
-    let (mut decided, mut tied) = (Vec::new(), Vec::new());
+pub const AGREED: u8 = 0;
+pub const CONFLICTED: u8 = 1;
+pub const TIED: u8 = 2;
+
+fn decide(vocabulary: &Vocabulary, found: &[(u32, Vec<Support>)]) -> (Vec<Decision>, Vec<(u32, u8)>) {
+    let (mut decided, mut outcomes) = (Vec::new(), Vec::new());
     for (name, support) in found {
         if vocabulary.set[*name as usize] {
             decided.extend(support.iter().map(|entry| Decision { name: *name, best: entry.value }));
+            outcomes.push((*name, AGREED));
         } else if let Some(best) = leader(vocabulary, *name, support) {
             decided.push(Decision { name: *name, best });
+            outcomes.push((*name, if support.len() > 1 { CONFLICTED } else { AGREED }));
         } else {
-            tied.push(*name);
+            outcomes.push((*name, TIED));
         }
     }
-    (decided, tied)
+    (decided, outcomes)
 }
 
-pub fn consolidate(vocabulary: &Vocabulary, evidence: &Evidence, blocked: &Blocked) -> (Vec<Decision>, Vec<u32>) {
+pub fn consolidate(vocabulary: &Vocabulary, evidence: &Evidence, blocked: &Blocked) -> (Vec<Decision>, Vec<(u32, u8)>) {
     if evidence.flagged >= BOT_TEXTS && evidence.flagged as f64 >= BOT_SHARE * evidence.texts as f64 {
         return (Vec::new(), Vec::new());
     }
@@ -353,7 +359,7 @@ fn audit(vocabulary: &Vocabulary, evidence: &Evidence, tallies: &mut Tallies) {
 }
 
 pub enum Step {
-    Decided(Vec<Decision>, Vec<u32>),
+    Decided(Vec<Decision>, Vec<(u32, u8)>),
     Deferred(Evidence),
 }
 
