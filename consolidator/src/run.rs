@@ -187,7 +187,7 @@ fn described() -> HashMap<String, Described> {
     found
 }
 
-fn attributes(database: &Database) -> Vec<Attribute> {
+fn attributes(database: &Database, candidates: bool) -> Vec<Attribute> {
     let described = timed("schema described", described);
     let mut rows = database.rows("SELECT attribute, kind, anchor, precision, unit FROM claim_attributes ORDER BY attribute FORMAT RowBinary");
     let mut found = Vec::new();
@@ -195,6 +195,7 @@ fn attributes(database: &Database) -> Vec<Attribute> {
         let (name, kind, anchor) = (text(rows.bytes()), text(rows.bytes()), text(rows.bytes()));
         let precision = f64::from_le_bytes(rows.fixed());
         let schema = described.get(&name);
+        assert!(candidates || schema.is_some(), "{name} is claimed but not described in {SCHEMA}; only a measurement run passes --candidates");
         let (range, bands, at) = schema.map_or((None, Vec::new(), 0), |entry| (entry.range, entry.bands.clone(), entry.at));
         found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range, bands, at });
     }
@@ -361,11 +362,11 @@ fn write(database: &Database, outbox: Receiver<Vec<u8>>) {
     log(&format!("written inserts={inserts} bytes={bytes} insert_seconds={waited:.1} seconds={:.1}", started.elapsed().as_secs_f64()));
 }
 
-pub fn run(database: &Database, threads: usize) {
+pub fn run(database: &Database, threads: usize, candidates: bool) {
     timed("consolidate", || {
         let finished: u64 = database.command("SELECT count() FROM extracted_parts").trim().parse().unwrap();
         assert!(finished >= PARTS, "claim extraction has not finished every part: {finished}/{PARTS}");
-        let described = timed("claim attributes", || attributes(database));
+        let described = timed("claim attributes", || attributes(database, candidates));
         let mut vocabulary = Vocabulary::new(&described);
         database.command("DROP TABLE IF EXISTS claimed_keys");
         database.command("CREATE TABLE claimed_keys (key UInt128) ENGINE = Set SETTINGS persistent = 0");

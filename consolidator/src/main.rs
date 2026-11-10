@@ -48,7 +48,7 @@ fn option<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: consolidate run --host HOST --threads N [--port 8123] [--database reddit]");
+    eprintln!("usage: consolidate run --host HOST --threads N [--port 8123] [--database reddit] [--candidates]");
     std::process::exit(2);
 }
 
@@ -61,7 +61,7 @@ fn main() {
     match args.get(1).map(String::as_str) {
         Some("run") => {
             let database = database::Database::new(required(&args, "--host"), option(&args, "--port").unwrap_or("8123").parse().unwrap(), option(&args, "--database").unwrap_or("reddit"));
-            run::run(&database, required(&args, "--threads").parse().unwrap());
+            run::run(&database, required(&args, "--threads").parse().unwrap(), args.iter().any(|arg| arg == "--candidates"));
         }
         _ => usage(),
     }
