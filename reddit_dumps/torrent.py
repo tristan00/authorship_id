@@ -20,6 +20,19 @@ def resume_path(save_path):
     return save_path.with_name(save_path.name + ".resume")
 
 
+def write_resume(save_path, params):
+    resume = resume_path(save_path)
+    temp = resume.with_name(resume.name + ".tmp")
+    temp.write_bytes(lt.write_resume_data_buf(params))
+    os.replace(temp, resume)
+
+
+def keep_resume(alerts, save_paths):
+    for alert in alerts:
+        if isinstance(alert, lt.save_resume_data_alert) and str(alert.handle.info_hashes().v1) in save_paths:
+            write_resume(save_paths[str(alert.handle.info_hashes().v1)], alert.params)
+
+
 @timed
 def add(ses, info, save_path, indices):
     resume = resume_path(save_path)
@@ -78,10 +91,7 @@ def remove(ses, handle, save_path):
     infohash = str(handle.info_hashes().v1)
     handle.save_resume_data()
     alert = wait_alert(ses, lt.save_resume_data_alert, lt.save_resume_data_failed_alert, infohash)
-    resume = resume_path(save_path)
-    temp = resume.with_name(resume.name + ".tmp")
-    temp.write_bytes(lt.write_resume_data_buf(alert.params))
-    os.replace(temp, resume)
+    write_resume(save_path, alert.params)
     ses.remove_torrent(handle)
     wait_alert(ses, lt.torrent_removed_alert, (), infohash)
     log.info("removed torrent %s", infohash)

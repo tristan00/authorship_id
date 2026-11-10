@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from database import DUMPS
 
 from . import catalog, log, timed, torrent
-from .config import KINDS, MAX_ACTIVE_MONTHS, PROGRESS_SECONDS
+from .config import KINDS, MAX_ACTIVE_MONTHS, PROGRESS_SECONDS, RESUME_SECONDS
 
 
 @dataclass
@@ -58,10 +58,12 @@ def start_jobs(ses, pending, active):
 def download(months, finished):
     ses = torrent.session()
     pending, active = build_jobs(months), []
-    began, last, fetched = time.monotonic(), 0.0, 0
+    began, last, saved, fetched = time.monotonic(), 0.0, time.monotonic(), 0
     while pending or active:
         start_jobs(ses, pending, active)
-        torrent.log_alerts(ses.pop_alerts())
+        alerts = ses.pop_alerts()
+        torrent.log_alerts(alerts)
+        torrent.keep_resume(alerts, {job.infohash: job.save_path for job in active})
         for job in list(active):
             if len(torrent.completed(job.handle, job.info, job.files.values())) == len(job.files):
                 fetched += job.handle.status().total_payload_download
@@ -77,6 +79,11 @@ def download(months, finished):
             total = fetched + sum(status.total_payload_download for status in statuses)
             log.info("pending months %d, active %d, aggregate now %.1f MB/s average %.1f MB/s over %.0f min", len(pending), len(active),
                      sum(status.download_rate for status in statuses) / 1e6, total / max(last - began, 1) / 1e6, (last - began) / 60)
+        if time.monotonic() - saved >= RESUME_SECONDS:
+            saved = time.monotonic()
+            for job in active:
+                job.handle.save_resume_data()
+            log.info("requested resume data for %d torrents", len(active))
         time.sleep(1)
 
 

@@ -5,6 +5,7 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 KINDS = ("submissions", "comments")
 MAX_ACTIVE_MONTHS = 6
 PROGRESS_SECONDS = 30
+RESUME_SECONDS = 300
 
 ALERT_TIMEOUT = 120
 HTTP_TIMEOUT = 120
