@@ -221,7 +221,7 @@ fn ranges(database: &Database) -> Vec<String> {
 fn records_query(range: &str) -> String {
     format!(
         "SELECT author, toUInt32(created_utc), {KEY} AS key, key IN claimed_keys AS claimed, \
-         (subreddit, ifNull(author_flair_text, '')) IN (SELECT subreddit, flair FROM flair_claims) AS flaired, \
+         (subreddit, ifNull(author_flair_text, '')) IN flair_keys AS flaired, \
          if(flaired, subreddit, '') AS flair_subreddit, if(flaired, ifNull(author_flair_text, ''), '') AS flair \
          FROM records WHERE {range} AND author NOT IN ({EXCLUDED}) AND (claimed OR flaired) ORDER BY author FORMAT RowBinary"
     )
@@ -343,11 +343,15 @@ pub fn run(database: &Database, threads: usize) {
         let mut vocabulary = Vocabulary::new(&described);
         database.command("DROP TABLE IF EXISTS claimed_keys");
         database.command("CREATE TABLE claimed_keys (key UInt128) ENGINE = Set SETTINGS persistent = 0");
+        database.command("DROP TABLE IF EXISTS flair_keys");
+        database.command("CREATE TABLE flair_keys (subreddit String, flair String) ENGINE = Set SETTINGS persistent = 0");
         let (texts, filters) = std::thread::scope(|scope| {
             let keys = scope.spawn(|| timed("claimed keys", || database.command(&format!("INSERT INTO claimed_keys SELECT {KEY} FROM text_claims"))));
             let filters = scope.spawn(|| timed("author ranges", || ranges(database)));
+            let pairs = scope.spawn(|| timed("flair keys", || database.command("INSERT INTO flair_keys SELECT subreddit, flair FROM flair_claims")));
             let texts = timed("load text claims", || TextClaims::load(database, &mut vocabulary, threads));
             keys.join().unwrap();
+            pairs.join().unwrap();
             (texts, filters.join().unwrap())
         });
         let flairs = timed("load flair claims", || FlairClaims::load(database, &mut vocabulary));
@@ -413,6 +417,7 @@ pub fn run(database: &Database, threads: usize) {
         database.command("EXCHANGE TABLES author_claims_next AND author_claims");
         database.command("DROP TABLE author_claims_next");
         database.command("DROP TABLE claimed_keys");
+        database.command("DROP TABLE flair_keys");
         timed("author attributes", || publish(database, &described));
         let mut outcomes: HashMap<&str, [u64; 3]> = HashMap::new();
         for ((name, outcome), count) in tied {
