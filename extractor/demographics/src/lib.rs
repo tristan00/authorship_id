@@ -11,8 +11,6 @@ pub use rules::rules;
 pub use tags::tags;
 
 const ASSIGNED: &[(&str, &str)] = &[("trans woman", "amab"), ("transfem", "amab"), ("trans man", "afab"), ("transmasc", "afab")];
-const GENDER_FOLD: &[(&str, &str)] = &[("cis man", "man"), ("cis woman", "woman"), ("trans woman", "woman"), ("demiboy", "demiboy / demigirl"), ("demigirl", "demiboy / demigirl")];
-const GENDER_DROPPED: &[&str] = &["trans man", "transfem", "transmasc", "cis (gender unstated)", "trans (unspecified)", "transsexual", "egg"];
 
 static FTM: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![a-z0-9])ftm(?![a-z0-9])"));
 static MOTHERING: LazyLock<Re> = LazyLock::new(|| {
@@ -59,12 +57,6 @@ pub fn settle(lowered: &[char], found: &mut Found) {
         .collect();
     for (sex, position) in implied {
         found.set("assigned_sex_at_birth", sex, position);
-    }
-    found.items.retain(|(attribute, value, _, _)| attribute != "gender" || !GENDER_DROPPED.contains(&value.as_str()));
-    for (attribute, value, _, _) in &mut found.items {
-        if let Some((_, folded)) = GENDER_FOLD.iter().find(|(from, _)| attribute == "gender" && from == value) {
-            *value = folded.to_string();
-        }
     }
 }
 

@@ -171,12 +171,8 @@ fn typed(m: &Match) -> bool {
     chained(m, &TYPO, &TYPO_AFTER) && alone(m) || flaired(m)
 }
 
-fn perception(code: String) -> String {
-    if code.chars().nth(1) == Some('n') { "intuitive" } else { "sensing" }.to_string()
-}
-
 fn mbti(m: &Match) -> Option<String> {
-    (typed(m) && !LISTED.test_in(m.string, m.start().saturating_sub(40), m.start())).then(|| perception(m.g(1)))
+    (typed(m) && !LISTED.test_in(m.string, m.start().saturating_sub(40), m.start())).then(|| m.g(1))
 }
 
 fn adjacent(core: u32, wing: u32) -> bool {
@@ -203,7 +199,7 @@ fn core(m: &Match) -> V {
 
 fn stacking(m: &Match) -> Option<String> {
     let (first, second) = (m.g(1), m.g(2));
-    (first != second && typed(m)).then(|| first.to_string())
+    (first != second && typed(m)).then(|| format!("{first}/{second}"))
 }
 
 fn center(digit: char) -> Option<u8> {
@@ -236,14 +232,6 @@ fn plain(m: &Match) -> V {
     }
 }
 
-fn modality(sign: V) -> V {
-    Some(match sign? {
-        "aries" | "cancer" | "libra" | "capricorn" => "cardinal",
-        "taurus" | "leo" | "scorpio" | "aquarius" => "fixed",
-        _ => "mutable",
-    })
-}
-
 fn kin(m: &Match) -> V {
     if KINSHIP.test_in(m.string, last_mark(m.string, m.start(), ".!?\n").max(m.start().saturating_sub(120)), m.start()) {
         get(IDENTITIES, m.group(1))
@@ -252,36 +240,36 @@ fn kin(m: &Match) -> V {
     }
 }
 
-static IDENTITIES: &Tab = &[("therian", "alterhuman"), ("otherkin", "alterhuman"), ("fictionkin", "alterhuman"), ("alterhuman", "alterhuman"), ("polymorphkin", "alterhuman"), ("furry", "furry")];
+static IDENTITIES: &Tab = &[("therian", "therian"), ("otherkin", "otherkin"), ("fictionkin", "fictionkin"), ("alterhuman", "alterhuman"), ("polymorphkin", "polymorphkin"), ("furry", "furry")];
 
 fn astrology() -> Vec<Rule> {
-    let places: [(&str, &str, &str, [&str; 4], fn(V) -> V); 3] = [
-        ("sun_sign", r"(?:sun(?![\w'])|☉|☀|🌞)", "sun", ["sun", "☉", "☀", "🌞"], modality),
-        ("moon_sign", r"(?:moon(?![\w'])|☽|☾|🌙)", "moon", ["moon", "☽", "☾", "🌙"], std::convert::identity),
-        ("rising_sign", r"(?:(?:rising|ascendant|asc)(?![\w'])|↑|⬆)", "rising|ascendant", ["rising", "asc", "↑", "⬆"], std::convert::identity),
+    let places = [
+        ("sun_sign", r"(?:sun(?![\w'])|☉|☀|🌞)", "sun", ["sun", "☉", "☀", "🌞"]),
+        ("moon_sign", r"(?:moon(?![\w'])|☽|☾|🌙)", "moon", ["moon", "☽", "☾", "🌙"]),
+        ("rising_sign", r"(?:(?:rising|ascendant|asc)(?![\w'])|↑|⬆)", "rising|ascendant", ["rising", "asc", "↑", "⬆"]),
     ];
     let mut rules = Vec::new();
-    for (attribute, place, words, anchors, value) in places {
-        rules.push(needs(r(attribute, &format!(r"(?<![\w'])(?:{ANY_SIGN})[ \t-]{{0,2}}{place}"), move |m| value(placed(m)), hedge()), &anchors));
-        rules.push(needs(r(attribute, &format!(r"(?<![\w'])(?:{words})(?:\s+sign)?(?:\s+is\s+in|\s+is|\s+in|:|\s*=|\s+-)?\s+(?:an?\s+)?{FULL_SIGN}(?![\w']){OTHER_PLACE}"), move |m| value(placed(m)), hedge()), &anchors));
-        rules.push(needs(r(attribute, &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?(?:{ANY_SIGN})[ \t-]{{0,2}}{place}\s+here\b", flair = claimcore::flair!()), move |m| value(get(SIGNS, m.group(1))), hedge()), &anchors));
+    for (attribute, place, words, anchors) in places {
+        rules.push(needs(r(attribute, &format!(r"(?<![\w'])(?:{ANY_SIGN})[ \t-]{{0,2}}{place}"), placed, hedge()), &anchors));
+        rules.push(needs(r(attribute, &format!(r"(?<![\w'])(?:{words})(?:\s+sign)?(?:\s+is\s+in|\s+is|\s+in|:|\s*=|\s+-)?\s+(?:an?\s+)?{FULL_SIGN}(?![\w']){OTHER_PLACE}"), placed, hedge()), &anchors));
+        rules.push(needs(r(attribute, &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?(?:{ANY_SIGN})[ \t-]{{0,2}}{place}\s+here\b", flair = claimcore::flair!()), |m| get(SIGNS, m.group(1)), hedge()), &anchors));
     }
     let adj = adj();
     rules.push(r(
         "sun_sign",
         &format!(r"(?:{ME}|{})\s+(?:also\s+)?an?\s+{adj}{{0,2}}{FULL_SIGN}(?!\s*,?\s*(?:you|your|you're|u|ur)\b)(?=\s*(?:[^\w\s'-]|$|(?:and|but|so|too|myself|here|lol|haha|btw|though|tho|also|sun|woman|man|girl|guy|female|male|through)\b))", as_lead()),
-        |m| modality(plain(m)),
+        plain,
         hedge(),
     ));
     rules.push(r(
         "sun_sign",
         &format!(r"\bmy\s+(?:(?:sun|star|zodiac|astrological|astrology|western|tropical|birth)\s+)?(?:sun|star)?sign(?:\s+is|:|\s*=|\s+-)?\s+(?:an?\s+)?{FULL_SIGN}(?![\w']){OTHER_PLACE}"),
-        |m| modality(get(SIGNS, m.group(1))),
+        |m| get(SIGNS, m.group(1)),
         hedge(),
     ));
-    rules.push(r("sun_sign", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?{FULL_SIGN}\s+(?:(?:woman|man|girl|guy|gal|dude|female|male|baby)\s+)?here\b", flair = claimcore::flair!()), |m| modality(get(SIGNS, m.group(1))), hedge()));
-    rules.push(r("sun_sign", r"(?:\bi'm|\bim|\bi am)\s+(?:also\s+)?(aries|taurus|gemini|leo|virgo|libra|scorpio|sagittarius|capricorn|aquarius|pisces)(?![\w'-])(?!\s*,?\s*(?:you|your|you're|u|ur)\b)(?=\s*(?:[^\w\s'-]|$|(?:and|but|so|too|myself|lol|haha|btw|though|tho|sun)\b))", |m| modality(plain(m)), hedge()));
-    rules.push(r("sun_sign", &format!(r"(?:^{flair}|\n)[^\w\n]*(?:zodiac|star|sun|astrological)\s+sign\s*[:=-]\s*{FULL_SIGN}(?![\w'])", flair = claimcore::flair!()), |m| modality(get(SIGNS, m.group(1))), hedge()));
+    rules.push(r("sun_sign", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?{FULL_SIGN}\s+(?:(?:woman|man|girl|guy|gal|dude|female|male|baby)\s+)?here\b", flair = claimcore::flair!()), |m| get(SIGNS, m.group(1)), hedge()));
+    rules.push(r("sun_sign", r"(?:\bi'm|\bim|\bi am)\s+(?:also\s+)?(aries|taurus|gemini|leo|virgo|libra|scorpio|sagittarius|capricorn|aquarius|pisces)(?![\w'-])(?!\s*,?\s*(?:you|your|you're|u|ur)\b)(?=\s*(?:[^\w\s'-]|$|(?:and|but|so|too|myself|lol|haha|btw|though|tho|sun)\b))", plain, hedge()));
+    rules.push(r("sun_sign", &format!(r"(?:^{flair}|\n)[^\w\n]*(?:zodiac|star|sun|astrological)\s+sign\s*[:=-]\s*{FULL_SIGN}(?![\w'])", flair = claimcore::flair!()), |m| get(SIGNS, m.group(1)), hedge()));
     rules
 }
 
@@ -290,7 +278,7 @@ fn typology() -> Vec<Rule> {
     let listed = format!(r"(?!s?\s*(?:,|and\b)\s*(?:and\s+)?(?:an?\s+)?{MBTI}(?![a-z]))");
     vec![
         rule("mbti_type", &format!(r"(?<![\w'/-])({MBTI})(?:-[at])?(?![\w']){after}{listed}"), mbti, hedge()),
-        rule("mbti_type", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?({MBTI})(?:-[at])?\s+here\b", flair = claimcore::flair!()), |m| Some(perception(m.g(1))), hedge()),
+        rule("mbti_type", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?({MBTI})(?:-[at])?\s+here\b", flair = claimcore::flair!()), |m| Some(m.g(1)), hedge()),
         r("enneagram_type", &format!(r"(?<![\w'/.,-])([1-9])\s?w\s?([1-9])(?![\w']){after}"), wing, hedge()),
         r("enneagram_type", r"(?<![\w'/.,-])(?:type\s+)?([1-9])\s+with\s+an?\s+(?:(?:strong|slight|heavy|big|small)\s+)?([1-9])[\s-]?wing\b", wing, hedge()),
         r("enneagram_type", &format!(r"(?<![\w'/])(?:sp|sx|so)([1-9])(?:w[1-9])?(?![\w']){after}"), core, hedge()),

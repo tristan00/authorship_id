@@ -55,12 +55,13 @@ static BRITISH: &Tab = &[("labour", "labour"), ("tory", "conservative party (uk/
     ("libertarian party", "libertarian party"), ("labour party", "labour"), ("conservative party", "conservative party (uk/canada)"),
 ];
 static DIETS: &Tab = &[
-    ("vegan", "vegan"), ("plant based", "vegan"), ("plant-based", "vegan"), ("vegetarian", "vegetarian"), ("veggie", "vegetarian"), ("vegeterian", "vegetarian"), ("vegitarian", "vegetarian"),
-    ("keto", "keto / low carb"), ("ketogenic", "keto / low carb"), ("low carb", "keto / low carb"), ("low-carb", "keto / low carb"), ("lchf", "keto / low carb"), ("carnivore", "carnivore"),
-    ("halal", "halal / kosher"), ("kosher", "halal / kosher"),
+    ("vegan", "vegan"), ("vegetarian", "vegetarian"), ("veggie", "vegetarian"), ("keto", "keto"), ("gluten free", "gluten-free"), ("gluten-free", "gluten-free"),
+    ("low carb", "low carb"), ("low-carb", "low carb"), ("ketogenic", "keto"), ("carnivore", "carnivore"), ("plant based", "plant-based"), ("plant-based", "plant-based"),
+    ("vegeterian", "vegetarian"), ("vegitarian", "vegetarian"), ("pescatarian", "pescatarian"), ("pescetarian", "pescatarian"), ("flexitarian", "flexitarian"), ("halal", "halal"), ("kosher", "kosher"),
+    ("low fodmap", "low fodmap"), ("low-fodmap", "low fodmap"), ("mediterranean", "mediterranean diet"), ("dairy free", "dairy free"), ("dairy-free", "dairy free"), ("sugar free", "sugar free"), ("sugar-free", "sugar free"),
 ];
 
-const TAKEN: &str = r"(?:(?:a|an|fully|strictly|full|mostly|completely|strict) )?(vegan|vegetarian|vegeterian|vegitarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friendly|cheese|version|alternatives?|products?|brand|friends?|community|people|diet for)\b)";
+const TAKEN: &str = r"(?:(?:a|an|fully|strictly|full|mostly|completely|strict) )?(vegan|vegetarian|vegeterian|vegitarian|pescatarian|pescetarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friendly|cheese|version|alternatives?|products?|brand|friends?|community|people|diet for)\b)";
 const UPPERS: &str = r"(?:meth|methamphetamine|crystal meth|cocaine|coke|crack|adderall|amphetamines?|stimulants|benzos?|benzodiazepines?|xanax|klonopin|valium|ativan|alprazolam|clonazepam)\b";
 const QUIT_SPAN: &str = r"(?:(?:smoke|nicotine|vape|cigarette)[- ]free|(?:without|off) (?:smoking|vaping|nicotine|cigarettes)|after (?:vaping|smoking) (?:since|for))\b";
 const BRANCH: &str = r"(?:(?:us|u\.s\.|british|canadian|australian|indian|royal|israeli) )?(?:army|navy|marines|marine corps|air force|usaf|usmc|military|coast guard|national guard|air national guard|armed forces|army reserves?|navy reserves?|reserves|raf|idf|space force|airforce)\b";
@@ -77,7 +78,7 @@ regex!(SELF_NEAR, r"\b(?:i|i'm|im|i've|ive|me|my|we)\b");
 regex!(OTHER_NEAR, r"\b(?:you|he|she|they|people|someone|somebody|anyone|everyone|his|her|their|your|friends?|dad|mom|father|mother|grandfather|grandpa|granddad|uncle|brother|sister|cousin|husband|wife|spouse|boyfriend|girlfriend|fiance|fiancee|partner|kids?|son|daughter)\b");
 regex!(ADOPTED, r"\b(?:my|on|eating|following|follow|followed|started|adopted|switched to|stick to|stuck to|thanks to|due to|doing) (?:a |an |the )?(?:(?:strict|strictly|mostly|fully|very|nearly|almost|100%|\d+%|whole food|healthy|clean) )*\Z");
 regex!(STARTED, r"\b(?:on|doing|started|start|eating|following|going|went|been|stay|staying) (?:strict |a strict |full |proper |properly |mostly |strictly )?\Z");
-regex!(FOODWAY, r"vegan|vegetarian|veggie|keto|low[- ]carb|lchf|plant[- ]based|halal|kosher|carnivore");
+regex!(FOODWAY, r"vegan|vegetarian|veggie|pescatarian|pescetarian|flexitarian|keto|low[- ]carb|low[- ]fodmap|gluten[- ]free|dairy[- ]free|sugar[- ]free|plant[- ]based|halal|kosher|carnivore|mediterranean");
 regex!(NOT_DIET, r" (?:diet|recipes?|friendly|meals?|food|snacks?|bread|options?|version)\b");
 regex!(UNTAKEN, r"\b(?:was|were|had|stopped|quit|want|wanted|wanna|trying|try|tried|thinking|considering|closest|hard|easy|didn't|never|not|no longer|used to|if|would|should|could|might|maybe)\b");
 regex!(SERVICE, r"\b(?:army|navy|marines?|military|usmc|air force|national guard|coast guard|deploy\w*|enlist\w*|veterans?|va|dd-?214|gi bill|mos|ets|boot ?camp|basic training|base|platoon|squadron|battalion|nco|sergeant|sgt|corporal|cpl|soldiers?|sailors?|airmen|servicemembers?|served)\b");
@@ -99,7 +100,7 @@ regex!(ADJECTIVAL, r"\bi(?:'m|m| am| m)[ \t]+(?:(?:very|pretty|fairly|quite|real
 regex!(POLITICAL, r"\b(?:politic\w*|vot\w+|left|right|democrats?|republicans?|liberals?|trump|biden|harris|government|party|parties|policy|policies|economic\w*|socially|fiscally|leftists?|socialis\w*|maga|gop|tory|tories|labour|elections?|candidates?|congress|senate|parliament|conservatives)\b");
 regex!(CANNABIS, r"\b(?:weed|pot|blunts?|joints?|bowls?|spliffs?|dabs?|carts?|bud|herb|stoner|pothead|cannabis|marijuana|thc|420|ganja|kush|bongs?|toke|toking)\b");
 regex!(UPPER, r"\b(?:meth|methamphetamine|cocaine|coke|crack|adderall|amphetamines?|stimulants)\b");
-regex!(DIET_HERE, concat!(r"(?:^", claimcore::flair!(), r"|[.!?,;(] *)(vegan|vegetarian|veggie) \Z"));
+regex!(DIET_HERE, concat!(r"(?:^", claimcore::flair!(), r"|[.!?,;(] *)(vegan|vegetarian|veggie|pescatarian|pescetarian|flexitarian) \Z"));
 
 fn ideology(m: &Match, g: usize) -> V {
     let (start, end) = m.span(g)?;
@@ -261,7 +262,7 @@ fn diet_mine(m: &Match) -> V {
     let framed = if word.len() < group.len() {
         ADOPTED.test(before)
     } else {
-        ["keto", "low carb", "low-carb", "lchf", "carnivore"].iter().any(|w| eq(word, w)) && NOT_DIET.at(m.string, m.end()).is_none() && STARTED.test(before)
+        ["keto", "low carb", "low-carb", "carnivore", "low fodmap", "low-fodmap"].iter().any(|w| eq(word, w)) && NOT_DIET.at(m.string, m.end()).is_none() && STARTED.test(before)
     };
     if framed && SELF_NEAR.test(before) && !OTHER_NEAR.test(before) {
         get(DIETS, Some(word))
@@ -464,21 +465,30 @@ fn political(LISTED: &str, attribute: &'static str) -> Vec<Rule> {
 fn diet() -> Vec<Rule> {
     let ASX = format!(r"(?:{AS}|as(?<=[\x{{2600}}-\x{{27BF}}\x{{1F000}}-\x{{1FFFF}}] as)|as(?<=\byeah as)|as(?<=\bbecause as)|as(?<=\balso as)|as(?<=\bnow as)|as(?<=\bonly as))");
     vec![
-        r("diet", &format!(r"i(?<=\bi){ME} (?:a |an )?(?:(?!not\b|never\b|no\b|ex\b|non\b|former\b|recovering\b|bad\b|trying\b|thinking\b|considering\b|planning\b)[\w-]+ )?(?:a |an )?(?:(?!not\b|never\b|no\b|ex\b|non\b|former\b)[\w-]+ )?(vegan|vegetarian|vegeterian|vegitarian|veggie)\b(?! (?:food|restaurant|options?|meals?|recipes?|friends?)\b)"), |m| get(DIETS, m.group(1)), hedge()),
-        r("diet", &format!(r"{ASX} an? (?:(?!ex\b|former\b|non\b)\w+ )?(vegan|vegetarian)\b(?! (?:food|restaurant|options?|meals?|recipes?)\b)"), |m| get(DIETS, m.group(1)), hedge()),
+        r("diet", &format!(r"i(?<=\bi){ME} (?:a |an )?(?:(?!not\b|never\b|no\b|ex\b|non\b|former\b|recovering\b|bad\b|trying\b|thinking\b|considering\b|planning\b)[\w-]+ )?(?:a |an )?(?:(?!not\b|never\b|no\b|ex\b|non\b|former\b)[\w-]+ )?(vegan|vegetarian|vegeterian|vegitarian|veggie|pescatarian|pescetarian|flexitarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friends?)\b)"), |m| get(DIETS, m.group(1)), hedge()),
+        r("diet", &format!(r"{ASX} an? (?:(?!ex\b|former\b|non\b)\w+ )?(vegan|vegetarian|pescatarian|pescetarian)\b(?! (?:food|restaurant|options?|meals?|recipes?)\b)"), |m| get(DIETS, m.group(1)), hedge()),
         r("diet", concat!(r"we(?<=\bwe)(?:'re| are) (?:all |both |also |strictly )?(vegan|vegetarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friendly)\b)|(?:s(?<=\bs)oy|s(?<=\bs)ou|s(?<=\bs)ono|i(?<=\bi)ch bin|i(?<=\bi)k ben) (vegan[oa]?|vegetarian[oa]|vegetarisch|vegetarier(?:in)?|vegetariër|veganer(?:in)?)\b",
           r"|j(?<=\bj)e suis (végane?|végétarien(?:ne)?|vegan)\b|j(?<=\bj)estem (weganką|weganinem|wegetarianką|wegetarianinem)\b"),
           |m| { let word = m.first()?; get(DIETS, Some(word)).or(Some(if contains(word, "tar") { "vegetarian" } else { "vegan" })) }, self_hedge()),
-        r("diet", concat!(r"i(?<=\bi)(?:'m| am) (?:on |doing )?(?:a |strict )?(keto)\b(?! (?:friendly|recipe))|i(?<=\bi) (?:do|eat|follow|went) (keto|ketogenic|low[- ]carb|lchf)\b|(?:\A", claimcore::flair!(), r"|[.!?\n] ?)been (?:doing|on|eating) (?:strict |clean |dirty |lazy )?(keto|low[- ]carb|lchf)\b(?! (?:friendly|recipe))"),
-          constant("keto / low carb"), self_hedge()),
-        r("diet", r"i(?<=\bi) (?:don't|do not|dont) eat (meat|any meat|animal products)\b|i(?<=\bi)(?:'m| am) (?:fully |mostly |\d+% )?(plant[- ]based)\b|i(?<=\bi) eat (plant[- ]based)\b", |m| Some(if contains(m.text(), "meat") { "vegetarian" } else { "vegan" }), self_hedge()),
+        r("diet", concat!(r"i(?<=\bi)(?:'m| am| have| was diagnosed with| got diagnosed with|'ve got| also have)? (?:a )?(?:celiac|coeliac)\b|m(?<=\bm)y (?:celiac|coeliac)\b|i(?<=\bi)(?: (?:eat|am|have to (?:eat|be|stay)|keep|went|stay)|'m) (?:strictly |completely |100% )?gluten[- ]free\b|t(?<=\bt)he gf diet\b",
+          r"|i(?<=\bi)(?:'m| am) (?:\w+ )?(?:gluten|wheat)[- ]intolerant\b|i(?<=\bi) (?:can't|cannot|can not|can't really) (?:have|eat|do|tolerate) (?:any )?(?:gluten|wheat)\b|(?<!\bshould )(?<!\bcould )(?<!\bwould )(?<!\bcan )(?<!\bdo )(?<!\bdid )(?<!\bwill )i(?<=\bi) (?:\w+ )?(?:cut|cutting) out (?:\w+ and )?gluten\b(?! for\b)"), constant("gluten-free"), self_hedge()),
+        r("diet", concat!(r"i(?<=\bi)(?:'m| am) (?:on |doing )?(?:a |strict )?(keto)\b(?! (?:friendly|recipe))|i(?<=\bi) (?:do|eat|follow|went) (keto|ketogenic|low[- ]carb)\b|(?:\A", claimcore::flair!(), r"|[.!?\n] ?)been (?:doing|on|eating) (?:strict |clean |dirty |lazy )?(keto|low[- ]carb)\b(?! (?:friendly|recipe))"),
+          |m| Some(if contains(m.text(), "carb") { "low carb" } else { "keto" }), self_hedge()),
+        r("diet", concat!(r"i(?<=\bi)(?:'m| am|'ve been| have been)? (?:(?!not\b|never\b|no\b|dont\b|didnt\b|stopped\b|quit\b|used\b|tried\b|want\b|wanted\b)\w+ )?(?:do|doing|on|following|follow|practice|practicing|eat|eating) (?:a |an |strict |mostly )?(intermittent fasting|omad|paleo|high[- ]protein)(?: diet)?\b|(?:\A", claimcore::flair!(), r"|[.!?\n] ?)been (?:doing|on|eating) (?:a |strict )?(intermittent fasting|omad)\b"),
+          |m| { let word = m.g(1); Some(if word == "paleo" { "paleo" } else if word.starts_with("high") { "high protein" } else { "intermittent fasting" }) }, self_hedge()),
+        r("diet", r"i(?<=\bi) (?:don't|do not|dont) eat (meat|any meat|animal products)\b|i(?<=\bi)(?:'m| am) (?:fully |mostly |\d+% )?(plant[- ]based)\b|i(?<=\bi) eat (plant[- ]based)\b", |m| Some(if contains(m.text(), "meat") { "vegetarian" } else { "plant-based" }), self_hedge()),
         r("diet", r"i(?<=\bi) eat meat\b|i(?<=\bi)'?m a (?:meat eater|omnivore)\b", constant("omnivore / meat eater"), hedge()),
-        r("diet", r"(?:vegan|vegetarian|veggie|keto|ketogenic|low[- ]carb|lchf|plant[- ]based|halal|kosher|carnivore)\b(?: (?:diet|lifestyle|eating pattern|way of eating|woe|regimen)\b)?", diet_mine, self_hedge()),
+        r("diet", r"(?:vegan|vegetarian|veggie|pescatarian|pescetarian|flexitarian|keto|ketogenic|low[- ]carb|low[- ]fodmap|gluten[- ]free|dairy[- ]free|sugar[- ]free|plant[- ]based|halal|kosher|carnivore|mediterranean)\b(?: (?:diet|lifestyle|eating pattern|way of eating|woe|regimen)\b)?", diet_mine, self_hedge()),
+        r("diet", concat!(r"i(?<=\bi)(?:'m| am|'ve been| have been| went| eat| stay| keep)(?: also| completely| strictly| mostly| now| currently| fully| totally| 100%)? (dairy|sugar)[- ]free\b(?! (?:products?|versions?|options?|alternatives?|recipes?|snacks?|gum|candy|ice cream|syrups?|drinks?|soda|sweeteners?|creamer|milk|cheese)\b)",
+          r"|i(?<=\bi)(?:'ve| have)? (?:(?!not\b|never\b|no\b|havent\b|hadnt\b|didnt\b|dont\b|cant\b|wont\b|almost\b|nearly\b)\w+ )?(?:quit|cut out|gave up|given up) (?:all )?(?:added |refined )?(sugar|dairy)\b(?! for\b)"), |m| Some(if contains(m.text(), "sugar") { "sugar free" } else { "dairy free" }), self_hedge()),
         r("diet", r"i(?<=\bi) (?:only |strictly |always |also |still )?(?:eat|keep) (?:strictly |only )?(halal|kosher)\b(?! (?:sometimes|occasionally|once|when|at|if)\b)", |m| get(DIETS, m.group(1)), self_hedge()),
+        r("diet", concat!(r"i(?<=\bi)(?:'m| am|'ve been| have been) (?:(?!not\b|never\b|no\b|havent\b|hadnt\b|didnt\b|dont\b|cant\b|wont\b|almost\b|nearly\b)\w+ )?(?:counting (?:my )?calories|tracking (?:my )?(?:calories|macros)|doing cico|calorie counting)\b",
+          r"|i(?<=\bi)(?:'ve| have)? (?:just |finally |recently )?started (?:counting|tracking) (?:my )?(?:calories|macros)|i(?<=\bi)(?:'ve| have)? (?:just |finally |recently )?started (?:calorie counting|cico)",
+          r"|i(?<=\bi) (?:(?!not\b|never\b|no\b|havent\b|hadnt\b|didnt\b|dont\b|cant\b|wont\b|almost\b|nearly\b)\w+ )?(?:count|track) (?:my )?(?:calories|macros)\b(?! (?:for|when|if|on)\b)"), constant("calorie counting"), self_hedge()),
         r("diet", r"here(?<=\bhere)\b", |m| labelled(m, &DIET_HERE, DIETS), self_hedge()),
-        r("diet", r"i(?<=\bi)(?:'ve been| went| became| turned) (vegan|vegetarian)\b|been(?<=\bbeen) (?:strictly |completely |fully |mostly )?(vegan|vegetarian|keto|low[- ]carb)\b|went(?<=\bwent) (vegan|vegetarian|keto|low[- ]carb)\b", |m| get(DIETS, m.first()), self_hedge()),
+        r("diet", r"i(?<=\bi)(?:'ve been| went| became| turned) (vegan|vegetarian|pescatarian)\b|been(?<=\bbeen) (?:strictly |completely |fully |mostly )?(vegan|vegetarian|pescatarian|gluten[- ]free|keto|low[- ]carb)\b|went(?<=\bwent) (vegan|vegetarian|pescatarian|gluten[- ]free|keto|low[- ]carb)\b", |m| get(DIETS, m.first()), self_hedge()),
         r("diet", &format!(r"(?:b(?<=\bb)eing|b(?<=\bb)ecoming|g(?<=\bg)oing|s(?<=\bs)witched to|s(?<=\bs)witching to) {TAKEN}(?![,\s]+(?:you|u)\b)"), own, self_hedge()),
-        r("diet", concat!(r"\A", claimcore::flair!(), r"\W*(?:(?:mostly|strict|strictly|proud) )?(vegan|vegetarian)[ \t]*(?:[.!]|\n|\Z)"), |m| get(DIETS, m.group(1)), self_hedge()),
+        r("diet", concat!(r"\A", claimcore::flair!(), r"\W*(?:(?:mostly|strict|strictly|proud) )?(vegan|vegetarian|pescatarian|pescetarian|flexitarian)[ \t]*(?:[.!]|\n|\Z)"), |m| get(DIETS, m.group(1)), self_hedge()),
     ]
 }
 

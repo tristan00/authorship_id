@@ -65,8 +65,26 @@
     "agender",
     "genderqueer",
     "bigender",
-    "demiboy / demigirl",
-    "xenogender"
+    "demiboy",
+    "demigirl",
+    "xenogender",
+    "questioning",
+    "transmasc",
+    "transfem",
+    "genderflux",
+    "neutrois",
+    "two-spirit",
+    "demifluid",
+    "fluidflux",
+    "maverique",
+    "trans woman",
+    "trans man",
+    "cis woman",
+    "cis man",
+    "cis (gender unstated)",
+    "trans (unspecified)",
+    "transsexual",
+    "egg"
    ]
   },
   {
@@ -203,10 +221,15 @@
    "name": "romantic_orientation",
    "prompt": "person",
    "kind": "one",
-   "describe": "What is the writer's romantic orientation: aromantic spectrum (aromantic, demiromantic, grayromantic) or directed romantic (biromantic, panromantic, homoromantic, heteroromantic)",
+   "describe": "What is the writer's romantic orientation",
    "values": [
-    "aromantic spectrum",
-    "directed romantic"
+    "aromantic",
+    "demiromantic",
+    "biromantic",
+    "panromantic",
+    "homoromantic",
+    "heteroromantic",
+    "grayromantic"
    ]
   },
   {
@@ -302,10 +325,14 @@
    "kind": "one",
    "describe": "How does the writer describe their sexual experience",
    "values": [
-    "no experience",
-    "little experience",
+    "virgin",
+    "kissless virgin",
+    "inexperienced",
     "experienced",
-    "celibate"
+    "new to this / first timer",
+    "nbsb (no boyfriend since birth)",
+    "celibate",
+    "sexually active"
    ]
   },
   {
@@ -534,7 +561,7 @@
   {
    "name": "religious_upbringing",
    "prompt": "person",
-   "kind": "one",
+   "kind": "set",
    "describe": "What religion was the writer raised in",
    "values": [
     "catholic",
@@ -680,7 +707,7 @@
   {
    "name": "schooling",
    "prompt": "person",
-   "kind": "one",
+   "kind": "set",
    "describe": "What kind of school did the writer go to",
    "values": [
     "homeschooled",
@@ -866,14 +893,16 @@
   {
    "name": "eye_color",
    "prompt": "person",
-   "kind": "one",
+   "kind": "set",
    "describe": "What is the writer's eye color",
    "values": [
     "brown",
     "blue",
     "green",
     "hazel",
-    "gray"
+    "gray",
+    "heterochromia",
+    "amber"
    ]
   },
   {
@@ -1014,9 +1043,14 @@
    "kind": "set",
    "describe": "What sexual-health status does the writer state",
    "values": [
-    "tested negative / std-free",
+    "ddf / std-free",
+    "hiv negative",
     "on prep",
-    "has an sti"
+    "hiv positive",
+    "hsv-1",
+    "hsv-2",
+    "herpes / hsv (type unstated)",
+    "hpv"
    ]
   },
   {
@@ -1151,10 +1185,24 @@
    "name": "mbti_type",
    "prompt": "person",
    "kind": "one",
-   "describe": "Is the writer's MBTI type intuitive (N) or sensing (S)",
+   "describe": "What is the writer's MBTI type",
    "values": [
-    "intuitive",
-    "sensing"
+    "intj",
+    "intp",
+    "entj",
+    "entp",
+    "infj",
+    "infp",
+    "enfj",
+    "enfp",
+    "istj",
+    "isfj",
+    "estj",
+    "esfj",
+    "istp",
+    "isfp",
+    "estp",
+    "esfp"
    ]
   },
   {
@@ -1178,11 +1226,14 @@
    "name": "instinctual_variant",
    "prompt": "person",
    "kind": "one",
-   "describe": "Which enneagram instinct comes first in the writer's instinctual stacking",
+   "describe": "What is the writer's enneagram instinctual stacking",
    "values": [
-    "sp",
-    "sx",
-    "so"
+    "sp/sx",
+    "sp/so",
+    "sx/sp",
+    "sx/so",
+    "so/sp",
+    "so/sx"
    ]
   },
   {
@@ -1213,11 +1264,20 @@
    "name": "sun_sign",
    "prompt": "person",
    "kind": "one",
-   "describe": "What is the modality of the writer's sun sign (cardinal: aries, cancer, libra, capricorn; fixed: taurus, leo, scorpio, aquarius; mutable: gemini, virgo, sagittarius, pisces)",
+   "describe": "What is the writer's sun sign",
    "values": [
-    "cardinal",
-    "fixed",
-    "mutable"
+    "aries",
+    "taurus",
+    "gemini",
+    "cancer",
+    "leo",
+    "virgo",
+    "libra",
+    "scorpio",
+    "sagittarius",
+    "capricorn",
+    "aquarius",
+    "pisces"
    ]
   },
   {
@@ -1434,15 +1494,29 @@
   {
    "name": "diet",
    "prompt": "person",
-   "kind": "one",
+   "kind": "set",
    "describe": "What diet does the writer follow",
    "values": [
     "vegan",
+    "plant-based",
     "vegetarian",
     "carnivore",
-    "keto / low carb",
     "omnivore / meat eater",
-    "halal / kosher"
+    "paleo",
+    "intermittent fasting",
+    "gluten-free",
+    "high protein",
+    "pescatarian",
+    "flexitarian",
+    "calorie counting",
+    "halal",
+    "kosher",
+    "keto",
+    "low carb",
+    "sugar free",
+    "low fodmap",
+    "dairy free",
+    "mediterranean diet"
    ]
   },
   {
@@ -1745,7 +1819,11 @@
    "kind": "set",
    "describe": "Which alterhuman or furry identity does the writer claim",
    "values": [
+    "therian",
+    "otherkin",
+    "fictionkin",
     "alterhuman",
+    "polymorphkin",
     "furry"
    ]
   },
@@ -1780,6 +1858,7 @@
    "describe": "What facial hair does the writer have",
    "values": [
     "full beard",
+    "beard (unspecified)",
     "short / trimmed beard",
     "stubble",
     "goatee",
@@ -1846,7 +1925,9 @@
     "non-drinker",
     "rarely drinks",
     "social / occasional drinker",
-    "heavy drinker"
+    "heavy drinker",
+    "drinker (frequency unstated)",
+    "california sober"
    ]
   },
   {
@@ -1929,7 +2010,14 @@
     "punk",
     "nerd / geek",
     "jock",
-    "otaku / weeb"
+    "otaku / weeb",
+    "cowboy / western",
+    "bimbo",
+    "gym rat",
+    "hippie",
+    "grunge",
+    "skater",
+    "nudist / naturist"
    ]
   },
   {
@@ -1977,7 +2065,9 @@
    "describe": "Where is the writer in menopause",
    "values": [
     "perimenopause",
-    "menopausal or post"
+    "menopause",
+    "post-menopause",
+    "surgical menopause"
    ]
   },
   {

@@ -178,7 +178,7 @@ fn flair_claims(flair: &str) -> Vec<(String, String, Origin)> {
     let mut found: Vec<(String, String, Origin)> = crate::positioned(flair).into_iter().map(|(attribute, value, _, origin)| (attribute, value, origin)).collect();
     let chars: Vec<char> = flair.chars().collect();
     let mbti = std::panic::Location::caller();
-    found.extend(MBTI.iter(&chars).map(|found| ("mbti_type".to_string(), if found.g(1).chars().nth(1) == Some('N') { "intuitive" } else { "sensing" }.to_string(), mbti)));
+    found.extend(MBTI.iter(&chars).map(|found| ("mbti_type".to_string(), found.g(1).to_lowercase(), mbti)));
     found.sort();
     found.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
     found

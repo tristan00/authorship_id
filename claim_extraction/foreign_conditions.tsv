@@ -269,7 +269,7 @@ de	herzversagen	physical_conditions	heart failure
 de	herzvitien	physical_conditions	heart condition (unnamed)
 de	herzvitium	physical_conditions	heart condition (unnamed)
 de	heubner-herter-krankheit	physical_conditions	celiac
-de	hi-virus	sexual_health_status	has an sti
+de	hi-virus	sexual_health_status	hiv positive
 de	hirntumor	physical_conditions	cancer
 de	hno-karzinom	physical_conditions	cancer
 de	hno-krebs	physical_conditions	cancer
@@ -279,9 +279,9 @@ de	hodgkin-lymphom	physical_conditions	cancer
 de	hodgkinsche krankheit	physical_conditions	cancer
 de	hornhautkrümmung	vision	astigmatism
 de	hornhautverkrümmung	vision	astigmatism
-de	human immunodeficiency virus	sexual_health_status	has an sti
-de	humane immundefizienz-virus	sexual_health_status	has an sti
-de	humanes immundefizienz-virus	sexual_health_status	has an sti
+de	human immunodeficiency virus	sexual_health_status	hiv positive
+de	humane immundefizienz-virus	sexual_health_status	hiv positive
+de	humanes immundefizienz-virus	sexual_health_status	hiv positive
 de	hunner-zystitis	physical_conditions	interstitial cystitis / pelvic floor
 de	hyperaktives syndrom	mental_and_developmental_conditions	adhd
 de	hyperaktivitätsstörung	mental_and_developmental_conditions	adhd
@@ -442,7 +442,7 @@ de	mcas	physical_conditions	mcas
 de	medulloblastom	physical_conditions	cancer
 de	melanom	physical_conditions	cancer
 de	melanosarkom	physical_conditions	cancer
-de	menopause	menopause_stage	menopausal or post
+de	menopause	menopause_stage	menopause
 de	menschen mit beeinträchtigung	physical_conditions	disability (unspecified)
 de	menschen mit behinderung	physical_conditions	disability (unspecified)
 de	metastasierter brustkrebs	physical_conditions	cancer
@@ -528,7 +528,7 @@ de	pleuramesotheliom	physical_conditions	cancer
 de	poliartróz	physical_conditions	arthritis
 de	post vietnam syndrome	mental_and_developmental_conditions	ptsd
 de	post-vietnam-syndrom	mental_and_developmental_conditions	ptsd
-de	postmenopause	menopause_stage	menopausal or post
+de	postmenopause	menopause_stage	menopause
 de	postnatale depression	mental_and_developmental_conditions	depression
 de	postpartale depression	mental_and_developmental_conditions	depression
 de	postpartale psychose	mental_and_developmental_conditions	depression
@@ -854,7 +854,7 @@ es	celiaquía	physical_conditions	celiac
 es	cetoacidosis diabética	physical_conditions	diabetes (type unstated)
 es	ciclotimia	mental_and_developmental_conditions	bipolar
 es	cistitis intersticial	physical_conditions	interstitial cystitis / pelvic floor
-es	climaterio femenino	menopause_stage	menopausal or post
+es	climaterio femenino	menopause_stage	menopause
 es	colangiocarcinoma	physical_conditions	cancer
 es	colitis	physical_conditions	ibd (crohn's / colitis)
 es	colitis microscópica	physical_conditions	ibd (crohn's / colitis)
@@ -1181,7 +1181,7 @@ es	mal de bechterew-strümpell-marie	physical_conditions	arthritis
 es	meduloblastoma	physical_conditions	cancer
 es	melanoma	physical_conditions	cancer
 es	melanoma maligno	physical_conditions	cancer
-es	menopausia	menopause_stage	menopausal or post
+es	menopausia	menopause_stage	menopause
 es	mesotelioma	physical_conditions	cancer
 es	miedo a los espacios abiertos	mental_and_developmental_conditions	anxiety
 es	mieloma	physical_conditions	cancer
@@ -1435,7 +1435,7 @@ es	turético	mental_and_developmental_conditions	tourette / tics
 es	vaginismo	physical_conditions	interstitial cystitis / pelvic floor
 es	valvulopatia	physical_conditions	heart condition (unnamed)
 es	valvulopatía	physical_conditions	heart condition (unnamed)
-es	virus de la inmunodeficiencia humana	sexual_health_status	has an sti
+es	virus de la inmunodeficiencia humana	sexual_health_status	hiv positive
 es	vulvodinia	physical_conditions	interstitial cystitis / pelvic floor
 fr	acidocétose diabétique	physical_conditions	diabetes (type unstated)
 fr	adénocarcinome du pancréas	physical_conditions	cancer
@@ -1745,7 +1745,7 @@ fr	maniaco-depressif	mental_and_developmental_conditions	bipolar
 fr	maniaco-depressiva	mental_and_developmental_conditions	bipolar
 fr	manque d'appétit	mental_and_developmental_conditions	anorexia
 fr	melanome	physical_conditions	cancer
-fr	menopause	menopause_stage	menopausal or post
+fr	menopause	menopause_stage	menopause
 fr	mesotheliome	physical_conditions	cancer
 fr	migraine	physical_conditions	migraine
 fr	migraine avec aura	physical_conditions	migraine
@@ -1763,8 +1763,8 @@ fr	myélomes multiples	physical_conditions	cancer
 fr	médulloblastome	physical_conditions	cancer
 fr	mélanome	physical_conditions	cancer
 fr	mélanome malin	physical_conditions	cancer
-fr	ménopause	menopause_stage	menopausal or post
-fr	ménopause précoce	menopause_stage	menopausal or post
+fr	ménopause	menopause_stage	menopause
+fr	ménopause précoce	menopause_stage	menopause
 fr	mésothéliome	physical_conditions	cancer
 fr	neuroatypique	mental_and_developmental_conditions	neurodivergent (unspecified)
 fr	neuroblastome	physical_conditions	cancer
@@ -1960,7 +1960,7 @@ fr	urgence hypertensive	physical_conditions	cancer
 fr	vaginisme	physical_conditions	interstitial cystitis / pelvic floor
 fr	valvulopathie	physical_conditions	heart condition (unnamed)
 fr	valvulopathie cardiaque	physical_conditions	heart condition (unnamed)
-fr	virus de l'immunodéficience humaine	sexual_health_status	has an sti
+fr	virus de l'immunodéficience humaine	sexual_health_status	hiv positive
 fr	vulvodynie	physical_conditions	interstitial cystitis / pelvic floor
 fr	épilepsie	physical_conditions	epilepsy
 fr	épilepsie réflexe	physical_conditions	epilepsy
@@ -2106,7 +2106,7 @@ it	cheratocono	vision	keratoconus
 it	chetoacidosi diabetica	physical_conditions	diabetes (type unstated)
 it	ciclotimia	mental_and_developmental_conditions	bipolar
 it	cistite interstiziale	physical_conditions	interstitial cystitis / pelvic floor
-it	climaterio	menopause_stage	menopausal or post
+it	climaterio	menopause_stage	menopause
 it	colangiocarcinoma	physical_conditions	cancer
 it	colite	physical_conditions	ibd (crohn's / colitis)
 it	colite microscopica	physical_conditions	ibd (crohn's / colitis)
@@ -2319,7 +2319,7 @@ it	male da raggi	physical_conditions	cancer
 it	medulloblastoma	physical_conditions	cancer
 it	melanoma	physical_conditions	cancer
 it	melanomi	physical_conditions	cancer
-it	menopausa	menopause_stage	menopausal or post
+it	menopausa	menopause_stage	menopause
 it	mesotelioma	physical_conditions	cancer
 it	mieloma	physical_conditions	cancer
 it	mieloma multiplo	physical_conditions	cancer
@@ -2470,7 +2470,7 @@ it	tumori di testa e collo	physical_conditions	cancer
 it	urica	physical_conditions	arthritis
 it	vaginismo	physical_conditions	interstitial cystitis / pelvic floor
 it	valvulopatia	physical_conditions	heart condition (unnamed)
-it	virus dell'immunodeficienza umana	sexual_health_status	has an sti
+it	virus dell'immunodeficienza umana	sexual_health_status	hiv positive
 it	vulvodinia	physical_conditions	interstitial cystitis / pelvic floor
 nl	aandachts-tekort-stoornis met hyperactiviteit	mental_and_developmental_conditions	adhd
 nl	acute leukemie	physical_conditions	cancer
@@ -2483,7 +2483,7 @@ nl	adhd	mental_and_developmental_conditions	adhd
 nl	adult attention deficit disorder	mental_and_developmental_conditions	adhd
 nl	agorafobie	mental_and_developmental_conditions	anxiety
 nl	agrafie	mental_and_developmental_conditions	dyslexia / learning disorder
-nl	aidsvirus	sexual_health_status	has an sti
+nl	aidsvirus	sexual_health_status	hiv positive
 nl	alvleesklierkanker	physical_conditions	cancer
 nl	angiosarcoma	physical_conditions	cancer
 nl	angst	mental_and_developmental_conditions	anxiety
@@ -2569,7 +2569,7 @@ nl	chondrosarcoom	physical_conditions	cancer
 nl	chronisch covid-syndroom	physical_conditions	long covid
 nl	chronische lymfatische leukemie	physical_conditions	cancer
 nl	chronische pijn	physical_conditions	chronic pain / crps
-nl	climacterium	menopause_stage	menopausal or post
+nl	climacterium	menopause_stage	menopause
 nl	coeliakie	physical_conditions	celiac
 nl	colitis	physical_conditions	ibd (crohn's / colitis)
 nl	colitis ulcerosa	physical_conditions	ibd (crohn's / colitis)
@@ -2668,14 +2668,14 @@ nl	hepatocellulair carcinoom	physical_conditions	cancer
 nl	hersenkanker	physical_conditions	cancer
 nl	hersentumor	physical_conditions	cancer
 nl	hersentumoren	physical_conditions	cancer
-nl	hiv-virus	sexual_health_status	has an sti
+nl	hiv-virus	sexual_health_status	hiv positive
 nl	hodgkin	physical_conditions	cancer
 nl	hodgkin's lymfoom	physical_conditions	cancer
 nl	hodgkin's lymphoma	physical_conditions	cancer
 nl	hodgkinlymfoom	physical_conditions	cancer
 nl	huidkanker	physical_conditions	cancer
 nl	huidschilfering	physical_conditions	psoriasis
-nl	human immunodeficiency virus	sexual_health_status	has an sti
+nl	human immunodeficiency virus	sexual_health_status	hiv positive
 nl	hyperactief	mental_and_developmental_conditions	adhd
 nl	hyperactiviteit	mental_and_developmental_conditions	adhd
 nl	hypermobiliteitssyndroom	physical_conditions	ehlers-danlos
@@ -2732,9 +2732,9 @@ nl	medulloblastoom	physical_conditions	cancer
 nl	melanoma	physical_conditions	cancer
 nl	melanoom	physical_conditions	cancer
 nl	melanoomkanker	physical_conditions	cancer
-nl	menopause	menopause_stage	menopausal or post
-nl	menopauze	menopause_stage	menopausal or post
-nl	menselijk immuundeficiëntievirus	sexual_health_status	has an sti
+nl	menopause	menopause_stage	menopause
+nl	menopauze	menopause_stage	menopause
+nl	menselijk immuundeficiëntievirus	sexual_health_status	hiv positive
 nl	mesothelioom	physical_conditions	cancer
 nl	microscopische colitis	physical_conditions	ibd (crohn's / colitis)
 nl	migraine	physical_conditions	migraine
@@ -3019,7 +3019,7 @@ pl	jelito drażliwe	physical_conditions	ibs
 pl	katarakta	vision	cataract
 pl	kauzalgia	physical_conditions	chronic pain / crps
 pl	ketokwasica cukrzycowa	physical_conditions	diabetes (type unstated)
-pl	klimakterium	menopause_stage	menopausal or post
+pl	klimakterium	menopause_stage	menopause
 pl	koksartroza	physical_conditions	arthritis
 pl	kolostomia	physical_conditions	ostomy
 pl	kompleksowy zespół bólu regionalnego	physical_conditions	chronic pain / crps
@@ -3038,7 +3038,7 @@ pl	lęk przed stratą	mental_and_developmental_conditions	anxiety
 pl	lęk uogólniony	mental_and_developmental_conditions	anxiety
 pl	makulopatia cukrzycowa	physical_conditions	diabetes (type unstated)
 pl	melanoma	physical_conditions	cancer
-pl	menopauza	menopause_stage	menopausal or post
+pl	menopauza	menopause_stage	menopause
 pl	mesothelioma	physical_conditions	cancer
 pl	migotanie przedsionków	physical_conditions	afib / arrhythmia / svt
 pl	migrena	physical_conditions	migraine
@@ -3137,7 +3137,7 @@ pl	pochwica	physical_conditions	interstitial cystitis / pelvic floor
 pl	pograniczne zaburzenie osobowości	mental_and_developmental_conditions	bpd
 pl	postacute covid-19	physical_conditions	long covid
 pl	prawokomorowa niewydolność serca	physical_conditions	heart failure
-pl	przekwitanie	menopause_stage	menopausal or post
+pl	przekwitanie	menopause_stage	menopause
 pl	przewlekła białaczka limfatyczna	physical_conditions	cancer
 pl	przewlekła białaczka limfocytowa	physical_conditions	cancer
 pl	przewlekłe białaczki limfatyczne	physical_conditions	cancer
@@ -3239,7 +3239,7 @@ pl	wada wzroku	vision	blind / low vision
 pl	wady serca	physical_conditions	heart condition (unnamed)
 pl	wady wrodzone serca	physical_conditions	heart condition (unnamed)
 pl	wilczy głód	mental_and_developmental_conditions	bulimia
-pl	wirus zespołu nabytego braku odporności	sexual_health_status	has an sti
+pl	wirus zespołu nabytego braku odporności	sexual_health_status	hiv positive
 pl	wrodzona wada serca	physical_conditions	heart condition (unnamed)
 pl	wrodzone wady serca	physical_conditions	heart condition (unnamed)
 pl	wrzodziejące zapalenie jelita grubego	physical_conditions	ibd (crohn's / colitis)
@@ -3436,7 +3436,7 @@ pt	ceratocone	vision	keratoconus
 pt	cetoacidose diabética	physical_conditions	diabetes (type unstated)
 pt	ciclotimia	mental_and_developmental_conditions	bipolar
 pt	cistite intersticial	physical_conditions	interstitial cystitis / pelvic floor
-pt	climatério sexual	menopause_stage	menopausal or post
+pt	climatério sexual	menopause_stage	menopause
 pt	colangiocarcinoma	physical_conditions	cancer
 pt	colite	physical_conditions	ibd (crohn's / colitis)
 pt	colite microscópica	physical_conditions	ibd (crohn's / colitis)
@@ -3607,7 +3607,7 @@ pt	meduloblastoma	physical_conditions	cancer
 pt	megalomania	mental_and_developmental_conditions	npd
 pt	melanoma	physical_conditions	cancer
 pt	melanoma maligno	physical_conditions	cancer
-pt	menopausa	menopause_stage	menopausal or post
+pt	menopausa	menopause_stage	menopause
 pt	mesotelioma	physical_conditions	cancer
 pt	mielodisplasia	physical_conditions	cancer
 pt	mieloma	physical_conditions	cancer
@@ -3755,5 +3755,5 @@ pt	valvopatia	physical_conditions	heart condition (unnamed)
 pt	valvulopatia	physical_conditions	heart condition (unnamed)
 pt	vestibulite vulvar	physical_conditions	interstitial cystitis / pelvic floor
 pt	vista curta	vision	nearsighted
-pt	vírus da imunodeficiência humana	sexual_health_status	has an sti
+pt	vírus da imunodeficiência humana	sexual_health_status	hiv positive
 pt	ânsia	mental_and_developmental_conditions	anxiety
