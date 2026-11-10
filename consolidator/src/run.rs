@@ -1,5 +1,5 @@
 use crate::database::{put_string, text, Database};
-use crate::rules::{blocked, consolidate, first, Attribute, Evidence, Step, Tallies, Vocabulary, NEED, TEXT};
+use crate::rules::{blocked, consolidate, first, Attribute, Evidence, Step, Tallies, Vocabulary, TEXT};
 use crate::{log, parallel, timed};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::collections::HashMap;
@@ -14,6 +14,7 @@ const EXCLUDED: &str = "'', '[deleted]', '[removed]', 'AutoModerator'";
 const KEY: &str = "reinterpretAsUInt128(substring(text_sha256, 1, 16))";
 const OUTPUTS: &str = "CREATE TABLE author_attributes_next (attribute String, kind String) ENGINE = MergeTree ORDER BY attribute";
 const CLAIMS: &str = "CREATE TABLE author_claims_next (author String, attribute LowCardinality(String), value String) ENGINE = MergeTree ORDER BY (author, attribute)";
+const SCHEMA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../claim_extraction/schema.json");
 
 struct TextClaims {
     keys: Vec<u128>,
@@ -141,17 +142,35 @@ struct Done {
     rows: Vec<u8>,
     authors: u64,
     decided: u64,
+    tied: Vec<u32>,
     tallies: Tallies,
     deferred: Vec<(String, Evidence)>,
 }
 
+fn count_tied(counts: &mut HashMap<u32, u64>, tied: Vec<u32>) {
+    for name in tied {
+        *counts.entry(name).or_default() += 1;
+    }
+}
+
+fn bounds() -> HashMap<String, (f64, f64)> {
+    let text = std::fs::read_to_string(SCHEMA).unwrap_or_else(|error| panic!("cannot read {SCHEMA}: {error}"));
+    let schema: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|error| panic!("{SCHEMA} does not parse: {error}"));
+    let attributes = schema["attributes"].as_array().unwrap_or_else(|| panic!("{SCHEMA} has no attributes list"));
+    let found: HashMap<String, (f64, f64)> = attributes.iter().filter_map(|attribute| Some((attribute["name"].as_str()?.to_string(), (attribute["low"].as_f64()?, attribute["high"].as_f64()?)))).collect();
+    log(&format!("schema ranges={}", found.len()));
+    found
+}
+
 fn attributes(database: &Database) -> Vec<Attribute> {
+    let ranges = timed("schema ranges", bounds);
     let mut rows = database.rows("SELECT attribute, kind, anchor, precision, unit FROM claim_attributes ORDER BY attribute FORMAT RowBinary");
     let mut found = Vec::new();
     while !rows.done() {
         let (name, kind, anchor) = (text(rows.bytes()), text(rows.bytes()), text(rows.bytes()));
         let precision = f64::from_le_bytes(rows.fixed());
-        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()) });
+        let range = ranges.get(&name).copied();
+        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range });
     }
     assert!(!found.is_empty(), "claim_attributes is empty; claim extraction publishes it");
     log(&format!("claim attributes={}", found.len()));
@@ -279,12 +298,13 @@ fn work(vocabulary: &Vocabulary, texts: &TextClaims, flairs: &FlairClaims, mut b
         let found = evidence(vocabulary, texts, flairs, &mut batch.texts[text_start..text_end], &mut batch.flairs[flair_start..flair_end]);
         (text_start, flair_start) = (text_end, flair_end);
         done.authors += 1;
-        match first(vocabulary, found, NEED, &mut done.tallies) {
-            Step::Decided(decisions) => {
+        match first(vocabulary, found, &mut done.tallies) {
+            Step::Decided(decisions, tied) => {
                 for decision in &decisions {
                     decision.encode(vocabulary, &author, &mut done.rows);
                 }
                 done.decided += decisions.len() as u64;
+                done.tied.extend(tied);
             }
             Step::Deferred(found) => done.deferred.push((author, found)),
         }
@@ -335,7 +355,7 @@ pub fn run(database: &Database, threads: usize) {
         database.command("DROP TABLE IF EXISTS author_claims_next");
         database.command(CLAIMS);
         let (rows, outbox) = bounded::<Vec<u8>>(threads * 4);
-        let (mut tallies, mut deferred, mut authors, mut decided) = (Tallies::default(), Vec::new(), 0u64, 0u64);
+        let (mut tallies, mut deferred, mut authors, mut decided, mut tied) = (Tallies::default(), Vec::new(), 0u64, 0u64, HashMap::new());
         std::thread::scope(|scope| {
             scope.spawn(|| write(database, outbox));
             timed("first pass", || {
@@ -353,6 +373,7 @@ pub fn run(database: &Database, threads: usize) {
                     deferred.extend(done.deferred);
                     authors += done.authors;
                     decided += done.decided;
+                    count_tied(&mut tied, done.tied);
                 });
             });
             log(&format!("first pass authors={authors} decided={decided} deferred={}", deferred.len()));
@@ -368,18 +389,21 @@ pub fn run(database: &Database, threads: usize) {
                         }
                     },
                     |items: Vec<(String, Evidence)>| {
-                        let (mut out, mut count) = (Vec::new(), 0u64);
+                        let (mut out, mut count, mut names) = (Vec::new(), 0u64, Vec::new());
                         for (author, found) in &items {
-                            for decision in consolidate(&vocabulary, found, NEED, &gated) {
+                            let (decisions, tied) = consolidate(&vocabulary, found, &gated);
+                            for decision in decisions {
                                 decision.encode(&vocabulary, author, &mut out);
                                 count += 1;
                             }
+                            names.extend(tied);
                         }
-                        (out, count)
+                        (out, count, names)
                     },
-                    |(out, count): (Vec<u8>, u64)| {
+                    |(out, count, names): (Vec<u8>, u64, Vec<u32>)| {
                         rows.send(out).unwrap();
                         decided += count;
+                        count_tied(&mut tied, names);
                     },
                 );
             });
@@ -390,6 +414,12 @@ pub fn run(database: &Database, threads: usize) {
         database.command("DROP TABLE author_claims_next");
         database.command("DROP TABLE claimed_keys");
         timed("author attributes", || publish(database, &described));
+        let mut tied: Vec<(&str, u64)> = tied.into_iter().map(|(name, count)| (vocabulary.attribute(name), count)).collect();
+        tied.sort_unstable();
+        for (attribute, count) in &tied {
+            log(&format!("no plurality attribute={attribute} authors={count}"));
+        }
+        log(&format!("no plurality authors={}", tied.iter().map(|entry| entry.1).sum::<u64>()));
         log(&format!("author claims authors={authors} rows={decided}"));
     });
 }

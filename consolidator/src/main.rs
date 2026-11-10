@@ -43,20 +43,26 @@ pub fn parallel<T: Send, R: Send>(threads: usize, produce: impl FnOnce(crossbeam
     });
 }
 
-fn option<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
-    args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).map(String::as_str).unwrap_or(default)
+fn option<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
+    args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).map(String::as_str)
+}
+
+fn usage() -> ! {
+    eprintln!("usage: consolidate run --host HOST --threads N [--port 8123] [--database reddit]");
+    std::process::exit(2);
+}
+
+fn required<'a>(args: &'a [String], name: &str) -> &'a str {
+    option(args, name).unwrap_or_else(|| usage())
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("run") => {
-            let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
-            run::run(&database, option(&args, "--threads", "1").parse().unwrap());
+            let database = database::Database::new(required(&args, "--host"), option(&args, "--port").unwrap_or("8123").parse().unwrap(), option(&args, "--database").unwrap_or("reddit"));
+            run::run(&database, required(&args, "--threads").parse().unwrap());
         }
-        _ => {
-            eprintln!("usage: consolidate run --host HOST [--port 8123] [--database reddit] [--threads N]");
-            std::process::exit(2);
-        }
+        _ => usage(),
     }
 }
