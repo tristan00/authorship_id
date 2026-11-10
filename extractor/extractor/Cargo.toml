@@ -13,8 +13,7 @@ demographics = { path = "../demographics" }
 location = { path = "../location" }
 life = { path = "../life" }
 work = { path = "../work" }
-health = { path = "../health" }
-fandom = { path = "../fandom" }
+interests = { path = "../interests" }
 serde_json = { version = "1", features = ["raw_value"] }
 serde = { version = "1", features = ["derive"] }
 mimalloc = { version = "0.1", default-features = false }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-pub const SOFTWARE: &str = "software or IT";
+pub const SOFTWARE: &str = "software or information technology";
 pub const ENGINEERING: &str = "engineering";
 pub const SCIENCE: &str = "science or research";
 pub const CLINICAL: &str = "doctor, nurse or clinical health";
@@ -139,7 +139,7 @@ pub const JOBS: &[(&str, &str)] = &[
         "publican|brewer|brewmaster|restaurateur|mixologist|cruise ship worker|tour guide|travel agent|food server|banquet server|cocktail server|catering assistant|",
         "fast food manager|shift manager|crew member|crew trainer|line chef|grill cook|fry cook|pizza chef|sushi chef|cafe manager|hotel worker|front of house|back of house|",
         "food truck owner|chocolatier|cheesemaker|winemaker|distiller|maitre d|maître d|steward")),
-    (TRADE, concat!("landscaper|electrician|plumber|carpenter|welder|mechanic|auto mechanic|car mechanic|diesel mechanic|aircraft mechanic|aviation mechanic|motorcycle mechanic|hvac tech|hvac technician|",
+    (TRADE, concat!("landscaper|builder|electrician|plumber|carpenter|welder|mechanic|auto mechanic|car mechanic|diesel mechanic|aircraft mechanic|aviation mechanic|motorcycle mechanic|hvac tech|hvac technician|",
         "refrigeration technician|roofer|construction worker|laborer|labourer|general contractor|subcontractor|lineman|line worker|tradesman|tradesperson|tradie|mason|bricklayer|",
         "stonemason|machinist|cnc machinist|tool and die maker|handyman|painter and decorator|house painter|drywaller|plasterer|tiler|tile setter|flooring installer|glazier|",
         "ironworker|pipefitter|steamfitter|boilermaker|millwright|sheet metal worker|insulator|concrete finisher|heavy equipment operator|crane operator|excavator operator|",
@@ -368,104 +368,3 @@ pub const VERBS: &[(&str, &str)] = &[
     ("weld", "welder"), ("serve", "server"), ("bake", "baker"), ("landscape", "landscaper"),
 ];
 
-const CS: &str = "computer science or IT";
-const NAT: &str = "natural sciences";
-const SOC_SCI: &str = "social sciences";
-const MED: &str = "medicine or health";
-const MATH: &str = "mathematics or statistics";
-const BIZ: &str = "business or finance";
-const HUM: &str = "humanities";
-const ART: &str = "arts or design";
-
-pub const SUBJECT_PAIRS: &[(&str, &str)] = &[
-    ("computer systems", CS), ("information systems", CS), ("infosys", CS), ("informatics", CS),
-    ("social science", SOC_SCI), ("social sciences", SOC_SCI), ("chem", NAT), ("bio", NAT), ("econ", SOC_SCI), ("psych", "psychology"), ("poli sci", SOC_SCI), ("polisci", SOC_SCI),
-    ("computer science", CS), ("cs", CS), ("comp sci", CS), ("software engineering", CS),
-    ("information technology", CS), ("it", CS), ("data science", CS), ("cybersecurity", CS),
-    ("engineering", "engineering"), ("mechanical engineering", "engineering"), ("electrical engineering", "engineering"), ("civil engineering", "engineering"),
-    ("chemical engineering", "engineering"), ("aerospace engineering", "engineering"), ("math", MATH), ("maths", MATH),
-    ("mathematics", MATH), ("statistics", MATH), ("physics", NAT), ("chemistry", NAT),
-    ("biology", NAT), ("biochemistry", NAT), ("geology", NAT), ("astronomy", NAT), ("neuroscience", NAT),
-    ("environmental science", NAT), ("medicine", MED), ("nursing", MED), ("pharmacy", MED),
-    ("public health", MED), ("kinesiology", MED), ("physical therapy", MED), ("psychology", "psychology"),
-    ("sociology", SOC_SCI), ("political science", SOC_SCI), ("anthropology", SOC_SCI), ("economics", SOC_SCI), ("criminology", SOC_SCI),
-    ("international relations", SOC_SCI), ("geography", SOC_SCI), ("business", BIZ), ("finance", BIZ),
-    ("accounting", BIZ), ("marketing", BIZ), ("management", BIZ), ("business administration", BIZ),
-    ("law", "law"), ("education", "education"), ("history", HUM), ("english", HUM), ("philosophy", HUM), ("literature", HUM),
-    ("linguistics", HUM), ("classics", HUM), ("theology", HUM), ("religious studies", HUM), ("art", ART), ("fine arts", ART),
-    ("graphic design", ART), ("music", ART), ("film", ART), ("theater", ART), ("theatre", ART),
-    ("architecture", ART), ("design", ART), ("journalism", HUM), ("communications", SOC_SCI),
-    ("cse", CS), ("ai", CS), ("med", MED), ("vet", MED), ("mech", "engineering"), ("ece", "engineering"),
-    ("eee", "engineering"), ("life sci", NAT), ("life science", NAT),
-];
-
-pub const SUBJECT_TABLE: &[(&str, &str)] = &[
-    (CS, "computer engineering|software development|web development|information security|game development|data analytics|artificial intelligence|machine learning"),
-    ("engineering", concat!("biomedical engineering|industrial engineering|environmental engineering|materials engineering|petroleum engineering|nuclear engineering|mechatronics|",
-        "electronics engineering|nanotechnology|robotics|engineering physics|computer and electrical engineering")),
-    (MATH, "applied math|applied mathematics|actuarial science|stats"),
-    (NAT, concat!("biochem|microbiology|molecular biology|cell biology|genetics|zoology|botany|ecology|marine biology|astrophysics|earth science|materials science|physiology|",
-        "biotechnology|forensic science|life sciences|biological sciences|natural sciences")),
-    (MED, concat!("dentistry|veterinary medicine|nutrition|dietetics|occupational therapy|speech pathology|radiography|midwifery|paramedicine|health science|health sciences|",
-        "exercise science|pharmacology|biomedical science|premed|pre-med|optometry|physiotherapy|nuclear medicine")),
-    (SOC_SCI, "social work|criminal justice|public policy|public administration|urban planning|homeland security|gender studies"),
-    (BIZ, "human resources|supply chain management|hospitality management|entrepreneurship|international business|commerce|business management|economics and finance"),
-    (HUM, "art history|english literature|comparative literature|creative writing|religion|archaeology"),
-    (ART, "game design|fashion design|interior design|animation|photography|film studies|music production|music theory|dance|drama|illustration|industrial design"),
-    ("education", "early childhood education|special education|elementary education|secondary education"),
-    ("law", "legal studies|pre-law|prelaw"),
-    ("psychology", "clinical psychology|counseling psychology"),
-];
-
-const BACH: &str = "bachelor's";
-const MAST: &str = "master's";
-const PHD: &str = "doctorate (phd)";
-const MD: &str = "medical doctor";
-const LAW_DEGREE: &str = "law degree";
-const OTHER_DOCTORATE: &str = "professional doctorate (other)";
-
-pub const DEGREES: &[(&str, &str)] = &[
-    ("bachelor", BACH), ("bachelors", BACH), ("bachelor's", BACH), ("ba", BACH), ("bs", BACH), ("bsc", BACH),
-    ("b.s.", BACH), ("b.a.", BACH), ("bcom", BACH), ("b.com", BACH), ("btech", BACH), ("b.tech", BACH),
-    ("beng", BACH), ("bba", BACH), ("bfa", BACH), ("bsn", BACH), ("undergrad degree", BACH), ("undergraduate degree", BACH),
-    ("master", MAST), ("masters", MAST), ("master's", MAST), ("ma", MAST), ("ms", MAST), ("msc", MAST), ("m.s.", MAST),
-    ("mba", MAST), ("msw", MAST), ("mtech", MAST), ("m.tech", MAST), ("mfa", MAST), ("meng", MAST), ("mse", MAST), ("msn", MAST),
-    ("phd", PHD), ("ph.d", PHD), ("ph.d.", PHD), ("doctorate", PHD), ("dphil", PHD), ("jd", LAW_DEGREE), ("llb", LAW_DEGREE),
-    ("md", MD), ("mbbs", MD), ("dds", OTHER_DOCTORATE), ("dvm", OTHER_DOCTORATE), ("dnp", OTHER_DOCTORATE), ("psyd", OTHER_DOCTORATE), ("edd", OTHER_DOCTORATE), ("dpt", OTHER_DOCTORATE), ("pharmd", "pharmacy doctorate"),
-    ("associate's", "associate"), ("associates", "associate"), ("associate degree", "associate"), ("ged", "secondary school"), ("high school diploma", "secondary school"),
-];
-pub const SHORT_DEGREES: &[&str] = &["ba", "bs", "ma", "ms", "md", "jd", "b.s.", "b.a.", "m.s.", "mse", "dds", "dvm", "mfa", "ged", "associates", "associate's"];
-
-pub const SCHOOLS: &[(&str, &str)] = &[
-    ("law", "law"), ("l", "law"), ("med", "medicine"), ("medical", "medicine"), ("pharmacy", "pharmacy"), ("nursing", "nursing"), ("dental", "dentistry"),
-    ("vet", "veterinary medicine"), ("veterinary", "veterinary medicine"), ("engineering", "engineering"), ("business", "business"), ("b", "business"), ("art", "art"),
-    ("film", "film"), ("architecture", "architecture"),
-];
-
-pub const FOREIGN_SUBJECTS: &[(&str, &str)] = &[
-    ("engineering", "engenharia|ingeniería|ingenieria|ingegneria|ingénierie|ingenieurwesen|maschinenbau|elektrotechnik"),
-    (MED, "medicina|médecine|medizin|enfermagem|enfermería|enfermeria|farmácia|farmacia|pharmacie|odontologia|odontología|fisioterapia|pflege"),
-    ("law", "direito|derecho|droit|jura|jus|giurisprudenza|rechten|rechtswissenschaft|prawo"),
-    (CS, "informática|informatica|informatique|informatik|computação|computacion|computación|wirtschaftsinformatik"),
-    ("psychology", "psicologia|psicología|psychologie|psychologia"),
-    (ART, "arquitetura|arquitectura|architettura|architecture|architektur|design|diseño|artes|arte|kunst"),
-    (BIZ, "administração|administración|administracion|contabilidade|contabilidad|economia|economía|économie|bwl|betriebswirtschaft|gestion|finanzas|finanças"),
-    (NAT, "biologia|biología|biologie|bio|química|quimica|chimie|chemie|física|fisica|physique|physik|geologia|geología"),
-    (MATH, "matemática|matemáticas|matematica|mathématiques|mathe|mathematik|estatística|estadística|statistik"),
-    (SOC_SCI, "sociologia|sociología|sociologie|soziologie|ciência política|ciencias políticas|politikwissenschaft|antropologia"),
-    ("education", "pedagogia|pedagogía|pédagogie|pädagogik|lehramt|magisterio"),
-    (HUM, "história|historia|geschichte|letras|filosofia|filosofía|philosophie|literatura|germanistik|anglistik"),
-];
-
-pub const DEGREE_SUBJECT_EXTRA: &[(&str, &str)] = &[
-    ("it management", CS), ("accountancy", BIZ), ("ultrasound", MED), ("electronics", "engineering"),
-    ("electronics and communication", "engineering"), ("electronics and communication engineering", "engineering"),
-];
-
-pub const DEGREE_FIELDS: &[(&str, &str)] = &[
-    ("business administration", "mba|bba"), ("commerce", "bcom|b.com|mcom|m.com"), ("medicine", "mbbs"), ("nursing", "bsn|msn"), ("pharmacy", "pharmd"),
-    ("veterinary medicine", "dvm"), ("dentistry", "bds"), ("law", "llb"), ("fine arts", "bfa|mfa"), ("social work", "msw|bsw"), ("engineering", "btech|b.tech|mtech|m.tech|beng|meng"),
-];
-
-pub const AMBIGUOUS_SUBJECTS: &[&str] = &["it", "ai", "art", "design", "film", "music", "dance", "business", "management", "marketing", "history", "english", "photography", "drama", "religion",
-    "nutrition", "med", "vet", "education", "commerce"];

@@ -10,9 +10,9 @@ use std::time::Instant;
 const PARTS: usize = 256;
 const BATCH: usize = 1024;
 const INSERT_BYTES: usize = 64 << 20;
-const GATED: [&str; 2] = ["occupation", "location"];
+const GATED: [&str; 4] = ["occupation", "occupation_group", "location", "origin_location"];
 const SHARE: f64 = 0.05;
-const MOTHER_CLAIMS: [(&str, &str); 2] = [("gender", "trans man"), ("assigned_sex_at_birth", "afab")];
+const MOTHER_CLAIMS: [(&str, &str); 2] = [("gender", "man"), ("trans_status", "trans")];
 const FTM_FLAIRS: u64 = 5;
 const FTM_SHARE: f64 = 0.5;
 const TABLES: [&str; 4] = [
@@ -22,7 +22,7 @@ const TABLES: [&str; 4] = [
     "CREATE TABLE IF NOT EXISTS extracted_parts (part UInt16, texts UInt64, claims UInt64, seconds Float32, build String, finished_at DateTime('UTC') DEFAULT now()) ENGINE = MergeTree ORDER BY part",
 ];
 
-static MBTI: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![A-Za-z])([IE][NS][TF][JP])(?:-[AT])?(?![A-Za-z])"));
+static MBTI: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![A-Za-z])([IEX][NSX][TFX][JPX])(?:-[AT])?(?![A-Za-z])"));
 
 fn range(part: usize) -> String {
     let low = format!("text_sha256 >= unhex('{part:02x}{}')", "00".repeat(31));
@@ -178,7 +178,9 @@ fn flair_claims(flair: &str) -> Vec<(String, String, Origin)> {
     let mut found: Vec<(String, String, Origin)> = crate::positioned(flair).into_iter().map(|(attribute, value, _, origin)| (attribute, value, origin)).collect();
     let chars: Vec<char> = flair.chars().collect();
     let mbti = std::panic::Location::caller();
-    found.extend(MBTI.iter(&chars).map(|found| ("mbti_type".to_string(), found.g(1).to_lowercase(), mbti)));
+    for kind in MBTI.iter(&chars).map(|found| found.g(1).to_lowercase()) {
+        found.extend(life::axes(&kind).into_iter().map(|(attribute, value)| (attribute.to_string(), value.to_string(), mbti)));
+    }
     found.sort();
     found.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
     found

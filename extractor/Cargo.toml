@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["claimcore", "extractor", "demographics", "location", "life", "work", "health", "fandom"]
+members = ["claimcore", "extractor", "demographics", "location", "life", "work", "interests"]
 
 [workspace.dependencies]
 claimcore = { path = "claimcore" }

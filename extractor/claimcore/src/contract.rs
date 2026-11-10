@@ -34,9 +34,7 @@ pub struct Attribute {
     #[serde(default)]
     pub anchor: Option<String>,
     #[serde(default)]
-    pub bands: Vec<f64>,
-    #[serde(default)]
-    pub at: Option<String>,
+    pub past: bool,
 }
 
 #[derive(Deserialize)]
@@ -158,8 +156,7 @@ impl Attribute {
         if let Some(anchor) = &self.anchor {
             assert!(schema.attributes.iter().any(|other| other.name == *anchor && other.kind == "number"), "{name}: anchor {anchor:?} is not a number attribute");
         }
-        assert!(self.bands.is_empty() == self.at.is_none(), "{name}: bands and at go together");
-        assert!(self.bands.is_empty() || self.kind == "number" && self.bands.windows(2).all(|pair| pair[0] < pair[1]), "{name}: bands need a number and ascending bounds");
+        assert!(!self.past || self.kind == "number" && self.unit.as_deref() == Some("year"), "{name}: past is for year numbers");
         let mut seen = HashSet::new();
         for value in &self.values {
             assert!(*value == squeeze(value) && !value.contains('|') && !value.is_empty(), "{name}: value {value:?} must be lowercase, trimmed and free of |");

@@ -7,6 +7,7 @@ const NOT_FAITH_NOUN: &str = r"(?! (?:school|music|metal|rock|rap|songs?|band|fa
 const FILLER: &str = r"(?:(?!not\b|never\b|no\b|anti\b|ex\b|non\b|former\b|formerly\b|lapsed\b|recovering\b|neither\b|nor\b|the\b|any\b|your\b|his\b|her\b|their\b|this\b|that\b|these\b|those\b|some\b|looking\b|seeking\b|for\b|into\b|dating\b|with\b|like\b|in\b|at\b|on\b|talking\b|about\b|than\b)[\w-]+,? (?:and )?){0,2}?(?:a |an )?";
 const ME: &str = r"(?:'m|m| am|am| m|'am|'?ve been|'ve always been| myself am| my self am| have been| have always been)";
 
+const COMPASS: [(&str, &str); 14] = [("authleft", "auth-left"), ("authcenter", "auth-center"), ("authright", "auth-right"), ("auth", "auth-center"), ("left", "left"), ("centrist", "centrist"), ("centg", "centrist"), ("chadcentrist", "centrist"), ("contestcentrist", "centrist"), ("right", "right"), ("libleft", "lib-left"), ("libcenter", "lib-center"), ("libright", "lib-right"), ("lib", "lib-center")];
 static RELIGIONS: &Tab = &[
     ("christian", "christian (unspecified)"), ("catholic", "catholic"), ("protestant", "protestant (unspecified)"), ("mormon", "latter-day saint"), ("lds", "latter-day saint"), ("baptist", "baptist"), ("methodist", "methodist"),
     ("lutheran", "lutheran"), ("evangelical", "evangelical / pentecostal"), ("orthodox christian", "orthodox christian"), ("muslim", "muslim"), ("jew", "jewish"), ("jewish", "jewish"), ("hindu", "hindu"),
@@ -62,13 +63,6 @@ static DIETS: &Tab = &[
 ];
 
 const TAKEN: &str = r"(?:(?:a|an|fully|strictly|full|mostly|completely|strict) )?(vegan|vegetarian|vegeterian|vegitarian|pescatarian|pescetarian)\b(?! (?:food|restaurant|options?|meals?|recipes?|friendly|cheese|version|alternatives?|products?|brand|friends?|community|people|diet for)\b)";
-const UPPERS: &str = r"(?:meth|methamphetamine|crystal meth|cocaine|coke|crack|adderall|amphetamines?|stimulants|benzos?|benzodiazepines?|xanax|klonopin|valium|ativan|alprazolam|clonazepam)\b";
-const QUIT_SPAN: &str = r"(?:(?:smoke|nicotine|vape|cigarette)[- ]free|(?:without|off) (?:smoking|vaping|nicotine|cigarettes)|after (?:vaping|smoking) (?:since|for))\b";
-const BRANCH: &str = r"(?:(?:us|u\.s\.|british|canadian|australian|indian|royal|israeli) )?(?:army|navy|marines|marine corps|air force|usaf|usmc|military|coast guard|national guard|air national guard|armed forces|army reserves?|navy reserves?|reserves|raf|idf|space force|airforce)\b";
-const UNDECLINED: &str = r"(?:(?!never\b|almost\b|nearly\b|should\b|could\b|would\b|might\b|will\b|wanted\b|want\b|wanna\b|didn't\b|didnt\b|don't\b|dont\b|won't\b|wont\b|wouldn't\b|wish\b|hope\b|plan\b|planning\b|thinking\b|considering\b|trying\b|tried\b|not\b)[\w']+ )";
-const SERVED_NOUN: &str = r"(?:us |u\.s\. )?(?:military|army|navy|marines?|marine corps|air force|airforce|usaf|usmc|coast guard|national guard|infantry|enlisted|service ?member|soldier|sailor|airman|paratrooper|infantryman)\b";
-const VET: &str = r"(?:a |an )?(?:proud |disabled |combat |retired |former |old )?(?:(?:us |u\.s\. )?(?:army|navy|marine|marine corps|air force|af|usaf|military|usmc|combat|war|coast guard|national guard|gwot) )?(?:vet|veteran)\b(?! (?:tech|clinic|bill|school|student|player|gamer|member|user|fan|raider|streamer|poster|of (?:the|this))\b)(?! [\w-]+ (?:fans?|players?|gamers?|members?|users?|streamers?|raiders?)\b)";
-const VA: &str = r"(?:(?!\bnot\b|n't\b|\bnever\b)[^.!?\n]){0,40}?\b(?:va claim|va rating|va disability|dd-?214|c&p exam|nexus letter|service[- ]connected|100% p&t|the va\b(?! (?:area|beach|state|border|side|suburbs|region)\b))\b";
 
 regex!(TAG_NEAR, r"(?<![\w$#.,'/:+-])(?:\d{2} ?(?:[mf]|male|female|yo|y/o|yrs?|years? old)|[mf] ?\d{2}|(?:\d{2} ?)?[\[\(]?[mf]4[mfa]\w*[\]\)]?)(?![\w'%])");
 regex!(NOT_SELF, r"\b(?:if|would|wish|hope|not|never|ex|former|raised|born|for|looking|seeking|into|with|any|wants?|loves?|likes?|prefers?|dating|interfaith|than|like|non|anti|no|other|lapsed)\b|\b(?:a|an|the|by|real|some|your|his|her|their)\s+$");
@@ -81,25 +75,13 @@ regex!(STARTED, r"\b(?:on|doing|started|start|eating|following|going|went|been|s
 regex!(FOODWAY, r"vegan|vegetarian|veggie|pescatarian|pescetarian|flexitarian|keto|low[- ]carb|low[- ]fodmap|gluten[- ]free|dairy[- ]free|sugar[- ]free|plant[- ]based|halal|kosher|carnivore|mediterranean");
 regex!(NOT_DIET, r" (?:diet|recipes?|friendly|meals?|food|snacks?|bread|options?|version)\b");
 regex!(UNTAKEN, r"\b(?:was|were|had|stopped|quit|want|wanted|wanna|trying|try|tried|thinking|considering|closest|hard|easy|didn't|never|not|no longer|used to|if|would|should|could|might|maybe)\b");
-regex!(SERVICE, r"\b(?:army|navy|marines?|military|usmc|air force|national guard|coast guard|deploy\w*|enlist\w*|veterans?|va|dd-?214|gi bill|mos|ets|boot ?camp|basic training|base|platoon|squadron|battalion|nco|sergeant|sgt|corporal|cpl|soldiers?|sailors?|airmen|servicemembers?|served)\b");
-regex!(COUNTED, r"\b(?:\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|a few|several|many|a couple of) (?:\+ |plus )?\Z");
-regex!(ENTERED, format!(r"\bi {UNDECLINED}?\Z"));
-regex!(WITHIN, format!(r"\bi(?:'m|'ve)? {UNDECLINED}{{1,4}}?\Z"));
-regex!(PAST, r"\b(?:was|were|had|did|used|learned|spent|back then|back in|ago|got out|retired|served|after)\b");
-regex!(DISCHARGED, r"dd|discharge|gi bill|separat|ets|eas|career|medal|pension");
 regex!(REST, r"[^.!?\n]*");
-regex!(HERE_LABEL, concat!(r"(?:^", claimcore::flair!(), r"|[.!?,;(] *)(?:hey,? |also |another )?(fellow |proud |disabled |combat |retired |former |ex[- ]?|prior )?((?:us |u\.s\. )?(?:army|navy|marine|marine corps|air force|af|usaf|usmc|military|coast guard|national guard|combat|war|gwot) )?(veteran|vet|marine|soldier|sailor|airman|service ?member|active duty|reservist) (?:too )?\Z"));
-regex!(MILITARY_WORDS, r"\b(?:va|veterans?|military|service|army|navy|marines?|air force|usmc|vso|dbq|c&p)\b");
 regex!(PIPE_TAG, concat!(r"(?:(?<![^\n|])|\A", claimcore::flair!(), r")[ \t]*(?:\d{2}[ \t]*[mf]?|[mf]|male|female)[ \t]*(?![^\n|])"));
-regex!(WAR_WORDS, r"\b(?:army|navy|marines?|military|air ?force|usmc|usaf|coast guard|national guard|veterans?|deploy\w*|enlist\w*|combat|infantry|platoon|battalion|boot ?camp|tours? of duty|war|afghanistan|iraq|vietnam|overseas|idf|caf|raf|soldiers?|sergeant|corporal|troops)\b");
-regex!(TITLE_OTHER, r"\b(?:for|seeking|looking|want|wants|wanna|need|needs|into|with|like|love|any|your|my|her|his|their)\b");
 regex!(RELIGION_HERE, format!(r"(?:^{flair}|[.!?,;(] *)(?:(?!former\b|ex\b|recovering\b|lapsed\b|non\b|not\b|raised\b|born\b|anti\b|i\b|you\b|he\b|she\b|they\b|we\b|every\b|all\b|any\b|the\b|my\b|your\b|his\b|her\b|their\b|some\b|most\b|other\b|many\b|no\b|but\b|and\b|so\b|yeah\b|because\b|that\b|was\b|is\b|are\b)[\w-]+ ){{0,3}}(?:[\w-]+ and )?({}) (?:(?!former\b|ex\b|non\b|not\b|community\b|friends?\b|family\b|people\b)[\w-]+ ){{0,2}}\Z", faith(), flair = claimcore::flair!()));
 regex!(POLITICS_HERE, format!(r"(?:^{flair}|[.!?,;(] *)(?:a |an )?(?:(?!not\b|no\b|anti\b|ex\b|non\b|former\b)[\w-]+ ){{0,2}}?({}) \Z", party(), flair = claimcore::flair!()));
 regex!(CHAIN, format!(r"\bi(?:'m| am|m)[ \t]+(?:an?[ \t]+)?(?:[\w-]+[ \t]+)?(?:{party})(?:(?:,|,?[ \t]+and|,?[ \t]+&|/)[ \t]*(?:an?[ \t]+)?(?:[\w-]+[ \t]+)?(?:{party}))*(?:,|,?[ \t]+and|,?[ \t]+&|/)[ \t]*(?:an?[ \t]+)?(?:(?!not\b|anti\b|ex\b|non\b|former\b)[\w-]+[ \t]+)?$", party = party()));
 regex!(ADJECTIVAL, r"\bi(?:'m|m| am| m)[ \t]+(?:(?:very|pretty|fairly|quite|really|super|more|so|too|rather|relatively|kinda|kind of|somewhat|generally|mostly|extremely|a bit|a little)[ \t]+)*$");
 regex!(POLITICAL, r"\b(?:politic\w*|vot\w+|left|right|democrats?|republicans?|liberals?|trump|biden|harris|government|party|parties|policy|policies|economic\w*|socially|fiscally|leftists?|socialis\w*|maga|gop|tory|tories|labour|elections?|candidates?|congress|senate|parliament|conservatives)\b");
-regex!(CANNABIS, r"\b(?:weed|pot|blunts?|joints?|bowls?|spliffs?|dabs?|carts?|bud|herb|stoner|pothead|cannabis|marijuana|thc|420|ganja|kush|bongs?|toke|toking)\b");
-regex!(UPPER, r"\b(?:meth|methamphetamine|cocaine|coke|crack|adderall|amphetamines?|stimulants)\b");
 regex!(DIET_HERE, concat!(r"(?:^", claimcore::flair!(), r"|[.!?,;(] *)(vegan|vegetarian|veggie|pescatarian|pescetarian|flexitarian) \Z"));
 
 fn ideology(m: &Match, g: usize) -> V {
@@ -112,40 +94,6 @@ fn ideology(m: &Match, g: usize) -> V {
 fn sided(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> V + Send + Sync + 'static, hedge: Hedge) -> Rule {
     let party = attribute == "party_affiliation";
     r(attribute, pattern, move |m| value(m).filter(|found| PARTIES.contains(found) == party), hedge)
-}
-
-fn quitting(m: &Match) -> V {
-    let end = (m.end() + 24).min(m.string.len());
-    if contains(m.text(), "never") || !CANNABIS.test(&m.string[m.start()..end]) {
-        None
-    } else {
-        Some("cannabis")
-    }
-}
-
-fn active(m: &Match) -> &'static str {
-    if contains(m.text(), "guard") || contains(m.text(), "reserv") {
-        "reserve / national guard"
-    } else {
-        "serving"
-    }
-}
-
-fn branch(m: &Match) -> V {
-    let word = st(m.first()?);
-    if word.contains("navy") {
-        Some("navy")
-    } else if word.contains("air") || word == "usaf" || word == "raf" {
-        Some("air force")
-    } else if word.contains("marine") || word == "usmc" {
-        Some("marines")
-    } else if word.contains("army") {
-        Some("army")
-    } else if word.contains("coast") || word == "uscg" {
-        Some("coast guard")
-    } else {
-        None
-    }
 }
 
 fn faith_of(m: &Match) -> V {
@@ -280,92 +228,6 @@ fn own(m: &Match) -> V {
     }
 }
 
-fn first_hand(m: &Match, result: &'static str) -> V {
-    if OTHER_NEAR.test_in(m.string, sentence_start(m), m.start()) {
-        None
-    } else {
-        Some(result)
-    }
-}
-
-fn service(m: &Match) -> V {
-    let start = sentence_start(m);
-    if OTHER_NEAR.test_in(m.string, start, m.start()) {
-        return None;
-    }
-    let mut joined = m.string[start..m.start()].to_vec();
-    joined.extend_from_slice(&m.string[m.start()..rest_end(m, m.start())]);
-    if DISCHARGED.test(m.text()) || PAST.test(&joined) {
-        Some("veteran")
-    } else {
-        Some(active(m))
-    }
-}
-
-fn served(m: &Match) -> V {
-    first_hand(m, "veteran")
-}
-
-fn counted(m: &Match) -> V {
-    if COUNTED.test_in(m.string, back(m, 20), m.start()) {
-        served(m)
-    } else {
-        None
-    }
-}
-
-fn entered(m: &Match) -> V {
-    if !ENTERED.test_in(m.string, sentence_start(m), m.start()) {
-        None
-    } else if contains(m.text(), "joined") || contains(m.text(), "enlisted") || contains(m.text(), "went into") {
-        service(m)
-    } else {
-        served(m)
-    }
-}
-
-fn within(m: &Match) -> V {
-    if WITHIN.test_in(m.string, sentence_start(m), m.start()) {
-        service(m)
-    } else {
-        None
-    }
-}
-
-fn here_label(m: &Match) -> V {
-    let found = HERE_LABEL.search(m.string, back(m, 80), m.start())?;
-    let kind = found.group(3).map(st).unwrap_or_default();
-    let first = found.nonempty(1).map(|g| strip_chars(g, " -")).unwrap_or(&[]);
-    if kind == "vet" || kind == "veteran" || ["retired", "former", "ex", "prior"].iter().any(|w| eq(first, w)) {
-        Some("veteran")
-    } else {
-        Some("serving")
-    }
-}
-
-fn titled(m: &Match) -> V {
-    let start = line_start(m.string, m.start());
-    let end = line_end(m.string, m.end());
-    if m.string[..start].iter().any(|c| !c.is_whitespace()) || !TAG_NEAR.test_in(m.string, start, end) || TITLE_OTHER.test_in(m.string, start, m.start()) {
-        return None;
-    }
-    let kind = m.g(1);
-    Some(if kind == "vet" || kind == "veteran" { "veteran" } else { "serving" })
-}
-
-fn profile_vet(m: &Match) -> V {
-    let before = lead(m);
-    if (SELF_NEAR.test(before) || TAG_NEAR.test(before)) && !OTHER_NEAR.test(before) {
-        Some("veteran")
-    } else {
-        None
-    }
-}
-
-fn opening(word: &str) -> String {
-    format!(r"(?:\A{flair}{word}|{word}(?:(?<=^{word})|(?<=[.!?\n(]{word})|(?<=[.!?\n(] {word})|(?<=[.!?\n]  {word})))", flair = claimcore::flair!())
-}
-
 fn piped(m: &Match, table: &Tab) -> V {
     let (start, end) = bounds(m);
     if PIPE_TAG.test_in(m.string, start, end) {
@@ -492,110 +354,6 @@ fn diet() -> Vec<Rule> {
     ]
 }
 
-fn smoking() -> Vec<Rule> {
-    vec![
-        r("recovering_from", &(concat!(r"i(?<=\bi)(?: |'ve | have )(?:haven't|have not|havent) (?:smoked|vaped|had a (?:cigarette|cig|smoke))\b|h(?<=\bh)ave(?:n't| not|nt) (?:smoked|vaped|had a (?:cigarette|cig|smoke))\b",
-          r"|i(?<=\bi) (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b|since(?<=\bsince) i (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b|after(?<=\bafter) i (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b",
-          r"|when(?<=\bwhen) i (?:stopped|quit|gave up) (?:smoking|vaping|cigarettes|cigs|nicotine)\b|i(?<=\bi)(?:'ve| have)? never smoked\b").to_string()
-          + &format!(r"|day(?<=\bday)s? {QUIT_SPAN}|week(?<=\bweek)s? {QUIT_SPAN}|month(?<=\bmonth)s? {QUIT_SPAN}|year(?<=\byear)s? (?:(?:smoke|nicotine|vape|cigarette)[- ]free|(?:without|off) (?:smoking|vaping|nicotine|cigarettes))\b")), quitting, self_hedge()),
-        r("recovering_from", r"i(?<=\bi) (?:don't|do not|dont|never) (?:smoke|vape)\b|i(?<=\bi) quit smoking\b|i(?<=\bi) used to (?:smoke|vape)\b|i(?<=\bi)(?:'m|m| am) a non-?(?:smoker|vaper)\b|i(?<=\bi)'ve never (?:smoked|vaped)\b", |m| if contains(m.text(), "quit") || contains(m.text(), "used to") { quitting(m) } else { None }, Some(&*CONDITIONAL)),
-        r("recovering_from", concat!(r"\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|a few|several) (?:days?|weeks?|months?|years?)\W{0,8}(?:after|since|off|without|free from|clean from|of not) (?:vaping|smoking|nicotine|cigarettes|cigs|the vape|juul|tobacco)\b",
-          r"|i(?<=\bi)(?:'ve| have)? (?:(?:finally|officially|just|also|recently) )?(?:quit|stopped|given up|kicked) (?:the )?(?:vape|vaping|juul|cigarettes|cigs|nicotine|smoking|tobacco)\b",
-          r"|just(?:(?<=^just)|(?<=[.!?\n]just)|(?<=[.!?\n] just)) (?:quit|stopped|gave up) (?:smoking|vaping|cigarettes|cigs)\b|d(?<=\bd)ay \d+ (?:of no|without|of not|off) (?:smoking|vaping|nicotine|cigarettes)\b"), quitting, self_hedge()),
-        r("recovering_from", &format!(r"(?:i(?<=\bi)(?:'m|m| am)|{AS}) (?:a |an )?(?:[\w-]+ ){{0,2}}?(?:former|ex)[- ]?(?:smoker|vaper|vape user)\b|i(?<=\bi) (?:\w+ )?(?:was|am|'m) never a (?:\w+ )?smoker\b"), quitting, self_hedge()),
-        r("recovering_from", concat!(r"i(?<=\bi)(?:'ve| have)? (?:(?!would\b|could\b|should\b|might\b|will\b|wanna\b|want\b|never\b)\w+ )?(?:quit|stopped|gave up|given up) (?:drinking|alcohol|the booze|booze|the drink)\b(?! for (?:like |about |around |only |just )?(?:a |\d|one|two|three|four|five|six|several|some|few))(?! (?:coffee|soda|pop|tea|milk|water|juice|energy drinks?|caffeine|like that|as much|so much|during|while|until)\b)|i(?<=\bi)(?:'m| am|m) an? (?:\w+ )?(?:recovering|sober) alcoholic\b",
-          r"|i(?<=\bi)(?:'m| am|'ve been| have been) (?:\w+ )?(?:sober|clean) from (?:alcohol|drinking|booze)\b|\d(?<!\w\d)\d* (?:days?|weeks?|months?|years?) (?:sober from alcohol|alcohol[- ]free|without (?:a drink|alcohol|drinking)|since my last drink)\b",
-          r"|i(?<=\bi) (?:haven't|have not|havent) (?:had a drink|drank|had alcohol|had a sip of alcohol) (?:in|for|since)\b"),
-          |m| first_hand(m, "alcohol"), self_hedge()),
-        r("recovering_from", concat!(r"\d(?<!\w\d)\d* (?:days?|weeks?|months?|years?) (?:gamble[- ]free|gambling[- ]free|without gambling)\b|days(?<=\bdays) gamble[- ]free\b|i(?<=\bi)(?:'ve| have)? (?:\w+ )?(?:quit|stopped|gave up|given up) gambling\b|i(?<=\bi)(?:'m| am|m) an? (?:\w+ )?recovering (?:gambler|gambling addict)\b"),
-          |m| first_hand(m, "gambling"), self_hedge()),
-        r("recovering_from", concat!(r"\d(?<!\w\d)\d* (?:days?|weeks?|months?|years?) (?:porn[- ]free|without porn|of no porn|no porn|of nofap|nofap|no fap)\b|i(?<=\bi)(?:'ve| have)? (?:\w+ )?(?:quit|stopped|gave up|given up) (?:watching )?porn\b|i(?<=\bi)(?:'m| am|m|'ve been| have been) (?:\w+ )?porn[- ]free\b"),
-          |m| first_hand(m, "porn / sex"), self_hedge()),
-        r("recovering_from", concat!(r"i(?<=\bi)(?:'ve| have)? (?:\w+ )?(?:quit|got off|kicked|stopped|gave up|given up) (?:heroin|opioids|opiates|fentanyl|fent|oxy|oxycodone|kratom|percs|percocet)\b|i(?<=\bi)(?:'m| am|'ve been| have been) (?:\w+ )?(?:clean|sober) (?:from|off) (?:heroin|opioids|opiates|fentanyl|fent|oxy|oxycodone|kratom|percs)\b"),
-          |m| first_hand(m, "opioids"), self_hedge()),
-        r("recovering_from", &format!(r"i(?<=\bi)(?:'m| am|'ve been| have been) (?:(?!not\b|never\b|no\b)[\w,]+ ){{0,4}}?(?:clean|sober) (?:from|off|off of) (?:my )?{UPPERS}|\d(?<!\w\d)\d* (?:days?|weeks?|months?|years?) (?:clean|sober) (?:from|off|off of) (?:my )?{UPPERS}|i(?<=\bi)(?:'m| am) an? (?:\w+ )?(?:recovering|former|ex[- ]?) {UPPERS} (?:addict|user|head)\b|i(?<=\bi)(?:'ve| have)? (?:(?!not\b|never\b|no\b|havent\b|hadnt\b|didnt\b|dont\b|cant\b|wont\b|almost\b|nearly\b)\w+ )?(?:quit|kicked|got off|gave up|given up|beat) (?:my )?(?:meth|cocaine|crack|benzos?|benzodiazepines|xanax|klonopin)\b"),
-          |m| first_hand(m, if UPPER.test(m.text()) { "stimulants" } else { "benzodiazepines" }), self_hedge()),
-    ]
-}
-
-fn veteran_if_service(m: &Match) -> V {
-    if SERVICE.test(m.string) {
-        Some("veteran")
-    } else {
-        None
-    }
-}
-
-fn military() -> Vec<Rule> {
-    vec![
-        r("military_status", &format!(r"i(?<=\bi){ME} (?:a |an )?(?:\w+ )?(?:rotc |jrotc |afrotc |nrotc |army |navy |air force |military )?(?:cadet|midshipman)\b(?! (?:nurse|program)\b)|i(?<=\bi){ME} (?:currently |also )?in (?:rotc|jrotc|afrotc|nrotc|army rotc|navy rotc|the (?:naval|air force|military|coast guard) academy|west point)\b"),
-          constant("cadet / rotc"), self_hedge()),
-        r("military_status", &(format!(r"i(?<=\bi){ME} (?:currently |still )?(?:in|serving in|enlisted in) the (?:us |u\.s\. )?(?:army|navy|marines|air force|airforce|military|national guard|coast guard|marine corps|reserves|space force)\b|i(?<=\bi){ME} (?:on )?active duty\b")
-          + &format!(r"|i(?<=\bi){ME} (?:a |an )?(?:active duty )?(?:soldier|marine|sailor|airman|service ?member|infantryman|paratrooper)\b(?! (?:biolog|scien|life\b|ecolog|mammal|tech|engineer|mechanic|electrician|surveyor|corps vet|vet|veteran))|i(?<=\bi){ME} (?:currently )?(?:deployed|stationed)\b")
-          + r"|my(?<=\bmy) (?:platoon|squadron|battalion|deployment|chain of command|first sergeant|drill sergeant|commanding officer|nco|squad leader)\b"), |m| first_hand(m, active(m)), self_hedge()),
-        r("military_status", &(format!(r"i(?<=\bi){ME} (?:a |an )?(?:former|retired|ex[- ]?) ?(?:soldier|marine|sailor|airman|service ?member|military|army|navy|paratrooper|infantryman)\b|my(?<=\bmy) (?:time|years|service) in the (?:army|navy|military|marines|corps|marine corps|service|air force|national guard)\b|i(?<=\bi)(?:'m| am) prior service\b")
-          + &format!(r"|i(?<=\bi)(?:{ME}| was) {VET}|{AS} {VET}|when(?<=\bwhen) i was in the (?:army|navy|marines|air force|military|service|marine corps)\b|i(?<=\bi) (?:served|was) (?:\w+ )?in the (?:forces|army|navy|marines|air force|military|coast guard|marine corps)\b|i(?<=\bi) served (?:my country|\d+ years|overseas|(?:two|three|four|\d) tours)\b")
-          + r"|i(?<=\bi) (?:got out of|retired from|separated from) the (?:army|navy|marines|air force|military|service)\b|army(?<=\barmy) retiree\b|navy(?<=\bnavy) retiree\b|military(?<=\bmilitary) retiree\b|marine(?<=\bmarine) retiree\b|air(?<=\bair) force retiree\b|usmc(?<=\busmc) retiree\b|coast(?<=\bcoast) guard retiree\b"
-          + r"|retired(?<=\bretired) (?:chief|sergeant|master sergeant|colonel|lieutenant|major|captain|petty officer|sgt|gunny|army|navy|marine|air force|military|usmc)\b"
-          + &format!(r"|my(?<=\bmy)\b{VA}|i(?<=\bi)(?:'ve| have| was| got| am|'m)?\b{VA}")), |m| if m.text().ends_with(&['a', ' ', 'v', 'e', 't']) && !SERVICE.test(m.string) { None } else { Some("veteran") }, self_hedge()),
-        r("military_status", r"\d(?<!\w\d)\d{1,2} ?% (?:p&t|sc|service[- ]connected)\b", constant("veteran"), self_hedge()),
-        r("military_status", concat!(r"i(?<=\bi) (?:went to boot ?camp|went through (?:boot ?camp|basic(?: training)?)|did basic(?: training)?|got out of the (?:army|navy|marines|military|air force|service|guard|corps)|was (?:honorably |medically )?discharged|",
-          r"was (?:a|an) (?:\w+ )?(?:soldier|marine|sailor|airman|medic|paratrooper|infantryman|nco)|was (?:a |an )?(?:\w+ )?(?:officer|sergeant|corporal|specialist) in the (?:army|navy|marines|air force|military))\b",
-          r"|(?:i(?<=\bi) did|i(?<=\bi) spent|i(?<=\bi) served|a(?<=\ba)fter|m(?<=\bm)y) (?:\d+|two|three|four|five|six|eight|ten|twelve|fifteen|twenty) (?:years|yrs) (?:in|of) (?:the )?(?:army|navy|marines|military|air force|service|active duty|marine corps|guard|reserves)\b"),
-          veteran_if_service, self_hedge()),
-        r("military_status", &format!(r"i(?<=\bi){ME} (?:(?!on |at |my |so |to |no |in |an )[a-z]{{2}} |army |air )?(?:national )?guard(?:sman|swoman)?\b(?! (?:duty at|dog)\b)|i(?<=\bi){ME} (?:a |an )?(?:reservist|guardsman|guardswoman)\b|i(?<=\bi){ME} (?:in|with) the (?:\w+ )?(?:reserves?|guard)\b"),
-          constant("reserve / national guard"), self_hedge()),
-        r("military_status", r"my (?<=\bmy )(?:va |disability |combined |current )?(?:rating|claim|c&p|dbq|vso|gi bill|tricare|dd-?214|va benefits|va healthcare|va doctor|va appointment|pact act)\b",
-          |m| if MILITARY_WORDS.test(m.string) { Some("veteran") } else { None }, self_hedge()),
-        r("military_status", &format!(r"i(?<=\bi){ME} (?:a |an )?(?:\w+ )?(?:officer|medic|nco|sergeant|corporal|private|specialist|pilot|mechanic|engineer|nurse|soldier|infantryman|linguist|analyst|doctor|chaplain) in the (?:army|navy|marines|air force|military|national guard|coast guard|reserves?|space force)\b"),
-          constant("serving"), self_hedge()),
-        r("military_status", &(r"i(?<=\bi) (?:\w+ )?served (?:\w+ )?(?:in (?:combat)|overseas|(?:\d+|two|three|four|five|six|eight|ten|twenty) (?:years|yrs|tours)|my (?:time|country|contract|enlistment))\b".to_string()
-          + r"|i(?<=\bi) (?:did|'ve done|have done|had) (?:\w+ )?(?:\d+|two|three|four|five|multiple|several) (?:deployments|combat tours|tours)\b"
-          + &format!(r"|i(?<=\bi)(?:'m|m| am) (?:using|running|on) (?:the |my )?(?:gi bill|post[- ]9/11)\b|i(?<=\bi) (?:used|use) (?:the |my )?gi bill\b|i(?<=\bi){ME} (?:a |an )?(?:[\w-]+ ){{1,3}}(?:and )?(?:a )?(?:war|combat|army|navy|marine|air force|military|disabled|retired|coast guard) (?:vet|veteran)\b")
-          + r"|i(?<=\bi) (?:was|spent) (?:\w+ ){1,3}in the (?:army|navy|marines|air force|military|coast guard|marine corps|national guard)\b"), veteran_if_service, self_hedge()),
-        r("military_status", concat!(r"fellow(?<=\bfellow) (?:veterans|vets|servicemembers|service members)\b",
-          r"|(?:a(?<=\ba)fter|s(?<=\bs)ince|w(?<=\bw)hen|b(?<=\bb)efore|o(?<=\bo)nce) (?:i )?(?:got out|getting out|ets(?:'d|ed)?|i separated|separating|i was discharged)\b(?! of (?:prison|jail|rehab|hospital|school|college|juvie|the hospital))|my(?<=\bmy) (?:\w+ )?(?:\d+|two|three|four|five|multiple|several) (?:deployments|combat tours|tours)\b|\d(?<!\w\d)\d* deployments\b"),
-          veteran_if_service, self_hedge()),
-        r("military_status", concat!(r"my(?<=\bmy) (?:(?!coding\b|code\b|data\b|fitness\b|web\b|ux\b|dev\b|design\b|space\b)\w+ )?(?:mos|afsc|ets|eas|dd-?214|dd 214|discharge papers|deployments?|tdy|duty station|first sergeant|drill sergeant|drill instructor|platoon sergeant|squad leader|nco|ncoic|commanding officer|bah|dog tags|cac card|basic training|boot camp|bootcamp|ait|tech school|bct|meps|enlistment|re-?enlistment|reenlistment|chain of command|battalion|platoon|brigade|regiment|time in service|military service|(?:military|army|navy|naval|marine|air force|usmc|coast guard) (?:career|medals|pension)|military id|military records?)\b",
-          r"|i(?<=\bi) (?:(?!never\b|didn't\b|didnt\b|won't\b|wont\b|wouldn't\b|almost\b|nearly\b)\w+ )?(?:enlisted|reenlisted|re-enlisted|deployed (?:to|overseas|twice|with|for)|pcs'd|pcsed|ets'd|etsed|separated from the|was commissioned|got commissioned|commissioned as|shipped out to (?:basic|boot camp|bootcamp)|graduated (?:basic|boot camp|bootcamp|ait|ocs|bct))\b"), service, self_hedge()),
-        r("military_status", &format!(r"i(?<=\bi) (?:was|got) (?:\w+ )?(?:stationed|deployed)\b|w(?<=\bw)h(?:en|ile) i was (?:\w+ )?(?:stationed|deployed|in (?:the )?{BRANCH}|on active[- ]duty|active[- ]duty|enlisted|in boot ?camp|in basic training)"), served, self_hedge()),
-        r("military_status", &format!(r"(?:j(?<=\bj)oined|e(?<=\be)nlisted in|e(?<=\be)nlisted into|w(?<=\bw)ent into|l(?<=\bl)eft|d(?<=\bd)eployed with|d(?<=\bd)ischarged from|m(?<=\bm)edically retired from|s(?<=\bs)erved with) (?:the )?{BRANCH}"), entered, self_hedge()),
-        r("military_status", &format!(r"(?:y(?<=\by)ears?|y(?<=\by)rs?|d(?<=\bd)ecades?) (?:(?:in|of service in|serving in|with|of active[- ]duty in|on active[- ]duty in) (?:the )?{BRANCH}|(?:of )?(?:military|active[- ]duty|naval|army|navy|marine corps|air force) service\b)|(?:y(?<=\by)ears?|y(?<=\by)rs?) (?:of )?active[- ]duty\b"), counted, self_hedge()),
-        r("military_status", &format!(r"i(?<=\bi)n(?:to)? the {BRANCH}(?! (?:blue|painter|surplus|times|store|green|issue|knife|boots?|jacket|style|museum|industrial|base)\b)"), within, self_hedge()),
-        r("military_status", r"her(?<=\bher)e\b", here_label, self_hedge()),
-        r("military_status", concat!(r"\A", claimcore::flair!(), r"\W*(?:(?:proud|disabled|combat|retired|army|navy|marine|air force|usmc|military) )?(?:vet|veteran)[ \t]*(?:[.!]|\n|\Z)"), constant("veteran"), self_hedge()),
-        r("military_status", r"(?<=, )(?:a )?(?:(?:proud|disabled|combat|retired|army|navy|marine|military) )?(?:vet|veteran)(?=[ \t]*(?:[,.;/!\n]|$))", profile_vet, self_hedge()),
-        r("military_status", r"i(?<=\bi) did (?:my|a|two|three|four|\d+) (?:army |navy |marine |military |combat |overseas )?tours?\b|i(?<=\bi) was in (?:a|an|the) (?:\w+ ){0,2}(?:infantry|artillery|armor|armored|cavalry|airborne|naval|army|military|national guard) (?:unit|battalion|regiment|company|division|platoon|brigade|squadron)\b", veteran_if_service, self_hedge()),
-        r("military_status", &format!(r"i(?<=\bi){ME} (?:currently |still )?with the {BRANCH}"), service, self_hedge()),
-        r("military_status", r"g(?<=\bg)ot out in (?:'?\d{2}|\d{4})\b|\d(?<!\w\d)\d*\+? ?(?:years|yrs) (?:of )?(?:military|infantry|usmc|army|navy|marines|active duty|air force)(?=[ \t]*(?:[.,;!?\n]|$))", served, self_hedge()),
-        r("military_status", r"\b(?:i'm|i am|im) (?:\w+ ){0,3}?(?:to|for) (?:navy |army |marine |air force |usaf |coast guard )?(?:boot ?camp|basic training|bmt|meps)\b", constant("serving"), self_hedge()),
-        r("military_status", &format!(r"i(?<=\bi){ME} (?:(?!not\b|never\b|no\b|ex\b|former\b)\w+ )?(?:active[- ]duty )?military\b(?! (?:brat|spouse|wife|husband|family|families|kids?|child|history|style|grade|time|base|town|housing|vehicles?|surplus|discount|fan|buff|nerd|enthusiast|vet|veteran|retiree)\b)"), service, self_hedge()),
-        r("military_status", r"(?:army|navy|marine|air ?force|usaf|usmc|military|coast guard|national guard) (?:medic )?(guy|man|dude|boy|bro|vet|veteran)\b", titled, self_hedge()),
-        r("military_status", r"i(?<=\bi)(?:'ve| have)? (?:\w+ )?served\b(?! (?:as (?:a |an )?(?:juror|judge|witness|president|chair\w*|treasurer|secretary|member|volunteer|board|mayor)|(?:on|in) (?:a |the )?(?:jury|board|committee|council|church)|food|drinks?|dinner|lunch|breakfast|tables|customers|people|him|her|them|it|time|my time|a sentence|papers|coffee|beer|alcohol|up|with (?:a|an) (?:warrant|subpoena|papers))\b)", |m| if WAR_WORDS.test(m.string) { served(m) } else { None }, self_hedge()),
-        r("military_status", &(format!(r"i(?<=\bi)(?:{ME} (?:also |actually |too |now |technically )?(?:a |an )?(?:(?:\d+[\w-]*|years?|yrs?|old|year-old|female|male|proud|actual|real|retired|disabled|combat|gen|generation) ){{0,4}}(?:and )?(?:a |an )?(?:vet|veteran)(?=[^\w ]|$| (?:and|so|myself|too|who|but|with|from)\b)")
-          + &format!(r"|{ME} (?:a |an )?(?:former|retired|ex|prior)[- ]?{SERVED_NOUN}|(?:'m| am)? (?:\w+ )?(?:got out of|got out|retired from|separated from|discharged from) (?:the )?(?:army|navy|marines|air force|military|usaf|usmc|coast guard|national guard|marine corps)\b")
-          + r"| was (?:(?:surface|active[- ]duty|prior|enlisted|reserve) )?(?:military|usaf|usmc|army|navy|marines|air force|coast guard|national guard|infantry|prior service|prior enlisted)\b(?! (?:brat|kids?|child|wife|husband|spouse|family|base|town|housing|style|green|blue|issue|surplus)\b))"), served, self_hedge()),
-        r("military_status", r"w(?<=\bw)e (?:(?:military|army|navy|marine|combat|disabled|old|us) )?(?:vets|veterans)\b|(?:v(?<=\bv)ets|v(?<=\bv)eterans) (?:like|such as) (?:me|myself)\b", served, self_hedge()),
-        r("military_status", &format!(r"{AS} (?:an? )?(?:former|ex|retired|prior)[- ]?{SERVED_NOUN}"), served, self_hedge()),
-        r("military_status", &format!(r"{former} {SERVED_NOUN}|{retired} {SERVED_NOUN}|{prior} {SERVED_NOUN}|{ex}[- ]?{SERVED_NOUN}|{was} in the {BRANCH}|{also} an? (?:\w+ )?(?:vet|veteran)\b(?! (?:player|gamer|member|user|fan|of (?:the|this))\b)", former = opening("former"), retired = opening("retired"), prior = opening("prior"), ex = opening("ex"), was = opening("was"), also = opening("also")), served, self_hedge()),
-        r("military_status", concat!(r"\A", claimcore::flair!(), r"\W*\d{2}\s*[mf]?\W*(?:[\[\(]?[mf]4[mfat]\w*[\]\)]?\W*)?(?:[\w-]+ ){0,2}(?:(?:us |u\.s\. )?(?:army|navy|marine|air force|usaf|usmc|military|combat|coast guard) )?(?:vet|veteran)\b"), served, self_hedge()),
-    ]
-}
-
-#[allow(non_snake_case)]
-fn branches() -> Vec<Rule> {
-    let BRANCHES = r"(?:us |u\.s\. |royal |british |canadian |australian )?(army|navy|air ?force|usaf|raf|marines|marine corps|usmc|coast guard|uscg)";
-    let VETS = r"(?:us |u\.s\. |royal |british |canadian |australian )?(army|navy|air ?force|usaf|raf|marines|marine|marine corps|usmc|coast guard|uscg)";
-    vec![
-        r("military_branch", &format!(r"(?:w(?<=\bw)hen i|i(?<=\bi))(?:{ME}| was| served| enlisted| spent (?:\w+ ){{1,3}}| did (?:\w+ ){{1,3}}) (?:(?:currently|still|active duty|on active duty) )?in(?:to)? the {BRANCHES}\b(?! (?:of|surplus|store|museum|style|boots?|jacket|green|blue|base)\b)|i(?<=\bi) (?:got out of|retired from|left|joined|enlisted in|enlisted) (?:active duty )?(?:the |in the )?{BRANCHES}\b(?! (?:of|surplus|store|museum)\b)"),
-          |m| if OTHER_NEAR.test_in(m.string, sentence_start(m), m.start()) { None } else { branch(m) }, self_hedge()),
-        r("military_branch", &format!(r"(?:i(?<=\bi){ME} (?:a |an )?|{AS} an? )(?:proud |disabled |combat |retired |former |old )?{BRANCHES} (?:vet|veteran|retiree)\b|i(?<=\bi){ME} (?:a |an )?(?:former |retired |ex[- ]?|active duty |proud )?(marine|airman)\b(?! (?:biolog\w*|scien\w*|life|ecolog\w*|mammals?|engineer\w*|corps of|tech\w*|mechanic\w*|electrician\w*|surveyor\w*)\b)"),
-          |m| if OTHER_NEAR.test_in(m.string, sentence_start(m), m.start()) { None } else { branch(m) }, self_hedge()),
-        r("military_branch", &format!(r"i(?<=\bi){ME} (?:a |an )?(?:(?!of\b|with\b|for\b|to\b|like\b|not\b|never\b|no\b|than\b)[\w-]+,? ){{1,6}}?{VETS} (?:vet|veteran|retiree)\b|(?:\A{flair}|[.!?\n] *)(?:\d{{2}} ?[mf]? )?(?:a |an )?(?:proud |disabled |combat |retired |former )?{VETS} (?:vet|veteran|retiree)\b|(?:s(?<=\bs)erving|s(?<=\bs)tationed) in the {BRANCHES}\b|m(?<=\bm)y (?:pension|retirement|service|time|years|career|enlistment|contract) (?:from|in|with) the {BRANCHES}\b", flair = claimcore::flair!()),
-          |m| if OTHER_NEAR.test_in(m.string, sentence_start(m), m.start()) { None } else { branch(m) }, self_hedge()),
-    ]
-}
-
 #[allow(non_snake_case)]
 fn gated(rules: Vec<Rule>, LISTED: &str) -> Vec<Rule> {
     let politics = keys(POLITICS);
@@ -640,8 +398,12 @@ pub fn build() -> Vec<Rule> {
         rules.extend(shared::scoped_rules(political(&LISTED, attribute)));
     }
     rules.extend(shared::scoped_rules(diet()));
-    rules.extend(shared::scoped_rules(smoking()));
-    rules.extend(shared::scoped_rules(military()));
-    rules.extend(shared::scoped_rules(branches()));
-    gated(rules, &LISTED)
+    let mut rules = gated(rules, &LISTED);
+    rules.push(r("political_compass", &format!(r"\Ar/politicalcompassmemes: :({})\d*:", COMPASS.iter().map(|(code, _)| *code).collect::<Vec<_>>().join("|")), compass, TAGGED));
+    rules
+}
+
+fn compass(m: &Match) -> V {
+    let code = st(m.group(1)?);
+    COMPASS.iter().find(|(known, _)| *known == code).map(|(_, quadrant)| *quadrant)
 }

@@ -2,7 +2,7 @@ use crate::database::{put_string, text, Database};
 use crate::rules::{blocked, consolidate, first, Attribute, Evidence, Step, Tallies, Vocabulary, TEXT};
 use crate::{log, parallel, timed};
 use crossbeam_channel::{bounded, Receiver, Sender};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 const PARTS: u64 = 256;
@@ -145,6 +145,7 @@ struct Done {
     tied: Vec<(u32, u8)>,
     tallies: Tallies,
     deferred: Vec<(String, Evidence)>,
+    late: HashMap<u32, u64>,
 }
 
 fn count_tied(counts: &mut HashMap<(u32, u8), u64>, tied: Vec<(u32, u8)>) {
@@ -155,17 +156,7 @@ fn count_tied(counts: &mut HashMap<(u32, u8), u64>, tied: Vec<(u32, u8)>) {
 
 struct Described {
     range: Option<(f64, f64)>,
-    bands: Vec<f64>,
-    at: u32,
-}
-
-fn seconds(date: &str) -> u32 {
-    let parts: Vec<i64> = date.split('-').map(|part| part.parse().unwrap_or_else(|error| panic!("date {date:?} does not parse: {error}"))).collect();
-    let (year, month, day) = (parts[0] - (parts[1] <= 2) as i64, parts[1], parts[2]);
-    let era = year.div_euclid(400);
-    let within = year - era * 400;
-    let day_of_era = within * 365 + within / 4 - within / 100 + (153 * ((month + 9) % 12) + 2) / 5 + day - 1;
-    ((era * 146_097 + day_of_era - 719_468) * 86_400) as u32
+    past: bool,
 }
 
 fn described() -> HashMap<String, Described> {
@@ -177,13 +168,12 @@ fn described() -> HashMap<String, Described> {
         .map(|attribute| {
             let described = Described {
                 range: attribute["low"].as_f64().zip(attribute["high"].as_f64()),
-                bands: attribute["bands"].as_array().map_or(Vec::new(), |bands| bands.iter().map(|band| band.as_f64().unwrap()).collect()),
-                at: attribute["at"].as_str().map_or(0, seconds),
+                past: attribute["past"].as_bool() == Some(true),
             };
             (attribute["name"].as_str().unwrap().to_string(), described)
         })
         .collect();
-    log(&format!("schema described={} banded={}", found.len(), found.values().filter(|entry| !entry.bands.is_empty()).count()));
+    log(&format!("schema described={}", found.len()));
     found
 }
 
@@ -196,8 +186,8 @@ fn attributes(database: &Database, candidates: bool) -> Vec<Attribute> {
         let precision = f64::from_le_bytes(rows.fixed());
         let schema = described.get(&name);
         assert!(candidates || schema.is_some(), "{name} is claimed but not described in {SCHEMA}; only a measurement run passes --candidates");
-        let (range, bands, at) = schema.map_or((None, Vec::new(), 0), |entry| (entry.range, entry.bands.clone(), entry.at));
-        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range, bands, at });
+        let (range, past) = schema.map_or((None, false), |entry| (entry.range, entry.past));
+        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range, past });
     }
     assert!(!found.is_empty(), "claim_attributes is empty; claim extraction publishes it");
     log(&format!("claim attributes={}", found.len()));
@@ -209,9 +199,9 @@ fn publish(database: &Database, attributes: &[Attribute]) {
     database.command(OUTPUTS);
     let mut out = Vec::new();
     let mut published = 0;
-    for attribute in attributes.iter().filter(|attribute| attribute.kind != "marker" && (attribute.anchor.is_empty() || !attribute.bands.is_empty())) {
+    for attribute in attributes.iter().filter(|attribute| attribute.kind != "marker") {
         put_string(&mut out, &attribute.name);
-        put_string(&mut out, if attribute.bands.is_empty() { attribute.kind.as_str() } else { "one" });
+        put_string(&mut out, &attribute.kind);
         published += 1;
     }
     database.insert("author_attributes_next (attribute, kind)", &out);
@@ -323,6 +313,9 @@ fn work(vocabulary: &Vocabulary, texts: &TextClaims, flairs: &FlairClaims, mut b
     for (author, text_end, flair_end) in std::mem::take(&mut batch.authors) {
         let (text_end, flair_end) = (text_end as usize, flair_end as usize);
         let found = evidence(vocabulary, texts, flairs, &mut batch.texts[text_start..text_end], &mut batch.flairs[flair_start..flair_end]);
+        for &name in &found.late {
+            *done.late.entry(name).or_default() += 1;
+        }
         (text_start, flair_start) = (text_end, flair_end);
         done.authors += 1;
         match first(vocabulary, found, &mut done.tallies) {
@@ -387,6 +380,7 @@ pub fn run(database: &Database, threads: usize, candidates: bool) {
         database.command(CLAIMS);
         let (rows, outbox) = bounded::<Vec<u8>>(threads * 4);
         let (mut tallies, mut deferred, mut authors, mut decided, mut tied) = (Tallies::default(), Vec::new(), 0u64, 0u64, HashMap::new());
+        let mut late: HashMap<u32, u64> = HashMap::new();
         std::thread::scope(|scope| {
             scope.spawn(|| write(database, outbox));
             timed("first pass", || {
@@ -401,6 +395,9 @@ pub fn run(database: &Database, threads: usize, candidates: bool) {
                 parallel(threads, streams, |batch| work(&vocabulary, &texts, &flairs, batch), |done: Done| {
                     rows.send(done.rows).unwrap();
                     tallies.merge(done.tallies);
+                    for (name, count) in done.late {
+                        *late.entry(name).or_default() += count;
+                    }
                     deferred.extend(done.deferred);
                     authors += done.authors;
                     decided += done.decided;
@@ -452,8 +449,11 @@ pub fn run(database: &Database, threads: usize, candidates: bool) {
         }
         let mut outcomes: Vec<(&str, [u64; 3])> = outcomes.into_iter().collect();
         outcomes.sort_unstable();
+        let past: HashSet<&str> = described.iter().filter(|attribute| attribute.past).map(|attribute| attribute.name.as_str()).collect();
+        let later: HashMap<&str, u64> = late.iter().map(|(&name, &count)| (vocabulary.attribute(name), count)).collect();
         for (attribute, [agreed, conflicted, tied]) in &outcomes {
-            log(&format!("outcomes attribute={attribute} authors={} conflicted={} no_plurality={tied}", agreed + conflicted + tied, conflicted + tied));
+            let dropped = if past.contains(attribute) { format!(" later_than_record={}", later.get(attribute).copied().unwrap_or(0)) } else { String::new() };
+            log(&format!("outcomes attribute={attribute} authors={} conflicted={} no_plurality={tied}{dropped}", agreed + conflicted + tied, conflicted + tied));
         }
         log(&format!("no plurality authors={}", outcomes.iter().map(|entry| entry.1[2]).sum::<u64>()));
         log(&format!("author claims authors={authors} rows={decided}"));

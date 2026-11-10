@@ -1,7 +1,8 @@
 [package]
-name = "health"
+name = "interests"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 claimcore = { workspace = true }
+aho-corasick = "1"

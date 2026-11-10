@@ -1,12 +1,7 @@
-mod beliefs;
-mod experience;
 mod flair;
-mod home;
 mod lifestyle;
-mod parental;
 mod relationship;
 mod shared;
-mod siblings;
 mod together;
 mod traits;
 
@@ -15,17 +10,8 @@ use std::sync::LazyLock;
 
 static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     let mut rules = relationship::build();
-    rules.extend(parental::build());
-    rules.extend(relationship::kink());
     rules.extend(together::build());
-    rules.extend(experience::build());
-    rules.extend(siblings::build());
-    rules.extend(shared::scoped_rules(home::pets()));
-    rules.extend(shared::scoped_rules(home::living()));
-    rules.extend(home::housing());
-    rules.extend(home::residency());
     rules.extend(traits::build());
-    rules.extend(beliefs::build());
     rules
 });
 static LIFESTYLE: LazyLock<Vec<Rule>> = LazyLock::new(lifestyle::build);
@@ -38,17 +24,70 @@ pub fn lifestyle_rules() -> &'static [Rule] {
     &LIFESTYLE
 }
 
-const SPECIFIC_PARENTS: [&str; 6] = ["single parent", "stepparent", "foster / adoptive parent", "grandparent", "boy mom / girl dad", "empty nester"];
+const DIETS: [(&str, &str, &str); 19] = [
+    ("vegan", "diet_type", "vegan"),
+    ("vegetarian", "diet_type", "vegetarian"),
+    ("pescatarian", "diet_type", "pescatarian"),
+    ("flexitarian", "diet_type", "flexitarian"),
+    ("omnivore / meat eater", "diet_type", "omnivore"),
+    ("carnivore", "diet_type", "carnivore"),
+    ("gluten-free", "dietary_restrictions", "gluten-free"),
+    ("dairy free", "dietary_restrictions", "dairy-free"),
+    ("low fodmap", "dietary_restrictions", "low-fodmap"),
+    ("sugar free", "dietary_restrictions", "sugar-free"),
+    ("halal", "dietary_restrictions", "halal"),
+    ("kosher", "dietary_restrictions", "kosher"),
+    ("keto", "diet_plan", "keto"),
+    ("low carb", "diet_plan", "low carb"),
+    ("paleo", "diet_plan", "paleo"),
+    ("intermittent fasting", "diet_plan", "intermittent fasting"),
+    ("calorie counting", "diet_plan", "calorie counting"),
+    ("high protein", "diet_plan", "high protein"),
+    ("mediterranean diet", "diet_plan", "mediterranean"),
+];
+const UNLISTED_DIETS: [&str; 1] = ["plant-based"];
+const AXES: [(&str, char, &str, char, &str); 4] = [
+    ("mbti_ei", 'e', "extraverted", 'i', "introverted"),
+    ("mbti_ns", 'n', "intuitive", 's', "sensing"),
+    ("mbti_tf", 't', "thinking", 'f', "feeling"),
+    ("mbti_jp", 'j', "judging", 'p', "perceiving"),
+];
 
-const CUCKOLDING: [&str; 5] = ["cuckold", "cuckquean", "hotwife", "vixen", "stag"];
+fn diet(value: &str) -> Option<(&'static str, &'static str)> {
+    if UNLISTED_DIETS.contains(&value) {
+        return None;
+    }
+    let (_, attribute, split) = DIETS.iter().find(|(stated, _, _)| *stated == value).unwrap_or_else(|| panic!("diet value {value:?} has no split attribute"));
+    Some((attribute, split))
+}
+
+pub fn axes(value: &str) -> Vec<(&'static str, &'static str)> {
+    assert!(value.len() == 4, "mbti type {value:?} is not four letters");
+    if value.matches('x').count() > 2 {
+        return Vec::new();
+    }
+    value
+        .chars()
+        .zip(AXES)
+        .filter(|(letter, _)| *letter != 'x')
+        .map(|(letter, (attribute, first, first_value, second, second_value))| {
+            assert!(letter == first || letter == second, "mbti type {value:?} has {letter:?} where {first} or {second} belongs");
+            (attribute, if letter == first { first_value } else { second_value })
+        })
+        .collect()
+}
 
 pub fn settle(found: &mut Found) {
-    let cuckolding: Vec<usize> = found.items.iter().filter(|(attribute, value, _, _)| attribute == "cuckolding_role" && CUCKOLDING.contains(&value.as_str())).map(|(_, _, position, _)| *position).collect();
-    for position in cuckolding {
-        found.set("relationship_structure", "cuckold / hotwife", position);
+    let mut split = Vec::new();
+    for (attribute, value, position, origin) in std::mem::take(&mut found.items) {
+        match attribute.as_str() {
+            "diet" => split.extend(diet(&value).map(|(attribute, value)| (attribute.to_string(), value.to_string(), position, origin))),
+            "mbti_type" => split.extend(axes(&value).into_iter().map(|(attribute, value)| (attribute.to_string(), value.to_string(), position, origin))),
+            _ => found.items.push((attribute, value, position, origin)),
+        }
     }
-    if found.items.iter().any(|(attribute, value, _, _)| attribute == "parent_role" && SPECIFIC_PARENTS.contains(&value.as_str())) {
-        found.items.retain(|(attribute, value, _, _)| !(attribute == "parent_role" && value == "parent"));
+    for (attribute, value, position, origin) in split {
+        found.put(&attribute, value, position, origin);
     }
 }
 

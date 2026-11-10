@@ -23,14 +23,14 @@ struct Row<'a> {
 
 static BOT_SAFE: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
     let mut safe: Vec<&'static str> = demographics::rules().iter().chain(work::rules()).map(|rule| rule.attribute).collect();
-    safe.extend(["automated_account", "relationship_status", "parent_role"]);
+    safe.extend(["automated_account", "relationship_status"]);
     safe.sort();
     safe.dedup();
     safe
 });
 
 static RULES: LazyLock<(Vec<&'static Rule>, prefilter::Literals)> = LazyLock::new(|| {
-    let rules: Vec<&'static Rule> = [demographics::rules(), location::rules(), life::rules(), life::lifestyle_rules(), work::rules(), health::rules()].into_iter().flatten().collect();
+    let rules: Vec<&'static Rule> = [demographics::rules(), location::rules(), life::rules(), life::lifestyle_rules(), work::rules()].into_iter().flatten().collect();
     let patterns: Vec<(&str, u32, Option<&[Vec<char>]>)> = rules.iter().map(|rule| (rule.re.pattern.as_str(), rule.re.flags, rule.gate.as_deref())).collect();
     let literals = prefilter::Literals::new(&patterns);
     (rules, literals)
@@ -73,13 +73,12 @@ fn bot_safe(attribute: &str) -> bool {
 
 fn init() {
     std::thread::scope(|scope| {
-        scope.spawn(fandom::init);
+        scope.spawn(interests::init);
         scope.spawn(location::init);
         scope.spawn(work::init);
         scope.spawn(|| {
             demographics::init();
             life::init();
-            health::init();
             LazyLock::force(&BOT_SAFE);
             LazyLock::force(&RULES);
             LazyLock::force(&MASKED);
@@ -97,14 +96,10 @@ fn positioned(raw: &str) -> Vec<(String, String, usize, Origin)> {
     demographics::tags(&text, &lowered, &mut found);
     let (rules, literals) = &*RULES;
     run_possible(rules, &literals.possible(&lowered), &lowered, automatic, &bot_safe, &mut found);
-    fandom::favorites(&text, &mut found);
-    fandom::fandom(&text, &mut found);
-    fandom::adjacent(&text, &mut found);
-    fandom::characters(&text, &mut found);
-    if !automatic {
-        health::ailments(&lowered, &mut found);
-    }
+    interests::interests(&lowered, &mut found);
     location::places(&text, &lowered, &mut found);
+    interests::settle(&mut found);
+    work::settle(&mut found);
     demographics::settle(&lowered, &mut found);
     life::settle(&mut found);
     set_current(&[], &[]);
@@ -249,11 +244,6 @@ fn main() {
         Some("prompts") if args.len() >= 5 => prompts(&args[2], &args[3], &args[4]),
         Some("template") if args.len() >= 3 => print!("{}", contract::SCHEMA.template(&args[2])),
         Some("score") if args.len() > 5 => score::score(&args[2], &args[3], &args[4], option(&args, "--agree", "2").parse().unwrap(), threads, &positional(&args[5..]), args.iter().position(|arg| arg == "--contested").map(|index| args[index + 1].as_str())),
-        Some("conditions") => {
-            for (attribute, name, value) in health::english_conditions() {
-                println!("{attribute}	{name}	{value}");
-            }
-        }
         Some(command @ ("run" | "flairs")) => {
             let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), required(&args, "--database"));
             run::attributes(&database);
@@ -264,7 +254,7 @@ fn main() {
             }
         }
         _ => {
-            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims prompts <prompt> <input.jsonl> <output.jsonl> | claims template <prompt> | claims score <prompt> <texts.jsonl> <report.json> <answers_dir>... [--agree N] [--contested <out.jsonl>] --threads N | claims conditions | claims run|flairs --host H --database D [--port P] --threads N");
+            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims prompts <prompt> <input.jsonl> <output.jsonl> | claims template <prompt> | claims score <prompt> <texts.jsonl> <report.json> <answers_dir>... [--agree N] [--contested <out.jsonl>] --threads N | claims run|flairs --host H --database D [--port P] --threads N");
             std::process::exit(2);
         }
     }

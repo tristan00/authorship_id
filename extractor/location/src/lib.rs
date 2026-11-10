@@ -1,12 +1,9 @@
-mod heritage;
 mod lexicon;
-mod local;
 mod patterns;
 
 use claimcore::*;
 use lexicon::{entry, region_code, tokens, Entry, Node, CONTINENTS, LEXICON};
 use patterns::*;
-use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use claimcore::HEDGE as DOUBT;
@@ -14,57 +11,22 @@ use claimcore::HEDGE as DOUBT;
 const LANGUAGES: &str = "english spanish french german italian portuguese dutch swedish norwegian danish finnish polish czech slovak hungarian romanian bulgarian greek croatian serbian \
 russian ukrainian turkish arabic hebrew persian farsi hindi urdu bengali punjabi tamil telugu marathi gujarati malayalam kannada chinese mandarin cantonese japanese \
 korean vietnamese thai tagalog filipino indonesian malay swahili afrikaans catalan basque icelandic estonian latvian lithuanian albanian";
-const SUBJECTS: &str = "cooking|cuisine|food|history|culture|literature|lit|politics|law|music|dance|dancing|art|calligraphy|recipes?|dishes|class|course|major";
+const FEDERAL: [&str; 4] = ["united states", "canada", "australia", "india"];
 const TITLE_REGIONS: [&str; 5] = ["united states", "canada", "australia", "india", "united kingdom"];
-
-fn spoken(word: Option<&[char]>) -> Option<String> {
-    let word = st(word?);
-    LANGUAGES.split(' ').any(|language| language == word).then_some(word)
-}
 
 fn nation_of(word: Option<&[char]>) -> Option<&'static str> {
     LEXICON.nations.get(&st(word?)).copied()
 }
 
-static REGIONS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
-    timed("location regions", || data_file("regions.tsv").leak().lines().skip(1).map(|line| line.split_once('\t').unwrap_or_else(|| panic!("regions.tsv: bad line {line:?}"))).collect())
-});
-
-fn region_of(country: &str) -> Option<&'static str> {
-    REGIONS.get(country).copied()
-}
-
 static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
-    let mut rules = vec![
-        rule("nationality", &loose_nation(), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()),
-        rule("nationality", &as_nation(), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()),
-        rule("nationality", &as_nation_start(), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()),
-        rule("nationality", &format!(r"(?:\b(?:i'm|im|i am|as an?|we're|we are) (?:an? )?(?:proud )?|^{flair})european\b", flair = claimcore::flair!()), |_| Some("european".to_string()), hedge()),
-        needs(rule("nationality", &format!(r"(?<!his )(?<!her )(?<!their )(?<!its )(?<!your )\bfellow ({NATION})s?(?![\w-])(?=\s*(?:$|[.,!?;:)\n]|(?:here|and|but|too|lol)\b|(?:[a-z]+ ){{0,2}}?(?:brothers?|sisters?|guys?|girls?|man|woman|men|women|people|folks|redditors?|citizens?|friends?|kids|parents|mums?|moms?|dads?)\b))", NATION = &*S_NATION), |m| nation_of(m.group(1)).and_then(region_of).map(String::from), hedge()), &["fellow"]),
-        needs(rule("native_language", r"\b(?:my )?(?:first|native|mother) (?:l[ae]nguage|tongue),?(?: which)? is\s+\**(\w+)\b|\b(\w+)\** is my (?:first|native|mother) (?:language|tongue)\b|\b(?:i'm|im|i am|as) (?:also |actually )?(?:an? )?native \**(\w+)\** speaker\b|\bnative \**(\w+)\** speaker here\b|\b(?:i'm|im|i am|as) an? native speaker of \**(\w+)\b|\b(\w+)\**\s*\(native\)|\b(?:native(?: language)?|mother tongue|first language)\**\s*[:=-]\**\s*\**(\w+)\b|\b(?:i'm|im|i am) native in \**(\w+)\b",
-            |m| spoken(m.first()), hedge()), &["native", "language", "tongue"]),
-        rule("native_language", r"\b(\w+) is the only language i (?:speak|know)\b|\bas (?:a )?native (\w+) speakers?\b",
-            |m| spoken(m.first()), self_hedge()),
-        needs(rule("location", r"\b(?:(?:i|we)(?: (?:currently|now|also|still|actually))* (?:live|reside)|(?:i'm|im|i am|we're|we are) (?:currently |now |also |still )?(?:living|based|located)) in (?:the )?(europe|eastern europe|western europe|northern europe|southern europe|central europe|asia|east asia|southeast asia|south asia|central asia|africa|west africa|east africa|southern africa|north africa|south america|central america|latin america|middle east|scandinavia|caribbean|balkans|oceania)\b(?![ -](?:union|countries|country|region|part|side)\b)",
-            fixed("outside the united states"), hedge()), &["live", "reside", "living", "based", "located"]),
-        needs(rule("other_languages", &format!(r"\b(?:{I}|i) (?:(?:currently|also|now|still|slowly|actively|just|been|started|starting|began|self[ -]taught)\s+)*(?:learning|studying(?! english\b)) \**(\w+)\b(?!\**\s+(?:{SUBJECTS})\b)"),
-            |m| spoken(m.group(1)), hedge()), &["learning", "studying"]),
-        needs(rule("other_languages", &format!(r"\b{I} (?:(?:also|now|pretty|very|quite|fully|almost|nearly|mostly|completely|totally|somewhat|reasonably|fairly|semi)[\s-]+)*(?:fluent|conversational|proficient) in \**(\w+)\b"),
-            |m| spoken(m.group(1)), hedge()), &["fluent", "conversational", "proficient"]),
-        needs(rule("other_languages", r"\bi (?:also |can |can also |also can )speak (?:fluent |some |basic |conversational |decent |good |a little |a bit of |broken )?\**(\w+)\b|\bi speak (?:fluent |some |basic |conversational |decent |a little |a bit of |broken )\**(\w+)\b|\bi speak \**(\w+)\** (?:fluently|conversationally|pretty well|fairly well|decently)\b|\bmy second language is \**(\w+)\b|\b(\w+)\** is my second language\b",
-            |m| spoken(m.first()), hedge()), &["speak", "second language"]),
-        needs(rule("native_language", &format!(r"\b(?:{I}|as) (?:also |actually |already )?(?:an? )?(\w+) native speaker\b|\b(\w+) native speaker here\b|\b{I} native (\w+)\b|\b(\w+)\s*\((?:native tongue|native language|mother tongue|first language|l1)\)"),
-            |m| spoken(m.first()), hedge()), &["native", "tongue", "language", "l1"]),
-        needs(rule("other_languages", &format!(r"\b(\w+) (?:is not|isn't|isnt|is no|ain't|aint|it's not|is not really) my (?:first|native|mother|primary|main) (?:l[ae]nguage|lang|langage|tongue)\b|\bmy (?:first|native|mother) (?:l[ae]nguage|tongue) (?:is not|isn't|isnt|ain't|aint) (\w+)\b|\b{I} (?:not an?|an? non[- ]?|non[- ]?) ?native (\w+) speaker\b|\b{I} not an? (\w+) native speaker\b|\b(\w+) is my (?:third|fourth|fifth|3rd|4th|5th) language\b"),
-            |m| spoken(m.first()), hedge()), &["language", "lang", "tongue", "native"]),
-        needs(rule("other_languages", &format!(r"\bmy (\w+) is (?:around |about |at |roughly |probably |maybe |only |like )?(?:an? |the )?(?:level )?[abc][12]\b|\b{I} (?:currently |now |only )?(?:around |about |at |roughly )?(?:an? )?[abc][12](?: level)? in (\w+)\b"),
-            |m| spoken(m.first()), hedge()), &["a1", "a2", "b1", "b2", "c1", "c2"]),
-        needs(rule("other_languages", &format!(r"\b(?:{I}|i) (?:\w+ )?teaching myself (\w+)\b|\bi (?:also )?know (?:a little|a bit of|a little bit of|some|basic|decent|conversational) (\w+)\b|\bi (?:also )?can (?:also )?(?:understand|read|read and write|speak and read|speak and understand|read and understand) (?:some |basic |a little |a bit of )?(\w+)\b|\bi (?:do|actually) speak (\w+)\b"),
-            |m| spoken(m.first()), hedge()), &["teaching myself", "know", "can", "speak"]),
-    ];
-    rules.extend(heritage::rules());
-    rules.extend(local::rules());
-    rules
+    vec![
+        rule("nationality", &loose_nation(), |m| nation_of(m.group(1)).map(String::from), hedge()),
+        rule("nationality", &as_nation(), |m| nation_of(m.group(1)).map(String::from), hedge()),
+        rule("nationality", &as_nation_start(), |m| nation_of(m.group(1)).map(String::from), hedge()),
+        needs(rule("nationality", &format!(r"(?<!his )(?<!her )(?<!their )(?<!its )(?<!your )\bfellow ({NATION})s?(?![\w-])(?=\s*(?:$|[.,!?;:)\n]|(?:here|and|but|too|lol)\b|(?:[a-z]+ ){{0,2}}?(?:brothers?|sisters?|guys?|girls?|man|woman|men|women|people|folks|redditors?|citizens?|friends?|kids|parents|mums?|moms?|dads?)\b))", NATION = &*S_NATION), |m| nation_of(m.group(1)).map(String::from), hedge()), &["fellow"]),
+        needs(rule("location", r"\b(?:(?:i|we)(?: (?:currently|now|also|still|actually))* (?:live|reside)|(?:i'm|im|i am|we're|we are) (?:currently |now |also |still )?(?:living|based|located)) in (?:the )?(europe|eastern europe|western europe|northern europe|southern europe|central europe|asia|east asia|southeast asia|south asia|central asia|africa|west africa|east africa|southern africa|north africa|south america|north america|central america|latin america|middle east|scandinavia|caribbean|balkans|oceania)\b(?![ -](?:union|countries|country|region|part|side)\b)",
+            |m| m.gs(1), hedge()), &["live", "reside", "living", "based", "located"]),
+    ]
 });
 
 pub fn geographic(word: &str) -> bool {
@@ -80,7 +42,6 @@ pub fn rules() -> &'static [Rule] {
 pub fn init() {
     timed("location init", || {
         LazyLock::force(&LEXICON);
-        LazyLock::force(&REGIONS);
         LazyLock::force(&RULES);
         for pattern in patterns::all() {
             pattern.test(&[]);
@@ -484,21 +445,29 @@ fn titled(text: &[char], lowered: &[char], start: usize, end: usize, entry: &Ent
     if asking { Title::Loose } else { Title::Yes }
 }
 
-fn lived(entry: &Entry, end: usize, found: &mut Found, whole: bool) {
-    if whole || entry.kind == "city" || entry.kind == "region" && !entry.region.is_empty() {
-        found.set("location", if entry.country == "united states" { "united states" } else { "outside the united states" }, end);
+fn lived(attribute: &str, entry: &Entry, end: usize, found: &mut Found, whole: bool) {
+    if entry.kind == "city" {
+        found.set(attribute, entry.value, end);
+    }
+    if matches!(entry.kind, "city" | "region")
+        && !entry.region.is_empty()
+        && (entry.kind == "region" || entry.country != "united kingdom")
+        && !(entry.kind == "city" && (ADMINISTRATIVE.test(&chars(entry.region)) || !FEDERAL.contains(&entry.country) && entry.region != entry.value))
+    {
+        found.set(attribute, entry.region, end);
+    }
+    if whole {
+        found.set(attribute, entry.country.trim_start_matches("the "), end);
     }
 }
 
 fn nation(lowered: &[char], start: usize, end: usize, entry: &Entry, kind: Option<&str>, line_end: usize, tagged: bool, found: &mut Found) {
-    let Some(region) = region_of(entry.country) else {
-        return;
-    };
     match kind {
-        Some("here" | "born" | "citizen") => found.set("nationality", region, start),
+        Some("here" | "citizen") => found.set("nationality", entry.country, start),
+        Some("born") => found.set("origin_location", entry.country.trim_start_matches("the "), start),
         _ => {
             if tagged && start < line_end && !ASKING.test_in(lowered, 0, start) && NOUN_AFTER.at(lowered, end).is_none() && TITLE.iter_in(lowered, 0, line_end).any(|tag| tag.end() <= start && start - tag.end() <= 25 || tag.start() >= end && tag.start() - end <= 25) {
-                found.set("nationality", region, start);
+                found.set("nationality", entry.country, start);
             }
         }
     }
@@ -521,6 +490,7 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
     let first_end = line_end(lowered, 0);
     let tagged = first_end < 150 && TITLE.test_in(lowered, 0, first_end);
     let mut residence: Vec<(Entry, usize, bool)> = Vec::new();
+    let mut origin: Vec<(Entry, usize)> = Vec::new();
     let mut framed: Vec<(&'static str, usize)> = Vec::new();
     let mut opened: Vec<(&'static str, usize)> = Vec::new();
     let flair = FLAIR.at(lowered, 0).map(|m| m.end());
@@ -591,7 +561,7 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         if is_country && occurs(lowered, line, start, &["country", "born and"]) {
             if let Some(home) = HOME_COUNTRY.search(lowered, line, start) {
                 if !hedged(lowered, home.start(), end) {
-                    framed.push((country, start));
+                    origin.push((current, end));
                 }
             }
         }
@@ -656,17 +626,20 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         if kind == Some("here") && current.kind == "city" || title == Title::Bare {
             current.region = "";
         }
-        if matches!(kind, Some("residence" | "aus" | "local" | "from")) || kind == Some("here") && current.flag != "1" || kind.is_none() && title.truthy() {
+        if matches!(kind, Some("from" | "origin" | "born")) {
+            origin.push((current, end));
+        } else if matches!(kind, Some("residence" | "aus" | "local")) || kind == Some("here") && current.flag != "1" || kind.is_none() && title.truthy() {
             let whole = current.kind == "country" || !matches!(title, Title::Loose | Title::Bare) && kind != Some("aus") && !(title.truthy() && foreign);
             residence.push((current, end, whole));
-        } else if matches!(kind, Some("origin" | "born")) && is_country {
-            framed.push((country, start));
         } else if kind == Some("citizen") && current.kind == "country" {
             framed.push((country, start));
         }
     }
     for (current, end, whole) in &residence {
-        lived(current, *end, found, *whole);
+        lived("location", current, *end, found, *whole);
+    }
+    for (current, end) in &origin {
+        lived("origin_location", current, *end, found, true);
     }
     let questioned = lowered.contains(&'?');
     let mut frames: Vec<Frame> = frames().to_vec();
@@ -702,9 +675,7 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         framed.push(opened[0]);
     }
     for (country, position) in framed {
-        if let Some(region) = region_of(country) {
-            found.set("nationality", region, position);
-        }
+        found.set("nationality", country, position);
     }
 }
 

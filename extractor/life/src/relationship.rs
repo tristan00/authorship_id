@@ -18,7 +18,6 @@ pub const FOLLOW: &str = concat!(
     r"(?=\s*(?:[.,!;:)(/\n]|$|\d|[mf]\s?\d{2}\b|(?:and|but|with|for|since|in|here|now|again|too|af|m|f|male|female|man|woman|guy|girl|gal|lady|dude|mom|mum|mother|dad|father|parent|bbw|milf|dilf|couple)\b",
     r"|\w+ (?:looking|seeking|here|male|female|man|woman|guy|girl|mom|dad)\b))"
 );
-pub const SOLO_AD: &str = concat!(r"^", claimcore::flair!(), r"\W*(?:(?:\d{2}\s*[\]\)]?\s*)?[\[\(]?\s*(?:m|f|t|nb|tm|tf|mtf|ftm)\s*4\s*(?:[mfatr]|me|nb)\w*\s*[\]\)]?|\d{2}\s*(?:[mf]|yo|y/o|yrs?|years? old)\b|[mf]\s*\d{2}\b)");
 
 regex!(OTHERS, concat!(r"(?:^", claimcore::flair!(), r"|\W)(?:your|ur|her|his|their|a|an|some|someone's|whose|ex|future|dream|trophy|of|another|every|any|no|perfect|ideal|ex-|good|loyal|cuck|friends?|friend's)\W*$"));
 regex!(YOU, r"\byou\b");
@@ -34,8 +33,6 @@ regex!(WIFE_WORD, r"\b(?:wife|wifey|missus|mrs)\b");
 regex!(NEGATION, r"\b(?:not|never|no)\b|n't\b");
 regex!(UNMARRIED, r"(?:not |un)married");
 regex!(SEEN, r"\bdating (?:someone|somebody|a |an |another|this|him|her)");
-regex!(SWINGING, r"swing|lifestyle");
-regex!(SWING_CONTEXT, r"\b(?:swing\w*|hotwi\w+|cuck\w*|bull|couples?|wife|husband|mfm?|fmf|unicorn|third)\b");
 regex!(EX, r"\bmy ex\b");
 regex!(AFTER, r"\b(?:after|before|when|since|until|till)\s+$");
 regex!(NAMED, r"\s+(?:named|called)\b");
@@ -163,26 +160,6 @@ fn foreign_status(m: &Match) -> V {
     Some(get(FOREIGN_STATUSES, Some(short)).unwrap_or_else(|| panic!("no foreign relationship status for {:?}", short.iter().collect::<String>())))
 }
 
-fn structure(m: &Match) -> V {
-    let text = m.text();
-    let value = if contains(text, "solo poly") {
-        "solo poly"
-    } else if contains(text, "anarchist") {
-        "relationship anarchy"
-    } else if contains(text, "open") {
-        "open relationship"
-    } else if contains(text, "non-monogamous") || contains(text, "nonmonogamous") || contains(text, "enm") {
-        "ethically non-monogamous"
-    } else if contains(text, "monogamous") {
-        "monogamous"
-    } else if SWINGING.test(text) {
-        "swinger"
-    } else {
-        "polyamorous"
-    };
-    stated(m, &FUTURE, || kept(m, value))
-}
-
 #[allow(non_snake_case)]
 pub fn build() -> Vec<Rule> {
     let LEAD = format!(r"(?:{ME} (?:a |an )?|{AS} an? |\b\d{{2}}\s*(?:[mf]|male|female|yo|y/o|years? old)?\b\W*(?:and )?|\b[mf]\s?\d{{2}}\b\W*(?:and )?)");
@@ -285,15 +262,6 @@ pub fn build() -> Vec<Rule> {
         needs(r("relationship_status", r"\b(?:i'm|im|i am)(?: \w+){0,3} (?:of|to|with) being single\b|\b(?:i'm|im|i am) (?:much |so |way )?happier being single\b|\b(?:i|and)(?:'ve| have) (?:\w+ )?been (?:\w+ )?single\b", |m| if NEGATION.test(m.text()) { None } else { stated(m, &FUTURE, || kept(m, "single")) }, TAGGED), &["single"]),
         needs(r("relationship_status", r"(?:\b\d{2}\s*[mf]?|\b(?:straight|bi|gay|male|female|man|woman|guy|girl|[mf]))\b[\W_]*with (?:a |my )?(gf|bf|girlfriend|boyfriend)\b", |m| if BROKEN.test(m.string) { None } else { owned(m, SPOUSES, 1) }, TAGGED), &["with"]),
         needs(r("relationship_status", &format!(r"{ME} (?:(?!(?:not|never|no)\b)(?![a-z]+(?:ing|ed)\b)[\w-]+ ){{1,3}}in an? (?:(?!(?:not|never|no)\b)[\w-]+ ){{0,3}}relationship\b(?! with (?:food|my (?:body|food|mom|dad|parents|family|job|work)|money|alcohol|god|jesus))"), |m| if COUPLED.test(m.string) { None } else { stated(m, &FUTURE, || kept(m, DATING)) }, TAGGED), &["relationship"]),
-        needs(r("relationship_structure", &format!(r"(?:{ME}|\bwe(?:'re| are| have been)|\band i (?:are|have been)) (?:(?!not\b|never\b)\w+ )?in an? (?:(?!not\b|never\b)[\w-]+ )?(?:open|poly(?:amorous)?|polyam|(?:ethically )?non-?monogamous|enm) (?:relationship|marriage)\b|\b(?:i|we) (?:\w+ )?have an? (?:\w+ )?(?:open|poly(?:amorous)?) (?:relationship|marriage|gf|bf|girlfriend|boyfriend|partner|husband|wife|fianc[ée]e?)\b|\b(?:i'm|im|i am|we're|we are) (?:happily )?married (?:and|but) (?:also )?(?:poly|polyamorous|polyam|enm|ethically non-?monogamous|open)\b|(?:(?<![^\n])|\A{flair})[^\w\n]*(?:[\d/ ]+)?(?:[\[\(]?[mf]{{1,2}}4\w*[\]\)]?\s*)?(?:poly(?:amorous)?|enm|open) couple\b|(?:^{flair}|[\n/|,]\s*)in an? (?:open|poly(?:amorous)?|enm|ethically non-?monogamous|non-?monogamous) relationship\b", flair = claimcore::flair!()), structure, self_hedge()),
-          &["open", "poly", "monogamous", "enm"]),
-        needs(r("relationship_structure", r"\b(?:i'm|im|i am|we're|we are|i've been|we've been|i have been|we have been) (?:(?:also|both|currently|still|now|happily|very|100%|strictly|openly|always) )?(?:a )?(polyamorous|polyam|solo poly|monogamous|ethically non-?monogamous|non-?monogamous|enm|relationship anarchist|poly(?![\w-]| (?:student|students|grad|alum|sci|tech|addict|addiction|substance|drug|drugs|user)\b))\b(?! (?:to|from|people|folks|relationships?|community)\b)", structure, self_hedge()),
-          &["poly", "monogamous", "enm", "anarchist"]),
-        needs(r("relationship_structure", r"\bmy (?:nesting partner|metamours?|other partners)\b", structure, self_hedge()), &["nesting", "metamour", "other partners"]),
-        needs(r("relationship_structure", concat!(r"\b(?:i'm|im|i am|we're|we are|i've been|we've been) (?:(?:also|both|currently|still|now|happily|active|experienced|new|married|an?) ){0,3}swingers?\b(?! (?:club|clubs|party|parties|website|sites?|apps?|events?|resort)\b)",
-          r"|\b(?:i|we)(?:'ve| have) been (?:active |swinging )?in the (?:swing(?:ing|er) )?lifestyle (?:for|since)\b|\b(?:i'm|im|i am|we're|we are) (?:\w+ )?(?:active |new |experienced )?in the (?:swing(?:ing|er) )?lifestyle\b(?! of\b)|\bwe(?:'ve| have) been swinging (?:for|since)\b",
-          concat!(r"|(?:(?<![^\n])|\A", claimcore::flair!(), r")[^\w\n]*(?:[\d/ ]+)?(?:[\[\(]?[mf]{1,2}4\w*[\]\)]?\s*)?(?:swinger|swinging|lifestyle) couple\b")),
-          |m| if contains(m.text(), "lifestyle") && !SWING_CONTEXT.test(m.string) { None } else { erotic(m, structure) }, self_hedge()), &["swing", "lifestyle"]),
         needs(r("relationship_status", concat!(r"\bmy (?:common[- ]law|de facto|domestic) (?:wife|husband|partner|spouse|hubby)\b|\b(?:i'm|im|i am|we're|we are|we've been|i've been|we have been|i have been) (?:\w+ )?(?:in a |living )?(?:common[- ]law|de facto)\b",
           r"|\b(?:i'm|im|i am|we're|we are) in a (?:civil partnership|civil union|domestic partnership|de facto relationship)\b|\bmy civil partner\b|\b(?:we|i) (?:just |recently )?(?:got|had|entered|formed) (?:a|into a) civil (?:partnership|union)\b"),
           |m| stated(m, &STATED, || kept(m, COMMON_LAW)), TAGGED), &["common", "facto", "domestic", "civil"]),
@@ -303,125 +271,3 @@ pub fn build() -> Vec<Rule> {
     rules
 }
 
-pub const HEADER: &str = concat!(r"(?:(?<![^\n])|(?<=[,;.!?(])|\A", claimcore::flair!(), r")[^\w\n]*+(?:(?:hey|hi|hello|yo|me)\b[^\w\n]*+)?(?:(?:\d{2}(?![.)\d%])(?:\s*(?:[mf]|yo|y/o|yrs?[- ]old|years?[- ]old|yrs?))?|[mf]\s*\d{2}|[\[\(]?\s*(?:\d{2}\s*)?[mft]4[mfat]\w*\s*[\]\)]?|[\(\[]?(?:gay|bi)\b[\)\]]?)(?![\w'])[^\w\n]*+){1,3}");
-const DESCRIPTORS: &str = r"(?:(?!(?:looking|seeking|for|need|needs|want|wants|wanted|any|your|my|his|her|the|to|into|prefer|prefers|like|likes|love|loves|with|or|a|an|and|not|no|never|new|this|that|young|older|in|interested|seeks?|seeking|search|searching|suche|sucht|wannabe|aspiring|future|potential|would-be|want-to-be|lf|lfm|lf4|wanted|seeks)\b)(?!\d+\b)[\w'-]+[ \t,/]+){0,3}?";
-const SELF_ROLE: &str = r"(?:i'm|im|i am|i(?<!\wi) am) (?:(?!(?:not|never|no|looking|into|with|for|at|on|in|the|to|from|of|like|your|his|her|their|being|getting|get|got|gonna|going|wanna|gotta|about|trying|tryna|able|planning|willing|starting|up|over|off|reached|reach|stay|staying|finish|finished|end|ended|rank|ranked|placed|came|come|seeking|wanting|searching|want|need|after|craving|hunting|lf|lfm)\b)[\w%'-]+,? ){0,4}?";
-pub const LOOSE_FOLLOW: &str = r"(?![\w'-])(?!\s*[\d%])(?!\s*(?:of|line|half|tier|notch|shelf|up|out|price|priority|layer|floor|bunk|drawer|gear|gun|deck|story|dollar|pick|choice|score|seller|rated|level|end|row|left|right|corner|part|section|surgery|lip|lid|hat|coat|button|three|five|ten|twenty|percent|position|spot|place|rank|ranked|team|teams|players?|songs?|movies?|picks?|list|games?|console|lite|oled|owner|controller|terrier|riding|rider|market|dozer|dog|fight|fighter|ring|run|feeder|dweller|gesucht|wanted|needed|sought|required|search|hunt|hunter|hunting|lovers?|fans?|fantasy|fantasies|plots?|roleplay|rp|stories|story|captions?|content|vids?|videos?|pics?|porn|tributes?)\b)";
-const ROLE_FOLLOW: &str = r"(?=\s*(?:$|[|,.!;:)\]/\n&+-]|(?:here|looking|seeking|for|in|from|needs?|wants?|into|with|guy|male|man|boy|bear|dude|woman|girl|female|lady|and|but|so|ready|hosting|can|available|now|tonight|today|who|that|too|lol|haha|by|type|person|personality|daddy|top|bottom|btm|bttm|vers|versatile|leaning|mostly|side|sub|dom|switch|husband|hubby|wife|couple|cpl|bi|gay|straight|m|f|4|anyway|anyways|myself|though|tho|btw|at|mainly|honestly|personally|really)\b))";
-
-regex!(SEXUAL, r"\b(?:[mft]4[mfat]\w*|gay|bi|cock|dick|hole|ass|fuck\w*|horny|host(?:ing)?|hook ?up|sex\w*|kinks?|kinky|nsfw|daddy|dl|discreet|suck\w*|bwc|bbc|hung|cum\w*|twink|bear|chub|otter|femboy|masc|anal|oral|bdsm|snap|nsa|fwb|pussy|spank\w*|bondage|slave|mistress|mommy|limits|erotic|nudes?|submissive|bttm|btm|cuck\w*|hotwi\w+|domme|dildos?|panties|wank\w*|bareback|condoms?|prep|grindr|twinks?|femboys?|bwc|uncut|holes?|sissy|snapchat|obedient|bussy|sniffies)\b");
-regex!(DIRECT, r"(?:bottom|btm|bttm|vers|dom|domme|dominant|submissive|cuck|cuckold|cuckquean|hot ?wifey?)");
-regex!(DOM_NAME, r"^(?:i'm|im|i am) dom$");
-regex!(FOR_PARTNER, r"\b(?:for|want|wanted|wants|need|needs|seeking|seek|like|likes|love|loves|prefer|prefers|into|your|any|with|fuck|find|meet|other|all|you)\b(?:[\s,]+[\w'-]+){0,3}[\s,]*$");
-regex!(SECTION, r"\b(?:(about me|abt me|me\s*:)|about (?:you|u)|abt (?:you|u)|(?:you|u)\s*:|kinks|limits|fetish\w*|turn[- ]?ons|looking for|seeking|wants?|preferences|likes|into)\b");
-
-fn position(m: &Match) -> V {
-    let role = m.first()?;
-    let bottom = contains(role, "bot") || contains(role, "bt");
-    if contains(role, "vers") {
-        Some(if contains(role, "top") { "vers top" } else if bottom { "vers bottom" } else { "vers" })
-    } else if bottom {
-        Some("bottom")
-    } else {
-        Some("top")
-    }
-}
-
-fn power(m: &Match) -> V {
-    let role = m.first()?;
-    if DOM_NAME.test(m.text()) {
-        None
-    } else if contains(role, "switch") {
-        Some("switch")
-    } else if contains(role, "sub") {
-        Some("submissive")
-    } else {
-        Some("dominant")
-    }
-}
-
-fn cuckolding(m: &Match) -> V {
-    let role = m.first()?;
-    if contains(role, "quean") {
-        Some("cuckquean")
-    } else if contains(role, "cuck") {
-        Some("cuckold")
-    } else if contains(role, "wife") {
-        Some("hotwife")
-    } else if contains(role, "stag") {
-        Some("stag")
-    } else if contains(role, "vixen") {
-        Some("vixen")
-    } else {
-        Some("bull")
-    }
-}
-
-fn kink_role(m: &Match) -> V {
-    let role = st(m.first()?);
-    if !SEXUAL.test(m.string) {
-        return None;
-    }
-    let has = |part: &str| role.contains(part);
-    Some(if has("brat") {
-        "brat"
-    } else if has("sadist") {
-        "sadist"
-    } else if has("maso") || has("pain") {
-        "masochist"
-    } else if has("slave") || has("pig") || has("finsub") {
-        "slave"
-    } else if has("pup") || has("kitten") {
-        "pet / pup"
-    } else if has("abdl") || has("regress") || has("little") {
-        "little / age regressor"
-    } else if has("master") || has("mistress") {
-        "master / mistress"
-    } else {
-        "primal"
-    })
-}
-
-fn own_section(m: &Match) -> bool {
-    let mut at = back(m, 400);
-    let mut mine = true;
-    while let Some(found) = SECTION.search(m.string, at, m.start()) {
-        mine = found.group(1).is_some();
-        at = found.end();
-    }
-    mine
-}
-
-fn erotic(m: &Match, value: fn(&Match) -> V) -> V {
-    if SEXUAL.test(m.string) && spoken(m) {
-        value(m)
-    } else {
-        None
-    }
-}
-
-fn roles(attribute: &'static str, role: &str, value: fn(&Match) -> V, anchors: &[&str]) -> Vec<Rule> {
-    vec![
-        needs(r(attribute, &format!(r"{HEADER}{DESCRIPTORS}({role}){LOOSE_FOLLOW}"), move |m| if spoken(m) && own_section(m) { value(m) } else { None }, TAGGED), anchors),
-        needs(r(attribute, &format!(r"(?:(?<![^\n])|\A{flair})[\W_]*{DESCRIPTORS}({role})(?= (?:here|looking|seeking|needs?|wants?|ready|hosting|available|can|into|for|from|in|lf|lf4|4)\b)", flair = claimcore::flair!()), move |m| erotic(m, value), TAGGED), anchors),
-        needs(r(attribute, &format!(r"\b{SELF_ROLE}({role}){ROLE_FOLLOW}|\bas an? (?:(?!(?:not|never|no|former|ex|future)\b)[\w-]+ ){{0,2}}?({role}),? (?:i|i'm|im|i've|myself|my)\b|\bmyself as an? (?:[\w-]+ ){{0,2}}?({role}){ROLE_FOLLOW}"), move |m| if m.first().map_or(false, |role| DIRECT.fullmatch(role, 0, role.len()).is_some()) && spoken(m) { value(m) } else { erotic(m, value) }, self_hedge()), anchors),
-        needs(r(attribute, &format!(r"(?:(?<![^\n|•])|\A{flair})[ \t]*(?:\?[-*•][ \t]*)?({role})[ \t]*(?:[|\n]|$)|\b(?<!the )(?<!a )(?<!for )(?<!any )(?<!your )(?<!on )(?<!at )(?<!this )(?<!new )(?<!my )(?<!of )(?<!from )({role}) here\b", flair = claimcore::flair!()), move |m| if own_section(m) { erotic(m, value) } else { None }, TAGGED), anchors),
-    ]
-}
-
-pub fn kink() -> Vec<Rule> {
-    let mut rules = roles("sexual_position", r"(?:(?:dom|sub|power|total|pure|service|oral|bi|gay)[- ])?(?:top|bottom|bttm|btm)|vers(?:e|atile)?(?:[- ](?:top|bottom|bttm|btm|bot))?", position, &["top", "bot", "btm", "bttm", "vers"]);
-    rules.extend(roles("bdsm_role", r"(?:dom|sub|domme)[- ]?leaning switch|switch|dom|domme|dominant|sub|subby|submissive", power, &["switch", "dom", "sub"]));
-    rules.extend(roles("cuckolding_role", r"cuckquean|cuck(?:old)?|cucky|hot ?wifey?|(?<!pit )bull|stag(?! (?:do|party|night|weekend|beetle|deer)\b)|vixen", cuckolding, &["cuck", "wife", "bull", "stag", "vixen"]));
-    rules.extend(roles("bdsm_role", concat!(r"(?<!army )(?<!military )(?<!navy )(?<!marine )(?<!force )(?<!spoiled )(?<!spoilt )(?:bratt?y|brat)|sadist(?:ic)?|masochist(?:ic)?|maso|pain slut|slave|pay ?pig|finsub|human pup|pup|puppy (?:girl|boy)|kitten|abdl|age ?regressor",
-        r"|little(?= *(?:[,.!;)/|\n]|$))|master(?! (?:at|of|in|chef|degree|class|level|rank|key|bedroom|plan|list|piece|card|race|mind|bath)\b)|mistress|primal"), kink_role,
-        &["brat", "sadist", "maso", "pain slut", "slave", "pig", "finsub", "pup", "kitten", "abdl", "regressor", "little", "master", "mistress", "primal"]));
-    rules.extend([
-        needs(r("sexual_position", r"\bi (?:(?:really|very|much|definitely|usually|always|mostly|only|exclusively|strictly|mainly|primarily|generally|just|prefer to|like to|love to|prefer|enjoy|love) ){1,3}(top|bottom|bttm|btm)(?:ping|ing)?\b(?=\s*(?:$|[,.!;:)\n]|(?:and|but|so|more|too|for|with|sometimes|often|only)\b))", |m| erotic(m, position), self_hedge()), &["top", "bot", "btm", "bttm"]),
-        needs(r("sexual_position", r"\b((?:total|power|pure|strict|100%|full|complete|exclusive|insatiable)[- ]?(?:bottom|top|bttm|btm)|vers(?:atile)?[- ](?:top|bottom|bttm|btm))\b(?![\w'-])", |m| if FOR_PARTNER.test_in(m.string, back(m, 30), m.start()) || !own_section(m) { None } else { erotic(m, position) }, TAGGED), &["top", "bot", "btm", "bttm"]),
-        needs(r("bdsm_role", r"\bi(?:'m| am|m) (?:\w+ )?(?:more of an?|mostly an?|a (?:\w+ )?) (dom|sub)[- ]leaning\b|\bi(?:'m| am|m) (dom|sub)[- ]leaning\b", |m| erotic(m, |m| if contains(m.first()?, "sub") { Some("submissive") } else { Some("dominant") }), self_hedge()), &["leaning"]),
-        needs(r("bdsm_role", concat!(r"(?:\b(?:i'm|im|i am|we're|we are|i've always been)(?: (?:an?|pretty|mostly|generally|very|fairly|more|kinda|kind of|quite|rather|somewhat|super|totally|basically|relatively|a bit|a little|on the|just|also|honestly|probably|really))*|(?:^", claimcore::flair!(), r"|[\n.!?]\s*)(?:pretty|mostly|fairly|super|very|relatively|kinda|generally)) vanilla\b(?! (?:ice|extract|latte|flavou?r\w*|minecraft|wow|server|game|version|build|client|install|mods?|js|javascript|css|bean|cake|sky|coke|scent|candle|frosting|pudding|yogurt|essence)\b)"), |m| erotic(m, |_| Some("vanilla")), self_hedge()), &["vanilla"]),
-        needs(r("cuckolding_role", r"\bi (?:\w+ )?(?:love|like|enjoy|crave) (being|getting) cucked\b", |m| if SELF.test(m.string) { erotic(m, |_| Some("cuckold")) } else { None }, self_hedge()), &["cucked"]),
-    ]);
-    rules
-}

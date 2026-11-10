@@ -15,16 +15,7 @@
    "low": 13,
    "high": 90,
    "precision": 1,
-   "anchor": "birth_year",
-   "bands": [
-    13,
-    18,
-    25,
-    35,
-    45,
-    55
-   ],
-   "at": "2026-09-30"
+   "anchor": "birth_year"
   },
   {
    "name": "birth_year",
@@ -34,7 +25,75 @@
    "unit": "year",
    "low": 1930,
    "high": 2012,
-   "precision": 1
+   "precision": 1,
+   "past": true
+  },
+  {
+   "name": "gender",
+   "prompt": "person",
+   "kind": "one",
+   "describe": "What gender does the writer identify as (not whether they are cis or trans)",
+   "values": [
+    "man",
+    "woman",
+    "nonbinary",
+    "genderfluid",
+    "agender",
+    "genderqueer",
+    "bigender",
+    "demiboy / demigirl",
+    "xenogender"
+   ]
+  },
+  {
+   "name": "trans_status",
+   "prompt": "person",
+   "kind": "one",
+   "describe": "Is the writer cis, trans, questioning their gender, or detransitioned",
+   "values": [
+    "cis",
+    "trans",
+    "questioning",
+    "detransitioned"
+   ]
+  },
+  {
+   "name": "origin_location",
+   "prompt": "person",
+   "kind": "set",
+   "describe": "Where is the writer from: the places they were born, grew up or were raised"
+  },
+  {
+   "name": "location",
+   "prompt": "person",
+   "kind": "set",
+   "describe": "Where does the writer live"
+  },
+  {
+   "name": "ethnicity",
+   "prompt": "person",
+   "kind": "set",
+   "describe": "What race or ethnicity does the writer state",
+   "values": [
+    "white",
+    "black",
+    "asian",
+    "east asian",
+    "southeast asian",
+    "latino / latina",
+    "hispanic",
+    "arab / middle eastern",
+    "brown",
+    "mixed",
+    "indigenous",
+    "person of color",
+    "mestizo / mestiza",
+    "jewish (ethnic)",
+    "persian / iranian",
+    "pacific islander",
+    "north african",
+    "south asian / desi"
+   ]
   },
   {
    "name": "generation",
@@ -53,139 +112,27 @@
    ]
   },
   {
-   "name": "gender",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What gender does the writer identify as",
-   "values": [
-    "man",
-    "woman",
-    "nonbinary",
-    "genderfluid",
-    "agender",
-    "genderqueer",
-    "bigender",
-    "demiboy",
-    "demigirl",
-    "xenogender",
-    "questioning",
-    "transmasc",
-    "transfem",
-    "genderflux",
-    "neutrois",
-    "two-spirit",
-    "demifluid",
-    "fluidflux",
-    "maverique",
-    "trans woman",
-    "trans man",
-    "cis woman",
-    "cis man",
-    "cis (gender unstated)",
-    "trans (unspecified)",
-    "transsexual",
-    "egg"
-   ]
-  },
-  {
-   "name": "outness",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How open is the writer about their sexuality or gender",
-   "values": [
-    "down low (dl)",
-    "discreet",
-    "closeted / not out",
-    "out / openly"
-   ]
-  },
-  {
-   "name": "assigned_sex_at_birth",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What sex was the writer assigned at birth",
-   "values": [
-    "amab",
-    "afab",
-    "intersex"
-   ]
-  },
-  {
-   "name": "transition_care",
+   "name": "nationality",
    "prompt": "person",
    "kind": "set",
-   "describe": "Which gender transition treatments has the writer had",
-   "values": [
-    "hormone therapy",
-    "top surgery",
-    "bottom surgery",
-    "facial feminization",
-    "hysterectomy / orchiectomy",
-    "surgery (unspecified)",
-    "pre-transition",
-    "puberty blockers",
-    "hair removal",
-    "voice training",
-    "detransitioned",
-    "pre-op",
-    "post-op"
-   ]
+   "describe": "Which country's citizenship or nationality does the writer hold"
   },
   {
-   "name": "hrt_time",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How long has the writer been on gender-affirming hormones",
-   "unit": "months",
-   "low": 0,
-   "high": 600,
-   "precision": 1,
-   "anchor": "hrt_start_year"
-  },
-  {
-   "name": "hrt_start_year",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "In what year did the writer start gender-affirming hormones",
-   "unit": "year",
-   "low": 1980,
-   "high": 2026,
-   "precision": 1
-  },
-  {
-   "name": "gender_expression",
+   "name": "relationship_status",
    "prompt": "person",
    "kind": "one",
-   "describe": "What gender expression label does the writer use for themselves",
+   "describe": "What is the writer's relationship status",
    "values": [
-    "femboy",
-    "sissy",
-    "tomboy",
-    "butch",
-    "femme",
-    "masc",
-    "crossdresser",
-    "androgynous",
-    "stud",
-    "gender non-conforming"
-   ]
-  },
-  {
-   "name": "pronouns",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What pronouns does the writer use",
-   "values": [
-    "she/her",
-    "he/him",
-    "they/them",
-    "it/its",
-    "any pronouns",
-    "xe/xem",
-    "fae/faer",
-    "ze/zir",
-    "ey/em",
-    "neopronouns (other or unnamed)"
+    "single",
+    "in a relationship",
+    "engaged",
+    "married",
+    "separated",
+    "divorced",
+    "widowed",
+    "common-law / de facto",
+    "dating / seeing someone",
+    "situationship"
    ]
   },
   {
@@ -218,307 +165,73 @@
    ]
   },
   {
-   "name": "romantic_orientation",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's romantic orientation",
-   "values": [
-    "aromantic",
-    "demiromantic",
-    "biromantic",
-    "panromantic",
-    "homoromantic",
-    "heteroromantic",
-    "grayromantic"
-   ]
-  },
-  {
-   "name": "sexual_position",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What sexual position role does the writer take",
-   "values": [
-    "top",
-    "bottom",
-    "vers",
-    "side",
-    "vers top",
-    "vers bottom"
-   ]
-  },
-  {
-   "name": "bdsm_role",
+   "name": "occupation",
    "prompt": "person",
    "kind": "set",
-   "describe": "What role does the writer take in BDSM or kink",
-   "values": [
-    "dominant",
-    "submissive",
-    "switch",
-    "brat",
-    "little / age regressor",
-    "pet / pup",
-    "sadist",
-    "masochist",
-    "primal",
-    "master / mistress",
-    "slave",
-    "vanilla"
-   ]
+   "describe": "What is the writer's job or profession"
   },
   {
-   "name": "cuckolding_role",
+   "name": "occupation_group",
    "prompt": "person",
    "kind": "one",
-   "describe": "Which role does the writer take in cuckolding or hotwifing",
+   "describe": "Which job family is the writer's occupation in",
    "values": [
-    "cuckold",
-    "hotwife",
-    "bull",
-    "cuckquean",
-    "stag",
-    "vixen"
+    "software or information technology",
+    "engineering",
+    "science or research",
+    "doctor, nurse or clinical health",
+    "health support or care work",
+    "teaching or education",
+    "law",
+    "finance or accounting",
+    "business, management or consulting",
+    "marketing, media or communications",
+    "arts, design or entertainment",
+    "sales or retail",
+    "food service or hospitality",
+    "skilled trade or construction",
+    "manufacturing or warehouse",
+    "transport or delivery",
+    "police, fire or security",
+    "military",
+    "government or public service",
+    "social work or religious work",
+    "office or administrative",
+    "cleaning, maintenance or personal service",
+    "farming or outdoor work",
+    "sex work or adult content",
+    "other job"
    ]
   },
   {
-   "name": "relationship_status",
+   "name": "employment_status",
    "prompt": "person",
    "kind": "one",
-   "describe": "What is the writer's relationship status",
+   "describe": "What is the writer's employment status",
    "values": [
-    "single",
-    "in a relationship",
-    "engaged",
-    "married",
-    "separated",
-    "divorced",
-    "widowed",
-    "common-law / de facto",
-    "dating / seeing someone",
-    "situationship"
+    "employed full-time",
+    "part-time",
+    "self-employed / freelance",
+    "unemployed",
+    "neet",
+    "retired",
+    "disabled / unable to work",
+    "intern",
+    "apprentice",
+    "several jobs / temp",
+    "employed (hours unstated)",
+    "business owner",
+    "stay-at-home parent",
+    "homemaker / housewife",
+    "on leave",
+    "gap year",
+    "carer / caregiver"
    ]
-  },
-  {
-   "name": "relationship_length",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How long has the writer been in their current marriage or relationship",
-   "unit": "years",
-   "low": 0,
-   "high": 70,
-   "precision": 0.5,
-   "anchor": "relationship_start_year"
-  },
-  {
-   "name": "relationship_start_year",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "In what year did the writer's current marriage or relationship start",
-   "unit": "year",
-   "low": 1950,
-   "high": 2026,
-   "precision": 1
-  },
-  {
-   "name": "sexual_experience",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "How does the writer describe their sexual experience",
-   "values": [
-    "virgin",
-    "kissless virgin",
-    "inexperienced",
-    "experienced",
-    "new to this / first timer",
-    "nbsb (no boyfriend since birth)",
-    "celibate",
-    "sexually active"
-   ]
-  },
-  {
-   "name": "relationship_structure",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What structure does the writer's relationship have",
-   "values": [
-    "polyamorous",
-    "open relationship",
-    "ethically non-monogamous",
-    "monogamous",
-    "cuckold / hotwife",
-    "relationship anarchy",
-    "swinger",
-    "solo poly"
-   ]
-  },
-  {
-   "name": "number_of_children",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How many children does the writer have",
-   "unit": "children",
-   "low": 0,
-   "high": 15,
-   "precision": 1
-  },
-  {
-   "name": "parent_role",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "How does the writer describe themselves as a parent",
-   "values": [
-    "parent",
-    "single parent",
-    "stepparent",
-    "foster / adoptive parent",
-    "grandparent",
-    "childfree",
-    "dink",
-    "boy mom / girl dad",
-    "empty nester"
-   ]
-  },
-  {
-   "name": "parenting_experience",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Which child is the writer expecting or raising as a mother: first-time, second-time or later",
-   "values": [
-    "first-time mom (ftm)",
-    "second-time mom (stm)",
-    "third-time or later mom (3tm+)"
-   ]
-  },
-  {
-   "name": "family_building_stage",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Where is the writer in trying to have a child",
-   "values": [
-    "trying to conceive",
-    "pregnant",
-    "ivf / assisted conception",
-    "pregnancy loss",
-    "postpartum"
-   ]
-  },
-  {
-   "name": "living_arrangement",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Who does the writer live with",
-   "values": [
-    "alone",
-    "with parents",
-    "with grandparents",
-    "with partner",
-    "with roommates",
-    "with children",
-    "with siblings / relatives",
-    "with in-laws"
-   ]
-  },
-  {
-   "name": "housing_tenure",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How does the writer hold their home: owned, mortgaged, rented, or none",
-   "values": [
-    "owns with mortgage",
-    "owns outright",
-    "homeowner (unstated)",
-    "renter",
-    "homeless"
-   ]
-  },
-  {
-   "name": "home_type",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What kind of home does the writer live in",
-   "values": [
-    "house",
-    "apartment",
-    "student housing",
-    "condo / townhouse",
-    "mobile home / rv / van",
-    "farm / ranch / homestead"
-   ]
-  },
-  {
-   "name": "location",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Does the writer live in the United States or outside it",
-   "values": [
-    "united states",
-    "outside the united states"
-   ]
-  },
-  {
-   "name": "nationality",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What nationality or national origin does the writer claim",
-   "values": [
-    "north american",
-    "british or irish",
-    "european",
-    "south asian",
-    "east or southeast asian",
-    "oceanian",
-    "latin american",
-    "middle eastern or african"
-   ]
-  },
-  {
-   "name": "ethnicity",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What race or ethnicity does the writer state",
-   "values": [
-    "white",
-    "black",
-    "asian",
-    "east asian",
-    "southeast asian",
-    "latino / latina",
-    "hispanic",
-    "arab / middle eastern",
-    "brown",
-    "mixed",
-    "indigenous",
-    "person of color",
-    "mestizo / mestiza",
-    "jewish (ethnic)",
-    "persian / iranian",
-    "pacific islander",
-    "north african",
-    "south asian / desi"
-   ]
-  },
-  {
-   "name": "heritage",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What national or ethnic origin does the writer name for their family or ancestry"
-  },
-  {
-   "name": "native_language",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer's native language"
-  },
-  {
-   "name": "other_languages",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What other languages does the writer speak or learn, and at what level"
   },
   {
    "name": "religion",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What religion or belief does the writer hold now",
    "values": [
     "christian (unspecified)",
@@ -570,1061 +283,20 @@
    ]
   },
   {
-   "name": "religious_upbringing",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What religion was the writer raised in",
-   "values": [
-    "catholic",
-    "christian (unspecified)",
-    "baptist",
-    "lutheran",
-    "methodist",
-    "presbyterian",
-    "evangelical / pentecostal",
-    "latter-day saint",
-    "jehovah's witness",
-    "orthodox christian",
-    "anglican / episcopalian",
-    "muslim",
-    "jewish",
-    "hindu",
-    "buddhist",
-    "religious (unspecified)",
-    "secular / non-religious"
-   ]
-  },
-  {
-   "name": "former_religion",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which religion has the writer left",
-   "values": [
-    "ex-christian",
-    "ex-catholic",
-    "ex-muslim",
-    "ex-mormon",
-    "ex-jehovah's witness",
-    "ex-evangelical",
-    "ex-jewish",
-    "ex-hindu",
-    "ex-religious (religion unstated)"
-   ]
-  },
-  {
-   "name": "political_ideology",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What political ideology does the writer identify with",
-   "values": [
-    "liberal",
-    "classical liberal",
-    "progressive",
-    "leftist",
-    "socialist",
-    "democratic socialist",
-    "social democrat",
-    "communist",
-    "anarchist",
-    "libertarian",
-    "libertarian socialist",
-    "conservative",
-    "centrist / moderate",
-    "nationalist",
-    "maga / trump supporter",
-    "abolitionist",
-    "apolitical",
-    "monarchist",
-    "anarcho-capitalist",
-    "feminist",
-    "left-leaning / centre-left",
-    "left-wing",
-    "right-leaning / centre-right",
-    "right-wing"
-   ]
-  },
-  {
-   "name": "party_affiliation",
+   "name": "political_compass",
    "prompt": "person",
    "kind": "one",
-   "describe": "Which political party does the writer support or belong to",
+   "describe": "Which political compass quadrant does the writer's r/PoliticalCompassMemes flair show",
    "values": [
-    "republican",
-    "democrat",
-    "green party",
-    "labour",
-    "conservative party (uk/canada)",
-    "independent",
-    "libertarian party",
-    "reform uk",
-    "liberal democrats"
-   ]
-  },
-  {
-   "name": "occupation",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer's job or profession"
-  },
-  {
-   "name": "employment_status",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's employment status",
-   "values": [
-    "employed full-time",
-    "part-time",
-    "self-employed / freelance",
-    "unemployed",
-    "neet",
-    "retired",
-    "disabled / unable to work",
-    "intern",
-    "apprentice",
-    "several jobs / temp",
-    "employed (hours unstated)",
-    "business owner",
-    "stay-at-home parent",
-    "homemaker / housewife",
-    "on leave",
-    "gap year",
-    "carer / caregiver"
-   ]
-  },
-  {
-   "name": "highest_degree",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the highest degree the writer has earned",
-   "values": [
-    "trade / vocational certificate",
-    "associate",
-    "bachelor's",
-    "master's",
-    "doctorate (phd)",
-    "medical doctor",
-    "pharmacy doctorate",
-    "law degree",
-    "professional doctorate (other)",
-    "graduated (level unstated)",
-    "secondary school",
-    "no degree",
-    "high school dropout",
-    "college dropout",
-    "graduate school dropout",
-    "dropout (level unstated)"
-   ]
-  },
-  {
-   "name": "schooling",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What kind of school did the writer go to",
-   "values": [
-    "homeschooled",
-    "boarding school",
-    "private school",
-    "public school"
-   ]
-  },
-  {
-   "name": "current_study_level",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What year or level of school is the writer in now",
-   "values": [
-    "student (level unstated)",
-    "middle school",
-    "high school year 9-10",
-    "year 11",
-    "year 12",
-    "year 13",
-    "high school (year unstated)",
-    "university 1st year",
-    "university 2nd year",
-    "university 3rd year",
-    "university 4th / final year",
-    "undergraduate (year unstated)",
-    "master's student",
-    "phd student",
-    "graduate student (level unstated)",
-    "medical / law / professional school",
-    "community college",
-    "resident / fellow"
-   ]
-  },
-  {
-   "name": "field_of_study",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What did or does the writer study"
-  },
-  {
-   "name": "school_attended",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which school or university does or did the writer attend"
-  },
-  {
-   "name": "graduation_year",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "In what year did or will the writer graduate",
-   "unit": "year",
-   "low": 1950,
-   "high": 2032,
-   "precision": 1
-  },
-  {
-   "name": "height",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How tall is the writer",
-   "unit": "centimetres",
-   "low": 120,
-   "high": 220,
-   "precision": 1
-  },
-  {
-   "name": "body_weight",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How much does the writer weigh now",
-   "unit": "kilograms",
-   "low": 35,
-   "high": 250,
-   "precision": 1
-  },
-  {
-   "name": "starting_weight",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How much did the writer weigh before their weight change",
-   "unit": "kilograms",
-   "low": 40,
-   "high": 320,
-   "precision": 1
-  },
-  {
-   "name": "body_type",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "How does the writer describe their body type",
-   "values": [
-    "slim / skinny",
-    "petite",
-    "average",
-    "fit / athletic",
-    "muscular",
-    "stocky",
-    "dad bod",
-    "chubby",
-    "curvy",
-    "thick",
-    "bbw",
-    "twink / twunk",
-    "bear / cub / otter",
-    "hwp (height-weight proportionate)",
-    "pawg",
-    "fat",
-    "overweight",
-    "obese",
-    "plus size",
-    "big / heavyset",
-    "slim thick"
-   ]
-  },
-  {
-   "name": "hair_type",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's hair curl pattern",
-   "values": [
-    "straight (type 1)",
-    "wavy (type 2)",
-    "curly (type 3)",
-    "coily (type 4)"
-   ]
-  },
-  {
-   "name": "hair_strand_width",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How fine or coarse are the writer's hair strands",
-   "values": [
-    "fine",
-    "medium",
-    "coarse"
-   ]
-  },
-  {
-   "name": "hair_density",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How dense is the writer's hair",
-   "values": [
-    "low",
-    "high / thick",
-    "medium"
-   ]
-  },
-  {
-   "name": "hair_porosity",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How porous is the writer's hair",
-   "values": [
-    "low",
-    "high",
-    "mixed",
-    "medium"
-   ]
-  },
-  {
-   "name": "hair_color",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer's hair color",
-   "values": [
-    "brown / brunette",
-    "blonde",
-    "black",
-    "red / ginger",
-    "grey / greying",
-    "white",
-    "blue",
-    "pink",
-    "teal",
-    "auburn",
-    "strawberry blonde",
-    "purple",
-    "salt and pepper"
-   ]
-  },
-  {
-   "name": "eye_color",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer's eye color",
-   "values": [
-    "brown",
-    "blue",
-    "green",
-    "hazel",
-    "gray",
-    "heterochromia",
-    "amber"
-   ]
-  },
-  {
-   "name": "skin_type",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer's skin type",
-   "values": [
-    "oily",
-    "dry",
-    "combination",
-    "normal",
-    "sensitive",
-    "acne-prone"
-   ]
-  },
-  {
-   "name": "skin_tone",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer's skin tone",
-   "values": [
-    "fair / pale",
-    "light",
-    "medium / tan",
-    "olive",
-    "brown",
-    "dark / deep",
-    "moreno / morena"
-   ]
-  },
-  {
-   "name": "skin_undertone",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What undertone does the writer say their skin has",
-   "values": [
-    "warm",
-    "cool",
-    "neutral"
-   ]
-  },
-  {
-   "name": "penis_size",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How long is the writer's penis",
-   "unit": "inches",
-   "low": 2,
-   "high": 11,
-   "precision": 0.1
-  },
-  {
-   "name": "bra_size",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer's bra size"
-  },
-  {
-   "name": "clothing_size",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What clothing size does the writer wear"
-  },
-  {
-   "name": "shoe_size",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What is the writer's shoe size",
-   "unit": "shoe size (as stated, US/UK/EU)",
-   "low": 3,
-   "high": 50,
-   "precision": 0.5
-  },
-  {
-   "name": "physical_conditions",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which lasting physical health conditions does the writer have",
-   "values": [
-    "multiple sclerosis",
-    "endometriosis",
-    "pcos",
-    "pots",
-    "ehlers-danlos",
-    "type 1 diabetes",
-    "type 2 diabetes",
-    "celiac",
-    "ibd (crohn's / colitis)",
-    "ibs",
-    "cancer",
-    "epilepsy",
-    "migraine",
-    "joint replacement",
-    "deaf / hard of hearing",
-    "wheelchair user",
-    "mcas",
-    "arthritis",
-    "fnd",
-    "gastroparesis",
-    "asthma",
-    "lupus",
-    "sleep apnea",
-    "scoliosis",
-    "interstitial cystitis / pelvic floor",
-    "low cortisol / adrenal",
-    "long covid",
-    "me/cfs",
-    "fibromyalgia",
-    "chronic pain / crps",
-    "lada diabetes",
-    "prediabetes",
-    "diabetes (type unstated)",
-    "fibroids",
-    "lactose intolerance",
-    "ostomy",
-    "amputee",
-    "disability (unspecified)",
-    "hypertension",
-    "autoimmune (unspecified)",
-    "afib / arrhythmia / svt",
-    "heart failure",
-    "heart condition (unnamed)",
-    "eczema",
-    "psoriasis",
-    "hypothyroid / hashimoto's",
-    "hyperthyroid / graves",
-    "thyroid (type unstated)",
-    "pmos",
-    "dor / low amh",
-    "unexplained infertility",
-    "tubal factor"
-   ]
-  },
-  {
-   "name": "sexual_health_status",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What sexual-health status does the writer state",
-   "values": [
-    "ddf / std-free",
-    "hiv negative",
-    "on prep",
-    "hiv positive",
-    "hsv-1",
-    "hsv-2",
-    "herpes / hsv (type unstated)",
-    "hpv"
-   ]
-  },
-  {
-   "name": "mental_and_developmental_conditions",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What neurotype and mental-health or developmental labels does the writer state",
-   "values": [
-    "adhd",
-    "autism",
-    "audhd",
-    "ocd",
-    "bpd",
-    "ptsd",
-    "cptsd",
-    "depression",
-    "anxiety",
-    "bipolar",
-    "schizophrenia / schizoaffective",
-    "dissociative / plural",
-    "dyslexia / learning disorder",
-    "tourette / tics",
-    "neurodivergent (unspecified)",
-    "neurotypical",
-    "gifted / 2e",
-    "pmdd",
-    "suicidality",
-    "anorexia",
-    "ednos / osfed",
-    "binge eating disorder",
-    "eating disorder (unspecified)",
-    "bulimia",
-    "avpd / schizoid",
-    "npd",
-    "insomnia",
-    "aphantasia",
-    "panic disorder / panic attacks",
-    "gender dysphoria",
-    "body dysmorphia",
-    "stutter"
-   ]
-  },
-  {
-   "name": "medications",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which medications does the writer take"
-  },
-  {
-   "name": "sober_time",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How long has the writer been sober or clean",
-   "unit": "days",
-   "low": 1,
-   "high": 18250,
-   "precision": 1,
-   "anchor": "sobriety_year"
-  },
-  {
-   "name": "sobriety_year",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "In what year did the writer get sober",
-   "unit": "year",
-   "low": 1960,
-   "high": 2026,
-   "precision": 1
-  },
-  {
-   "name": "recovering_from",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer in recovery from",
-   "values": [
-    "alcohol",
-    "opioids",
-    "cannabis",
-    "gambling",
-    "porn / sex",
-    "stimulants",
-    "benzodiazepines"
-   ]
-  },
-  {
-   "name": "addiction",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer currently addicted to",
-   "values": [
-    "alcohol",
-    "cannabis",
-    "opioids",
-    "stimulants",
-    "benzodiazepines",
-    "nicotine",
-    "gambling",
-    "porn / sex",
-    "gaming",
-    "caffeine"
-   ]
-  },
-  {
-   "name": "substance_use",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which substances does the writer use",
-   "values": [
-    "cigarettes / tobacco",
-    "cannabis",
-    "vape",
-    "pipe / cigar",
-    "nicotine pouches / snus",
-    "psychedelics",
-    "drug-free"
-   ]
-  },
-  {
-   "name": "smoking_status",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How much does the writer smoke",
-   "values": [
-    "non-smoker",
-    "occasional / social smoker",
-    "daily / heavy smoker",
-    "smoker (frequency unstated)",
-    "ex-smoker"
-   ]
-  },
-  {
-   "name": "mbti_type",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's MBTI type",
-   "values": [
-    "intj",
-    "intp",
-    "entj",
-    "entp",
-    "infj",
-    "infp",
-    "enfj",
-    "enfp",
-    "istj",
-    "isfj",
-    "estj",
-    "esfj",
-    "istp",
-    "isfp",
-    "estp",
-    "esfp"
-   ]
-  },
-  {
-   "name": "enneagram_type",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's enneagram core type",
-   "values": [
-    "type 1",
-    "type 2",
-    "type 3",
-    "type 4",
-    "type 5",
-    "type 6",
-    "type 7",
-    "type 8",
-    "type 9"
-   ]
-  },
-  {
-   "name": "instinctual_variant",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's enneagram instinctual stacking",
-   "values": [
-    "sp/sx",
-    "sp/so",
-    "sx/sp",
-    "sx/so",
-    "so/sp",
-    "so/sx"
-   ]
-  },
-  {
-   "name": "enneagram_tritype",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's enneagram tritype"
-  },
-  {
-   "name": "socionics_type",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's socionics type"
-  },
-  {
-   "name": "attachment_style",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's attachment style",
-   "values": [
-    "secure",
-    "anxious",
-    "avoidant",
-    "fearful avoidant / disorganized"
-   ]
-  },
-  {
-   "name": "sun_sign",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's sun sign",
-   "values": [
-    "aries",
-    "taurus",
-    "gemini",
-    "cancer",
-    "leo",
-    "virgo",
-    "libra",
-    "scorpio",
-    "sagittarius",
-    "capricorn",
-    "aquarius",
-    "pisces"
-   ]
-  },
-  {
-   "name": "moon_sign",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's moon sign",
-   "values": [
-    "aries",
-    "taurus",
-    "gemini",
-    "cancer",
-    "leo",
-    "virgo",
-    "libra",
-    "scorpio",
-    "sagittarius",
-    "capricorn",
-    "aquarius",
-    "pisces"
-   ]
-  },
-  {
-   "name": "rising_sign",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's rising sign",
-   "values": [
-    "aries",
-    "taurus",
-    "gemini",
-    "cancer",
-    "leo",
-    "virgo",
-    "libra",
-    "scorpio",
-    "sagittarius",
-    "capricorn",
-    "aquarius",
-    "pisces"
-   ]
-  },
-  {
-   "name": "hardiness_zone",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What USDA plant hardiness zone does the writer garden in",
-   "unit": "zone",
-   "low": 1,
-   "high": 13,
-   "precision": 0.5
-  },
-  {
-   "name": "military_branch",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Which military branch did or does the writer serve in",
-   "values": [
-    "army",
-    "navy",
-    "air force",
-    "marines",
-    "coast guard"
-   ]
-  },
-  {
-   "name": "military_status",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's own military service status",
-   "values": [
-    "serving",
-    "reserve / national guard",
-    "veteran",
-    "cadet / rotc"
-   ]
-  },
-  {
-   "name": "pilot_certificates",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which pilot certificates and ratings does the writer hold",
-   "values": [
-    "private pilot",
-    "instrument rating",
-    "commercial pilot",
-    "airline transport pilot",
-    "flight instructor",
-    "multi-engine",
-    "drone / uas",
-    "student pilot"
-   ]
-  },
-  {
-   "name": "amateur_radio_license",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What amateur radio licence class does the writer hold",
-   "values": [
-    "technician",
-    "general",
-    "extra"
-   ]
-  },
-  {
-   "name": "martial_arts",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which martial arts does the writer practise",
-   "values": [
-    "bjj",
-    "judo",
-    "muay thai",
-    "boxing",
-    "kickboxing",
-    "mma",
-    "wrestling",
-    "karate",
-    "taekwondo",
-    "kendo / fencing / hema",
-    "capoeira",
-    "kung fu / wing chun / tai chi",
-    "aikido / jujutsu",
-    "krav maga",
-    "escrima / kali",
-    "sambo"
-   ]
-  },
-  {
-   "name": "bjj_belt",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What Brazilian jiu-jitsu belt does the writer hold",
-   "values": [
-    "white belt",
-    "blue belt",
-    "purple belt",
-    "brown belt",
-    "black belt"
-   ]
-  },
-  {
-   "name": "sports_teams",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which sports teams is the writer a fan of"
-  },
-  {
-   "name": "fandoms",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which works, artists or franchises is the writer a devoted fan of"
-  },
-  {
-   "name": "hogwarts_house",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Which Hogwarts house does the writer say they belong to",
-   "values": [
-    "gryffindor",
-    "hufflepuff",
-    "ravenclaw",
-    "slytherin"
-   ]
-  },
-  {
-   "name": "pokemon_go_team",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Which Pokemon Go team is the writer on",
-   "values": [
-    "mystic",
-    "valor",
-    "instinct"
-   ]
-  },
-  {
-   "name": "pets",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What pets does the writer have",
-   "values": [
-    "dog",
-    "cat",
-    "rabbit",
-    "rat",
-    "guinea pig",
-    "hamster",
-    "gerbil",
-    "chinchilla",
-    "degu",
-    "mice",
-    "snake",
-    "gecko",
-    "bearded dragon",
-    "tortoise / turtle",
-    "lizard",
-    "parrot",
-    "budgie / parakeet",
-    "cockatiel",
-    "bird (unnamed)",
-    "chicken",
-    "duck",
-    "fish / aquarium",
-    "horse",
-    "ferret",
-    "tarantula",
-    "isopods",
-    "snails",
-    "goat",
-    "pig"
-   ]
-  },
-  {
-   "name": "diet",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What diet does the writer follow",
-   "values": [
-    "vegan",
-    "plant-based",
-    "vegetarian",
-    "carnivore",
-    "omnivore / meat eater",
-    "paleo",
-    "intermittent fasting",
-    "gluten-free",
-    "high protein",
-    "pescatarian",
-    "flexitarian",
-    "calorie counting",
-    "halal",
-    "kosher",
-    "keto",
-    "low carb",
-    "sugar free",
-    "low fodmap",
-    "dairy free",
-    "mediterranean diet"
-   ]
-  },
-  {
-   "name": "vehicles",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What vehicles does the writer own"
-  },
-  {
-   "name": "cpu",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What CPU is in the writer's computer"
-  },
-  {
-   "name": "gpu",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What graphics card is in the writer's computer"
-  },
-  {
-   "name": "ram_gb",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How much RAM does the writer's computer have",
-   "unit": "GB",
-   "low": 2,
-   "high": 512,
-   "precision": 1
-  },
-  {
-   "name": "operating_system",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which operating systems does the writer use",
-   "values": [
-    "windows",
-    "macos",
-    "linux",
-    "android",
-    "ios",
-    "chromeos"
-   ]
-  },
-  {
-   "name": "gaming_platform",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which gaming platforms does the writer play on",
-   "values": [
-    "pc",
-    "playstation",
-    "xbox",
-    "nintendo switch",
-    "mobile",
-    "steam deck",
-    "vr"
-   ]
-  },
-  {
-   "name": "phone",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What phone does the writer use"
-  },
-  {
-   "name": "musical_instruments",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which musical instruments does the writer play",
-   "values": [
-    "guitar",
-    "bass",
-    "piano / keyboard",
-    "drums",
-    "violin / viola / cello",
-    "harp",
-    "voice / singing",
-    "dj / production",
-    "trumpet",
-    "trombone",
-    "tuba",
-    "french horn",
-    "euphonium",
-    "saxophone",
-    "flute",
-    "clarinet",
-    "oboe",
-    "bassoon",
-    "ukulele",
-    "banjo",
-    "mandolin",
-    "accordion",
-    "harmonica",
-    "bagpipes",
-    "biwa",
-    "tabla"
+    "auth-left",
+    "auth-center",
+    "auth-right",
+    "left",
+    "centrist",
+    "right",
+    "lib-left",
+    "lib-center",
+    "lib-right"
    ]
   },
   {
@@ -1634,378 +306,23 @@
    "describe": "What hobbies does the writer pursue"
   },
   {
-   "name": "blood_type",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's blood type",
-   "values": [
-    "a+",
-    "a-",
-    "b+",
-    "ab+",
-    "o+",
-    "b-",
-    "ab-",
-    "o-"
-   ]
-  },
-  {
-   "name": "golf_handicap",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What is the writer's golf handicap",
-   "unit": "strokes",
-   "low": -5,
-   "high": 54,
-   "precision": 1
-  },
-  {
-   "name": "chess_rating",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What is the writer's chess rating",
-   "unit": "Elo",
-   "low": 100,
-   "high": 3000,
-   "precision": 1
-  },
-  {
-   "name": "typing_speed",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How fast does the writer type",
-   "unit": "words per minute",
-   "low": 20,
-   "high": 250,
-   "precision": 1
-  },
-  {
-   "name": "running_5k_time",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What is the writer's 5k running time",
-   "unit": "minutes",
-   "low": 12,
-   "high": 60,
-   "precision": 0.1
-  },
-  {
-   "name": "mcat_score",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What did the writer score on the MCAT",
-   "unit": "points",
-   "low": 472,
-   "high": 528,
-   "precision": 1
-  },
-  {
-   "name": "lsat_score",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What did the writer score on the LSAT",
-   "unit": "points",
-   "low": 120,
-   "high": 180,
-   "precision": 1
-  },
-  {
-   "name": "gpa",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What is the writer's grade point average",
-   "unit": "points",
-   "low": 0,
-   "high": 4.0,
-   "precision": 0.1
-  },
-  {
-   "name": "immigration_status",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What is the writer's immigration or residency status where they live",
-   "values": [
-    "citizen",
-    "permanent resident",
-    "work visa",
-    "working holiday",
-    "student visa",
-    "partner / spouse visa",
-    "dual citizen",
-    "naturalized citizen",
-    "undocumented",
-    "refugee / asylum"
-   ]
-  },
-  {
-   "name": "financial_situation",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How does the writer describe their financial situation",
-   "values": [
-    "broke / struggling",
-    "comfortable / well off",
-    "wealthy",
-    "financially independent / retired early",
-    "on benefits",
-    "debt-free"
-   ]
-  },
-  {
-   "name": "income",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What is the writer's income",
-   "unit": "US dollars per year",
-   "low": 0,
-   "high": 10000000,
-   "precision": 1
-  },
-  {
-   "name": "speedcubing_average",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What is the writer's 3x3 cube solve average",
-   "unit": "seconds",
-   "low": 3,
-   "high": 180,
-   "precision": 1
-  },
-  {
-   "name": "weight_lost",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "How much weight has the writer lost",
-   "unit": "pounds",
-   "low": 1,
-   "high": 250,
-   "precision": 1
-  },
-  {
-   "name": "medical_devices",
+   "name": "hobby_group",
    "prompt": "person",
    "kind": "set",
-   "describe": "Which medical devices does the writer use",
+   "describe": "Which hobby categories do the writer's hobbies belong to",
    "values": [
-    "cgm",
-    "insulin pump",
-    "cpap",
-    "hearing aid",
-    "cochlear implant",
-    "pacemaker / icd",
-    "neurostimulator",
-    "mobility aid"
-   ]
-  },
-  {
-   "name": "allergies",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What is the writer allergic to",
-   "values": [
-    "latex",
-    "peanuts",
-    "tree nuts",
-    "shellfish",
-    "fish",
-    "eggs",
-    "dairy",
-    "gluten / wheat",
-    "soy",
-    "sesame",
-    "cats",
-    "dogs",
-    "pollen / hay fever",
-    "dust / dust mites",
-    "mold",
-    "penicillin / antibiotics",
-    "nsaids",
-    "bees / wasps",
-    "no allergies"
-   ]
-  },
-  {
-   "name": "identity_community",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "Which alterhuman or furry identity does the writer claim",
-   "values": [
-    "therian",
-    "otherkin",
-    "fictionkin",
-    "alterhuman",
-    "polymorphkin",
-    "furry"
-   ]
-  },
-  {
-   "name": "social_class",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What social class does the writer say they belong to or grew up in",
-   "values": [
-    "middle class",
-    "working class",
-    "lower middle class",
-    "upper middle class",
-    "upper class"
-   ]
-  },
-  {
-   "name": "handedness",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Which hand does the writer use",
-   "values": [
-    "left-handed",
-    "right-handed",
-    "ambidextrous"
-   ]
-  },
-  {
-   "name": "facial_hair",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What facial hair does the writer have",
-   "values": [
-    "full beard",
-    "beard (unspecified)",
-    "short / trimmed beard",
-    "stubble",
-    "goatee",
-    "mustache",
-    "clean shaven"
-   ]
-  },
-  {
-   "name": "hair_length",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How long is the writer's hair",
-   "values": [
-    "long",
-    "medium / shoulder-length",
-    "short",
-    "shaved head",
-    "buzzed",
-    "waist / hip length"
-   ]
-  },
-  {
-   "name": "hair_loss",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How much head hair has the writer lost",
-   "values": [
-    "full head of hair",
-    "receding hairline",
-    "thinning",
-    "balding",
-    "bald"
-   ]
-  },
-  {
-   "name": "norwood_stage",
-   "prompt": "person",
-   "kind": "number",
-   "describe": "What Norwood stage does the writer give for their hair loss",
-   "unit": "norwood stage",
-   "low": 1,
-   "high": 7,
-   "precision": 0.5
-  },
-  {
-   "name": "body_hair",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How much body hair does the writer have",
-   "values": [
-    "very hairy",
-    "hairy",
-    "moderately hairy",
-    "trimmed",
-    "smooth / shaved"
-   ]
-  },
-  {
-   "name": "drinking",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "How often does the writer drink alcohol",
-   "values": [
-    "non-drinker",
-    "rarely drinks",
-    "social / occasional drinker",
-    "heavy drinker",
-    "drinker (frequency unstated)",
-    "california sober"
-   ]
-  },
-  {
-   "name": "vision",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What does the writer say about their eyesight and how they correct it",
-   "values": [
-    "blind / low vision",
-    "glasses",
-    "contact lenses",
-    "nearsighted",
-    "farsighted",
-    "astigmatism",
-    "colorblind",
-    "lasik",
-    "one eye / monocular",
-    "cataract",
-    "glaucoma",
-    "keratoconus"
-   ]
-  },
-  {
-   "name": "introversion",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Does the writer call themselves an introvert, an extrovert or in between",
-   "values": [
-    "introvert",
-    "extrovert",
-    "ambivert",
-    "omnivert"
-   ]
-  },
-  {
-   "name": "chronotype",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Is the writer a night owl, a morning person, or something else",
-   "values": [
-    "night owl / night person",
-    "morning person / early riser / early bird",
-    "not a morning person",
-    "both"
-   ]
-  },
-  {
-   "name": "work_arrangement",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Where does the writer do their work",
-   "values": [
-    "remote / work from home",
-    "hybrid",
-    "in office / on site"
-   ]
-  },
-  {
-   "name": "body_modifications",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "What body modifications does the writer have",
-   "values": [
-    "tattoos",
-    "piercings",
-    "stretched ears / gauges",
-    "split tongue"
+    "gaming",
+    "reading",
+    "music",
+    "art and drawing",
+    "crafts",
+    "cooking and baking",
+    "outdoors",
+    "sports and fitness",
+    "collecting",
+    "photography",
+    "gardening",
+    "anime and tv"
    ]
   },
   {
@@ -2032,16 +349,86 @@
    ]
   },
   {
-   "name": "birth_order",
+   "name": "diet_type",
+   "prompt": "person",
+   "kind": "one",
+   "describe": "What does the writer eat: vegan, vegetarian, pescatarian, flexitarian, omnivore or carnivore",
+   "values": [
+    "vegan",
+    "vegetarian",
+    "pescatarian",
+    "flexitarian",
+    "omnivore",
+    "carnivore"
+   ]
+  },
+  {
+   "name": "dietary_restrictions",
    "prompt": "person",
    "kind": "set",
-   "describe": "Where does the writer come in the order of siblings",
+   "describe": "Which dietary restrictions does the writer keep",
    "values": [
-    "only child",
-    "oldest",
-    "middle",
-    "youngest",
-    "twin"
+    "gluten-free",
+    "dairy-free",
+    "low-fodmap",
+    "sugar-free",
+    "halal",
+    "kosher"
+   ]
+  },
+  {
+   "name": "diet_plan",
+   "prompt": "person",
+   "kind": "set",
+   "describe": "Which diet plans does the writer follow",
+   "values": [
+    "keto",
+    "low carb",
+    "paleo",
+    "intermittent fasting",
+    "calorie counting",
+    "high protein",
+    "mediterranean"
+   ]
+  },
+  {
+   "name": "mbti_ei",
+   "prompt": "person",
+   "kind": "one",
+   "describe": "Is the writer's MBTI type extraverted (E) or introverted (I)",
+   "values": [
+    "extraverted",
+    "introverted"
+   ]
+  },
+  {
+   "name": "mbti_ns",
+   "prompt": "person",
+   "kind": "one",
+   "describe": "Is the writer's MBTI type intuitive (N) or sensing (S)",
+   "values": [
+    "intuitive",
+    "sensing"
+   ]
+  },
+  {
+   "name": "mbti_tf",
+   "prompt": "person",
+   "kind": "one",
+   "describe": "Is the writer's MBTI type thinking (T) or feeling (F)",
+   "values": [
+    "thinking",
+    "feeling"
+   ]
+  },
+  {
+   "name": "mbti_jp",
+   "prompt": "person",
+   "kind": "one",
+   "describe": "Is the writer's MBTI type judging (J) or perceiving (P)",
+   "values": [
+    "judging",
+    "perceiving"
    ]
   },
   {
@@ -2058,67 +445,52 @@
    ]
   },
   {
-   "name": "time_zone",
+   "name": "party_affiliation",
    "prompt": "person",
    "kind": "one",
-   "describe": "What time zone does the writer live in"
-  },
-  {
-   "name": "accent",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "What accent does the writer speak with"
-  },
-  {
-   "name": "menopause_stage",
-   "prompt": "person",
-   "kind": "one",
-   "describe": "Where is the writer in menopause",
+   "describe": "Which political party does the writer support or belong to",
    "values": [
-    "perimenopause",
-    "menopause",
-    "post-menopause",
-    "surgical menopause"
+    "republican",
+    "democrat",
+    "green party",
+    "labour",
+    "conservative party (uk/canada)",
+    "independent",
+    "libertarian party",
+    "reform uk",
+    "liberal democrats"
    ]
   },
   {
-   "name": "iq",
+   "name": "political_ideology",
    "prompt": "person",
-   "kind": "number",
-   "describe": "What IQ score does the writer state",
-   "unit": "IQ points",
-   "low": 60,
-   "high": 199,
-   "precision": 1
-  },
-  {
-   "name": "contraception",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "How does the writer prevent pregnancy, or are they sterilized",
+   "kind": "one",
+   "describe": "What political ideology does the writer identify with",
    "values": [
-    "vasectomy",
-    "tubal ligation / bisalp",
-    "iud",
-    "pill",
-    "implant",
-    "injection",
-    "ring",
-    "no birth control"
-   ]
-  },
-  {
-   "name": "work_schedule",
-   "prompt": "person",
-   "kind": "set",
-   "describe": "When does the writer work",
-   "values": [
-    "night shift / overnights",
-    "day shift",
-    "swing shift",
-    "rotating / shift work",
-    "4-day week",
-    "12-hour shifts"
+    "liberal",
+    "classical liberal",
+    "progressive",
+    "leftist",
+    "socialist",
+    "democratic socialist",
+    "social democrat",
+    "communist",
+    "anarchist",
+    "libertarian",
+    "libertarian socialist",
+    "conservative",
+    "centrist / moderate",
+    "nationalist",
+    "maga / trump supporter",
+    "abolitionist",
+    "apolitical",
+    "monarchist",
+    "anarcho-capitalist",
+    "feminist",
+    "left-leaning / centre-left",
+    "left-wing",
+    "right-leaning / centre-right",
+    "right-wing"
    ]
   },
   {
