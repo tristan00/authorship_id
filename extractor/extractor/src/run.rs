@@ -12,6 +12,9 @@ const BATCH: usize = 1024;
 const INSERT_BYTES: usize = 64 << 20;
 const GATED: [&str; 2] = ["occupation", "location"];
 const SHARE: f64 = 0.05;
+const MOTHER_CLAIMS: [(&str, &str); 2] = [("gender", "trans man"), ("assigned_sex_at_birth", "afab")];
+const FTM_FLAIRS: u64 = 5;
+const FTM_SHARE: f64 = 0.5;
 const TABLES: [&str; 4] = [
     "CREATE TABLE IF NOT EXISTS claim_attributes (attribute String, kind String, anchor String, precision Float64, unit String) ENGINE = MergeTree ORDER BY attribute",
     "CREATE TABLE IF NOT EXISTS text_claims (text_sha256 FixedString(32), attribute LowCardinality(String), value String, position UInt32) ENGINE = MergeTree ORDER BY (text_sha256, attribute)",
@@ -190,6 +193,22 @@ fn put_claim(out: &mut Vec<u8>, (subreddit, flair, attribute, value): &Claim) {
     put_string(out, value);
 }
 
+fn mothered(bare: Vec<Claim>, ftm_flairs: &HashMap<String, (u64, u64)>) -> Vec<Claim> {
+    timed("mothered", || {
+        let mothering: HashSet<&str> = ftm_flairs
+            .iter()
+            .filter(|(_, (flairs, dated))| *flairs >= FTM_FLAIRS && *dated as f64 >= FTM_SHARE * *flairs as f64)
+            .map(|(subreddit, _)| subreddit.as_str())
+            .collect();
+        let total = bare.len();
+        let kept: Vec<Claim> = bare.into_iter().filter(|(subreddit, _, _, _)| !mothering.contains(subreddit.as_str())).collect();
+        let mut named: Vec<&&str> = mothering.iter().collect();
+        named.sort();
+        log(&format!("ftm share={FTM_SHARE} held={total} kept={} subreddits={} {named:?}", kept.len(), mothering.len()));
+        kept
+    })
+}
+
 fn gated(held: Vec<Claim>, flairs: &HashMap<String, u64>) -> Vec<Claim> {
     timed("gate", || {
         let mut yielding: HashMap<(&str, &str), HashSet<&str>> = HashMap::new();
@@ -219,6 +238,7 @@ pub fn flairs(database: &Database, threads: usize) {
         let mut stream = BufReader::with_capacity(1 << 20, database.stream("SELECT DISTINCT subreddit, assumeNotNull(author_flair_text) FROM records WHERE author_flair_text != '' FORMAT RowBinary"));
         let (mut seen, mut claims, mut pending) = (0u64, 0u64, Vec::with_capacity(INSERT_BYTES + (1 << 20)));
         let (mut held, mut counts): (Vec<Claim>, HashMap<String, u64>) = (Vec::new(), HashMap::new());
+        let (mut bare, mut ftm_flairs): (Vec<Claim>, HashMap<String, (u64, u64)>) = (Vec::new(), HashMap::new());
         parallel(
             threads,
             move |tasks| {
@@ -238,27 +258,44 @@ pub fn flairs(database: &Database, threads: usize) {
                 let mut found = 0u64;
                 let mut gate = Vec::new();
                 let mut subreddits: HashMap<String, u64> = HashMap::new();
+                let mut mothers: HashMap<String, (u64, u64)> = HashMap::new();
+                let mut uncertain = Vec::new();
                 for (subreddit, flair) in &batch {
                     *subreddits.entry(subreddit.clone()).or_default() += 1;
+                    let lowered = claimcore::lower(&flair.chars().collect::<Vec<char>>());
+                    let plain = demographics::ftm(&lowered) && !demographics::trans_cued(&lowered);
+                    if demographics::ftm(&lowered) {
+                        let entry = mothers.entry(subreddit.clone()).or_default();
+                        entry.0 += 1;
+                        entry.1 += demographics::dated(&lowered) as u64;
+                    }
                     for (attribute, value, origin) in flair_claims(&format!("r/{subreddit}: {flair}")) {
                         let Some(value) = crate::contracted(&attribute, &value, origin, || format!("r/{subreddit}: {flair}")) else { continue };
                         let claim = (subreddit.clone(), flair.clone(), attribute, value);
                         if GATED.contains(&claim.2.as_str()) {
                             gate.push(claim);
+                        } else if plain && MOTHER_CLAIMS.contains(&(claim.2.as_str(), claim.3.as_str())) {
+                            uncertain.push(claim);
                         } else {
                             put_claim(&mut out, &claim);
                             found += 1;
                         }
                     }
                 }
-                (batch.len() as u64, found, out, gate, subreddits)
+                (batch.len() as u64, found, out, gate, subreddits, mothers, uncertain)
             },
-            |(count, found, out, gate, subreddits): (u64, u64, Vec<u8>, Vec<Claim>, HashMap<String, u64>)| {
+            |(count, found, out, gate, subreddits, mothers, uncertain): (u64, u64, Vec<u8>, Vec<Claim>, HashMap<String, u64>, HashMap<String, (u64, u64)>, Vec<Claim>)| {
                 seen += count;
                 claims += found;
                 held.extend(gate);
+                bare.extend(uncertain);
                 for (subreddit, number) in subreddits {
                     *counts.entry(subreddit).or_default() += number;
+                }
+                for (subreddit, (flairs, dated)) in mothers {
+                    let entry = ftm_flairs.entry(subreddit).or_default();
+                    entry.0 += flairs;
+                    entry.1 += dated;
                 }
                 pending.extend_from_slice(&out);
                 if pending.len() >= INSERT_BYTES {
@@ -268,6 +305,10 @@ pub fn flairs(database: &Database, threads: usize) {
             },
         );
         for claim in gated(held, &counts) {
+            put_claim(&mut pending, &claim);
+            claims += 1;
+        }
+        for claim in mothered(bare, &ftm_flairs) {
             put_claim(&mut pending, &claim);
             claims += 1;
         }

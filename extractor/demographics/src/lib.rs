@@ -14,7 +14,43 @@ const ASSIGNED: &[(&str, &str)] = &[("trans woman", "amab"), ("transfem", "amab"
 const GENDER_FOLD: &[(&str, &str)] = &[("cis man", "man"), ("cis woman", "woman"), ("trans woman", "woman"), ("demiboy", "demiboy / demigirl"), ("demigirl", "demiboy / demigirl")];
 const GENDER_DROPPED: &[&str] = &["trans man", "transfem", "transmasc", "cis (gender unstated)", "trans (unspecified)", "transsexual", "egg"];
 
-pub fn settle(found: &mut Found) {
+static FTM: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![a-z0-9])ftm(?![a-z0-9])"));
+static MOTHERING: LazyLock<Re> = LazyLock::new(|| {
+    Re::new(concat!(
+        r"(?<![a-z0-9])(?:pregnan[a-z]*|baby|babies|newborn|postpartum|pp|ppa|ppd|ttc|ivf|iui|nicu|preemie|placenta|trimester|edd|due date|breastfe[a-z]*|ebf|formula|c ?-?section|moms?|mommies|mum|mums|mama|my (?:son|daughter|ds|dd|lo|little one))(?![a-z0-9])",
+        r"|(?<![a-z0-9])\d{1,2} ?(?:w|wks?|weeks?)(?: pregnant| along)?(?:\+?\d)?(?![a-z0-9])|(?<![a-z0-9])\d{1,2}(?:\.\d)? ?(?:months?|mos?|weeks?|wks?|wo) old(?![a-z0-9])"
+    ))
+});
+static MOTHER_DATES: LazyLock<Re> = LazyLock::new(|| {
+    Re::new(r"(?<![0-9])\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?(?![0-9])|(?<![a-z])(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.? (?:\d{1,2}|20\d\d|['‘’]\d\d)(?![0-9])|(?<![0-9])20[0-3]\d(?![0-9])")
+});
+static TRANS_CUES: LazyLock<Re> = LazyLock::new(|| {
+    Re::new(concat!(
+        r"(?<![a-z0-9])(?:trans[a-z]*|he/[a-z]+|they/[a-z]+|testosterone|hrt|t ?shots?|top surgery|binder|dysphoria|pre-?t|post-?t|on t|[mft]{0,3}4[mfat]{1,3}|cis|afab|amab|gender affirm[a-z]*",
+        r"|born (?:a |as a )?(?:woman|female|girl)|post-?op|pre-?op|phallo[a-z]*|meta|mastectomy|transition[a-z]*|packer|packing)(?![a-z0-9])|(?<![a-z0-9])t ?[:=]|💉|⚧"
+    ))
+});
+
+pub fn ftm(lowered: &[char]) -> bool {
+    FTM.test(lowered)
+}
+
+pub fn trans_cued(lowered: &[char]) -> bool {
+    TRANS_CUES.test(lowered)
+}
+
+pub fn dated(lowered: &[char]) -> bool {
+    (MOTHERING.test(lowered) || MOTHER_DATES.test(lowered)) && !TRANS_CUES.test(lowered)
+}
+
+fn mothered(lowered: &[char]) -> bool {
+    FTM.test(lowered) && MOTHERING.test(lowered) && !TRANS_CUES.test(lowered)
+}
+
+pub fn settle(lowered: &[char], found: &mut Found) {
+    if mothered(lowered) {
+        found.items.retain(|(attribute, value, _, _)| !(attribute == "gender" && value == "trans man"));
+    }
     let implied: Vec<(&str, usize)> = found
         .items
         .iter()

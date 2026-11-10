@@ -105,7 +105,7 @@ fn positioned(raw: &str) -> Vec<(String, String, usize, Origin)> {
         health::ailments(&lowered, &mut found);
     }
     location::places(&text, &lowered, &mut found);
-    demographics::settle(&mut found);
+    demographics::settle(&lowered, &mut found);
     life::settle(&mut found);
     set_current(&[], &[]);
     finish(found)
