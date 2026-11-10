@@ -2,8 +2,8 @@ import os
 import subprocess
 from pathlib import Path
 
-from attribute_model.config import DATA, MODEL
-from database import LOGS, host
+from attribute_model.config import data, model
+from database import LOGS, host, selected
 from database.load import load_month
 from database.server import counts, schema
 from reddit_dumps.catalog import month_range
@@ -18,7 +18,7 @@ ROOT = Path(__file__).parents[1]
 def rust(crate, binary, command, log, *args):
     subprocess.run(["cargo", "build", "--release"], cwd=ROOT / crate, check=True)
     with open(LOGS / log, "a", encoding="utf-8") as out:
-        return subprocess.run([str(ROOT / crate / "target" / "release" / binary), command, *args, "--host", host(), "--threads", str(os.cpu_count() - 2)],
+        return subprocess.run([str(ROOT / crate / "target" / "release" / binary), command, *args, "--host", host(), "--database", selected(), "--threads", str(os.cpu_count() - 2)],
                               check=True, stdout=subprocess.PIPE, stderr=out, text=True).stdout
 
 
@@ -35,7 +35,7 @@ def load(start, end):
 
 @timed
 def derive():
-    from attribute_model.config import TEXT_DATA, TEXT_MODEL, TEXT_PARAMETERS
+    from attribute_model.config import TEXT_PARAMETERS, text_data, text_model
     from attribute_model.data import prepare
     from attribute_model.predict import predict_table
     from attribute_model.text import prepare_text
@@ -47,15 +47,16 @@ def derive():
     rust("consolidator", "consolidate", "run", "consolidation.log")
     build()
     encode_store()
-    prepare(DATA)
-    train(DATA, MODEL)
-    predict_table(MODEL)
-    prepare_text(TEXT_DATA, DATA)
-    train(TEXT_DATA, TEXT_MODEL, TEXT_PARAMETERS)
+    prepare(data())
+    train(data(), model())
+    predict_table(model())
+    prepare_text(text_data(), data())
+    train(text_data(), text_model(), TEXT_PARAMETERS)
 
 
 @timed
-def run(start, end, loading=True):
+def run(start, end, loading, deriving):
     if loading:
         load(start, end)
-    derive()
+    if deriving:
+        derive()

@@ -223,6 +223,10 @@ fn option<'a>(args: &'a [String], name: &str, default: &'a str) -> &'a str {
     args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).map(String::as_str).unwrap_or(default)
 }
 
+fn required<'a>(args: &'a [String], name: &str) -> &'a str {
+    args.iter().position(|arg| arg == name).and_then(|index| args.get(index + 1)).map(String::as_str).unwrap_or_else(|| panic!("missing {name}"))
+}
+
 fn positional(args: &[String]) -> Vec<&str> {
     let mut found = Vec::new();
     let mut iter = args.iter();
@@ -251,7 +255,7 @@ fn main() {
             }
         }
         Some(command @ ("run" | "flairs")) => {
-            let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), option(&args, "--database", "reddit"));
+            let database = database::Database::new(option(&args, "--host", "localhost"), option(&args, "--port", "8123").parse().unwrap(), required(&args, "--database"));
             run::attributes(&database);
             if command == "run" {
                 run::extract(&database, threads);
@@ -260,7 +264,7 @@ fn main() {
             }
         }
         _ => {
-            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims prompts <prompt> <input.jsonl> <output.jsonl> | claims template <prompt> | claims score <prompt> <texts.jsonl> <report.json> <answers_dir>... [--agree N] [--contested <out.jsonl>] --threads N | claims conditions | claims run|flairs --host H [--port P] [--database D] --threads N");
+            eprintln!("usage: claims extract <input.jsonl> <output.jsonl> --threads N | claims bench <input.jsonl> | claims prompts <prompt> <input.jsonl> <output.jsonl> | claims template <prompt> | claims score <prompt> <texts.jsonl> <report.json> <answers_dir>... [--agree N] [--contested <out.jsonl>] --threads N | claims conditions | claims run|flairs --host H --database D [--port P] --threads N");
             std::process::exit(2);
         }
     }

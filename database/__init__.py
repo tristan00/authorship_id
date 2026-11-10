@@ -8,9 +8,21 @@ import clickhouse_connect
 
 from reddit_dumps import timed
 
-from .config import BODY_RANGES, DATABASE, DISTRO, DUMPS, LOGS, NO_AUTHOR, PORT
+from .config import BODY_RANGES, DISTRO, DUMPS, LOGS, NO_AUTHOR, PORT
 
 LOG = logging.getLogger("database")
+SELECTED = []
+
+
+def use(name):
+    SELECTED[:] = [name]
+    LOG.info("database %s", name)
+
+
+def selected():
+    if not SELECTED:
+        raise RuntimeError("no database selected: every entry point takes --database")
+    return SELECTED[0]
 
 
 @functools.cache
@@ -26,8 +38,8 @@ def host():
     return subprocess.run(["wsl.exe", "-d", DISTRO, "--", "hostname", "-I"], capture_output=True, text=True, check=True).stdout.split()[0]
 
 
-def client(database=DATABASE, **settings):
-    return clickhouse_connect.get_client(host=host(), port=PORT, database=database, settings=settings, send_receive_timeout=86400, query_limit=0)
+def client(database=None, **settings):
+    return clickhouse_connect.get_client(host=host(), port=PORT, database=database or selected(), settings=settings, send_receive_timeout=86400, query_limit=0)
 
 
 def bounds(month):
@@ -56,4 +68,4 @@ def in_range(column, low, high):
     return f"{column} >= {low}" + (f" AND {column} < {high}" if high else "")
 
 
-__all__ = ["DATABASE", "DUMPS", "LOG", "LOGS", "NO_AUTHOR", "author_ranges", "author_span", "bounds", "client", "host", "in_range", "keep_alive", "sha_ranges", "timed"]
+__all__ = ["DUMPS", "LOG", "LOGS", "NO_AUTHOR", "author_ranges", "author_span", "bounds", "client", "host", "in_range", "keep_alive", "selected", "sha_ranges", "timed", "use"]

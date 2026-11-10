@@ -15,9 +15,9 @@ from author_encoder import clean
 from author_encoder.config import LUAR, MAX_LENGTH, TOKEN_BUDGET
 from author_encoder.model import load_model as load_encoder
 from author_encoder.tokens import load_tokenizer
-from database import LOGS, host
+from database import LOGS, host, selected
 from . import LOG, timed, write_json
-from .config import DATA, TEXT_DATA, TEXT_ENCODE
+from .config import TEXT_ENCODE
 from .predict import BINARY, load_model, predict
 
 SHARED = ("labels.npy", "splits.npy", "authors.json")
@@ -37,7 +37,7 @@ def encoded(staging, source, authors, train, path):
         picked = (rows >= start) & (rows < end) & ((rows - start) % step == 0)
         sample[(rows[picked] - start) // step] = found[picked]
     tokenizer = hf_hub_download(LUAR[0], "tokenizer.json", revision=LUAR[1], local_files_only=True)
-    command = [str(BINARY), "texts", "--source", str(source), "--out", str(staging), "--tokenizer", tokenizer, "--max-length", str(MAX_LENGTH), "--chunk", str(TEXT_ENCODE), "--budget", str(TOKEN_BUDGET), "--host", host()]
+    command = [str(BINARY), "texts", "--source", str(source), "--out", str(staging), "--tokenizer", tokenizer, "--max-length", str(MAX_LENGTH), "--chunk", str(TEXT_ENCODE), "--budget", str(TOKEN_BUDGET), "--host", host(), "--database", selected()]
     texts = tokens = truncated = 0
     with open(LOGS / "attribute_texts.log", "a", encoding="utf-8") as log, ThreadPoolExecutor(1) as writer:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=log)
@@ -74,7 +74,7 @@ def spread(sample):
 
 
 @timed
-def prepare_text(directory=TEXT_DATA, source=DATA):
+def prepare_text(directory, source):
     directory, source = Path(directory), Path(source)
     staging = directory.with_name(directory.name + ".staging")
     if staging.exists():

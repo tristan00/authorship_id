@@ -2,7 +2,7 @@ import argparse
 
 from reddit_dumps import setup_logging
 
-from . import LOGS
+from . import LOGS, use
 
 
 def main():
@@ -10,8 +10,10 @@ def main():
     parser.add_argument("command", choices=("setup", "add", "counts"))
     parser.add_argument("--start")
     parser.add_argument("--end")
+    parser.add_argument("--database", required=True)
     args = parser.parse_args()
     setup_logging(LOGS / "database.log")
+    use(args.database)
     if args.command == "setup":
         from .server import setup
         setup()

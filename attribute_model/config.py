@@ -1,11 +1,8 @@
 from pathlib import Path
 
+from database import selected
 
 ROOT = Path(r"C:\reddit_data\attribute_model")
-DATA = ROOT / "data"
-MODEL = ROOT / "model.pt"
-TEXT_DATA = ROOT / "text_data"
-TEXT_MODEL = ROOT / "text_model.pt"
 TEXT_ENCODE = 1 << 20
 KINDS = {"numeric", "categorical", "embedding", "set"}
 SEED = 719
@@ -22,6 +19,22 @@ THRESHOLDS = (.02, .05, .1, .15, .2, .3, .4, .5)
 PUBLISH_MARGIN = .05
 PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "epochs": 6}
 TEXT_PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank": 128, "batch": 2048, "lr": .001, "weight_decay": .1, "epochs": 6}
+
+
+def data():
+    return ROOT / selected() / "data"
+
+
+def model():
+    return ROOT / selected() / "model.pt"
+
+
+def text_data():
+    return ROOT / selected() / "text_data"
+
+
+def text_model():
+    return ROOT / selected() / "text_model.pt"
 
 
 def validate(targets):

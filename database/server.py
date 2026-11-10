@@ -1,7 +1,7 @@
 import subprocess
 import time
 
-from . import DATABASE, LOG, NO_AUTHOR, client, timed
+from . import LOG, NO_AUTHOR, client, selected, timed
 from .config import DISTRO, SERVER_MEMORY
 
 WSL = ("wsl.exe", "-d", DISTRO, "-u", "root", "--", "bash", "-lc")
@@ -26,7 +26,6 @@ systemctl enable clickhouse-server
 systemctl restart clickhouse-server
 """
 TABLES = [
-    f"CREATE DATABASE IF NOT EXISTS {DATABASE}",
     """CREATE TABLE IF NOT EXISTS records (
         created_utc DateTime('UTC') CODEC(Delta, ZSTD(1)),
         record_id String CODEC(ZSTD(1)),
@@ -86,11 +85,11 @@ def setup():
 
 @timed
 def schema():
-    client(database="default").command(TABLES[0])
+    client(database="default").command(f"CREATE DATABASE IF NOT EXISTS {selected()}")
     db = client()
-    for statement in TABLES[1:]:
+    for statement in TABLES:
         db.command(statement)
-    for (name,) in db.query(f"SELECT name FROM system.tables WHERE database = '{DATABASE}' AND startsWith(name, '_tmp_replace_')").result_rows:
+    for (name,) in db.query(f"SELECT name FROM system.tables WHERE database = '{selected()}' AND startsWith(name, '_tmp_replace_')").result_rows:
         db.command(f"DROP TABLE {name}")
         LOG.info("dropped leftover %s", name)
 

@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
-from database import LOGS
+from database import LOGS, use
 from reddit_dumps import setup_logging
 
 from . import write_json
@@ -26,8 +26,12 @@ def main():
         command.add_argument("--output", type=Path, help="Write JSON to this file instead of stdout.")
         if name == "similar":
             command.add_argument("--limit", type=int, default=50, choices=range(1, 201), metavar="1..200")
+    for name in ("texts", "vectors", "similar", "vector"):
+        commands.choices[name].add_argument("--database", required=True)
     args = parser.parse_args()
     setup_logging(LOGS / f"author_encoder_{args.command}.log")
+    if "database" in args:
+        use(args.database)
     if args.command == "download":
         from .model import download
         result = {"model_directory": download()}

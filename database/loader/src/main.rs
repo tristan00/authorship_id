@@ -42,14 +42,14 @@ fn main() {
                 "http://{}:{}/?database={}&max_execution_time=0",
                 required(&args, "--host"),
                 option(&args, "--port").unwrap_or("8123"),
-                option(&args, "--database").unwrap_or("reddit")
+                required(&args, "--database")
             );
             let threads = required(&args, "--threads").parse().unwrap();
             let count = month::run(&url, Path::new(required(&args, "--comments")), Path::new(required(&args, "--posts")), threads);
             println!("{count}");
         }
         _ => {
-            eprintln!("usage: loader month --comments PATH --posts PATH --host HOST --threads N [--port 8123] [--database reddit]");
+            eprintln!("usage: loader month --comments PATH --posts PATH --host HOST --database DB --threads N [--port 8123]");
             std::process::exit(2);
         }
     }
