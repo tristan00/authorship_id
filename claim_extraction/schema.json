@@ -676,7 +676,7 @@
   {
    "name": "schooling",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What kind of school did the writer go to",
    "values": [
     "homeschooled",
@@ -1925,14 +1925,7 @@
     "punk",
     "nerd / geek",
     "jock",
-    "otaku / weeb",
-    "cowboy / western",
-    "bimbo",
-    "gym rat",
-    "hippie",
-    "grunge",
-    "skater",
-    "nudist / naturist"
+    "otaku / weeb"
    ]
   },
   {

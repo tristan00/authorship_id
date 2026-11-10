@@ -60,13 +60,11 @@ const CLASSES: &[(&str, &str)] = &[("technician", "technician"), ("tech", "techn
     ("amateur extra", "extra"), ("e", "extra"), ("ae", "extra")];
 const SCENES: &[(&str, &str)] = &[("goth", "goth"), ("gothic", "goth"), ("alt", "alt"), ("alternative", "alt"), ("emo", "emo"), ("metalhead", "metalhead"), ("headbanger", "metalhead"),
     ("punk", "punk"), ("punk rocker", "punk"), ("punk rock", "punk"), ("nerd", "nerd / geek"), ("geek", "nerd / geek"), ("nerdy", "nerd / geek"), ("geeky", "nerd / geek"), ("jock", "jock"),
-    ("weeb", "otaku / weeb"), ("weeaboo", "otaku / weeb"), ("otaku", "otaku / weeb"), ("cowboy", "cowboy / western"), ("cowgirl", "cowboy / western"), ("western", "cowboy / western"),
-    ("bimbo", "bimbo"), ("bimboi", "bimbo"), ("gym rat", "gym rat"), ("gymrat", "gym rat"), ("hippie", "hippie"), ("hippy", "hippie"), ("grunge", "grunge"), ("skater", "skater"),
-    ("skateboarder", "skater"), ("nudist", "nudist / naturist"), ("naturist", "nudist / naturist")];
+    ("weeb", "otaku / weeb"), ("weeaboo", "otaku / weeb"), ("otaku", "otaku / weeb")];
 const LABELS: &[&str] = &["goth", "emo", "metalhead", "headbanger", "punk", "punk rocker", "nerd", "geek", "jock", "weeb", "weeaboo", "otaku", "cowboy", "cowgirl", "bimbo", "bimboi", "gym rat",
     "gymrat", "hippie", "skater", "skateboarder", "nudist", "naturist"];
 const NOUNED: &[&str] = &["alt", "alternative", "gothic", "nerdy", "geeky", "hippy", "grunge", "punk rock"];
-const STYLES: &[&str] = &["goth", "gothic", "alt", "alternative", "emo", "punk", "grunge", "hippie", "hippy", "skater", "western"];
+const STYLES: &[&str] = &["goth", "gothic", "alt", "alternative", "emo", "punk"];
 const MAKES: &[&str] = &["toyota", "honda", "ford", "chevy", "chevrolet", "nissan", "subaru", "mazda", "hyundai", "kia", "bmw", "audi", "mercedes", "mercedes-benz", "benz", "vw", "volkswagen", "jeep",
     "dodge", "gmc", "tesla", "lexus", "acura", "infiniti", "volvo", "porsche", "mitsubishi", "buick", "cadillac", "chrysler", "land rover", "range rover", "fiat", "alfa romeo", "suzuki", "kawasaki",
     "yamaha", "harley", "harley davidson", "harley-davidson", "ducati", "ktm", "rivian", "polestar", "skoda", "peugeot", "renault", "citroen", "opel", "vauxhall", "mahindra", "maruti",
@@ -371,8 +369,7 @@ fn build() -> Vec<Rule> {
     add(&mut rules, "amateur_radio_license", &format!(r"\bi(?: (?:just|recently|finally|also|now|already|currently|officially))* (?:have|hold|got|earned|obtained|upgraded to|'ve got|ve got|have got)(?: (?:my|a|an|the))? (?:us |fcc |ham |amateur |amateur radio |ham radio )?{class} (?:license|licence|ticket)\b"), radio(), radio_anchors);
     add(&mut rules, "amateur_radio_license", &format!(r"\bi(?: (?:just|recently|finally|also|now|already|officially))* (?:passed|upgraded to)(?: (?:my|the))? (?:ham |amateur |amateur radio |ham radio )?{class}(?: (?:exam|test|license exam|licence exam))?(?![\w'-]| (?:ed|education|admission|surgery|anesthesia|anaesthesia|election|elections|chemistry|biology|physics|math|maths)\b)"), radio(), radio_anchors);
 
-    let scene_anchors = &["goth", "alt", "emo", "metalhead", "headbang", "punk", "nerd", "geek", "jock", "weeb", "weeab", "otaku", "cowboy", "cowgirl", "bimbo", "gym rat", "gymrat", "hipp", "grunge",
-        "skate", "nudist", "naturist"];
+    let scene_anchors = &["goth", "alt", "emo", "metalhead", "headbang", "punk", "nerd", "geek", "jock", "weeb", "weeab", "otaku"];
     let nouns = r"(?:girl|guy|boy|kid|chick|dude|gal|woman|man|lady|person|type|gf|bf|babe|boi|bro|couple|mom|dad|mum|wife|husband|teen|grrl|lesbian|femboy|twink|bear|daddy|milf|slut|bitch|queen|princess|lad|fella|nerd)";
     let nouned: Vec<String> = NOUNED.iter().map(|word| format!(r"{}(?= {nouns}\b)", escape(word))).collect();
     let label = format!("{}|{}", longest_first(LABELS.iter().copied()), nouned.join("|"));
