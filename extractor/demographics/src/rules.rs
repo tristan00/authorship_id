@@ -56,7 +56,6 @@ const TALL: &str = r"(?:[4-7]\s?(?:'|ft|foot|feet)\s?(?:\d{1,2}(?![\d.]))?|1[4-9
 const STAT_GAP: &str = r"(?:\s*[,/|]\s*|\s+-\s+|\s+)";
 const COUPLED: &str = concat!(r"^", claimcore::flair!(), r"\W*(\d{2})([mf])\s?[/&+]?\s?\d{2}(?!\2)[mf]\b");
 
-static BUMP: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:pregnan\w*|baby|babies|bumps?|bumpers?|due|trimester|newborn|postpartum|ttc|stm|weeks?|wks?|mom|mum|mama|loss|losses|miscarriage|ivf|rainbow)\b"));
 
 pub static RULES: LazyLock<Vec<Rule>> = LazyLock::new(build);
 
@@ -277,11 +276,6 @@ fn foreign_self() -> String {
     format!(r"(?:(?:soy|sou|sono|saya|je suis|jestem|jag är|ich bin|ik ben|aku|eu sendo|yo siendo) (?:{NEGATED}{OWNERS}[^\W\d_]+ ){{0,2}}?|(?:я|انا|أنا) |(?:eu|yo|moi|ich|io|ik|jag), |(?:main|mai) (?:bhi |ek )?(?=\w+ h(?:u|oon|un|oo)\b)|(?:als|como|som) (?=(?:mann|frau|hombre|mujer|homem|mulher|kvinna|vrouw)(?![\w-])(?! (?:de|da|do|di|von|der|des)\b))|en tant que (?=homme|femme))({foreign_gender})(?![\w-])")
 }
 
-fn transgender(m: &Match) -> Option<String> {
-    let value = get(&GENDERS, m.first())?;
-    if eq(m.first()?, "ftm") && BUMP.test(m.string) { None } else { Some(value) }
-}
-
 fn gender() -> Vec<Rule> {
     let gender_words = &*GENDER_WORDS;
     let foreign_self = foreign_self();
@@ -306,20 +300,20 @@ fn gender() -> Vec<Rule> {
         said("gender", &format!(r#"(?<![\w.'\"/$#%+:-]){TALL}(?:\"|'')?(?: tall)?(?:{STAT_GAP}(?:and )?\d{{2,3}}\s?(?:lbs?|kg|pounds|#))?{STAT_GAP}(?:and )?(male|female)\b"#),
             alone(|m: &Match| if desired(m.string, m.start()) { None } else { get(&GENDERS, m.group(1)) }), sh()),
         said("gender", concat!(r"(?:^", claimcore::flair!(), r"|\n)[^\S\n]*(?:\\?[-*>]+[^\S\n]*)?(?:\*\*)?(?:\d+\.\s*)?(?:sex or gender|gender|sex)(?: (?:&|and|/) age)?(?:\*\*)?\s*[:=-]\s*(?:\*\*)?\s*(male|female|man|woman|m|f|non-binary|nonbinary)\b"), group(&GENDERS, 1), TAGGED),
-        said("gender", &format!(r"{IM} (?:also |just |still |actually )?(?:a |an )?(non-binary|nonbinary|enby|genderfluid|agender|genderqueer|trans woman|transwoman|trans girl|trans man|transman|trans guy|mtf|ftm)\b(?! (?:people|rights|friend|kids))"), transgender, h()),
+        said("gender", &format!(r"{IM} (?:also |just |still |actually )?(?:a |an )?(non-binary|nonbinary|enby|genderfluid|agender|genderqueer|trans woman|transwoman|trans girl|trans man|transman|trans guy|mtf|ftm)\b(?! (?:people|rights|friend|kids))"), group(&GENDERS, 1), h()),
         said("gender", concat!(r"(?:^", claimcore::flair!(), r"|(?<=[\s,(\]]))(?<!\bis )(?<!\bwas )(?<!\bsize )[\(\[]\s*([mf])\s*[\)\]]"), group(&GENDERS, 1), TAGGED),
         said("gender", r"[\(\[](?<![^\s,(\]][\(\[])(?<!\bthe [\(\[])(?<!\ba [\(\[])(?<!\ban [\(\[])\s*(male|female)\s*[\)\]]|\b(?:i|me|myself)\s*\((?:an? )?(?:[\w ]+, )?(male|female|guy|girl|man|woman|dude|lady)\)", mine(table_of(&GENDERS, &[1, 2])), TAGGED),
         said("gender", r"(?=\d\d)(?<![\w$#.,'/:+-])(?<!\bmy )(?<!\bhis )(?<!\bher )(?<!\byour )(?<!\bour )(?<!\btheir )(?<!\bthe )(?<!\ba )(?<!\ban )(\d{2})[ -]?(?:years?[ -]old|yrs?[ -]old|yo|y/o) (male|female|man|woman|guy|girl|dude|lady)\b(?! (?:friend|friends|coworker|patient|client|customer|relative|cousin|neighbor|neighbour)\b)",
             spoken(|m: &Match| if ages(m.group(1)).is_some() { get(&GENDERS, m.group(2)) } else { None }), sh()),
         said("gender", r"(?<![\w'])(?<!\bthe )(?<!\bthis )(?<!\bthat )(?<!\bfor )(?<!\bmarried )(?<!\bany )(?<!\bevery )[\(\[]?(female|male|guy|girl|woman|man|dude|lady|f|m)(?: in (?:my |her |his )?(?:early |mid |late )?\d0'?s)? here\b|\bfellow (?:\w+ )?(dude|guy|woman|man|lady|girl|mom|dad) here\b", |m: &Match| if desired(m.string, m.start()) { None } else { get(&GENDERS, either(m, &[1, 2])) }, TAGGED),
         said("gender", concat!(r"^", claimcore::flair!(), r"\W*\d{2}\s*,?\s+(?:(?:single|married|white|black|asian|latino|latina|hispanic|indian|tall|short|fit|chubby|bi|straight|gay|hung|older|young|discreet|horny|local|cute|shy|sexy|thick|petite|curvy|clean|ddf|attractive|handsome|hot|bicurious|curious|dl|masc|fem|hairy|smooth|bearded|tattooed|inked|muscular|athletic|slim|skinny|average|kinky|naughty|lonely|bored|verbal) )*(male|female|guy|girl|man|woman|dude|lady|queen|king|bbw|milf|stud|bull|twink|femboy|daddy|bro|boy|boi|jock|bear|cub|dad)\b"), group(&GENDERS, 1), TAGGED),
-        said("gender", concat!(r"(?:^", claimcore::flair!(), r"|[\s,(\[])(t4[mfat]|ts girl|tgirl|trans girl|transgirl|mtf|ftm|trans guy|transman|transwoman)\b|^", claimcore::flair!(), r"\W*(agender|non-?binary|enby|genderfluid|genderqueer)\b|\b(domme|dominatrix|mistress)\b(?= (?:here|looking|seeking|available|for)\b)"),
+        said("gender", concat!(r"(?:^", claimcore::flair!(), r"|[\s,(\[])(?<!\bof )(?<!\bmy )(?<!\byour )(?<!\bher )(?<!\bhis )(?<!\bour )(?<!\btheir )(t4[mfat]|ts girl|tgirl|trans girl|transgirl|mtf|ftm|trans guy|transman|transwoman)\b(?! (?:\w+ )?(?:son|daughter|partner|husband|wife|boyfriend|girlfriend|bf|gf|spouse|fianc\w*|brother|sister|sibling|friend|cousin|nephew|niece)s?\b)|^", claimcore::flair!(), r"\W*(agender|non-?binary|enby|genderfluid|genderqueer)\b|\b(domme|dominatrix|mistress)\b(?= (?:here|looking|seeking|available|for)\b)"),
             alone(mine(|m: &Match| {
                 if asked(m.string, m.end()) {
                     return None;
                 }
                 if m.nonempty(1).is_some() {
-                    return transgender(m);
+                    return get(&GENDERS, m.group(1));
                 }
                 if let Some(g2) = m.nonempty(2) {
                     return GENDERS.get(&st(g2).replace("nonbinary", "non-binary")).map(|v| v.to_string());
@@ -522,7 +516,7 @@ fn hair_color() -> Vec<Rule> {
 }
 
 pub fn force() {
-    for re in [&LEADING_OK, &LIKENED, &HANDICAP, &BUMP, &RETURNED, &OPENED_LINE, &TWO_DIGITS, &LETTER_AFTER, &SPEAKER_BEFORE, &NONSPACE, &POINTER, &ARROW, &ROMANCE, &OPENED, &BORN, &CONFESSED, &CURIOUSLY, &ASIDE, &HAILED, &ALIKE] {
+    for re in [&LEADING_OK, &LIKENED, &HANDICAP, &RETURNED, &OPENED_LINE, &TWO_DIGITS, &LETTER_AFTER, &SPEAKER_BEFORE, &NONSPACE, &POINTER, &ARROW, &ROMANCE, &OPENED, &BORN, &CONFESSED, &CURIOUSLY, &ASIDE, &HAILED, &ALIKE] {
         LazyLock::force(re);
     }
     LazyLock::force(&FOREIGN_GENDERS);

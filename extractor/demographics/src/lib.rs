@@ -15,7 +15,7 @@ const ASSIGNED: &[(&str, &str)] = &[("trans woman", "amab"), ("transfem", "amab"
 static FTM: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![a-z0-9])ftm(?![a-z0-9])"));
 static MOTHERING: LazyLock<Re> = LazyLock::new(|| {
     Re::new(concat!(
-        r"(?<![a-z0-9])(?:pregnan[a-z]*|baby|babies|newborn|postpartum|pp|ppa|ppd|ttc|ivf|iui|nicu|preemie|placenta|trimester|edd|due date|breastfe[a-z]*|ebf|formula|c ?-?section|moms?|mommies|mum|mums|mama|my (?:son|daughter|ds|dd|lo|little one))(?![a-z0-9])",
+        r"(?<![a-z0-9])(?:pregnan[a-z]*|baby|babies|bumps?|bumpers?|stm|miscarriages?|due(?! to)|toddlers?|daycare|nursing|breast ?pump[a-z]*|exclusively pumping|maternity|breastmilk|milk supply|c-sec|epidural|(?:our|your|the|their|his|her) lo|sleep train[a-z]*|contact nap[a-z]*|first[- ]time (?:mom|mum|mother|mama|parent)s?|ftm to (?:a|an|my)|newborn|postpartum|pp|ppa|ppd|ttc|ivf|iui|nicu|preemie|placenta|trimester|edd|due date|breastfe[a-z]*|ebf|formula|c ?-?section|moms?|mommies|mum|mums|mama|my (?:son|daughter|ds|dd|lo|little one))(?![a-z0-9])",
         r"|(?<![a-z0-9])\d{1,2} ?(?:w|wks?|weeks?)(?: pregnant| along)?(?:\+?\d)?(?![a-z0-9])|(?<![a-z0-9])\d{1,2}(?:\.\d)? ?(?:months?|mos?|weeks?|wks?|wo) old(?![a-z0-9])"
     ))
 });
@@ -24,8 +24,8 @@ static MOTHER_DATES: LazyLock<Re> = LazyLock::new(|| {
 });
 static TRANS_CUES: LazyLock<Re> = LazyLock::new(|| {
     Re::new(concat!(
-        r"(?<![a-z0-9])(?:trans[a-z]*|he/[a-z]+|they/[a-z]+|testosterone|hrt|t ?shots?|top surgery|binder|dysphoria|pre-?t|post-?t|on t|[mft]{0,3}4[mfat]{1,3}|cis|afab|amab|gender affirm[a-z]*",
-        r"|born (?:a |as a )?(?:woman|female|girl)|post-?op|pre-?op|phallo[a-z]*|meta|mastectomy|transition[a-z]*|packer|packing)(?![a-z0-9])|(?<![a-z0-9])t ?[:=]|💉|⚧"
+        r"(?<![a-z0-9])(?:trans(?:gender[a-z]*|g[eê]n[eé]ro|genre|sexual[a-z]*|sexuel(?:le)?|sexuell|sex|exual(?:es)?|essuale|m[ae]n|mann|mand|male|masc[a-z]*|fem[a-z]*|female|frau|guys?|boys?|girls?|wom[ae]n|kvinn[ae]|person|persoon|people|bians?|ness|phob[a-z]*|med[a-z]*|misogyn[a-z]*|identit[ée]|z|erke[a-zğ]*)?s?|he/[a-z]+|they/[a-z]+|testosterone|hrt|t ?shots?|top surgery|binder|dysphoria|pre-?t|post-?t|on t|[mft]{1,3}4[mfat]{1,3}|cis|afab|amab|gender affirm[a-z]*",
+        r"|born (?:a |as a )?(?:woman|female|girl)|post-?op|pre-?op|phallo[a-z]*|meta|mastectomy|packer)(?![a-z0-9])|(?<![a-z0-9])t ?[:=]|⚧"
     ))
 });
 
@@ -33,16 +33,18 @@ pub fn ftm(lowered: &[char]) -> bool {
     FTM.test(lowered)
 }
 
+static FERTILITY: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?<![a-z0-9])(?:ivf|iui|ttc|fet|retrievals?|stims?|embryos?|transfers?)(?![a-z0-9])"));
+
 pub fn trans_cued(lowered: &[char]) -> bool {
-    TRANS_CUES.test(lowered)
+    TRANS_CUES.test(lowered) || (lowered.contains(&'💉') && !FERTILITY.test(lowered))
 }
 
 pub fn dated(lowered: &[char]) -> bool {
-    (MOTHERING.test(lowered) || MOTHER_DATES.test(lowered)) && !TRANS_CUES.test(lowered)
+    (MOTHERING.test(lowered) || MOTHER_DATES.test(lowered)) && !trans_cued(lowered)
 }
 
 fn mothered(lowered: &[char]) -> bool {
-    FTM.test(lowered) && MOTHERING.test(lowered) && !TRANS_CUES.test(lowered)
+    FTM.test(lowered) && MOTHERING.test(lowered) && !trans_cued(lowered)
 }
 
 pub fn settle(lowered: &[char], found: &mut Found) {
