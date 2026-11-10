@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from . import LOG, timed
 from .config import GPU_MEMORY, PARAMETERS, PUBLISH_MARGIN, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
 from .data import load, read, reader
-from .evaluate import DEVICE, SET_WINDOW, WINDOW, Labeled, chosen, chunks, gather, groups, labeled, outputs, per_head, priors, report, totals, trunk
+from .evaluate import DEVICE, SET_WINDOW, WINDOW, Labeled, chosen, chunks, gather, groups, labeled, per_head, priors, report, totals, trunk
 from .model import AttributeModel, specifications
 
 INPUTS = ("users",)
@@ -53,14 +53,19 @@ def sampled(data, limit, batch=WINDOW):
     return Labeled(rows[:kept], data.target[:kept], None, None)
 
 
-def temperatures(group, output, lr=.1, iterations=100, tolerance_grad=1e-7, tolerance_change=1e-9):
+def temperatures(group, parts, lr=.1, iterations=100, tolerance_grad=1e-7, tolerance_change=1e-9):
     target = group.target.long()
 
     def evaluate(position):
         position = position.detach().requires_grad_()
-        loss = totals(F.cross_entropy(output / position.exp()[group.owner, None], target, reduction="none"), group.owner, group.counts) / group.counts
-        grad, = torch.autograd.grad(loss.sum(), position)
-        return loss.detach(), grad
+        losses, grad, start = [], torch.zeros_like(position), 0
+        for owner, output in parts:
+            end = start + len(owner)
+            loss = F.cross_entropy(output / position.exp()[owner, None], target[start:end], reduction="none")
+            grad += torch.autograd.grad((loss / group.counts[owner]).sum(), position)[0]
+            losses.append(loss.detach())
+            start = end
+        return totals(torch.cat(losses), group.owner, group.counts) / group.counts, grad
 
     position = torch.zeros(len(group.columns), device=DEVICE)
     loss, grad = evaluate(position)
@@ -89,9 +94,9 @@ def temperatures(group, output, lr=.1, iterations=100, tolerance_grad=1e-7, tole
 @timed
 def categorical(model, hidden, data, specs, columns):
     group = gather([sampled(data[column], TEMPERATURE_ROWS) if column in columns else data[column] for column in range(len(data))], columns)
-    output = outputs(model, hidden, group, len(specs[columns[0]]["values"]), WINDOW)
     with torch.inference_mode(False):
-        return {column: {"temperature": value} for column, value in zip(columns, temperatures(group, output.clone()))}
+        parts = [(owner, output.clone()) for owner, output, _ in chunks(model, hidden, group, len(specs[columns[0]]["values"]), WINDOW)]
+        return {column: {"temperature": value} for column, value in zip(columns, temperatures(group, parts))}
 
 
 @timed
