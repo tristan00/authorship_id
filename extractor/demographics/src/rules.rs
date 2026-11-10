@@ -76,6 +76,7 @@ fn golfed(m: &Match) -> bool {
     (0..=m.groups()).filter_map(|g| m.span(g)).any(|(_, end)| HANDICAP.at(m.string, end).is_some())
 }
 
+#[track_caller]
 pub(crate) fn said(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> Option<String> + Send + Sync + 'static, limit: Option<&'static Re>) -> Rule {
     let value = move |m: &Match| if attribute == "age" && golfed(m) { None } else { value(m) };
     let Some(limit) = limit else { return rule(attribute, pattern, value, TAGGED) };
@@ -194,7 +195,7 @@ fn age() -> Vec<Rule> {
     let pointed = pointed();
     let ethnic_names = &*ETHNIC_NAMES;
     vec![
-        said("age", &format!(r"{IM} (?:(?:only|just|now|turning|currently|also|still|already|literally|actually|finally|officially|technically|basically|a|an) )*(\d{{2}})(?:\s?(?:years? old|yo|y/o|yrs? old|yrs|y))?(?![\w%'/+-]|[.,:]\d)(?!\s*{UNITS}|\s*(?:and|or|-)\s*\d)"), age_of(&[1]), h()),
+        said("age", &format!(r"{IM} (?:(?:only|just|now|turning|currently|also|still|already|literally|actually|finally|officially|technically|basically|a|an) )*(\d{{2}})(?!{SPAN})(?:\s?(?:years? old|yo|y/o|yrs? old|yrs|y))?(?![\w%'/+-]|[.,:]\d)(?!\s*{UNITS}|\s*(?:and|or|-)\s*\d)"), age_of(&[1]), h()),
         said("age", r"as(?<!\was) an? (?:(?!(?:not|no|with|for|to|than|like|and|or|that|who)\b)[\w-]+ ){0,2}?(\d{2})(?:[- ]?(?:years?|yrs?|yr)[- ]?old|\s?(?:yo|y/o))\b", age_of(&[1]), h()),
         said("age", r"\bthis (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:has|is|will|would|can|still|needs|wants|loves|could)\b|\bme,? an? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o)\b|\ban? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:[\w-]+ ){0,2}?like me\b", age_of(&[1, 2, 3]), h()),
         said("age", r"\b(?:(?:we're|we are) (?:both|only|just|now)|we both are|(?:my \w+|\w+) and i are(?: both)?|me and (?:my )?\w+ are(?: both)?) (\d{2})\b(?!\s*(?:and|or|-|&)\s*\d)(?!\s*(?:%|percent|minutes|mins|hours|days|weeks|months|years? (?:ago|in|into|of|together|married)|miles|km|feet|ft|lbs?|kg|dollars|bucks|k\b))", age_of(&[1]), h()),
@@ -247,7 +248,7 @@ fn age() -> Vec<Rule> {
         said("age", concat!(r"^", claimcore::flair!(), r"\W*(?:vrouw|homme|femme|mujer|hombre|chica|chico|frau|mann|mulher|homem)\W{1,3}(\d{2})\b"), age_of(&[1]), sh()),
         said("age", &pointed, age_of(&[1]), sh()),
         said("age", COUPLED, age_of(&[1]), TAGGED),
-        said("age", concat!(r"^", claimcore::flair!(), r"\W{0,3}(\d{2}) ?(?:y|yr|yrs)\b(?!\s*(?:old|ago|of|later|in|and|or|to|-)\b)"), age_of(&[1]), TAGGED),
+        said("age", &format!(r"^{flair}\W{{0,3}}(\d{{2}})(?!{SPAN}) ?(?:y|yr|yrs)\b(?!\s*(?:old|ago|of|later|in|and|or|to|-)\b)", flair = claimcore::flair!()), age_of(&[1]), TAGGED),
         said("age", r"(?=\d\d ?y)(?<![\w$#.,'/:+-])(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\bthe )(?<!\bhis )(?<!\bher )(\d{2}) ?(?:y|yr|yrs) (?:guy|girl|man|woman|dude|male|female|bbc|bwc|m|f)\b", age_of(&[1]), sh()),
         said("age", &format!(r#"^{flair}[^\n]{{0,80}}?(?=\d\d)(?<![\w$#£€.,'/:+*-])(?<!\bover )(?<!\bunder )(?<!\bfirst )(?<!\bthan )(?<!\blike )(?<!\bin )(?<!\bat )(?<!\bto )(?<!\bfor )(?<!\bwith )(?<!\bof )(?<!\bmax )(?<!\babout )(?<!\baround )(?<!\blast )(?<!\bnext )(?<!\bevery )(?<!\bonly )(?<!\btop )(?<!\bthe )(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bis )(?<!\bare )(?<!\bwas )(?<!\bby )(?<!\bfrom )(?<!\bafter )(?<!\bsince )(\d{{2}})(?![\w%'/:+*-]|[.,]\d|\s*{UNITS}|\s*(?:-|to|or|and)\s*\d|\s*(?:inch|in\b|\"|”|cm|mm|lbs?|kg|min|mins|k\b|m\b|hr|hrs|yrs? ago|guys|people|men|women|girls|hours|years|nudes|pics|videos|times|days|weeks|months|users|members|followers|upvotes|likes|million|billion|thousand|transactions|trades|dms|messages|followers|usd|eur|gbp|budget|1st|2nd|3rd))"#, flair = claimcore::flair!()),
             |m: &Match| {

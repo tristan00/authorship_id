@@ -11,6 +11,7 @@ pub use rules::rules;
 pub use tags::tags;
 
 pub const IM: &str = r"i(?<!\wi)(?:'m|m| am|am| m|'am|'?ve been|'ve always been)";
+pub const SPAN: &str = r"\s?(?:years?|yrs?|y)\s+(?:sober|clean|married|divorced|separated|together|widowed|single|celibate|abstinent|out|outside|in|into|on|off|post|past|from|behind|ahead|before|after|later|since|with|vegan|vegetarian|[a-z]+[- ]free|older|younger|apart|strong|outdated)\b";
 pub const UNITS: &str = r"(?:years? ago|yrs? ago|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|times|percent|%|lbs?|kgs?|pounds|miles|km|cm|dollars|bucks|k\b|grand|hp|mph|degrees|feet|ft|inches|in\b(?!\s+(?!(?:a|an|the|few|couple|two|three|four|five|six|weeks?|months?|years?|days?|hours?|minutes?|length|girth|long|thick|wide|tall|cut|uncut|soft|hard|erect)\b)[a-z]{3,})|seconds|secs?|euros?|points|pts|ounces|oz|inch)";
 pub static OTHERS: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"\b(?:a|an|said|got|it's|its|costs?|paid|worth) $|\b(?:my|his|her|their|our|your|he|she|him|boyfriend|girlfriend|bf|gf|husband|wife|hubby|partner|fianc\w*|spouse|ex|friend|son|daughter|brother|sister|mom|dad|mother|",

@@ -1,5 +1,5 @@
 use crate::database::{put_string, string, Database};
-use claimcore::{log, timed, Re};
+use claimcore::{log, timed, Origin, Re};
 use crossbeam_channel::bounded;
 use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -92,8 +92,8 @@ fn extract_part(database: &Database, part: usize, threads: usize, build: &str) -
             let mut out = Vec::with_capacity(batch.len() * 16);
             let mut found = 0u64;
             for (digest, text) in &batch {
-                for (attribute, value, position) in crate::positioned(text) {
-                    let Some(value) = crate::contracted(&attribute, &value) else { continue };
+                for (attribute, value, position, origin) in crate::positioned(text) {
+                    let Some(value) = crate::contracted(&attribute, &value, origin, || digest[..crate::ID_CHARS / 2].iter().map(|byte| format!("{byte:02x}")).collect()) else { continue };
                     out.extend_from_slice(digest);
                     put_string(&mut out, &attribute);
                     put_string(&mut out, &value);
@@ -171,12 +171,13 @@ pub fn extract(database: &Database, threads: usize) {
     });
 }
 
-fn flair_claims(flair: &str) -> Vec<(String, String)> {
-    let mut found: Vec<(String, String)> = crate::positioned(flair).into_iter().map(|(attribute, value, _)| (attribute, value)).collect();
+fn flair_claims(flair: &str) -> Vec<(String, String, Origin)> {
+    let mut found: Vec<(String, String, Origin)> = crate::positioned(flair).into_iter().map(|(attribute, value, _, origin)| (attribute, value, origin)).collect();
     let chars: Vec<char> = flair.chars().collect();
-    found.extend(MBTI.iter(&chars).map(|found| ("mbti_type".to_string(), found.g(1).to_lowercase())));
+    let mbti = std::panic::Location::caller();
+    found.extend(MBTI.iter(&chars).map(|found| ("mbti_type".to_string(), found.g(1).to_lowercase(), mbti)));
     found.sort();
-    found.dedup();
+    found.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
     found
 }
 
@@ -239,8 +240,8 @@ pub fn flairs(database: &Database, threads: usize) {
                 let mut subreddits: HashMap<String, u64> = HashMap::new();
                 for (subreddit, flair) in &batch {
                     *subreddits.entry(subreddit.clone()).or_default() += 1;
-                    for (attribute, value) in flair_claims(&format!("r/{subreddit}: {flair}")) {
-                        let Some(value) = crate::contracted(&attribute, &value) else { continue };
+                    for (attribute, value, origin) in flair_claims(&format!("r/{subreddit}: {flair}")) {
+                        let Some(value) = crate::contracted(&attribute, &value, origin, || format!("r/{subreddit}: {flair}")) else { continue };
                         let claim = (subreddit.clone(), flair.clone(), attribute, value);
                         if GATED.contains(&claim.2.as_str()) {
                             gate.push(claim);

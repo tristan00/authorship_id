@@ -66,7 +66,7 @@ fn extracted(texts: &[&Text], prompt: &str, threads: usize) -> (Vec<Vec<(String,
         for (slots, part) in raw.chunks_mut(chunk).zip(texts.chunks(chunk)) {
             scope.spawn(move || {
                 for (slot, text) in slots.iter_mut().zip(part) {
-                    *slot = positioned(&text.text).into_iter().map(|(attribute, value, _)| (attribute, value)).collect();
+                    *slot = positioned(&text.text).into_iter().map(|(attribute, value, _, _)| (attribute, value)).collect();
                 }
             });
         }
@@ -135,7 +135,7 @@ fn canonical(attribute: &str, value: &str) -> Vec<String> {
         return Vec::new();
     };
     let known = SCHEMA.attribute(attribute).unwrap();
-    positioned(&frame.replace("{}", value)).into_iter().filter(|(name, _, _)| name == attribute).filter_map(|(_, found, _)| known.normal(&found)).collect()
+    positioned(&frame.replace("{}", value)).into_iter().filter(|(name, _, _, _)| name == attribute).filter_map(|(_, found, _, _)| known.normal(&found)).collect()
 }
 
 fn agreeing(attribute: &str, emitted: &[String], said: &[String]) -> bool {

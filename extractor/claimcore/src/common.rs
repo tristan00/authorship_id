@@ -96,6 +96,7 @@ pub fn hedged(text: &[char], start: usize, end: usize, pattern: Hedge) -> bool {
 }
 
 pub type ValueFn = Box<dyn Fn(&Match) -> Option<String> + Send + Sync>;
+pub type Origin = &'static std::panic::Location<'static>;
 
 pub struct Rule {
     pub attribute: &'static str,
@@ -103,10 +104,12 @@ pub struct Rule {
     pub gate: Option<Vec<Vec<char>>>,
     pub value: ValueFn,
     pub hedge: Hedge,
+    pub origin: Origin,
 }
 
+#[track_caller]
 pub fn rule(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> Option<String> + Send + Sync + 'static, hedge: Hedge) -> Rule {
-    Rule { attribute, re: Re::new(pattern), gate: None, value: Box::new(value), hedge }
+    Rule { attribute, re: Re::new(pattern), gate: None, value: Box::new(value), hedge, origin: std::panic::Location::caller() }
 }
 
 pub fn needs(mut entry: Rule, anchors: &[&str]) -> Rule {

@@ -537,12 +537,12 @@ pub fn interests(lowered: &[char], found: &mut Found) {
     if meets(&bits, &GATES.hobbies) {
         hobbies(lowered, found);
     }
-    let devices: Vec<(String, String, usize)> = found.items.iter().filter(|(attribute, _, _)| attribute == "phone" || attribute == "cpu").cloned().collect();
-    for (attribute, value, position) in devices {
+    let devices: Vec<(String, String, usize, Origin)> = found.items.iter().filter(|(attribute, _, _, _)| attribute == "phone" || attribute == "cpu").cloned().collect();
+    for (attribute, value, position, origin) in devices {
         if attribute == "cpu" {
-            found.set("cpu", vendor(&value), position);
+            found.put("cpu", vendor(&value), position, origin);
         } else {
-            found.set("phone", handset(&value), position);
+            found.put("phone", handset(&value), position, origin);
         }
     }
 }

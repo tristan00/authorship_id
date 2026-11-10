@@ -123,6 +123,7 @@ pub fn mine(m: &Match) -> bool {
     SELF.test_in(m.string, a, b)
 }
 
+#[track_caller]
 pub fn r(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> V + Send + Sync + 'static, hedge: Hedge) -> Rule {
     rule(attribute, pattern, move |m| value(m).map(str::to_string), hedge)
 }
@@ -142,7 +143,7 @@ pub fn scoped_rules(rules: Vec<Rule>) -> Vec<Rule> {
             if !is_hedge(entry.hedge) {
                 return entry;
             }
-            let Rule { attribute, re, gate, value, .. } = entry;
+            let Rule { attribute, re, gate, value, origin, .. } = entry;
             let pets = attribute == "pets";
             let wrapped: ValueFn = Box::new(move |m: &Match| {
                 if FUTURE.test_in(m.string, back(m, 30), m.start()) {
@@ -153,7 +154,7 @@ pub fn scoped_rules(rules: Vec<Rule>) -> Vec<Rule> {
                     None
                 }
             });
-            Rule { attribute, re, gate, value: wrapped, hedge: TAGGED }
+            Rule { attribute, re, gate, value: wrapped, hedge: TAGGED, origin }
         })
         .collect()
 }

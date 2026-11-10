@@ -705,7 +705,7 @@ fn foreign(tongue: Option<&'static Language>, lowered: &[char], found: &mut Foun
 }
 
 fn pop(found: &mut Found, attribute: &str, value: &str) -> Option<usize> {
-    let index = found.items.iter().position(|(a, v, _)| a == attribute && v == value)?;
+    let index = found.items.iter().position(|(a, v, _, _)| a == attribute && v == value)?;
     Some(found.items.remove(index).2)
 }
 

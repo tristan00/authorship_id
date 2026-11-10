@@ -362,13 +362,18 @@ fn sober_days(m: &Match) -> Option<String> {
     }
     let count = number(&m.gs(1)?)?;
     let unit = m.gs(2)?;
-    let days = match unit.trim_end_matches('s') {
+    let per = match unit.trim_end_matches('s') {
         "day" => 1.0,
         "week" => 7.0,
         "month" => 30.44,
         _ => 365.25,
     };
-    Some(format!("{}", (count * days).round() as i64))
+    let days = (count * per).round();
+    let span = contract::SCHEMA.attribute("sober_time")?;
+    if days < span.low? || days > span.high? {
+        return None;
+    }
+    Some(format!("{}", days as i64))
 }
 
 const ALLERGENS: &[(&str, &str)] = &[
@@ -437,6 +442,7 @@ fn flair(lex: Lex) -> impl Fn(&Match) -> Option<String> + Send + Sync + 'static 
     }
 }
 
+#[track_caller]
 fn unquoted(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> Option<String> + Send + Sync + 'static, hedge: Hedge) -> Rule {
     rule(attribute, pattern, move |m| if quoted(m.string, m.start()) { None } else { value(m) }, hedge)
 }

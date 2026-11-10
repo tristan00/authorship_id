@@ -395,6 +395,7 @@ fn ranged(m: &Match, low: f64, high: f64) -> Option<String> {
     (low..=high).contains(&value).then(|| m.first_s()).flatten()
 }
 
+#[track_caller]
 fn said(attribute: &'static str, pattern: &str, value: V, hedge: &'static Re) -> Rule {
     rule(attribute, pattern, scoped_with(value, hedge, false), TAGGED)
 }

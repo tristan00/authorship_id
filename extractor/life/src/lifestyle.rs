@@ -108,6 +108,7 @@ fn ideology(m: &Match, g: usize) -> V {
     COMPOUNDS.iter().find(|(prefix, base, _)| eq(found, base) && ends_at(m.string, start, prefix)).map(|(_, _, full)| *full).or_else(|| get(POLITICS, Some(found)))
 }
 
+#[track_caller]
 fn sided(attribute: &'static str, pattern: &str, value: impl Fn(&Match) -> V + Send + Sync + 'static, hedge: Hedge) -> Rule {
     let party = attribute == "party_affiliation";
     r(attribute, pattern, move |m| value(m).filter(|found| PARTIES.contains(found) == party), hedge)

@@ -27,6 +27,7 @@ pub(crate) fn homemaking(m: &Match) -> Option<String> {
     Some(if HOMEMAKER.test(m.text()) { "homemaker / housewife" } else { "stay-at-home parent" }.to_string())
 }
 
+#[track_caller]
 fn stated(attribute: &'static str, pattern: &str, value: &'static str) -> Rule {
     rule(attribute, pattern, scoped(fixed(value)), self_hedge())
 }

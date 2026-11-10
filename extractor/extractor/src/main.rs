@@ -38,26 +38,32 @@ static RULES: LazyLock<(Vec<&'static Rule>, prefilter::Literals)> = LazyLock::ne
 
 const INVALID_EXAMPLES: usize = 5;
 
-static INVALID: Mutex<BTreeMap<String, (u64, Vec<String>)>> = Mutex::new(BTreeMap::new());
+const ID_CHARS: usize = 16;
 
-fn contracted(attribute: &str, value: &str) -> Option<String> {
+static INVALID: Mutex<BTreeMap<String, (u64, Vec<(String, String)>)>> = Mutex::new(BTreeMap::new());
+
+fn contracted(attribute: &str, value: &str, origin: Origin, id: impl FnOnce() -> String) -> Option<String> {
     let known = contract::SCHEMA.attribute(attribute).unwrap_or_else(|| panic!("a rule emitted {attribute:?}, which claim_extraction/schema.json does not define"));
     let normal = known.normal(value);
     if normal.is_none() {
         let mut invalid = INVALID.lock().unwrap();
         let (count, examples) = invalid.entry(attribute.to_string()).or_default();
         *count += 1;
-        if examples.len() < INVALID_EXAMPLES && !examples.iter().any(|example| example == value) {
-            examples.push(value.to_string());
+        if examples.len() < INVALID_EXAMPLES && !examples.iter().any(|(example, _)| example == value) {
+            examples.push((value.to_string(), format!("{value} {} {}:{}", id(), origin.file().replace('\\', "/"), origin.line())));
         }
     }
     normal
 }
 
+fn short(id: &str) -> String {
+    id.trim_matches('"').chars().take(ID_CHARS).collect()
+}
+
 fn invalid() -> String {
     let invalid = INVALID.lock().unwrap();
     let total: u64 = invalid.values().map(|(count, _)| count).sum();
-    let detail: Vec<String> = invalid.iter().map(|(attribute, (count, examples))| format!("{attribute}:{count}{examples:?}")).collect();
+    let detail: Vec<String> = invalid.iter().map(|(attribute, (count, examples))| format!("{attribute}:{count}{:?}", examples.iter().map(|(_, shown)| shown).collect::<Vec<_>>())).collect();
     format!("{total} {}", detail.join(" "))
 }
 
@@ -82,7 +88,7 @@ fn init() {
     });
 }
 
-fn positioned(raw: &str) -> Vec<(String, String, usize)> {
+fn positioned(raw: &str) -> Vec<(String, String, usize, Origin)> {
     let text = prepared(raw);
     let lowered = lower(&text);
     set_current(&text, &lowered);
@@ -132,7 +138,10 @@ fn read_lines(path: &str) -> Vec<String> {
 
 fn process(line: &str) -> String {
     let row: Row = serde_json::from_str(line).unwrap_or_else(|error| panic!("bad input line: {error}"));
-    let claims: Vec<(String, String, usize)> = positioned(&row.text).into_iter().filter_map(|(attribute, value, position)| contracted(&attribute, &value).map(|value| (attribute, value, position))).collect();
+    let claims: Vec<(String, String, usize)> = positioned(&row.text)
+        .into_iter()
+        .filter_map(|(attribute, value, position, origin)| contracted(&attribute, &value, origin, || short(row.id.get())).map(|value| (attribute, value, position)))
+        .collect();
     encoded(row.id.get(), &claims)
 }
 

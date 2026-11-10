@@ -45,20 +45,25 @@ pub fn timed<T>(name: &str, work: impl FnOnce() -> T) -> T {
 
 #[derive(Default, Clone)]
 pub struct Found {
-    pub items: Vec<(String, String, usize)>,
+    pub items: Vec<(String, String, usize, Origin)>,
 }
 
 impl Found {
+    #[track_caller]
     pub fn set(&mut self, attribute: &str, value: impl AsRef<str>, position: usize) {
+        self.put(attribute, value, position, std::panic::Location::caller());
+    }
+
+    pub fn put(&mut self, attribute: &str, value: impl AsRef<str>, position: usize, origin: Origin) {
         let value = value.as_ref();
         let position = position.max(FLOOR.with(|floor| floor.get()));
         if !self.has(attribute, value) {
-            self.items.push((attribute.to_string(), value.to_string(), position));
+            self.items.push((attribute.to_string(), value.to_string(), position, origin));
         }
     }
 
     pub fn get(&self, attribute: &str, value: &str) -> Option<usize> {
-        self.items.iter().find(|(a, v, _)| a == attribute && v == value).map(|(_, _, p)| *p)
+        self.items.iter().find(|(a, v, _, _)| a == attribute && v == value).map(|(_, _, p, _)| *p)
     }
 
     pub fn has(&self, attribute: &str, value: &str) -> bool {
@@ -66,11 +71,11 @@ impl Found {
     }
 
     pub fn any(&self, attribute: &str) -> bool {
-        self.items.iter().any(|(a, _, _)| a == attribute)
+        self.items.iter().any(|(a, _, _, _)| a == attribute)
     }
 
     pub fn values(&self, attribute: &str) -> Vec<String> {
-        self.items.iter().filter(|(a, _, _)| a == attribute).map(|(_, v, _)| v.clone()).collect()
+        self.items.iter().filter(|(a, _, _, _)| a == attribute).map(|(_, v, _, _)| v.clone()).collect()
     }
 }
 
@@ -102,23 +107,23 @@ pub fn original<'a>(lowered: &'a [char]) -> Option<&'a [char]> {
     }
 }
 
-pub fn finish(found: Found) -> Vec<(String, String, usize)> {
+pub fn finish(found: Found) -> Vec<(String, String, usize, Origin)> {
     let mut order: Vec<usize> = (0..found.items.len()).collect();
     order.sort_by_key(|&i| found.items[i].2);
     let mut earliest: Vec<(&str, &str)> = Vec::new();
     for i in order {
-        let (attribute, value, _) = &found.items[i];
+        let (attribute, value, _, _) = &found.items[i];
         if SINGLE.contains(&attribute.as_str()) && !earliest.iter().any(|(a, _)| a == attribute) {
             earliest.push((attribute, value));
         }
     }
-    let mut picks: Vec<(String, String, usize)> = Vec::new();
-    for (attribute, value, position) in &found.items {
+    let mut picks: Vec<(String, String, usize, Origin)> = Vec::new();
+    for (attribute, value, position, origin) in &found.items {
         if SINGLE.contains(&attribute.as_str()) && !earliest.iter().any(|(a, v)| a == attribute && v == value) {
             continue;
         }
-        if !picks.iter().any(|(pa, pv, _)| pa == attribute && pv == value) {
-            picks.push((attribute.clone(), value.clone(), *position));
+        if !picks.iter().any(|(pa, pv, _, _)| pa == attribute && pv == value) {
+            picks.push((attribute.clone(), value.clone(), *position, *origin));
         }
     }
     picks
@@ -132,7 +137,7 @@ pub fn run_possible(rules: &[&Rule], possible: &[bool], lowered: &[char], automa
         for found_match in entry.re.iter(lowered) {
             if let Some(stated) = (entry.value)(&found_match) {
                 if !hedged(lowered, found_match.start(), found_match.end(), entry.hedge) {
-                    found.set(entry.attribute, stated, found_match.start());
+                    found.put(entry.attribute, stated, found_match.start(), entry.origin);
                 }
             }
         }
