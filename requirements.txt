@@ -1,7 +1,5 @@
 libtorrent==2.1.1
 orjson==3.13.0
-psycopg[binary]==3.2.10
-psycopg-pool==3.2.8
 clickhouse-connect==1.12.0
 babel==2.18.0
 nltk==3.10.3
@@ -11,5 +9,4 @@ transformers==4.57.3
 tokenizers==0.22.2
 huggingface_hub==0.36.2
 numpy==2.5.4
-pylance==14.0.2
 pyarrow==26.0.0
