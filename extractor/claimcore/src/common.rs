@@ -16,6 +16,7 @@ pub static SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"\b(?:if|would|wish|hope|imagine|pretend|unless|whether|wanna|want to|trying to|going to|gonna|might|maybe|used to|not|never|no longer|anymore|",
     r"when i was|back when)\b|n't\b"
 )));
+static FLAIRED: LazyLock<Re> = LazyLock::new(|| Re::new(r"r/\w+:\s*"));
 static ASKED: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^.!?\n,;]{0,40}\?"));
 static BOUNDARY: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:because|cause|cuz|coz|cos|bc|since|and|but|so|although|though|as)\b"));
 static SUBORDINATE: LazyLock<Re> = LazyLock::new(|| Re::new(r"if|unless|whether|when i was|back when|before i was|wish|hope|imagine|pretend"));
@@ -64,6 +65,10 @@ pub fn clause(text: &[char], start: usize) -> usize {
 pub fn question(text: &[char], end: usize) -> bool {
     let stop = next_mark(text, end, ".!\n");
     end < stop && text[end..stop].contains(&'?')
+}
+
+pub fn opening(text: &[char]) -> usize {
+    FLAIRED.at(text, 0).map_or(0, |m| m.end())
 }
 
 pub fn asked(text: &[char], end: usize) -> bool {

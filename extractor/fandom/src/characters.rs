@@ -120,7 +120,7 @@ re!(INTERJECTION, r"^(?i:hell|heck|damn|dang|darn|gosh|jeez|geez|wow|omg|lol|lma
 re!(KINSHIP, r"^(?i:mom|mum|mommy|mummy|mother|dad|daddy|father|papa|mama|sister|sis|brother|bro|wife|husband|hubby|son|daughter|grandma|grandpa|granny|grandmother|grandfather|aunt|auntie|uncle|cousin|niece|nephew|boyfriend|girlfriend|bf|gf|kid|kids|kiddo|child|children|homie|buddy|friend|bestie)$");
 re!(ANIMAL, r"^(?i:cat|cats|kitty|kitten|kittens|dog|dogs|doggo|puppy|puppies|pup|bunny|rabbit|horse|pony|bird|fish|hamster|mouse|rat|snake|lizard|turtle|frog|duck|cow|pig|goat|sheep|chicken|fox|wolf|bear|lion|tiger|monkey|parrot)$");
 re!(CATEGORY, r"^(?i:pok[eé]mon|digimon)s?$");
-re!(BARE, r"(?:^|[^\w'-])(?i:the|a|an|to|this|that|some|any) $");
+re!(BARE, concat!(r"(?:^", claimcore::flair!(), r"|[^\w'-])(?i:the|a|an|to|this|that|some|any) $"));
 
 #[derive(Clone, Copy, PartialEq)]
 enum Gate {
@@ -162,7 +162,7 @@ static STAGES: LazyLock<Vec<Stage>> = LazyLock::new(|| {
         stage(format!(r"{NAME}(?i:,? (?:are |is |)(?:also |definitely |)(?:one of|among|some of) my {TIER}{FAVOURITE}\b(?! (?:\w+ ){{0,2}}{nouns}\b))"), Medium, vec![v(MY), v(FAVS)]),
         stage(format!(r"(?i:\bmy (?:all[- ]time |absolute |personal |)(?:favou?rite|fave|fav) ){NAME}(?=\s*(?:[,.!?;:)\n]|$| (?:from|in|is|was|and|ever|by far|too|lol|tbh)\b))"), Medium, vec![v(MY), v(FAVS)]),
         stage(format!(r"{NAME}(?i: (?:is|are|has always been|will always be|remains|has become|became) (?:still |definitely |probably |easily |honestly |hands down |also |by far |absolutely |literally )*(?:one of |among )?my {TIER}(?:{FAVOURITE}|goat|comfort character|top \d)s?\b(?! (?:\w+ ){{0,2}}{nouns}\b))"), Medium, vec![v(MY), with(FAVS, &["goat", "goats", "comfort", "top"])]),
-        stage(format!(r"(?im:^\W*(?:my )?{FAVOURITE} (?:\w+ )?{KIND}\W*[:=-]\s*){NAME}"), Any, vec![v(FAVS)]),
+        stage(format!(r"(?im:^{flair}\W*(?:my )?{FAVOURITE} (?:\w+ )?{KIND}\W*[:=-]\s*){NAME}", flair = claimcore::flair!()), Any, vec![v(FAVS)]),
         stage(format!(r"(?i:\bbest (?:girl|boy|waifu|husbando)s?,? (?:is |goes to |= |: |)){NAME}|{NAME}(?i:,? (?:is |= )?(?:the |my |)best (?:girl|boy|waifu|husbando)\b)"), Any, vec![vec!["best"], vec!["girl", "girls", "boy", "boys", "waifu", "waifus", "husbando", "husbandos"]]),
         stage(format!(r"{NAME},? (?i:my (?:comfort character|waifu|husbando)\b)"), Known, vec![v(MY), vec!["comfort", "waifu", "husbando"]]),
         stage(format!(r"(?i:\bmy (?:husbando|waifu) ){NAME}"), Known, vec![v(MY), vec!["husbando", "waifu"]]),

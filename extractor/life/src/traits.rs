@@ -1,4 +1,4 @@
-use crate::flair::{body, flair};
+use crate::flair::{body, flair, PREFIX};
 use crate::shared::*;
 use claimcore::*;
 
@@ -61,7 +61,7 @@ fn as_lead() -> String {
 
 fn self_lead() -> String {
     let (adj, as_lead) = (adj(), as_lead());
-    format!(r"{ME}[ \t]+{ADVERB}(?:an?\s+)?{adj}{{0,2}}|{as_lead}\s+an?\s+{adj}{{0,2}}|(?:^|[\n.!?,;]\s*|\bme\s+)being\s+(?:an?\s+)?{adj}{{0,2}}")
+    format!(r"{ME}[ \t]+{ADVERB}(?:an?\s+)?{adj}{{0,2}}|{as_lead}\s+an?\s+{adj}{{0,2}}|(?:^{flair}|[\n.!?,;]\s*|\bme\s+)being\s+(?:an?\s+)?{adj}{{0,2}}", flair = claimcore::flair!())
 }
 
 fn astro_lead() -> String {
@@ -97,7 +97,7 @@ regex!(NEXT_ITEM, format!("{SEP}{}", strict_item()));
 regex!(THIRDS, THIRD);
 regex!(TYPO, format!("(?:{})(?:{TOKEN}{SEP})*$", typo_lead()));
 regex!(TRI, format!(r"(?:(?:{})(?:{TOKEN}{SEP})+|\bmy\s+tritype\s*(?:is\s+|:\s*|-\s*|=\s*)?)$", typo_lead()));
-regex!(KINSHIP, format!(r"(?:{ME}[ \t]+{ADVERB}|{}\s+|(?:^|[\n.!?,;]\s*|\bme\s+)being\s+)(?:an?\s+)?(?:{}|(?:and|&|,)[ \t]+(?:an?[ \t]+)?){{0,4}}(?:{IDENTITY}[\s,/&+]*(?:(?:and|but|also)\s+)*(?:an?\s+)?{}{{0,2}})*$", as_lead(), adj(), adj()));
+regex!(KINSHIP, format!(r"(?:{ME}[ \t]+{ADVERB}|{}\s+|(?:^{flair}|[\n.!?,;]\s*|\bme\s+)being\s+)(?:an?\s+)?(?:{}|(?:and|&|,)[ \t]+(?:an?[ \t]+)?){{0,4}}(?:{IDENTITY}[\s,/&+]*(?:(?:and|but|also)\s+)*(?:an?\s+)?{}{{0,2}})*$", as_lead(), adj(), adj(), flair = claimcore::flair!()));
 regex!(ALTERNATIVE, format!(r"(?:{TOKEN})\s*,?\s*(?:/|\bor\b|\bvs\.?)\s*(?:an?\s+)?$"));
 regex!(ASTRO_AFTER, format!(r"(?:{SEP}{})*(?:[ \t-]*(?:'s\s+)?(?:(?:wo)?man\s+|guy\s+|girl\s+)?(?:bf|gf|boyfriend|girlfriend|husband|hubby|wife|partner|friends?|mom|mum|dad|mother|father|sons?|daughters?|sister|brother|crush|ex|coworker|boss|kids?|baby|child|cousin|aunt|uncle|people|folks|men|women|guys|girls|energy|season|transit|placements?|natives?|traits?|compatibility)\b|[ \t]*,?[ \t]*(?:you|your|you're|u|ur)\b)", item()));
 regex!(TYPO_AFTER, format!(r"(?:{SEP}{TOKEN})*[ \t]*,?[ \t]*(?:you|your|you're|u|ur)\b"));
@@ -131,7 +131,7 @@ fn header(s: &[char], start: usize) -> usize {
 
 fn lined(m: &Match) -> bool {
     let s = m.string;
-    let (start, end) = (line_start(s, m.start()), line_end(s, m.end()));
+    let (start, end) = (line_start(s, m.start()).max(PREFIX.at(s, 0).map_or(0, |p| p.end()).min(m.start())), line_end(s, m.end()));
     LINE_BEFORE.fullmatch(s, start, m.start()).is_some() && LINE_AFTER.fullmatch(s, m.end(), end).is_some() && !THIRDS.test_in(s, header(s, start), end) && !HEDGE.test_in(s, start, m.start())
 }
 
@@ -252,7 +252,7 @@ fn astrology() -> Vec<Rule> {
     for (attribute, place, words, anchors) in places {
         rules.push(needs(r(attribute, &format!(r"(?<![\w'])(?:{ANY_SIGN})[ \t-]{{0,2}}{place}"), placed, hedge()), &anchors));
         rules.push(needs(r(attribute, &format!(r"(?<![\w'])(?:{words})(?:\s+sign)?(?:\s+is\s+in|\s+is|\s+in|:|\s*=|\s+-)?\s+(?:an?\s+)?{FULL_SIGN}(?![\w']){OTHER_PLACE}"), placed, hedge()), &anchors));
-        rules.push(needs(r(attribute, &format!(r"(?:^|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?(?:{ANY_SIGN})[ \t-]{{0,2}}{place}\s+here\b"), |m| get(SIGNS, m.group(1)), hedge()), &anchors));
+        rules.push(needs(r(attribute, &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?(?:{ANY_SIGN})[ \t-]{{0,2}}{place}\s+here\b", flair = claimcore::flair!()), |m| get(SIGNS, m.group(1)), hedge()), &anchors));
     }
     let adj = adj();
     rules.push(r(
@@ -267,9 +267,9 @@ fn astrology() -> Vec<Rule> {
         |m| get(SIGNS, m.group(1)),
         hedge(),
     ));
-    rules.push(r("sun_sign", &format!(r"(?:^|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?{FULL_SIGN}\s+(?:(?:woman|man|girl|guy|gal|dude|female|male|baby)\s+)?here\b"), |m| get(SIGNS, m.group(1)), hedge()));
+    rules.push(r("sun_sign", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?{FULL_SIGN}\s+(?:(?:woman|man|girl|guy|gal|dude|female|male|baby)\s+)?here\b", flair = claimcore::flair!()), |m| get(SIGNS, m.group(1)), hedge()));
     rules.push(r("sun_sign", r"(?:\bi'm|\bim|\bi am)\s+(?:also\s+)?(aries|taurus|gemini|leo|virgo|libra|scorpio|sagittarius|capricorn|aquarius|pisces)(?![\w'-])(?!\s*,?\s*(?:you|your|you're|u|ur)\b)(?=\s*(?:[^\w\s'-]|$|(?:and|but|so|too|myself|lol|haha|btw|though|tho|sun)\b))", plain, hedge()));
-    rules.push(r("sun_sign", &format!(r"(?:^|\n)[^\w\n]*(?:zodiac|star|sun|astrological)\s+sign\s*[:=-]\s*{FULL_SIGN}(?![\w'])"), |m| get(SIGNS, m.group(1)), hedge()));
+    rules.push(r("sun_sign", &format!(r"(?:^{flair}|\n)[^\w\n]*(?:zodiac|star|sun|astrological)\s+sign\s*[:=-]\s*{FULL_SIGN}(?![\w'])", flair = claimcore::flair!()), |m| get(SIGNS, m.group(1)), hedge()));
     rules
 }
 
@@ -278,7 +278,7 @@ fn typology() -> Vec<Rule> {
     let listed = format!(r"(?!s?\s*(?:,|and\b)\s*(?:and\s+)?(?:an?\s+)?{MBTI}(?![a-z]))");
     vec![
         rule("mbti_type", &format!(r"(?<![\w'/-])({MBTI})(?:-[at])?(?![\w']){after}{listed}"), mbti, hedge()),
-        rule("mbti_type", &format!(r"(?:^|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?({MBTI})(?:-[at])?\s+here\b"), |m| Some(m.g(1)), hedge()),
+        rule("mbti_type", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?({MBTI})(?:-[at])?\s+here\b", flair = claimcore::flair!()), |m| Some(m.g(1)), hedge()),
         r("enneagram_type", &format!(r"(?<![\w'/.,-])([1-9])\s?w\s?([1-9])(?![\w']){after}"), wing, hedge()),
         r("enneagram_type", r"(?<![\w'/.,-])(?:type\s+)?([1-9])\s+with\s+an?\s+(?:(?:strong|slight|heavy|big|small)\s+)?([1-9])[\s-]?wing\b", wing, hedge()),
         r("enneagram_type", &format!(r"(?<![\w'/])(?:sp|sx|so)([1-9])(?:w[1-9])?(?![\w']){after}"), core, hedge()),
@@ -309,7 +309,7 @@ fn attachment() -> Vec<Rule> {
 fn identity() -> Vec<Rule> {
     vec![
         r("identity_community", &format!(r"(?<![\w'-]){IDENTITY}(?![\w'-])(?!\s+(?:friends?|animals?|bab(?:y|ies)|creatures?|pets?|thing|ones?|kids?|companions?|family|tail|ears)\b)"), kin, hedge()),
-        r("identity_community", &format!(r"(?:^|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?(?:(?!(?:my|your|his|her|their|the|a|an|no|not)\b)[\w-]+\s+){{0,2}}{IDENTITY}\s+here\b"), |m| get(IDENTITIES, m.group(1)), hedge()),
+        r("identity_community", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a\s+)?fellow\s+)?(?:(?!(?:my|your|his|her|their|the|a|an|no|not)\b)[\w-]+\s+){{0,2}}{IDENTITY}\s+here\b", flair = claimcore::flair!()), |m| get(IDENTITIES, m.group(1)), hedge()),
         r("identity_community", r"\bmy\s+(?:own\s+|main\s+|current\s+|new\s+|first\s+|old\s+)?fursonas?\b", constant("furry"), hedge()),
         needs(r("identity_community", &format!(r"(?<![\w'-]){IDENTITY}(?![\w'-])"), |m| if flair(m) { get(IDENTITIES, m.group(1)) } else { None }, TAGGED), &["therian", "otherkin", "fictionkin", "alterhuman", "polymorphkin", "furry"]),
     ]
@@ -343,12 +343,12 @@ fn social() -> Vec<Rule> {
         needs(r("introversion", &format!(r"{}\s+an?\s+(?:{DEGREE}\s+){{0,2}}{INTRO}{after}", as_lead()), |m| get(SOCIAL, m.group(1)), hedge()), &intro),
         needs(r("introversion", &format!(r"(?:{ME}|\bi have been)\s+(?:(?!with\b|of\b|for\b|to\b|like\b|dating\b|married\b|friends?\b|not\b|never\b|no\b|than\b|and\b)[\w-]+,?\s+){{1,4}}?(?:and|&)\s+(?:an?\s+)?(?:{DEGREE}\s+){{0,2}}{INTRO}{after}"), |m| get(SOCIAL, m.group(1)), hedge()), &intro),
         needs(r("introversion", &format!(r"\bi\s+(?:would\s+|'d\s+)?(?:consider|call|describe|see|identify)\s+(?:myself\s+)?(?:as\s+)?(?:{DEGREE}\s+){{0,3}}{INTRO}{after}"), |m| get(SOCIAL, m.group(1)), hedge()), &intro),
-        needs(r("introversion", &format!(r"(?:^|[\n.!?])\W*(?:(?:a|fellow|another|shy|big|huge|total|extreme|introverted|extroverted)\s+){{0,2}}{INTRO}\s+here\b"), |m| get(SOCIAL, m.group(1)), hedge()), &intro),
-        needs(r("introversion", &format!(r"(?:^|\n)[ \t*_-]*(?:(?:an?|total|huge|big|massive|extreme|shy|introverted|extroverted|proud)\s+){{0,2}}{INTRO}[ \t*_.!]*(?:\n|$)"), |m| get(SOCIAL, m.group(1)), hedge()), &intro),
+        needs(r("introversion", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a|fellow|another|shy|big|huge|total|extreme|introverted|extroverted)\s+){{0,2}}{INTRO}\s+here\b", flair = claimcore::flair!()), |m| get(SOCIAL, m.group(1)), hedge()), &intro),
+        needs(r("introversion", &format!(r"(?:^{flair}|\n)[ \t*_-]*(?:(?:an?|total|huge|big|massive|extreme|shy|introverted|extroverted|proud)\s+){{0,2}}{INTRO}[ \t*_.!]*(?:\n|$)", flair = claimcore::flair!()), |m| get(SOCIAL, m.group(1)), hedge()), &intro),
         needs(r("love_language", &format!(r"(?<![\w-]){LOVE}(?![\w-])"), loving, hedge()), &["love language"]),
         needs(r("hogwarts_house", &format!(r"{ME}\s+(?:(?:a|an|such a|definitely|totally|proud|true|total|full|100%|die[- ]hard|always|also|been)\s+){{0,3}}{HOUSE}(?![\w'-])(?!\s+(?:common room|house|scarf|colou?rs?|fan|merch|robes?|quidditch|students?)\b)"), |m| get(HOUSES, m.group(1)), hedge()), &houses),
-        needs(r("hogwarts_house", &format!(r"(?:^|[\n.!?])\W*(?:(?:a|fellow|proud|another)\s+){{0,2}}{HOUSE}s?\s+here\b|(?:^|\n)\W*(?:a\s+)?proud\s+{HOUSE}\b"), |m| get(HOUSES, m.first()), hedge()), &houses),
-        needs(r("hogwarts_house", &format!(r"\b(?:a\s+)?proud\s+{HOUSE}\b(?!\s+(?:fans?|parents?|mom|mum|dad|kids?|family)\b)|\|[ \t]*{HOUSE}(?:[ \t]*[\p{{So}}\x{{fe0f}}])*(?=[ \t]*(?:\||\n|$))|(?<![^\n|])[ \t]*{HOUSE}(?:[ \t]*[\p{{So}}\x{{fe0f}}])*[ \t]*\|"), sorted, hedge()), &houses),
+        needs(r("hogwarts_house", &format!(r"(?:^{flair}|[\n.!?])\W*(?:(?:a|fellow|proud|another)\s+){{0,2}}{HOUSE}s?\s+here\b|(?:^{flair}|\n)\W*(?:a\s+)?proud\s+{HOUSE}\b", flair = claimcore::flair!()), |m| get(HOUSES, m.first()), hedge()), &houses),
+        needs(r("hogwarts_house", &format!(r"\b(?:a\s+)?proud\s+{HOUSE}\b(?!\s+(?:fans?|parents?|mom|mum|dad|kids?|family)\b)|\|[ \t]*{HOUSE}(?:[ \t]*[\p{{So}}\x{{fe0f}}])*(?=[ \t]*(?:\||\n|$))|(?:(?<![^\n|])|\A{flair})[ \t]*{HOUSE}(?:[ \t]*[\p{{So}}\x{{fe0f}}])*[ \t]*\|", flair = claimcore::flair!()), sorted, hedge()), &houses),
         needs(r("hogwarts_house", &format!(r"(?<![\w'-]){HOUSE}(?![\w'-])"), |m| if flair(m) { get(HOUSES, m.group(1)) } else { None }, TAGGED), &houses),
         needs(r("hogwarts_house", &format!(r"\bmy\s+(?:hogwarts\s+)?house\s+(?:is|=|:)\s+(?:definitely\s+)?{HOUSE}|\bi\s+(?:always\s+)?(?:got|get|was|am|'m|'ve been|have been)\s+(?:always\s+)?sorted\s+(?:into\s+|in\s+)?{HOUSE}|\b(?:pottermore|the sorting hat|the quiz|wizarding world)\s+(?:always\s+)?(?:sorted|put|puts|placed)\s+me\s+(?:in|into)\s+{HOUSE}"), |m| get(HOUSES, m.first()), hedge()), &houses),
     ]

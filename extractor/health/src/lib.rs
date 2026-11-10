@@ -243,7 +243,7 @@ pub static MENTAL_TAIL: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\b(?:
 static FIGURATIVE: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^\n]*?(?:\b(?:lol|lmao|lmfao|rofl|xd|haha\w*|hehe\w*|clearly|apparently|i guess|i suppose|didn'?t see|did not see|didn'?t notice|missed (?:it|that|this|those|them))\b|[😅😂🤣🙈🤦])"));
 pub static INTENSIFIED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:so|really|very|pretty|super|kinda|kind of|a bit|a little|bit|too|extremely)\s+$"));
 static FLAIR_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:suspect\w*|undiagnosed|self[- ]?(?:dx|diagnosed)|possibl\w*|probabl\w*|maybe|questioning|not)\W+(?:[\w-]+\W+)?$"));
-static PROXY_SUB: LazyLock<Re> = LazyLock::new(|| Re::new(r"^r/\w*(?:parent|mom|dad|widow|caregiv|carer|grief|loss)\w*:"));
+static PROXY_SUB: LazyLock<Re> = LazyLock::new(|| Re::new(r"^r/\w*(?:parent|mom|(?<!i)dad|widow|caregiv|carer|grief|loss)\w*:"));
 static SEEKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:no|not|non|looking for|seeking|want|wants|wanted|for|with|into|love|loves|like|likes)\W+(?:[\w'-]+\W+)?$"));
 static SUBSTANCE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"\b(?:(drink|drinks|drinking|drank|drunk|alcohol|alcoholic|alcoholism|booze|beer|beers|wine|liquor|vodka|whiskey|whisky|hangovers?|aa|stopdrinking)|(weed|cannabis|marijuana|thc|stoner|edibles|dabs)|",
@@ -279,7 +279,7 @@ pub fn have() -> String {
     format!("{}|{}", have_now(), had())
 }
 
-pub const BARE: &str = r"(?:^|[.!?\n|]\s*)(?:recently |newly |just |finally |officially |formally |also |and |got |was |been )*(?:diagnosed|dx'?d) (?:with|w/)";
+pub const BARE: &str = concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n|]\s*)(?:recently |newly |just |finally |officially |formally |also |and |got |was |been )*(?:diagnosed|dx'?d) (?:with|w/)");
 pub const MODIFIERS: &str = concat!(
     r"own|severe|mild|moderate|chronic|acute|stupid|damn|damned|fucking|freaking|bloody|bad|untreated|undiagnosed|diagnosed|recent|current|constant|occasional|lifelong|genetic|congenital|",
     r"hereditary|early|late|new|old|primary|secondary|crippling|debilitating|terrible|horrible|awful|pretty bad|really bad|annoying|lovely|wonderful|recurring|recurrent|persistent|ongoing|",
@@ -520,10 +520,11 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
     for pattern in [
         format!(r"(?:r(?<!\wr)ecover(?:ing|ed)|i(?<!\wi)n recovery) from (?:my |an? )?({loose})\b"),
         format!(r"(?:u(?<!\wu)n(?:diagnosed|medicated|treated)|d(?<!\wd)iagnosed|c(?<!\wc)rippling|l(?<!\wl)(?:ifelong|ate[- ]diagnosed)) (?:but severe )?({loose})\b(?=[^.!?\n]*\b(?:i|my|me)\b)"),
-        format!(r"^\W*(?:yep\W+|yeah\W+|also\W+|same\W+|me too\W+)?({loose})\W*$"),
+        format!(r"^{flair}\W*(?:yep\W+|yeah\W+|also\W+|same\W+|me too\W+)?({loose})\W*$", flair = claimcore::flair!()),
         format!(r"(?:^|[.!?\n]\s*)also,? ({loose})\b(?=\W*(?:$|[.!?\n]))"),
     ] {
-        rules.push(unquoted("mental_and_developmental_conditions", &pattern, by(t.mental_loose.clone()), own()));
+        let lex = t.mental_loose.lex();
+        rules.push(unquoted("mental_and_developmental_conditions", &pattern, move |m| if PROXY_SUB.test(m.string) { None } else { get(&lex, m.group(1)) }, own()));
     }
     let caused = pairs(&[("depressed", "depression"), ("suicidal", "suicidality"), ("depression", "depression"),
         ("an eating disorder", "eating disorder (unspecified)"), ("agoraphobic", "anxiety")]).lex();

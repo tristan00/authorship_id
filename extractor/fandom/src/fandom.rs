@@ -5,7 +5,7 @@ use claimcore::schema::fan_value;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::LazyLock;
 
-pub const NAME: &str = r"((?:[Tt]he )?[A-Z0-9][\w'&.:!+-]*(?:,? (?:of|the|and|&|de|la|le|vs\.?|in|on|a|to|[A-Z0-9][\w'&.:!+-]*)){0,6})";
+pub const NAME: &str = r"((?<![\w/])(?:[Tt]he )?[A-Z0-9][\w'&.:!+-]*(?:,? (?:of|the|and|&|de|la|le|vs\.?|in|on|a|to|[A-Z0-9][\w'&.:!+-]*)){0,6})";
 const DEGREE: &str = r"(?:huge|big|biggest|number one|#1|massive|die[- ]?hard|lifelong|life[- ]long|long[- ]?time|proud|loyal|true|real|giant|enormous|devoted|avid|hardcore|crazy|super|major|total|self[- ](?:admitted|proclaimed|confessed|described))";
 
 const KINDS: &[(&str, &str)] = &[("band", "artist"), ("artist", "artist"), ("singer", "artist"), ("rapper", "artist"), ("musician", "artist"), ("group", "artist"), ("musical artist", "artist"), ("composer", "artist"),

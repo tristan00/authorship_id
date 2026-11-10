@@ -44,8 +44,8 @@ static FRAME: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"|i(?<!\wi)\b(?:(?!\b(?:who|that|which|anyone|someone|anybody|somebody|you|he|she|they|we|people|everyone)\b)[^.!?\n]){0,60}? and (?:then |also |eventually |finally |recently )?(?:started(?: on| taking)?|switched (?:over )?to|got put on|was put on)",
     r"|(?:p(?<!\wp)ut|s(?<!\ws)tarted|s(?<!\ws)witched|k(?<!\wk)ept|k(?<!\wk)eep|p(?<!\wp)rescribed) me (?:back )?(?:on|to)?",
     r"|m(?<!\wm)y (?:doctor|dr|psychiatrist|psych|gp|pcp|neurologist|dermatologist|derm|rheumatologist|endocrinologist|endo|obgyn|gyno|cardiologist|gastro|oncologist|np) (?:\w+ )?prescribed",
-    r"|(?:^|\n\s*|[.!?]\s+)(?:just |recently )?(?:started(?: on| taking)?|been on|been taking|currently on|currently taking)",
-    r"|(?:^|\n\s*|[.!?]\s+)(?:(?:almost|nearly|about|over|more than) )?(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten) (?:days?|weeks?|months?|years?) on)\b",
+    r"|(?:^", claimcore::flair!(), r"|\n\s*|[.!?]\s+)(?:just |recently )?(?:started(?: on| taking)?|been on|been taking|currently on|currently taking)",
+    r"|(?:^", claimcore::flair!(), r"|\n\s*|[.!?]\s+)(?:(?:almost|nearly|about|over|more than) )?(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten) (?:days?|weeks?|months?|years?) on)\b",
 )));
 
 static ITEM: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(

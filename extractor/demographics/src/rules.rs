@@ -198,7 +198,7 @@ fn age() -> Vec<Rule> {
         said("age", r"as(?<!\was) an? (?:(?!(?:not|no|with|for|to|than|like|and|or|that|who)\b)[\w-]+ ){0,2}?(\d{2})(?:[- ]?(?:years?|yrs?|yr)[- ]?old|\s?(?:yo|y/o))\b", age_of(&[1]), h()),
         said("age", r"\bthis (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:has|is|will|would|can|still|needs|wants|loves|could)\b|\bme,? an? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o)\b|\ban? (\d{2}) ?(?:years?[- ]old|yrs?[- ]old|yo|y/o) (?:[\w-]+ ){0,2}?like me\b", age_of(&[1, 2, 3]), h()),
         said("age", r"\b(?:(?:we're|we are) (?:both|only|just|now)|we both are|(?:my \w+|\w+) and i are(?: both)?|me and (?:my )?\w+ are(?: both)?) (\d{2})\b(?!\s*(?:and|or|-|&)\s*\d)(?!\s*(?:%|percent|minutes|mins|hours|days|weeks|months|years? (?:ago|in|into|of|together|married)|miles|km|feet|ft|lbs?|kg|dollars|bucks|k\b))", age_of(&[1]), h()),
-        said("age", concat!(r"(?:\bi(?:'ve| have)? |^", claimcore::flair!(), r"|[.!?\n] )(?:(?:just|recently|finally|also|only|officially) )*(?:turned|(?<![\w ])turning|(?<=[.!?\n] )turning) (\d{2})\b(?! (?:years|minutes|weeks|percent|%))"), age_of(&[1]), h()),
+        said("age", concat!(r"(?:\bi(?:'ve| have)? |^", claimcore::flair!(), r"|[.!?\n] )(?:(?:just|recently|finally|also|only|officially) )*(?:turned|(?<![\w ])turning|(?<=[.!?\n:] )turning) (\d{2})\b(?! (?:years|minutes|weeks|percent|%))"), age_of(&[1]), h()),
         said("age", &format!(r"{IM} (?:a |an )?(?:(?!not\b|never\b)[a-z]+ ){{0,3}}?(\d{{2}})[\s-]?(?:yo|y/o|y\.o\.?|years? old|yr old|year-old)\b"), age_of(&[1]), h()),
         said("age", concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n] *)(\d{2}) (?:years? old|yo|y/o) (?:here|male|female|guy|girl|man|woman|m|f)\b"), age_of(&[1]), h()),
         said("age", concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n] *)at (\d{2})(?: years? old)?,? (?:now|i|i'm|im)\b|\bfreshly (\d{2})\b"), age_of(&[1, 2]), h()),
@@ -252,8 +252,9 @@ fn age() -> Vec<Rule> {
         said("age", &format!(r#"^{flair}[^\n]{{0,80}}?(?=\d\d)(?<![\w$#£€.,'/:+*-])(?<!\bover )(?<!\bunder )(?<!\bfirst )(?<!\bthan )(?<!\blike )(?<!\bin )(?<!\bat )(?<!\bto )(?<!\bfor )(?<!\bwith )(?<!\bof )(?<!\bmax )(?<!\babout )(?<!\baround )(?<!\blast )(?<!\bnext )(?<!\bevery )(?<!\bonly )(?<!\btop )(?<!\bthe )(?<!\ba )(?<!\ban )(?<!\bmy )(?<!\byour )(?<!\bis )(?<!\bare )(?<!\bwas )(?<!\bby )(?<!\bfrom )(?<!\bafter )(?<!\bsince )(\d{{2}})(?![\w%'/:+*-]|[.,]\d|\s*{UNITS}|\s*(?:-|to|or|and)\s*\d|\s*(?:inch|in\b|\"|”|cm|mm|lbs?|kg|min|mins|k\b|m\b|hr|hrs|yrs? ago|guys|people|men|women|girls|hours|years|nudes|pics|videos|times|days|weeks|months|users|members|followers|upvotes|likes|million|billion|thousand|transactions|trades|dms|messages|followers|usd|eur|gbp|budget|1st|2nd|3rd))"#, flair = claimcore::flair!()),
             |m: &Match| {
                 let text = m.string;
-                let first = &text[..line_end(text, 0)];
-                if AD.test_in(text, 0, 300) && !COUNTED.test_in(text, 0, m.start_of(1) as usize) && TWO_DIGITS.count(first) == 1 && !GAME.test(text) { ages(m.group(1)) } else { None }
+                let opened = opening(text);
+                let first = &text[opened..line_end(text, opened)];
+                if AD.test_in(text, 0, 300) && !COUNTED.test_in(text, opened, m.start_of(1) as usize) && TWO_DIGITS.count(first) == 1 && !GAME.test(text) { ages(m.group(1)) } else { None }
             }, TAGGED),
         said("age", &format!(r#"(?<![\w.'\"/$#%+:–-])(?<!\d,)(?:[mf]\s?/\s?)?(\d{{2}})(?:\s?(?:yo|y/o|yrs?|years? old))?{STAT_GAP}(?:(?:[mf]|male|female|{ethnic_names})\s*[,/|]?\s*)?{TALL}"#),
             alone(|m: &Match| if desired(m.string, m.start()) { None } else { ages(m.group(1)) }), TAGGED),
@@ -438,7 +439,7 @@ fn weight() -> Vec<Rule> {
                 let weight = kilograms(py_float(m.group(1)?)?, m.group(2)?)?;
                 if (35.0..=250.0).contains(&weight) { Some(rounded(weight)) } else { None }
             })), sh()),
-        said("body_weight", r#"[4-7](?<![\w.$'][4-7])\s?(?:'|ft)\s?\d{1,2}(?:\"|”|'')?\s*[,/]?\s+(\d{3})(?:\s?(?:lbs?|pounds))?(?![\w.%/'\"”])"#,
+        said("body_weight", r#"[4-7](?<![\w.$'][4-7])\s?(?:'|ft)\s?\d{1,2}(?:\"|”|'')?\s*[,/]?\s+(\d{3})(?:\s?(?:lbs?|pounds))?(?![\w.%/'\"”])(?!\s*(?:kgs?|kilos?|cm|mm)\b|\s*(?:-+>|→|➡))"#,
             alone(|m: &Match| {
                 let weight = py_int(m.group(1)?)? as f64 * 0.4536;
                 if weight <= 250.0 && !WANTING.test(tail_sentence(m.string, m.start(), 80)) { Some(rounded(weight)) } else { None }

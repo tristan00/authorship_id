@@ -18,7 +18,7 @@ pub const SINGLE: [&str; 2] = ["age", "gender"];
 #[macro_export]
 macro_rules! flair {
     () => {
-        r"(?:r/\w+:\s*)?"
+        r"(?:r/[\w-]+(?::\w+)?:\s*)?"
     };
 }
 
@@ -51,6 +51,7 @@ pub struct Found {
 impl Found {
     pub fn set(&mut self, attribute: &str, value: impl AsRef<str>, position: usize) {
         let value = value.as_ref();
+        let position = position.max(FLOOR.with(|floor| floor.get()));
         if !self.has(attribute, value) {
             self.items.push((attribute.to_string(), value.to_string(), position));
         }
@@ -75,10 +76,12 @@ impl Found {
 
 thread_local! {
     static CURRENT: Cell<(usize, usize, usize)> = const { Cell::new((0, 0, 0)) };
+    static FLOOR: Cell<usize> = const { Cell::new(0) };
 }
 
 pub fn set_current(text: &[char], lowered: &[char]) {
     CURRENT.with(|current| current.set((text.as_ptr() as usize, lowered.as_ptr() as usize, lowered.len())));
+    FLOOR.with(|floor| floor.set(opening(lowered)));
     SERIAL.with(|serial| serial.set(serial.get() + 1));
 }
 

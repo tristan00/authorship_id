@@ -8,7 +8,7 @@ const GROUPS: &[&str] = &[
     "jewish", "ashkenazi", "sephardic", "sephardi", "mizrahi", "arab", "kurdish", "european", "scandinavian", "nordic", "slavic", "celtic", "middle eastern",
     "south asian", "east asian", "southeast asian", "native american", "indigenous", "romani", "latin american", "caribbean", "west indian", "polynesian",
 ];
-const STEM: &str = r"(?:\b(?:i'm|im|i am|iam|i'?ve always been|i'?ve been)|\bam|(?<!himself )(?<!herself )(?<!themselves )(?<!identifies )(?<!identified )(?<!known )(?<!seen )(?<!described )(?<!considered )(?<!treated )(?<!labeled )\bas an?|(?:^|[.!?\n]\s*)being)";
+const STEM: &str = concat!(r"(?:\b(?:i'm|im|i am|iam|i'?ve always been|i'?ve been)|\bam|(?<!himself )(?<!herself )(?<!themselves )(?<!identifies )(?<!identified )(?<!known )(?<!seen )(?<!described )(?<!considered )(?<!treated )(?<!labeled )\bas an?|(?:^", claimcore::flair!(), r"|[.!?\n]\s*)being)");
 const SOFT: &str = r"(?:(?:also|actually|just|technically|originally|both|all|partly|partially|mostly|mainly|largely|ethnically) )*";
 const KIN: &str = r"(?:family|parents|ancestors|grandparents|mom|mum|mother|dad|father|(?:mom|mum|mother|dad|father)'s (?:side|family)|(?:maternal|paternal) (?:side|family|grandparents))";
 const ANCESTRY: &str = r"(?:descent|heritage|ancestry|origin|origins|extraction|roots|background|blood|stock)";
@@ -38,8 +38,8 @@ pub fn rules() -> Vec<Rule> {
     let countries = &*COUNTRIES;
     vec![
         needs(rule("heritage", &format!(
-            r"(?:{STEM} {SOFT}(?:an? )?(?:(?!(?:fan|fans|lot|bit|couple|bunch|member|part|friend|friends|group|mix|with|to|for|married|dating|around|surrounded|one|some|many|most|all|proud)\b)(?!\w+ing\b)[\w-]+ ){{0,2}}?|(?:^|\n)\s*|[,;]\s*(?:but|though|and) )of (?:(?:mixed|partial|partly|part|half|some|mostly|primarily|predominantly|mainly|largely|full|pure|direct|recent) )?({origin_names})(?:[- ](?:american|canadian|british|australian))? {ANCESTRY}\b(?![\w-]| (?:sites?|month|food|cuisine|festivals?|films?|movies?|music|stories|story|products?|brands?|dishes|recipes?|people|men|women|folks|communit(?:y|ies)|kids|children|students|friends|famil(?:y|ies)|girls|guys|man|woman|person|individuals))"
-        ), |m| origin(m.group(1)), hedge()), &["descent", "heritage", "ancestry", "origin", "extraction", "roots", "background", "blood", "stock"]),
+            r"(?:{STEM} {SOFT}(?:an? )?(?:(?!(?:fan|fans|lot|bit|couple|bunch|member|part|friend|friends|group|mix|with|to|for|married|dating|around|surrounded|one|some|many|most|all|proud)\b)(?!\w+ing\b)[\w-]+ ){{0,2}}?|(?:^{flair}|\n)\s*|[,;]\s*(?:but|though|and) )of (?:(?:mixed|partial|partly|part|half|some|mostly|primarily|predominantly|mainly|largely|full|pure|direct|recent) )?({origin_names})(?:[- ](?:american|canadian|british|australian))? {ANCESTRY}\b(?![\w-]| (?:sites?|month|food|cuisine|festivals?|films?|movies?|music|stories|story|products?|brands?|dishes|recipes?|people|men|women|folks|communit(?:y|ies)|kids|children|students|friends|famil(?:y|ies)|girls|guys|man|woman|person|individuals))"
+        , flair = claimcore::flair!()), |m| origin(m.group(1)), hedge()), &["descent", "heritage", "ancestry", "origin", "extraction", "roots", "background", "blood", "stock"]),
         needs(rule("heritage", &format!(
             r"{STEM} {SOFT}(?:half|part|partly|partially|a quarter|quarter|one quarter|\d/\d|\d{{1,2}}(?:\.\d+)?\s?%)[- ]?({origin_names})(?![\w-])"
         ), |m| origin(m.group(1)), hedge()), &["half", "part", "quarter", "/", "%"]),

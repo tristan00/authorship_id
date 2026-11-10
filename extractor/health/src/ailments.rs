@@ -64,12 +64,12 @@ re!(CROWD, r"\b(?:people|person|those|anyone|someone|somebody|everyone|many|most
 re!(NOUN_CUE, format!(r"(?:{})$", owning(&have_now(), &format!(r"\bmy{}{}{{0,2}}", lead(), free()))));
 re!(PAST_CUE, format!(r"(?:{}){}{}{{0,2}}$", had(), lead(), free()));
 re!(MIND_CUE, format!(r"(?:{}|\b(?:must|could|might|may|probably|just|it's|its|that's|thats|blame it on|blame)(?: just| probably| definitely)?(?: be)? the{})$", owning(&have(), &format!(r"\bmy{}", lead())), lead()));
-re!(DROPPED, format!(r"\W*(?:also |and |but |still |now |recently |just |newly |finally |officially |got |was |been )*(?:have|got|having|suffer from|suffer with|suffering from|suffering with|struggle with|struggling with|deal with|dealing with|live with|living with|recovering from|battling|diagnosed with|dx'?d with){}{}?", lead(), free()));
-re!(DIAGNOSED, format!(r"\W*(?:recently |just |also |finally |newly |officially |formally )?(?:got |was |been )?(?:diagnosed|dx'?d)(?: as)?{}", lead()));
+re!(DROPPED, format!(r"{flair}\W*(?:also |and |but |still |now |recently |just |newly |finally |officially |got |was |been )*(?:have|got|having|suffer from|suffer with|suffering from|suffering with|struggle with|struggling with|deal with|dealing with|live with|living with|recovering from|battling|diagnosed with|dx'?d with){}{}?", lead(), free(), flair = claimcore::flair!()));
+re!(DIAGNOSED, format!(r"{flair}\W*(?:recently |just |also |finally |newly |officially |formally )?(?:got |was |been )?(?:diagnosed|dx'?d)(?: as)?{}", lead(), flair = claimcore::flair!()));
 re!(CAUSE, format!(r"(?:(?<=\bbecause )of|(?<=\bbc )of|(?<=\bdue )to|(?<=\bthanks )to|(?<=\bcaused )by){}{}?$", lead(), free()));
 re!(KIN, format!(r"\b(?:{PEOPLE}|we|us|our)\b"));
 re!(CANDIDATE, r"\b(?:someone|i|i'm|im|i've|ive|my|me|fellow|have|having|got|suffer|suffering|struggle|struggling|deal|dealing|live|living|recovering|battling|diagnosed|dx'?d|the|here|warrior|gang|squad|life|club|crew|fam)\b");
-re!(HERE_BEFORE, r"(?:^|[,;(|])\s*(?:an? )?(?:fellow |another |also |also an? |proud |former |recovering |recovered )?$");
+re!(HERE_BEFORE, concat!(r"(?:^", claimcore::flair!(), r"|[,;(|])\s*(?:an? )?(?:fellow |another |also |also an? |proud |former |recovering |recovered )?$"));
 re!(HERE_AFTER_PHYSICAL, r" (?:here|sufferer here|patient here|survivor here|warrior here|warrior|gang|squad|life|haver here|person here|club|crew|fam)\b");
 re!(HERE_AFTER_MENTAL, concat!(
     r" (?:here|person here|haver here|sufferer here|survivor here|gal here|guy here|girl here|woman here|man here|mom here|mama here|dad here|adult here|",

@@ -163,7 +163,6 @@ pub static LOAD: LazyLock<Re> = LazyLock::new(|| Re::new(r#"(?:\b(?:under|over|t
 static CAR_FLAIR: LazyLock<Re> = LazyLock::new(|| Re::new(r"^r/(?:bmw\w*|[efg]\d{2}\w*|cars|cartalk\w*|autos):"));
 static CHASSIS_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:bmw|m[1-8]|x[1-7]|z[1-8]|[eg]\d{2}|\d{3}(?:i|d|e|xi|xd|ci|is))\b|(?:'\d{2}|\b(?:19|20)\d{2})[\s,/|(-]*$"));
 static CHASSIS_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"[\s,/|-]*(?:m[1-8]|x[1-7]|z[1-8]|i[3-8]|m?\d{3}(?:i|d|e|xi|xd|ci|is)|[eg]\d{2}|[1-8] ?series|xdrive|sdrive|competition|comp|touring|gran coupe|m ?sport|lci|zcp|[56]mt|swap\w*|engine)\b"));
-static PREFIXED: LazyLock<Re> = LazyLock::new(|| Re::new(r"r/\w+:\s*"));
 
 pub fn escaped_longest<'a>(words: impl IntoIterator<Item = &'a str>) -> String {
     let mut escaped: Vec<String> = words.into_iter().map(escape).collect();
@@ -179,8 +178,7 @@ pub fn tail_sentence(s: &[char], start: usize, width: usize) -> &[char] {
 
 pub fn owned(lowered: &[char], start: usize) -> bool {
     let before = tail_sentence(lowered, start, 24);
-    let opening = PREFIXED.at(lowered, 0).map_or(0, |m| m.end());
-    SELF.test(before) || (start < opening + 60 && !OTHERS.test(before)) || !WORDY.test(before)
+    SELF.test(before) || (start < opening(lowered) + 60 && !OTHERS.test(before)) || !WORDY.test(before)
 }
 
 pub fn bodied(text: &[char], start: usize, word: &[char]) -> Option<String> {
@@ -260,7 +258,7 @@ pub fn init() {
         LazyLock::force(&rules::RULES);
         for re in [&OTHERS, &SELF, &STATURE, &GIRTH, &PARTY, &HAIRED, &ORIENTED, &METRIC, &SHAPED, &PHALLIC, &DIGIT, &PAIR, &COUNTED, &GAME, &AD, &YEARS_OLD, &THIRD, &WANTED, &FOREIGN, &CLOSING, &START,
             &DESIRED, &DESCRIBED, &WANTING, &ETHNIC, &LOOKING, &AGED, &SENTENCE, &INTENSE, &ATTACHED, &COLORED_AFTER, &ORIENTED_AFTER, &FIRST, &WEIGHED, &MEASURED, &SPEAKER, &WORDED, &BRACKETED,
-            &COMPARED, &SIZED, &GREETED, &NOWADAYS, &NAMED, &COLORED, &OPENING, &WORDY, &LOAD, &CAR_FLAIR, &CHASSIS_BEFORE, &CHASSIS_AFTER, &PREFIXED] {
+            &COMPARED, &SIZED, &GREETED, &NOWADAYS, &NAMED, &COLORED, &OPENING, &WORDY, &LOAD, &CAR_FLAIR, &CHASSIS_BEFORE, &CHASSIS_AFTER] {
             LazyLock::force(re);
         }
         tags::force();

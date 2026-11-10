@@ -88,19 +88,19 @@ regex!(WITHIN, format!(r"\bi(?:'m|'ve)? {UNDECLINED}{{1,4}}?\Z"));
 regex!(PAST, r"\b(?:was|were|had|did|used|learned|spent|back then|back in|ago|got out|retired|served|after)\b");
 regex!(DISCHARGED, r"dd|discharge|gi bill|separat|ets|eas|career|medal|pension");
 regex!(REST, r"[^.!?\n]*");
-regex!(HERE_LABEL, r"(?:^|[.!?,;(] *)(?:hey,? |also |another )?(fellow |proud |disabled |combat |retired |former |ex[- ]?|prior )?((?:us |u\.s\. )?(?:army|navy|marine|marine corps|air force|af|usaf|usmc|military|coast guard|national guard|combat|war|gwot) )?(veteran|vet|marine|soldier|sailor|airman|service ?member|active duty|reservist) (?:too )?\Z");
+regex!(HERE_LABEL, concat!(r"(?:^", claimcore::flair!(), r"|[.!?,;(] *)(?:hey,? |also |another )?(fellow |proud |disabled |combat |retired |former |ex[- ]?|prior )?((?:us |u\.s\. )?(?:army|navy|marine|marine corps|air force|af|usaf|usmc|military|coast guard|national guard|combat|war|gwot) )?(veteran|vet|marine|soldier|sailor|airman|service ?member|active duty|reservist) (?:too )?\Z"));
 regex!(MILITARY_WORDS, r"\b(?:va|veterans?|military|service|army|navy|marines?|air force|usmc|vso|dbq|c&p)\b");
-regex!(PIPE_TAG, r"(?<![^\n|])[ \t]*(?:\d{2}[ \t]*[mf]?|[mf]|male|female)[ \t]*(?![^\n|])");
+regex!(PIPE_TAG, concat!(r"(?:(?<![^\n|])|\A", claimcore::flair!(), r")[ \t]*(?:\d{2}[ \t]*[mf]?|[mf]|male|female)[ \t]*(?![^\n|])"));
 regex!(WAR_WORDS, r"\b(?:army|navy|marines?|military|air ?force|usmc|usaf|coast guard|national guard|veterans?|deploy\w*|enlist\w*|combat|infantry|platoon|battalion|boot ?camp|tours? of duty|war|afghanistan|iraq|vietnam|overseas|idf|caf|raf|soldiers?|sergeant|corporal|troops)\b");
 regex!(TITLE_OTHER, r"\b(?:for|seeking|looking|want|wants|wanna|need|needs|into|with|like|love|any|your|my|her|his|their)\b");
-regex!(RELIGION_HERE, format!(r"(?:^|[.!?,;(] *)(?:(?!former\b|ex\b|recovering\b|lapsed\b|non\b|not\b|raised\b|born\b|anti\b|i\b|you\b|he\b|she\b|they\b|we\b|every\b|all\b|any\b|the\b|my\b|your\b|his\b|her\b|their\b|some\b|most\b|other\b|many\b|no\b|but\b|and\b|so\b|yeah\b|because\b|that\b|was\b|is\b|are\b)[\w-]+ ){{0,3}}(?:[\w-]+ and )?({}) (?:(?!former\b|ex\b|non\b|not\b|community\b|friends?\b|family\b|people\b)[\w-]+ ){{0,2}}\Z", faith()));
-regex!(POLITICS_HERE, format!(r"(?:^|[.!?,;(] *)(?:a |an )?(?:(?!not\b|no\b|anti\b|ex\b|non\b|former\b)[\w-]+ ){{0,2}}?({}) \Z", party()));
+regex!(RELIGION_HERE, format!(r"(?:^{flair}|[.!?,;(] *)(?:(?!former\b|ex\b|recovering\b|lapsed\b|non\b|not\b|raised\b|born\b|anti\b|i\b|you\b|he\b|she\b|they\b|we\b|every\b|all\b|any\b|the\b|my\b|your\b|his\b|her\b|their\b|some\b|most\b|other\b|many\b|no\b|but\b|and\b|so\b|yeah\b|because\b|that\b|was\b|is\b|are\b)[\w-]+ ){{0,3}}(?:[\w-]+ and )?({}) (?:(?!former\b|ex\b|non\b|not\b|community\b|friends?\b|family\b|people\b)[\w-]+ ){{0,2}}\Z", faith(), flair = claimcore::flair!()));
+regex!(POLITICS_HERE, format!(r"(?:^{flair}|[.!?,;(] *)(?:a |an )?(?:(?!not\b|no\b|anti\b|ex\b|non\b|former\b)[\w-]+ ){{0,2}}?({}) \Z", party(), flair = claimcore::flair!()));
 regex!(CHAIN, format!(r"\bi(?:'m| am|m)[ \t]+(?:an?[ \t]+)?(?:[\w-]+[ \t]+)?(?:{party})(?:(?:,|,?[ \t]+and|,?[ \t]+&|/)[ \t]*(?:an?[ \t]+)?(?:[\w-]+[ \t]+)?(?:{party}))*(?:,|,?[ \t]+and|,?[ \t]+&|/)[ \t]*(?:an?[ \t]+)?(?:(?!not\b|anti\b|ex\b|non\b|former\b)[\w-]+[ \t]+)?$", party = party()));
 regex!(ADJECTIVAL, r"\bi(?:'m|m| am| m)[ \t]+(?:(?:very|pretty|fairly|quite|really|super|more|so|too|rather|relatively|kinda|kind of|somewhat|generally|mostly|extremely|a bit|a little)[ \t]+)*$");
 regex!(POLITICAL, r"\b(?:politic\w*|vot\w+|left|right|democrats?|republicans?|liberals?|trump|biden|harris|government|party|parties|policy|policies|economic\w*|socially|fiscally|leftists?|socialis\w*|maga|gop|tory|tories|labour|elections?|candidates?|congress|senate|parliament|conservatives)\b");
 regex!(CANNABIS, r"\b(?:weed|pot|blunts?|joints?|bowls?|spliffs?|dabs?|carts?|bud|herb|stoner|pothead|cannabis|marijuana|thc|420|ganja|kush|bongs?|toke|toking)\b");
 regex!(UPPER, r"\b(?:meth|methamphetamine|cocaine|coke|crack|adderall|amphetamines?|stimulants)\b");
-regex!(DIET_HERE, r"(?:^|[.!?,;(] *)(vegan|vegetarian|veggie|pescatarian|pescetarian|flexitarian) \Z");
+regex!(DIET_HERE, concat!(r"(?:^", claimcore::flair!(), r"|[.!?,;(] *)(vegan|vegetarian|veggie|pescatarian|pescetarian|flexitarian) \Z"));
 
 fn ideology(m: &Match, g: usize) -> V {
     let (start, end) = m.span(g)?;

@@ -71,7 +71,7 @@ pub fn rules() -> Vec<Rule> {
     let strict = format!("{OFFSET}|{LONG}|{STRICT}");
     let accents = longest_first(ACCENTS.iter().copied()).replace(r"\ ", "[- ]");
     let spoken = longest_first(ACCENTS.iter().chain(SPOKEN).copied()).replace(r"\ ", "[- ]");
-    let open = r"(?:^|[.!?\n,(]\s*)";
+    let open = concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n,(]\s*)");
     let subject = r"\b(?:i'm|im|i am|i live|we're|we are|we live)(?: (?:currently|now|also|based|located|living|usually|mostly|still))*";
     let gardener = r"\b(?:i'm|im|i am|we're|we are|i live|we live|i garden|we garden|i grow|we grow)(?: (?:currently|now|also|located|based|living|gardening|growing|here|right|just|squarely|firmly|solidly))*";
     let accent_lead = r"(?: (?:a|an|this|such a|quite a|bit of an?|slight|slightly|strong|heavy|heavily|thick|light|faint|noticeable|mild|very|pretty|really|super|real|definite|natural|typical|proper|broad|soft|subtle|little|lil|bit|kind of an?|kinda|sort of an?|obvious|distinct|distinctive|recognizable|recognisable|noticeably|hint of an?|touch of an?|trace of an?|lingering|residual|lovely|nice|cute))*";
@@ -81,7 +81,7 @@ pub fn rules() -> Vec<Rule> {
         rule("time_zone", &format!(r"\b(?:i'm|im|i am) ({OFFSET}|{BARE}){CLOSED}"), time_zone, hedge()),
         rule("time_zone", &format!(r"{open}(?:({any}) (?:time ?zone|tz)|({strict})) here\b"), time_zone, hedge()),
         rule("time_zone", &format!(r"\Ar/[a-z0-9_]+: (?:(?:time ?zone|tz):? )?({any})[\s.]*\Z"), time_zone, TAGGED),
-        needs(rule("time_zone", &format!(r"(?:^|\n)[^\S\n]*[*_#>-]*[^\S\n]*(?:my )?(?:time ?zone|tz)[*_\s]*[:=-][*_\s]*({OFFSET}|{NAMED}|{CODES}){CLOSED}"), time_zone, TAGGED), &["zone", "tz"]),
+        needs(rule("time_zone", &format!(r"(?:^{flair}|\n)[^\S\n]*[*_#>-]*[^\S\n]*(?:my )?(?:time ?zone|tz)[*_\s]*[:=-][*_\s]*({OFFSET}|{NAMED}|{CODES}){CLOSED}", flair = claimcore::flair!()), time_zone, TAGGED), &["zone", "tz"]),
         rule("time_zone", &format!(r"(?<![\w/])(?:\d{{2}} ?/ ?[mf]|[mf] ?/ ?\d{{2}}) ?/ ?({OFFSET}|{STRICT}){CLOSED}"), time_zone, TAGGED),
         rule("time_zone", &format!(r"\A(?=[^\n]{{0,200}}?(?:{FOR}|{TAG}|\][^\n]*\[))[^\n]{{0,200}}?[\[(|]\s*({OFFSET}|{STRICT})\s*(?=[\])|])"), last_zone, TAGGED),
         rule("time_zone", &format!(r"\A(?=[^\n]{{0,200}}?(?:{FOR}|{TAG}))[^\n]{{0,200}}?#({OFFSET}|{STRICT}){CLOSED}"), last_zone, TAGGED),
@@ -90,7 +90,7 @@ pub fn rules() -> Vec<Rule> {
         needs(rule("hardiness_zone", &format!(r"\bmy {QUALIFIER}zone(?: is| is in| =|:| -)? (?:zone )?{NUMBER}"), |m| zone(m, false), hedge()), &["zone"]),
         needs(rule("hardiness_zone", &format!(r"{open}{QUALIFIER}zone ?{NUMBER}(?: (?:gardener|grower|gardening))? here\b"), |m| zone(m, false), hedge()), &["zone"]),
         needs(rule("hardiness_zone", &format!(r"\Ar/([a-z0-9_]+): (?:[^\n]*?[^\w\n])?{QUALIFIER}zones? ?{NUMBER}"), flair_zone, TAGGED), &["zone"]),
-        needs(rule("hardiness_zone", &format!(r"(?:^|\n)[^\S\n]*(?:[^\n,]{{0,60}},[^\S\n]*)?{QUALIFIER}zone ?(\d{{1,2}})([ab])(?=[^\S\n]*(?:$|\n|[,.;:)(]|-\s))"), |m| zone(m, true), hedge()), &["zone"]),
+        needs(rule("hardiness_zone", &format!(r"(?:^{flair}|\n)[^\S\n]*(?:[^\n,]{{0,60}},[^\S\n]*)?{QUALIFIER}zone ?(\d{{1,2}})([ab])(?=[^\S\n]*(?:$|\n|[,.;:)(]|-\s))", flair = claimcore::flair!()), |m| zone(m, true), hedge()), &["zone"]),
         rule("hardiness_zone", &format!(r"\Ar/([a-z0-9_]+): (?:[^\n]*?[^\w\n])?()(?<![-–/~])(?<![-–/] )(\d{{1,2}})([ab])\b(?!\s*(?:-|–|/|to|or|and)\s*\d|\w)"), |m| m.group(1).is_some_and(|sub| GARDEN_SUB.test(sub)).then(|| zone(m, true)).flatten(), TAGGED),
         needs(rule("accent", &format!(r"\bi (?:have|got|speak with|talk with|still have|definitely have|apparently have|do have|have got|'ve got|ve got|kinda have|kind of have|naturally have){accent_lead} ({spoken}) accent\b"), accent, hedge()), &["accent"]),
         needs(rule("accent", &format!(r"\bi (?:\w+ ){{0,3}}?(?:speak|talk)(?: \w+){{0,3}}? (?:with|in){accent_lead} ({spoken}) accent\b"), accent, hedge()), &["accent"]),

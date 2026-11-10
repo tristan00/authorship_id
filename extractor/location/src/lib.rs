@@ -194,6 +194,22 @@ fn within(head: &Entry, container: &Entry) -> Option<Entry> {
     None
 }
 
+fn back(lowered: &[char], at: usize, width: usize) -> usize {
+    let from = at.saturating_sub(width);
+    if from > 0 && FLAIR.at(lowered, 0).is_some_and(|m| from <= m.end()) { 0 } else { from }
+}
+
+fn subreddit_place(lowered: &[char], body: usize) -> Option<Entry> {
+    let name = &lowered[2..lowered[..body].iter().position(|&c| c == ':')?];
+    let place = LEXICON.nodes.get(name).and_then(|node| node.entry).or_else(|| LEXICON.squashed.get(name).copied())?;
+    match place.kind {
+        _ if place.flag == "code" || place.region.is_empty() => None,
+        "city" => Some(entry("region", place.region, place.region, place.country, "")),
+        "region" => Some(place),
+        _ => None,
+    }
+}
+
 fn national(lowered: &[char], start: usize, node: &Node) -> bool {
     node.nation_word || node.nation_lead && LEXICON.compound_nations.iter().any(|name| lowered[start..].starts_with(name))
 }
@@ -356,8 +372,8 @@ fn stance(lowered: &[char], start: usize, end: usize, entry: &Entry) -> Option<&
     let stances: [(&Re, &'static str); 13] = [(&LIVE, "residence"), (&BARE, "residence"), (&HERE, "local"), (&ABROAD, "local"), (&GERMAN, "aus"), (&BEING, "being"), (&FROM, "from"), (&LEFT, "from"),
         (&ORIGIN, "origin"), (&ROLE, "being"), (&AGED_IN, "being"), (&SELF_FROM, "from"), (&MOVED, "residence")];
     let mut froms = [opening; 13];
-    froms[2] = start.saturating_sub(60);
-    froms[AGED] = line_start(lowered, start).max(start.saturating_sub(70));
+    froms[2] = back(lowered, start, 60);
+    froms[AGED] = line_start(lowered, start).max(back(lowered, start, 70));
     if entry.kind == "country" {
         froms[11] = sentence(lowered, start);
     }
@@ -394,26 +410,26 @@ fn stance(lowered: &[char], start: usize, end: usize, entry: &Entry) -> Option<&
             }
         }
     }
-    if START.test_in(lowered, start.saturating_sub(12), start) && HERE_AFTER.at(lowered, end).is_some() {
+    if START.test_in(lowered, back(lowered, start, 12), start) && HERE_AFTER.at(lowered, end).is_some() {
         return Some("here");
     }
-    if (starts_at(lowered, end, "-based") || starts_at(lowered, end, " based")) && SELF.test_in(lowered, start.saturating_sub(20), start) {
+    if (starts_at(lowered, end, "-based") || starts_at(lowered, end, " based")) && SELF.test_in(lowered, back(lowered, start, 20), start) {
         return Some("residence");
     }
     if let Some(found) = LOCAL.at(lowered, end) {
-        if LOCAL_LEAD.test_in(lowered, start.saturating_sub(40), start) {
+        if LOCAL_LEAD.test_in(lowered, back(lowered, start, 40), start) {
             return Some(if found.group(1).is_some_and(|g| eq(g, "native")) { "origin" } else { "residence" });
         }
     }
     if HOMETOWN.at(lowered, end).is_some() {
         return Some("origin");
     }
-    if (starts_at(lowered, end, "-born") || starts_at(lowered, end, " born")) && BORN.test_in(lowered, start.saturating_sub(20), start)
+    if (starts_at(lowered, end, "-born") || starts_at(lowered, end, " born")) && BORN.test_in(lowered, back(lowered, start, 20), start)
         || (starts_at(lowered, end, " ass ") || starts_at(lowered, end, " self ")) && ends_at(lowered, start, "my ")
     {
         return Some("born");
     }
-    if CITIZEN_AFTER.at(lowered, end).is_some() && CITIZEN.test_in(lowered, start.saturating_sub(30), start) {
+    if CITIZEN_AFTER.at(lowered, end).is_some() && CITIZEN.test_in(lowered, back(lowered, start, 30), start) {
         return Some("citizen");
     }
     None
@@ -451,7 +467,7 @@ fn titled(text: &[char], lowered: &[char], start: usize, end: usize, entry: &Ent
         return if opening == 0 && entry.kind != "country" && upper_at(text, start) && end - start >= 5 { Title::Loose } else { Title::No };
     }
     if entry.kind == "city" && !lowered[start..end].contains(&' ') && lower_at(text, start)
-        && !(NEAR.test_in(lowered, start.saturating_sub(8), start) || TAG_LEAD.test_in(lowered, opening, start))
+        && !(NEAR.test_in(lowered, back(lowered, start, 8), start) || TAG_LEAD.test_in(lowered, opening, start))
     {
         return if last { Title::Loose } else { Title::Bare };
     }
@@ -505,6 +521,7 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
     let mut framed: Vec<(&'static str, usize)> = Vec::new();
     let mut opened: Vec<(&'static str, usize)> = Vec::new();
     let flair = FLAIR.at(lowered, 0).map(|m| m.end());
+    let context = flair.and_then(|body| subreddit_place(lowered, body));
     let tail = lowered.iter().rposition(|&c| c.is_alphanumeric()).map_or(0, |at| at + 1);
     for spot in &spots {
         let (start, end) = (spot.start, spot.end);
@@ -516,27 +533,28 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
             if is_nation {
                 framed.push((country, start));
             } else if matches!(current.kind, "city" | "region" | "country") && !matches!(current.flag, "1" | "town") {
-                residence.push((current, end, true));
+                let placed = context.filter(|_| current.kind == "city").and_then(|place| within(&current, &place));
+                residence.push((placed.unwrap_or(current), end, true));
             }
             continue;
         }
         if is_nation
-            && (TAG_BEFORE.test_in(lowered, line.max(start.saturating_sub(16)), start) || TAG_AFTER.at(lowered, end).is_some())
+            && (TAG_BEFORE.test_in(lowered, line.max(back(lowered, start, 16)), start) || TAG_AFTER.at(lowered, end).is_some())
             && !ASKING.test_in(lowered, line, start)
         {
             framed.push((country, start));
         }
-        if is_nation && CLOSES.at(lowered, end).is_some() && OPENS.test_in(lowered, start.saturating_sub(40), start) && !asked(lowered, end) && !opened.iter().any(|(c, _)| *c == country) {
+        if is_nation && CLOSES.at(lowered, end).is_some() && OPENS.test_in(lowered, back(lowered, start, 40), start) && !asked(lowered, end) && !opened.iter().any(|(c, _)| *c == country) {
             opened.push((country, start));
         }
-        if is_nation && NATION_HERE.at(lowered, end).is_some() && !OTHERS_LEAD.test_in(lowered, start.saturating_sub(8), start) {
+        if is_nation && NATION_HERE.at(lowered, end).is_some() && !OTHERS_LEAD.test_in(lowered, back(lowered, start, 8), start) {
             framed.push((country, start));
         }
-        if current.kind == "country" && CITIZEN_OF.test_in(lowered, line.max(start.saturating_sub(40)), start) {
+        if current.kind == "country" && CITIZEN_OF.test_in(lowered, line.max(back(lowered, start, 40)), start) {
             framed.push((country, start));
         }
         if matches!(current.kind, "nation" | "nations") {
-            if let Some(lead) = GROUP.search(lowered, start.saturating_sub(30), start) {
+            if let Some(lead) = GROUP.search(lowered, back(lowered, start, 30), start) {
                 if GROUP_END.at(lowered, end).is_some() && !starts_at(text, lead.start(), "US") && !DOUBT.test_in(lowered, clause(lowered, lead.start()).max(lead.start().saturating_sub(40)), lead.start()) {
                     framed.push((country, lead.start()));
                 }
@@ -546,13 +564,13 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
             continue;
         }
         if current.kind == "foreign" {
-            if COPULA.test_in(lowered, start.saturating_sub(30), start) {
+            if COPULA.test_in(lowered, back(lowered, start, 30), start) {
                 framed.push((country, start));
             }
             continue;
         }
         if current.flag == "town" {
-            let kind = if TOWN_LEAD.test_in(lowered, start.saturating_sub(30), start) { stance(lowered, start, end, &current) } else { None };
+            let kind = if TOWN_LEAD.test_in(lowered, back(lowered, start, 30), start) { stance(lowered, start, end, &current) } else { None };
             if matches!(kind, Some("residence" | "local")) || kind.is_none() && TAG_LEAD.test_in(lowered, line, start) && titled(text, lowered, start, end, &current) == Title::Yes {
                 residence.push((Entry { region: "", ..current }, end, false));
             }
@@ -574,10 +592,10 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
                 }
             }
         }
-        if kind.is_none() && TRADE.at(lowered, end).is_some() && lowered[start.saturating_sub(8)..start].contains(&'[') {
+        if kind.is_none() && TRADE.at(lowered, end).is_some() && lowered[back(lowered, start, 8)..start].contains(&'[') {
             kind = Some("residence");
         }
-        if kind.is_none() && is_country && OPENER.test_in(lowered, start.saturating_sub(30), start) && OPENER_END.at(lowered, end).is_some() {
+        if kind.is_none() && is_country && OPENER.test_in(lowered, back(lowered, start, 30), start) && OPENER_END.at(lowered, end).is_some() {
             kind = Some("from");
         }
         if kind.is_none() && is_country && self_lead(lowered, line, start) {
@@ -599,7 +617,7 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
             }
         }
         let mut title = if kind.is_none() { titled(text, lowered, start, end, &current) } else { Title::No };
-        if title.truthy() && TRIP.test_in(lowered, start.saturating_sub(200), start + 200) {
+        if title.truthy() && TRIP.test_in(lowered, back(lowered, start, 200), start + 200) {
             title = Title::No;
         }
         let foreign = !TITLE_REGIONS.contains(&country);
@@ -617,13 +635,13 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
             }
         }
         if kind.is_none() && !title.truthy() && current.kind == "city" {
-            if let Some(host) = HOSTING.search(lowered, start.saturating_sub(20), start) {
+            if let Some(host) = HOSTING.search(lowered, back(lowered, start, 20), start) {
                 if !hedged(lowered, host.start(), end) && LATER.at(lowered, end).is_none() {
                     kind = Some("here");
                 }
             }
         }
-        if kind.is_none() && !title.truthy() && current.kind == "region" && LOCATION.test_in(lowered, start.saturating_sub(30), start) {
+        if kind.is_none() && !title.truthy() && current.kind == "region" && LOCATION.test_in(lowered, back(lowered, start, 30), start) {
             kind = Some("residence");
         }
         if kind == Some("residence") && is_country && LIFE.at(lowered, end).is_some() {
@@ -659,7 +677,7 @@ pub fn places(text: &[char], lowered: &[char], found: &mut Found) {
         }
         for found_match in frame.iter(lowered) {
             let at = found_match.start();
-            if !DOUBT.test_in(lowered, clause(lowered, at).max(at.saturating_sub(40)), at) {
+            if !DOUBT.test_in(lowered, clause(lowered, at).max(back(lowered, at, 40)), at) {
                 if let Some(country) = nation_of(found_match.first()) {
                     framed.push((country, at));
                 }

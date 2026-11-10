@@ -72,7 +72,7 @@ pub fn build() -> Vec<Rule> {
     let WE = format!(r"(?:\b(?:i|we)(?:'ve| have)?|\bmy (?:\w+ )?{PARTNER}(?: \([^)\n]{{1,10}}\))? and i(?: \([^)\n]{{1,10}}\))?(?:'ve| have)?|\b(?:he|she) and i(?:'ve| have)?) been (?:happily |officially |now )?");
     let TOGETHER = format!(r"(?:married|together|dating|with (?:my (?:\w+ )?{PARTNER}|him|her))");
     let BOTH = format!(r"(?:{WE}{TOGETHER}|\b(?:i'm|im|i am|we're|we are) (?:happily )?married)");
-    let LABEL = r"(?:(?<![^\n.!?,;(|/-])|(?<=[\n.!?,;(|/-] )|\b(?:and|but|happily) )";
+    let LABEL = concat!(r"(?:(?:(?<![^\n.!?,;(|/-])|\A", claimcore::flair!(), r")|(?<=[\n.!?,;(|/-] )|\b(?:and|but|happily) )");
     vec![
         needs(rule("relationship_length", &format!(r"{BOTH} (?:for )?{SPAN}"), length, self_hedge()), &["married", "together", "dating", "with"]),
         needs(rule("relationship_length", &format!(r"{LABEL}(?:been )?(?:married|together) (?:for )?{SPAN}"), labelled, TAGGED), &["married", "together"]),

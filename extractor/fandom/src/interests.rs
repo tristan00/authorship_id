@@ -106,9 +106,9 @@ const AMATEURS: &[&str] = &["reader", "runner", "cyclist", "climber", "swimmer",
 
 static HOBBY_LEAD: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"\b(?:my (?:main |favorite |favourite |current |other |few |only )?(?:hobbies|hobby|interests|pastimes|passions)(?: (?:are|is|include|includes|consist of|would be|are mostly|are mainly))?\s*[:-]?|",
-    r"(?:^|\n)\s*(?:hobbies(?: and interests)?|interests)\s*[:-]|(?:i'm|im|i am)(?: (?:really|very|also|super|heavily|big|huge|mostly|mainly|kinda|pretty|quite))* into|",
+    concat!(r"(?:^", claimcore::flair!(), r"|\n)\s*(?:hobbies(?: and interests)?|interests)\s*[:-]|(?:i'm|im|i am)(?: (?:really|very|also|super|heavily|big|huge|mostly|mainly|kinda|pretty|quite))* into|"),
     r"i (?:really |also |absolutely |truly |just |genuinely |especially |do )?(?:love|like|enjoy|adore)(?: to)?|(?:i'm|im|i am) (?:also |really |very )?interested in|",
-    r"(?<=^|[.!?\n]|[.!?\n] |[.!?\n]  )(?:also |really )?(?:love|enjoy|into)|",
+    concat!(r"(?:(?<=^|[.!?\n]|[.!?\n] |[.!?\n]  )|\A", claimcore::flair!(), r")(?:also |really )?(?:love|enjoy|into)|"),
     r"in my (?:free|spare|down|leisure) time,? i(?: (?:really |also |usually |mostly )?(?:like|love|enjoy)(?: to)?)?|i (?:also )?spend (?:my|most of my|a lot of my|all my) (?:free|spare) time(?: on)?)\s+"
 )));
 static ABOUT: LazyLock<Re> = LazyLock::new(|| Re::new(r"^\s*\w+ about\b"));
@@ -425,7 +425,7 @@ fn build() -> Vec<Rule> {
     add(&mut rules, "running_5k_time", &format!(r"\bmy (?:current |new |latest |best |recent |official )?{five} (?:pr|pb|time|personal best|personal record|best|record)(?: time)?(?: is| was|:| -| of| stands at| is now| is currently| sits at| =)?(?: (?:a|an|around|about|~|now|currently|just|right))* ~?{time}"), minutes, run_anchors);
     add(&mut rules, "running_5k_time", &format!(r"\bi(?: (?:just|finally|recently|also|actually))* (?:ran|run|did|finished|clocked|set|completed) (?:a |an |my |the )?(?:new |first |best )?(?:(?:pr|pb) (?:of |in )?)?~?{time}(?: min(?:ute)?s?)? (?:{five}|for (?:a |the |my )?{five})\b"), minutes, run_anchors);
     add(&mut rules, "running_5k_time", &format!(r"\bi(?: (?:just|finally|recently|also))* (?:ran|run|did|finished|completed|clocked) (?:a |an |my |the )?(?:first |fastest |best |new )?{five}(?: (?:pr|pb|race|time trial))? in (?:about |around |~)?{time}"), minutes, run_anchors);
-    add(&mut rules, "running_5k_time", &format!(r"(?:^|\n)\s*(?:[-*]\s*)?{five}(?: (?:pr|pb))?\s*[:=-]\s*~?{time}"), minutes, run_anchors);
+    add(&mut rules, "running_5k_time", &format!(r"(?:^{flair}|\n)\s*(?:[-*]\s*)?{five}(?: (?:pr|pb))?\s*[:=-]\s*~?{time}", flair = claimcore::flair!()), minutes, run_anchors);
     add(&mut rules, "running_5k_time", &format!(r"{OPEN}(?:current |new )?{five} (?:pr|pb)(?: is|:| -| of| =)? ~?{time}"), minutes, run_anchors);
 
     let cube_anchors = &["ao5", "ao12", "ao50", "ao100", "3x3", "cfop", "cube", "cubing", "roux"];
@@ -439,7 +439,7 @@ fn build() -> Vec<Rule> {
     let ram = r"(?: (?:of )?(?:ddr\d\w*|lpddr\d\w*|unified|system|\d{4} ?mhz|cl\d+))*(?: of)? (?:ram|memory)\b";
     let owner = format!(r"\b(?:i(?: (?:only|also|now|currently|just))* (?:have|run|use|got|installed|upgraded to|added|'ve got|ve got|have got)|{IM}(?: (?:currently|now|only))* (?:running|rocking|using|on|working with)|my (?:pc|computer|laptop|rig|build|system|machine|desktop|setup|mac|macbook|pc build|gaming pc|server) (?:has|only has|came with|is running|runs|uses))(?: (?:a|an|only|just|about|around|a whopping|like|~|over))*");
     add(&mut rules, "ram_gb", &format!(r"{owner} {gb}{ram}(?! (?:on|in) (?:my|the|a) (?:phone|tablet|ipad))"), memory, ram_anchors);
-    add(&mut rules, "ram_gb", &format!(r"(?:^|[\n|•,;(]\s*)(?:[-*]\s*)?(?:ram|memory|system memory)\s*[:=-]\s*{gb}\b"), |m: &Match| if TENTATIVE.test(m.string) { None } else { memory(m) }, spec_anchors);
+    add(&mut rules, "ram_gb", &format!(r"(?:^{flair}|[\n|•,;(]\s*)(?:[-*]\s*)?(?:ram|memory|system memory)\s*[:=-]\s*{gb}\b", flair = claimcore::flair!()), |m: &Match| if TENTATIVE.test(m.string) { None } else { memory(m) }, spec_anchors);
     add(&mut rules, "ram_gb", &format!(r"\bmy {gb}{ram}"), memory, ram_anchors);
     add(&mut rules, "ram_gb", &format!(r"{RIG_FLAIR}{gb}{ram}"), memory, ram_anchors);
     add(&mut rules, "ram_gb", &format!(r"\b(?:i{ADV} (?:have|own|use|got|bought|built)|my) (?:an? |the )?(?:[\w-]+ ){{1,4}}?with {gb}{ram}"), memory, ram_anchors);
@@ -461,7 +461,7 @@ fn build() -> Vec<Rule> {
         add(&mut rules, attribute, &format!(r"{using}{gear} {paired}{part}"), keep, anchors);
         add(&mut rules, attribute, &format!(r"{mine}{part}"), keep, anchors);
         add(&mut rules, attribute, &format!(r"{RIG_FLAIR}{part}"), keep, anchors);
-        add(&mut rules, attribute, &format!(r"(?:^|[\n|•,;(]\s*)(?:[-*]\s*)?{label}\s*[:=-]\s*{part}"), listed, spec_anchors);
+        add(&mut rules, attribute, &format!(r"(?:^{flair}|[\n|•,;(]\s*)(?:[-*]\s*)?{label}\s*[:=-]\s*{part}", flair = claimcore::flair!()), listed, spec_anchors);
     }
 
     let phone = concat!(r"((?:apple )?iphone(?: ?(?:\d{1,2}[sc]?|xs|xr|x|se))?(?: ?(?:pro max|pro|plus|mini|max|e))?|(?:google )?pixel ?\d{1,2}a?(?: (?:pro xl|pro fold|pro|xl|fold))?|",

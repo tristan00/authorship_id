@@ -219,7 +219,7 @@ fn abroad(m: &Match) -> Option<&'static str> {
 
 fn fragment(m: &Match) -> Option<&'static str> {
     let text = m.string;
-    let lead = m.text();
+    let lead = &text[m.start().max(body(text)).min(m.end())..m.end()];
     if contains(lead, "hir") {
         return None;
     }

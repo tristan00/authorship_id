@@ -30,11 +30,11 @@ pub fn as_nation() -> String {
 }
 
 pub fn as_nation_start() -> String {
-    format!(r"(?:^|[.!?\n]\s*)as (?=\w+,){AS_TAIL}", AS_TAIL = &*S_AS_TAIL)
+    format!(r"(?:^{flair}|[.!?\n]\s*)as (?=\w+,){AS_TAIL}", AS_TAIL = &*S_AS_TAIL, flair = claimcore::flair!())
 }
 
 pub fn loose_nation() -> String {
-    format!(r"(?:\b{I}|(?:^|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)—–]|-\s)(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent|prof|professor|degree|program|programme|department|cheese)\b)", NATION = &*S_NATION)
+    format!(r"(?:\b{I}|(?:^{flair}|[.!?\n(]\s*)am) {ADVERB}(?:an? |a proud |a born and raised |proud(?:ly)? )?(?:{BRIEF}){{0,3}}?({NATION})(?: citizen| national)?(?=$|[\s.,!;:)—–]|-\s)(?!\s+(?:teacher|tutor|speaker|speaking|learner|major|lit|literature|class|course|translator|food|cuisine|company|restaurant|accent|prof|professor|degree|program|programme|department|cheese)\b)", NATION = &*S_NATION, flair = claimcore::flair!())
 }
 
 macro_rules! pattern {
@@ -45,27 +45,27 @@ macro_rules! pattern {
 
 pattern!(LIVE, 0, format!(r"{SUBJECT}(?:\s+(?:currently|now|still|also|just|actually|already|really|recently|both|all|happily|finally))*(?:\s+(?:live|stay|reside|moved|relocated|settled)|(?:'ve|\s+have)\s+(?:been\s+)?(?:lived|living|based|settled))(?!(?:\s+\w+){{0,2}}\s+out\s+of\b)\s+{ADVERB}{WAY}(?:{PREP}|to\s+|on\s+)?(?:(?!(?:a|an|the|my|our|with|and|but|for|of|to|in|by|near|at|from|this|that|fear|hope|peace|sin|denial)\b)[a-z]+\s+){{0,2}}?{END}", END = &*S_END));
 pattern!(BEING, 0, format!(r"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\biam|\bi (?:now|currently|still|also) am)(?:\s+(?:currently|now|still|also|just|actually|already|really|basically|technically|both|all|living|based|located|residing|settled|here|out|over|down|up|back|happily|permanently|right|somewhere))*\s+(?:{WAY}{PREP}|(?:(?:just|right)\s+)?(?:north|south|east|west|northeast|northwest|southeast|southwest|outside)\s+of\s+){END}", END = &*S_END));
-pattern!(BARE, 0, format!(r"(?:^|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+|\bas someone\s+(?:who\s+)?|(?<![\w.$#'/:+-])\d{{2}}\s?[mf]?\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside)\s+(?:here\s+)?{PREP}{END}", END = &*S_END));
-pattern!(HERE, 0, format!(concat!(r"\b(?:here|over here|out here|down here|up here)\s+in\s+{END}|(?:^|[\n.!?,;:(]\s*|\b(?:for|of|to|with|among)\s+)(?:we|us)\s+(?:here\s+)?in\s+{END}|\b(?:greetings|hello|hi|hey|love|cheers|regards|blessings|hugs|howdy|saludos|grüße|grüsse)\s+from\s+{END}",
+pattern!(BARE, 0, format!(r"(?:^{flair}|[\n.!?;:•*>(|/-]\s*|\b(?:and|but|also|currently|now|so|still)\s+|\bas someone\s+(?:who\s+)?|(?<![\w.$#'/:+-])\d{{2}}\s?[mf]?\s+)(?:currently\s+|now\s+|also\s+|still\s+)?(?:live|living|lives|based|located|residing|reside)\s+(?:here\s+)?{PREP}{END}", END = &*S_END, flair = claimcore::flair!()));
+pattern!(HERE, 0, format!(concat!(concat!(r"\b(?:here|over here|out here|down here|up here)\s+in\s+{END}|(?:^", claimcore::flair!(), r"|[\n.!?,;:(]\s*|\b(?:for|of|to|with|among)\s+)(?:we|us)\s+(?:here\s+)?in\s+{END}|\b(?:greetings|hello|hi|hey|love|cheers|regards|blessings|hugs|howdy|saludos|grüße|grüsse)\s+from\s+{END}"),
     r"|\b(?:my|our) (?:city|town|country|state|province|county|neighborhood|neighbourhood|island|village|area|house|building|apartment|flat)(?:\s*(?:of residence|of|,|:|-|\(|\.|is in|in))*\s*{END}"), END = &*S_END));
-pattern!(MOVED, 0, format!(r"(?:(?:^|[\n.!?;:(]\s*|\bthen\s+|\b\d{{2}}\s?[mf]\s+)(?:just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)|\bdecided to (?:move|relocate))\s+(?:back\s+)?(?:over\s+)?(?:here\s+)?to\s+{END}", END = &*S_END));
+pattern!(MOVED, 0, format!(r"(?:(?:^{flair}|[\n.!?;:(]\s*|\bthen\s+|\b\d{{2}}\s?[mf]\s+)(?:just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)|\bdecided to (?:move|relocate))\s+(?:back\s+)?(?:over\s+)?(?:here\s+)?to\s+{END}", END = &*S_END, flair = claimcore::flair!()));
 pattern!(ABROAD, 0, concat!(r"\b(?:vivo|vivimos|resido|radico|estoy|estamos|moro|moramos|wohne|wohnen|lebe|leben|j'habite|habite|je vis|je réside|j'vis|je me trouve|me trouve|abito|risiedo|woon|wonen)\s+(?:actualmente\s+|atualmente\s+|aktuell\s+|derzeit\s+|zurzeit\s+|actuellement\s+|attualmente\s+|nu\s+)?",
     r"(?:en|em|no|na|in|im|à|a|au|aux|dans le|dans la|dans les|dans|nel|nella|bei|nahe|cerca de|perto de|près de|vicino a|in der nähe von)\s+(?:el\s+|la\s+|o\s+|a\s+|der\s+|den\s+|le\s+|il\s+|het\s+)?\Z",
     r"|\b(?:aquí|aqui|acá|hier|ici|qui)\s+(?:en|em|no|na|in|à|a)\s+\Z|\b(?:jeg|jag|eg|vi)\s+bor\s+i\s+\Z"));
 pattern!(FROM, 0, format!(concat!(r"(?:\bi'm|\bim|\bi am|\bwe're|\bwe are|\bi come|\bwe come|\boriginally|(?<!for )\bbeing|\bme being)(?:\s+(?:currently|still|also|just|actually|originally|both|all|here|over|out|down|up|\w+ly))*\s+from\s+{END}",
-    r"|(?:^|[\s(\[])(?:\d{{2}}\s?[mfw]|[mfw]\s?\d{{2}}|cpl)(?:\s+here)?\s+from\s+{END}",
+    concat!(r"|(?:^", claimcore::flair!(), r"|[\s(\[])(?:\d{{2}}\s?[mfw]|[mfw]\s?\d{{2}}|cpl)(?:\s+here)?\s+from\s+{END}"),
     r"|\b(?:i'm|im|i am)\s+(?:an?\s+)?\d{{2}}(?:\s*-?\s*(?:years?[- ]old|yo|y/o|[mf]))?(?:\s+[a-z]+){{0,3}}\s+from\s+{END}"), END = &*S_END));
-pattern!(GERMAN, 0, r"\b(?:ich\s+)?(?:komme|kommen|bin)\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z|(?:^|[,(\[/])\s*aus\s+\Z|\b(?:[mwf]\s?\d{2}|\d{2}\s?[mwf]|[mwf])\s+aus\s+\Z");
+pattern!(GERMAN, 0, concat!(r"\b(?:ich\s+)?(?:komme|kommen|bin)\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z|(?:^", claimcore::flair!(), r"|[,(\[/])\s*aus\s+\Z|\b(?:[mwf]\s?\d{2}|\d{2}\s?[mwf]|[mwf])\s+aus\s+\Z"));
 pattern!(LEFT, 0, concat!(r"(?<!\bno )(?<!\bnão )(?<!\bnao )\b(?:soy|somos|sou)\s+(?:de|del|da|do|originario de|originaria de|natural de)\s+(?:la\s+|el\s+|o\s+|a\s+)?\Z|\b(?:ich\s+)?stamme\s+(?:\w+\s+)?(?:aus|von)\s+(?:der nähe von\s+|dem\s+|der\s+)?\Z",
     r"|\bje (?:suis|viens) (?:de|du|d')\s*\Z|\bsono di\s+\Z|\bvengo (?:de|da|dal|dalla)\s+\Z|\b(?:ik\s+)?kom (?:uit|van)\s+\Z"));
 pattern!(ORIGIN, 0, format!(concat!(r"(?:{SUBJECT}|\bas an? (?:person|guy|girl|woman|man|kid|someone) who)(?:\s+(?:was|were|got))?(?:\s+(?:\w+ly|also|both|all))*\s+(?:grew up|raised|born|brought up)(?:\s+and\s+(?:raised|bred))?\s+(?:in|on|near|outside(?: of)?|around)\s+{END}",
-    r"|\bborn and (?:raised|bred) (?:in|on)\s+{END}|(?:^|[\n.!?(]\s*)(?:grew up|born|raised|born and raised) in\s+{END}",
-    r"|(?:^|[\n.!?(,]\s*)(?:growing up|having grown up) (?:in|on)\s+{END}|\b(?:i|i'm|im|i was|me)\b[^.!?\n]{{0,60}}?\b(?<!kids )(?<!children )(?<!son )(?<!daughter )(?<!they )(?<!who )growing up (?:in|on)\s+{END}|\b(?:i|we)\s+(?:\w+ly\s+)?hail from\s+{END}|\b(?:i|we)\s+spent (?:my|our) (?:\w+\s+)?(?:childhood|youth|teens|teenage years|early years) (?:in|on)\s+{END}|\b(?:i'm|im|i am) (?:an?\s+)?native of\s+{END}",
+    concat!(r"|\bborn and (?:raised|bred) (?:in|on)\s+{END}|(?:^", claimcore::flair!(), r"|[\n.!?(]\s*)(?:grew up|born|raised|born and raised) in\s+{END}"),
+    concat!(r"|(?:^", claimcore::flair!(), r"|[\n.!?(,]\s*)(?:growing up|having grown up) (?:in|on)\s+{END}|\b(?:i|i'm|im|i was|me)\b[^.!?\n]{{0,60}}?\b(?<!kids )(?<!children )(?<!son )(?<!daughter )(?<!they )(?<!who )growing up (?:in|on)\s+{END}|\b(?:i|we)\s+(?:\w+ly\s+)?hail from\s+{END}|\b(?:i|we)\s+spent (?:my|our) (?:\w+\s+)?(?:childhood|youth|teens|teenage years|early years) (?:in|on)\s+{END}|\b(?:i'm|im|i am) (?:an?\s+)?native of\s+{END}"),
     r"|\b(?:my|our) (?:\w+\s+)?(?:hometown|home town|home country|homeland|birthplace|birth country|native country|motherland|home state)(?:\s*(?:is|was|of|in|,|:|-|\())*\s*{END}",
     r"|\b(?:nací|naci|nasci|nacido|nacida|nascido|nascida|geboren|né|née|nato|nata)\s+(?:en|em|no|na|in|à|a|au)\s+\Z"), END = &*S_END, SUBJECT = SUBJECT));
 pattern!(DOUBTED, 0, r"\b(?:if|when|whenever|unless|whether|wish|wished|hope|imagine|pretend|once|until|till|before|would|could|should|wanna|want to|plan to|planning to|used to|thinking about|considering)\s+(?:\w+\s+){0,2}\Z");
 pattern!(LATER, 0, r"\s*(?:for\s+(?:(?:a|an|the|this|next|one|two|three|few|couple|\d+)\s+){0,2}(?:of\s+)?(?:day|days|week|weeks|weekend|night|nights|month|months|trip|holiday|holidays|vacation|work|business|bit|while|now|summer|conference)\b|on|until|till|next|this|last|right now|today|tonight|tomorrow|again|visiting|at the moment)\b");
-pattern!(START, 0, r"(?:^|[\n.!?,;(:]\s*|\b(?:also|fellow|another|a|an|proud)\s+)\Z");
+pattern!(START, 0, concat!(r"(?:^", claimcore::flair!(), r"|[\n.!?,;(:]\s*|\b(?:also|fellow|another|a|an|proud)\s+)\Z"));
 pattern!(HERE_AFTER, 0, format!(r"(?:\s+(?:{PERSON}|people|resident|local|area|family|fan|collector|redditor|user))?,?\s+here\b(?=\s*(?:$|[\n.!,;:)\-–—(&]|and\b|too\b|as well\b|lol|haha|so\b|but\b|with\b))"));
 pattern!(SELF, 0, concat!(r"(?:\b(?:i'm|im|i am|we're|we are|am)\s+(?:an?\s+)?|^", claimcore::flair!(), r"|[\n.!?,;]\s*)\Z"));
 pattern!(BORN, 0, concat!(r"(?:\b(?:i'm|im|i am|we're|we are|am|my|i was)\s+(?:an?\s+)?|^", claimcore::flair!(), r"|[\n.!?,;(]\s*)\Z"));
@@ -80,17 +80,17 @@ pattern!(ASKING, 0, r"\b(?:for|looking|seeking|searching|want|wants|need|needs|i
 pattern!(ADMINISTRATIVE, 0, r"\b(?:region|city|province|district|county|governorate|prefecture|department|municipality|oblast|division|capital)\b");
 pattern!(LOOSE, 0, format!(r"\b(?:and|but|so)\s+(?:then\s+|just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)\s+(?:back\s+)?(?:here\s+)?to\s+{END}|(?<!be )(?<!it's )(?<!its )(?<!it )(?<!is )(?<!are )(?<!was )(?<!were )(?<!they're )\b(?:living|based|located|residing)\s+(?:here\s+)?{PREP}{END}|\b(?:currently|now)\s+(?:living\s+|based\s+)?in\s+{END}", END = &*S_END));
 pattern!(SELF_FROM, 0, format!(r"\b(?:i'm|im|i am)\s+(?:(?!(?:with|to|for|about|of|in|on|at|and|or|but|that|who|my|his|her|their|our|your|the|this|it|is|was|not|never|from|away|far|apart|miles?|mi|km|hours?|hrs|minutes?|mins?|drive|walk|days?|weeks?|months?|back|home|free|safe|different|done|off|out|coming|moved|relocated|transferred|graduated|returned|retired|escaped|fled|immigrated|emigrated|banned|removed|separated|divorced|exiled|kicked|evacuated|deported|isolated|disconnected|\w+ing)\b)[\w'/()-]+,?\s+){{1,8}}?from\s+{END}", END = &*S_END));
-pattern!(TAG_FROM, 0, format!(r"(?:^|[\s(\[\]/|,-])(?:\d{{2}}|{PERSON}|male|female|[mft]4[mfatr]\w*)\s+from\s+{END}", END = &*S_END));
+pattern!(TAG_FROM, 0, format!(r"(?:^{flair}|[\s(\[\]/|,-])(?:\d{{2}}|{PERSON}|male|female|[mft]4[mfatr]\w*)\s+from\s+{END}", END = &*S_END, flair = claimcore::flair!()));
 pattern!(AGED_IN, 0, format!(r"(?:{TAG}|\b\d{{2}}[- ]?(?:years?[- ]old|yrs?[- ]old|yo|y/o)\b)(?:\s+(?!(?:for|looking|seeking|want|wants|need|needs|into|with|like|likes|love|loves|any|anyone|you|your|if|visiting|going|travel|traveling|travelling|staying|stuck|be|will)\b)[\w'-]+){{0,5}}\s+in\s+{END}", END = &*S_END));
 pattern!(ROLE, 0, format!(r"\b(?:i'm|im|i am)\s+an?\s+(?:(?!not\b|never\b)[\w-]+\s+){{1,4}}in\s+{END}", END = &*S_END));
-pattern!(OPENING, 0, r#"(?:^|[.!?\n])[\s\"'*]*\Z"#);
+pattern!(OPENING, 0, concat!(r#"(?:^"#, claimcore::flair!(), r#"|[.!?\n])[\s\"'*]*\Z"#));
 pattern!(AREA, IGNORE, r"\s+(?:area|county)\b");
-pattern!(FLAIR, 0, r"\Ar/[a-z0-9_]+:\s*");
+pattern!(FLAIR, 0, r"\Ar/[\w-]+(?::\w+)?:\s*");
 pattern!(VENUE, IGNORE, r"\s+(?:stadium|arena|airport|university|college|time|zone|street|avenue|mall|hospital|station)\b");
 pattern!(TRIP, 0, r"\b(?:visiting|business trip|road trip|(?<!come )(?<!can )(?<!you )travel(?:l?ing)? (?:to|through)|in town (?:for|this|until|till)|passing through|layover|on vacation|on holiday|checked into|hotel room|my hotel|coming (?:to|up to|down to)|heading to|will be in|going to be in)\b");
 pattern!(TRADE, 0, r"[\w ,/-]{0,12}\]\s*\[h\]");
 pattern!(COPULA, 0, r"(?<!no )(?<!não )(?<!nao )(?<!non )\b(?:soy|somos|sou|je suis|nous sommes|ich bin|bin|wir sind|sono|siamo|ik ben|wij zijn)\s+(?:(?:un|una|um|uma|ein|eine|re|muy|bien|très|tres|molto|sehr|auch|también|tambien|aussi|anche|também|tambem|ook)\s+)?\Z");
-pattern!(OPENER, 0, format!(r"(?:^|[\n.!?]\s*)(?:originally\s+)?from\s+{END}", END = &*S_END));
+pattern!(OPENER, 0, format!(r"(?:^{flair}|[\n.!?]\s*)(?:originally\s+)?from\s+{END}", END = &*S_END, flair = claimcore::flair!()));
 pattern!(OPENER_END, 0, r"\s*(?:$|[.!,\n]|\s+(?:and|but|here|originally)\b)");
 pattern!(WHERE, 0, r"\s*,?\s+(?:is |that's |which is )?where i(?:'m| am|'ve| have)?\s+(?:(live|living|reside|currently live|lived|now live|stay)|(?:originally )?(?:am |'m )?(from|come from)|(grew up|was born|was raised|was born and raised))\b");
 pattern!(LOCAL, 0, r"\s+(native|local|resident)\b");
@@ -113,14 +113,14 @@ pattern!(HELD_FRAME, M, format!(r"\b(?:my|have|hold|holding|got|own)\s+(?:an?\s+
 pattern!(SELF_PAREN, M, format!(r"\b(?:i|me|myself)\s*\(\s*(?:an?\s+)?({NATION})(?![\w'-])|\bme,\s+an?\s+({NATION})(?![\w'-])", NATION = &*S_NATION));
 pattern!(LABEL_FRAME, M, format!(r"\bnationality(?: is)?[\W_]+(?:an?\s+)?({NATION})(?![\w'-])", NATION = &*S_NATION));
 pattern!(COMPOUND_FRAME, M, format!(r"(?:\b{I}|\bas) (?:an? )?(?:\w+ )?({NATION})(?:wo)?m[ae]n\b", NATION = &*S_NATION));
-pattern!(AM_FRAME, M, format!(r"(?:^|:\s*|\bbut )am (?:an? )?({NATION})(?![\w'/-])|\b{I} (?:also )?\d\d,\s*({NATION})(?![\w'-])", NATION = &*S_NATION));
+pattern!(AM_FRAME, M, format!(r"(?:^{flair}|:\s*|\bbut )am (?:an? )?({NATION})(?![\w'/-])|\b{I} (?:also )?\d\d,\s*({NATION})(?![\w'-])", NATION = &*S_NATION, flair = claimcore::flair!()));
 pattern!(AS_WIDE, M, format!(r"\bas (?:an?|another) (?:[\w-]+ ){{1,3}}?({NATION})(?:[- ]born)?(?:\s+{PERSON})?(?=\s*[,.;!]|\s+(?:i|i'm|im|we|myself|it|this|that|there)\b)", NATION = &*S_NATION));
 pattern!(LOOSE_NATION, 0, loose_nation());
 pattern!(AS_NATION, 0, as_nation());
 pattern!(AS_NATION_START, 0, as_nation_start());
 pattern!(SELF_DESCRIBED, 0, format!(r"{SELF_LEAD}({NATION})(?:\s+[a-z']+){{0,3}}?\s+(?:{PERSON_NOUN}|male|female|cuck|gentleman|lad|chick|hubby|here)\b", NATION = &*S_NATION));
 pattern!(SELF_FROM_LEAD, 0, format!(r"{SELF_LEAD}from\s+(?:the\s+)?\Z"));
-pattern!(TAG_BEFORE, M, format!(r"(?:{TAG}|{FOR}|\A[^\w\n]*\d{{2}}|\b\d{{2}}\s?(?:yo|y/o|male|female)|^[^\w\n]*[mf])[\s,/|:()\[\]-]*\Z"));
+pattern!(TAG_BEFORE, M, format!(r"(?:{TAG}|{FOR}|\A{flair}[^\w\n]*\d{{2}}|\b\d{{2}}\s?(?:yo|y/o|male|female)|^{flair}[^\w\n]*[mf])[\s,/|:()\[\]-]*\Z", flair = claimcore::flair!()));
 pattern!(TAG_AFTER, 0, format!(r"[\s,/|(\[-]*(?:{TAG}|\d{{2}}\s?(?:yo|y/o)\b|(?:1[89]|[2-9]\d)\s*[)\]]|(?:m|f|male|female)\s*[,/|]\s*\d{{2}}\b)"));
 pattern!(NATION_HERE, 0, format!(r"(?:\s+(?:{PERSON}|fan|citizen|national))?(?:\s+(?:living in|based in|from)\s+[a-z]+(?: [a-z]+)?)?,?\s+(?:over |out |down |up )?here\b(?!\s+(?:is|are|was|were|in|on|at|for|to|from|of)\b)"));
 pattern!(OPENS, 0, concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n]\s*)[\W_]*(?:(?:hi|hey|hello|yeah|yes|also|just|sadly|proudly|proud|nope|no|well|lol)[,.!]*\s+)*(?:(?!(?:my|his|her|their|our|your|the|this|that|these|those|some|any|every|no|not|of|to|for|with|from|in|on|at|is|was|are|were|a|an|and|or|but|if|when|i|you|he|she|they|we|it|me|him|them|us|like|love|than|as|so)\b)[a-z-]+,?\s+(?:and\s+)?){0,3}\Z"));
