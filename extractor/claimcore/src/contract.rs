@@ -58,8 +58,14 @@ pub fn squeeze(text: &str) -> String {
     text.trim().trim_matches(|c: char| "*_`\"'".contains(c)).to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-const UNIT_ALIASES: [(&str, &[&str]); 5] =
-    [("centimetres", &["cm", "centimeters"]), ("kilograms", &["kg", "kgs", "kilos"]), ("years", &["yo", "y/o", "yrs", "years old"]), ("inches", &["in", "inch", "\""]), ("gb", &["gb ram"])];
+const UNIT_ALIASES: [(&str, &[&str]); 6] = [
+    ("centimetres", &["cm", "centimeters"]),
+    ("kilograms", &["kg", "kgs", "kilos"]),
+    ("pounds", &["lbs", "lb"]),
+    ("years", &["yo", "y/o", "yrs", "years old"]),
+    ("inches", &["in", "inch", "\""]),
+    ("gb", &["gb ram"]),
+];
 
 fn feet(value: &str) -> Option<f64> {
     let marked = value.replace(['’', '′'], "'").replace(['”', '″'], "\"").replace("''", "\"").replace("feet", "'").replace("ft", "'").replace("inches", "\"").replace("in", "\"");
@@ -103,6 +109,7 @@ impl Attribute {
             let converted = match unit.as_str() {
                 "centimetres" => feet(&value).map(|inches| inches * 2.54),
                 "kilograms" => ["lbs", "lb", "pounds"].iter().find_map(|suffix| value.strip_suffix(suffix)).and_then(|number| number.trim().parse::<f64>().ok()).map(|pounds| pounds * 0.453_592_37),
+                "pounds" => ["kgs", "kg", "kilos", "kilograms"].iter().find_map(|suffix| value.strip_suffix(suffix)).and_then(|number| number.trim().parse::<f64>().ok()).map(|kilos| kilos / 0.453_592_37),
                 _ => None,
             };
             if let Some(number) = converted {

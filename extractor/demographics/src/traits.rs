@@ -22,7 +22,7 @@ const POUNDS: &str = r"(lbs?|pounds|kgs?|kilos?|kilograms|stone|st)";
 const BRA_CUP: &str = r"(aa|dddd|ddd|dd|ff|gg|hh|jj|kk|[a-eg-k])";
 const LETTER_SIZE: &str = r"(xxs|xs|xl|xxl|xxxl|[2-6]x|[2-6]xl|x-large|extra large|extra small|xx-large)";
 
-static EYES: LazyLock<Table> = LazyLock::new(|| table(&[("blue", "blue"), ("brown", "brown"), ("green", "green"), ("hazel", "hazel"), ("grey", "gray"), ("gray", "gray"), ("amber", "amber")]));
+static EYES: LazyLock<Table> = LazyLock::new(|| table(&[("blue", "blue"), ("brown", "brown"), ("green", "green"), ("hazel", "hazel"), ("grey", "gray"), ("gray", "gray")]));
 static CURLS: LazyLock<Table> = LazyLock::new(|| table(&[("straight", "straight (type 1)"), ("wavy", "wavy (type 2)"), ("curly", "curly (type 3)"), ("coily", "coily (type 4)"), ("kinky", "coily (type 4)"),
     ("1", "straight (type 1)"), ("2", "wavy (type 2)"), ("3", "curly (type 3)"), ("4", "coily (type 4)")]));
 static TONES: LazyLock<Table> = LazyLock::new(|| table(&[("fair", "fair / pale"), ("pale", "fair / pale"), ("light", "light"), ("medium", "medium / tan"), ("tan", "medium / tan"), ("tanned", "medium / tan"),
@@ -66,7 +66,7 @@ fn eye(m: &Match) -> Option<String> {
     if phrase.contains("hazel") {
         return Some("hazel".to_string());
     }
-    let first = ["blue", "brown", "green", "grey", "gray", "amber"].iter().filter_map(|c| phrase.find(c).map(|i| (i, *c))).min()?;
+    let first = ["blue", "brown", "green", "grey", "gray"].iter().filter_map(|c| phrase.find(c).map(|i| (i, *c))).min()?;
     EYES.get(first.1).map(|v| v.to_string())
 }
 
@@ -112,22 +112,8 @@ fn generation(m: &Match) -> Option<String> {
 
 fn romantic(m: &Match) -> Option<String> {
     let key = st(m.first()?);
-    let value = if key.starts_with("demi") {
-        "demiromantic"
-    } else if key.starts_with("grey") || key.starts_with("gray") {
-        "grayromantic"
-    } else if key.starts_with("bi") {
-        "biromantic"
-    } else if key.starts_with("pan") {
-        "panromantic"
-    } else if key.starts_with("homo") {
-        "homoromantic"
-    } else if key.starts_with("hetero") {
-        "heteroromantic"
-    } else {
-        "aromantic"
-    };
-    Some(value.to_string())
+    let directed = ["bi", "pan", "homo", "hetero"].iter().any(|prefix| key.starts_with(prefix));
+    Some(if directed { "directed romantic" } else { "aromantic spectrum" }.to_string())
 }
 
 fn transitioned(value: &'static str) -> impl Fn(&Match) -> Option<String> + Send + Sync + 'static {
@@ -203,8 +189,8 @@ fn starting(m: &Match, stat: bool) -> Option<String> {
 fn lost(m: &Match) -> Option<String> {
     for (a, b) in [(1, 2), (3, 4), (5, 6)] {
         if let (Some(amount), Some(unit)) = (m.nonempty(a), m.nonempty(b)) {
-            let kilos = in_kilos(amount, unit)?;
-            return if (1.0..=250.0).contains(&kilos) { Some(rounded(kilos)) } else { None };
+            let pounds = in_kilos(amount, unit)? / 0.4536;
+            return if (1.0..=250.0).contains(&pounds) { Some(rounded(pounds)) } else { None };
         }
     }
     None
@@ -266,7 +252,6 @@ fn appearance() -> Vec<Rule> {
     vec![
         said("eye_color", &format!(r"\b(?:i have|i've got|i got|i also have|my) {EYE_ADJ}{EYE} eyes\b"), alone(eye), h()),
         said("eye_color", &format!(r"\b(?:i have|i've got|i got|i also have|my) {EYE_ADJ}{PAIR_EYE} eyes\b|\bmy eyes are (?:(?:a|very|really|more|light|dark|bright|deep|pale|naturally|kinda|sort of) )*{PAIR_EYE}\b"), alone(second_eye), h()),
-        said("eye_color", &format!(r"\bi (?:have|was born with|'ve got|got) (?:(?:central|sectoral|complete|partial|mild|slight) )?heterochromia\b|{IM} heterochromatic\b|\bmy heterochromia\b"), fixed("heterochromia"), h()),
         said("eye_color", &format!(r"\bmy eyes are (?:(?:a|very|really|more|light|dark|bright|deep|pale|naturally|kinda|sort of) )*{EYE}\b(?![-/])"), eye, h()),
         said("eye_color", &format!(r"{IM} (?:a |an )?{FREE}{{0,2}}?{EYE}[- ]eyed\b"), eye, h()),
         said("eye_color", &format!(r"\bw(?:ith|/)? {EYE_ADJ}{EYE} eyes\b"), alone(|m: &Match| {

@@ -121,7 +121,7 @@ fn beard(m: &Match) -> Option<String> {
     } else if ["short", "trimmed", "well", "groomed", "neat", "light", "scruffy", "small", "close", "faded"].iter().any(|w| size.starts_with(w)) {
         "short / trimmed beard"
     } else {
-        "beard (unspecified)"
+        "full beard"
     };
     Some(value.to_string())
 }
@@ -132,12 +132,12 @@ fn face(m: &Match) -> Option<String> {
         "goatee"
     } else if word.contains("stache") || word.starts_with("tache") {
         "mustache"
-    } else if word.starts_with("stubble") || word.starts_with("scruff") || word.starts_with("five") {
+    } else if word.starts_with("stubble") || word.starts_with("five") {
         "stubble"
     } else if word.starts_with("clean") || word.starts_with("no ") {
         "clean shaven"
     } else if word.starts_with("bearded") || word == "beard" {
-        "beard (unspecified)"
+        "full beard"
     } else {
         return beard(m);
     };
@@ -274,7 +274,7 @@ fn hair() -> Vec<Rule> {
         said("hair_loss", &format!(r"\bmy hair (?:is|has been|started|has started|'s|began|keeps) (?:(?:slowly|really|already|also|definitely|noticeably|starting|now) )*(?:thinning|falling out)\b|{IM} (?:(?:slowly|already|also|definitely|rapidly|starting to|now) )*(?:losing my hair|thinning)\b(?! (?:out|it)\b)|\bi (?:have|'ve got|got) (?:(?:slightly|really|very|some) )*thinning hair\b"), fixed("thinning"), h()),
         said("hair_loss", r"\bi (?:still )?(?:have|'ve got|got) (?:a )?full head of hair\b|\bi still have (?:all )?(?:of )?my hair\b|\bno hair loss (?:for me|here)\b", fixed("full head of hair"), h()),
         said("facial_hair", r"\bi (?:have|'ve got|got|also have|still have|currently have|now have|sport|rock|'m rocking|'m sporting|'m growing|keep) (?:an? |my )?(?:(full|big|thick|long|huge|bushy|massive|wizard|short|trimmed|well[- ]kept|groomed|neat|light|scruffy|small|close|faded)(?: and \w+)?,? )?(?:(?:red|black|brown|dark|grey|gray|white|ginger|blonde?|salt and pepper|nice|decent|patchy|real) )?beard\b(?! (?:oil|balm|trimmer|products?|growth)\b)", alone(beard), h()),
-        said("facial_hair", r"\bi (?:have|'ve got|got|also have|still have|sport|rock|'m rocking|'m sporting|'m growing|keep) (?:an? |some )?(?:(?:little|small|thin|thick|light|neat|short|trimmed|big|nice|perpetual|permanent|bit of|bit of a) )*(goatee|van ?dyke|mustache|moustache|stache|stubble|scruff|five o'?clock shadow)\b", alone(face), h()),
+        said("facial_hair", r"\bi (?:have|'ve got|got|also have|still have|sport|rock|'m rocking|'m sporting|'m growing|keep) (?:an? |some )?(?:(?:little|small|thin|thick|light|neat|short|trimmed|big|nice|perpetual|permanent|bit of|bit of a) )*(goatee|van ?dyke|mustache|moustache|stache|stubble|five o'?clock shadow)\b", alone(face), h()),
         said("facial_hair", &format!(r"{IM} (?:(?:also|always|usually|currently|now|a|an) )*(clean[- ]shaven|clean[- ]shaved|bearded)\b(?! (?:men|guys|people)\b)"), face, h()),
         said("facial_hair", &format!(r"{LABEL_START}(?:(?:very|nicely|well|freshly) )?(bearded|clean[- ]shaven|clean[- ]shaved|goatee|full beard|short beard|trimmed beard|stubble|mustache|moustache)(?:,? (?:\w+ )?{PERSONS}|{LABEL_END})"), labeled(face), sh()),
     ]

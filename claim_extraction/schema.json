@@ -203,15 +203,10 @@
    "name": "romantic_orientation",
    "prompt": "person",
    "kind": "one",
-   "describe": "What is the writer's romantic orientation",
+   "describe": "What is the writer's romantic orientation: aromantic spectrum (aromantic, demiromantic, grayromantic) or directed romantic (biromantic, panromantic, homoromantic, heteroromantic)",
    "values": [
-    "aromantic",
-    "demiromantic",
-    "biromantic",
-    "panromantic",
-    "homoromantic",
-    "heteroromantic",
-    "grayromantic"
+    "aromantic spectrum",
+    "directed romantic"
    ]
   },
   {
@@ -871,16 +866,14 @@
   {
    "name": "eye_color",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What is the writer's eye color",
    "values": [
     "brown",
     "blue",
     "green",
     "hazel",
-    "gray",
-    "heterochromia",
-    "amber"
+    "gray"
    ]
   },
   {
@@ -1743,7 +1736,7 @@
    "prompt": "person",
    "kind": "number",
    "describe": "How much weight has the writer lost",
-   "unit": "kg",
+   "unit": "pounds",
    "low": 1,
    "high": 250,
    "precision": 1
@@ -1836,7 +1829,6 @@
    "describe": "What facial hair does the writer have",
    "values": [
     "full beard",
-    "beard (unspecified)",
     "short / trimmed beard",
     "stubble",
     "goatee",
