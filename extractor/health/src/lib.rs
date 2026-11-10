@@ -245,6 +245,11 @@ pub static INTENSIFIED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:so|really
 static FLAIR_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:suspect\w*|undiagnosed|self[- ]?(?:dx|diagnosed)|possibl\w*|probabl\w*|maybe|questioning|not)\W+(?:[\w-]+\W+)?$"));
 static PROXY_SUB: LazyLock<Re> = LazyLock::new(|| Re::new(r"^r/\w*(?:parent|mom|dad|widow|caregiv|carer|grief|loss)\w*:"));
 static SEEKING: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:no|not|non|looking for|seeking|want|wants|wanted|for|with|into|love|loves|like|likes)\W+(?:[\w'-]+\W+)?$"));
+static SUBSTANCE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
+    r"\b(?:(drink|drinks|drinking|drank|drunk|alcohol|alcoholic|alcoholism|booze|beer|beers|wine|liquor|vodka|whiskey|whisky|hangovers?|aa|stopdrinking)|(weed|cannabis|marijuana|thc|stoner|edibles|dabs)|",
+    r"(heroin|opiates?|opioids?|fentanyl|fent|oxy|oxycodone|percs|percocets?|kratom|methadone|suboxone)|(meth|cocaine|adderall|amphetamines?|stimulants?)|(benzos?|xanax|klonopin|valium|ativan)|(gambling|gamble|gambler|betting)|(porn|nofap|fap|masturbation))\b"
+)));
+static BEHAVIOUR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:gaming|video ?games?|c\.ai|character\.?ai|chatbots?|ai chats?|social media|tiktok|instagram|spotify|screen time)\b"));
 const SENSES: &str = r"i(?<!\wi)(?:'?m| am|'ve gone| have gone|'m going| am going)(?: (?:also|now|already|still|basically|practically|essentially|technically))* (?:legally |completely |totally |profoundly |partially |mostly )?(deaf|blind|hard of hearing)\b|i(?<!\wi) (?:lost|had lost) (?:my |most of my |all of my |part of my )(?:\w+ )?(sight|vision|hearing)\b(?! (?:board|for|of)\b)";
 
 pub const SUBJECT: &str = r"i(?<!\wi) (?:also |still |do |actually |now |already |too |even |definitely |literally |personally |unfortunately |both |currently |recently |just |really |apparently |obviously |basically |technically |myself |officially |finally |eventually |later |since |unfortunately also )*";
@@ -342,7 +347,19 @@ fn number(word: &str) -> Option<f64> {
     }
 }
 
+pub fn sober_from(text: &[char]) -> Option<String> {
+    let values = ["alcohol", "cannabis", "opioids", "stimulants", "benzodiazepines", "gambling", "porn / sex"];
+    let mut named: Vec<&str> = SUBSTANCE.iter(text).filter_map(|m| (1..=values.len()).find(|&g| m.has(g)).map(|g| values[g - 1])).collect();
+    named.sort();
+    named.dedup();
+    if named.len() == 1 { Some(named[0].to_string()) } else { None }
+}
+
 fn sober_days(m: &Match) -> Option<String> {
+    let said = &m.string[last_mark(m.string, m.start(), ".!?\n")..next_mark(m.string, m.end(), ".!?\n")];
+    if BEHAVIOUR.test(said) && !SUBSTANCE.test(said) {
+        return None;
+    }
     let count = number(&m.gs(1)?)?;
     let unit = m.gs(2)?;
     let days = match unit.trim_end_matches('s') {
@@ -370,6 +387,9 @@ fn allergen(word: Option<&[char]>) -> Option<String> {
 
 fn recovered(m: &Match) -> Option<String> {
     let text: String = m.first()?.iter().collect();
+    if text == "sober" {
+        return sober_from(m.string);
+    }
     let value = if text.contains("porn") || text.contains("sex") {
         "porn / sex"
     } else if text.contains("gambl") {
@@ -380,7 +400,7 @@ fn recovered(m: &Match) -> Option<String> {
         "stimulants"
     } else if ["benzo", "xanax", "klonopin", "valium", "ativan"].iter().any(|word| text.contains(word)) {
         "benzodiazepines"
-    } else if ["sober", "alcohol", "booze", "drink"].iter().any(|word| text.contains(word)) {
+    } else if ["alcohol", "booze", "drink"].iter().any(|word| text.contains(word)) {
         "alcohol"
     } else {
         return None;

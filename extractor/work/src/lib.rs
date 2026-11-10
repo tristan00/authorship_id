@@ -18,7 +18,8 @@ static UNLESS: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:if|would|wish)\b")
 static SCOPE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:because|cause|cuz|since|and|but|so|as|although|though|after|before|while|until)\b"));
 static PRETEND: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:like|as if|as though|pretend|pretending|imagine)\s*$"));
 static YOU: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*,?\s*(?:you|u|your|yourself)\b|\s+(?:is|isn't|means|requires|sucks|can|could|will|would|has|was|takes|seems|makes|he|she|they)\b"));
-static OPENED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^|[.!?\n,]|\b(?:but|so|because|also))\s*$"));
+static OPENED: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:^(?:r/\w+:)?|[.!?\n,]|\b(?:but|so|because|also))\s*$"));
+static FLAIR: LazyLock<Re> = LazyLock::new(|| Re::new(r"\Ar/\w+:\s*"));
 static PERSONA: LazyLock<Re> = LazyLock::new(|| Re::new(r"\d{2}\s?[mf]\b|\b[mf]\s?\d{2}\b|\b[mf]4[a-z]+\b|\d{2}\s?(?:yo|y/o|yrs? old|years? old)\b"));
 static SELF: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:i|i'm|im|i've|ive|my|me|myself)\b"));
 static PAIRED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s+and (?:i|me) (?:are|were|have|had|went|both|figured|got|did|decided)\b"));
@@ -230,7 +231,11 @@ fn fragment(m: &Match) -> Option<&'static str> {
     if question(text, end) || STRICT_END.at(text, end).is_none() || PAIRED.at(text, end).is_some() || addressed(text, end) || enumerated(text, m.start(), end) {
         return None;
     }
-    (SELF.test_in(text, end, end + 120) || text.len() < 60).then_some(value)
+    (SELF.test_in(text, end, end + 120) || text.len() - body(text) < 60).then_some(value)
+}
+
+fn body(text: &[char]) -> usize {
+    FLAIR.at(text, 0).map_or(0, |m| m.end())
 }
 
 fn addressed(text: &[char], end: usize) -> bool {
@@ -446,7 +451,7 @@ fn degree_in(m: &Match) -> Option<String> {
         return None;
     }
     let left = clause(text, start).max(start.saturating_sub(60));
-    if ASPIRING.test_in(text, left, start) || IN_PROGRESS.test_in(text, left, start) || OTHERS.test_in(text, clause(text, start), start) || !(FIRST_NEAR.test_in(text, start.saturating_sub(80), start) || line_start(text, start) == start) {
+    if ASPIRING.test_in(text, left, start) || IN_PROGRESS.test_in(text, left, start) || OTHERS.test_in(text, clause(text, start), start) || !(FIRST_NEAR.test_in(text, start.saturating_sub(80), start) || line_start(text, start) == start || body(text) == start) {
         return None;
     }
     Some(level.to_string())

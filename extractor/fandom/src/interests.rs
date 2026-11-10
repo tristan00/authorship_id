@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 const IM: &str = r"(?:i'm|im|i am)";
 const ADV: &str = r"(?: (?:also|now|currently|still|mainly|mostly|only|just|actually|really|primarily|usually|exclusively|personally|recently|finally|already|can))*";
-const OPEN: &str = r"(?:^|[.!?\n,(]\s*)";
+const OPEN: &str = r"(?:^(?:r/\w+:\s*)?|[.!?\n,(]\s*)";
 const RIG_FLAIR: &str = r"\Ar/\w*(?:pc|amd|nvidia|intel|radeon|geforce|hardware|overclock|battlestation)\w*: [^\n]*?(?<![\w-])";
 const HERE: &str = r"(?:a |an |just a |fellow |another |proud )?";
 
@@ -13,7 +13,7 @@ const LINUX: &[&str] = &["linux", "arch", "arch linux", "ubuntu", "kubuntu", "xu
     "opensuse", "cachyos", "cachy os", "bazzite", "endeavouros", "endeavour os", "void linux", "zorin os", "elementary os", "kali linux", "garuda", "artix", "slackware", "mx linux"];
 const SYSTEMS: &[&str] = &["windows", "windows 11", "windows 10", "windows 7", "windows xp", "win11", "win10", "win 11", "win 10", "macos", "mac os", "osx", "os x", "a mac", "a macbook", "mac",
     "android", "ios", "chromeos", "chrome os", "a chromebook"];
-const USERS: &[&str] = &["windows", "mac", "macos", "android", "iphone", "ios", "chromebook"];
+const USERS: &[&str] = &["windows", "mac", "macos", "android", "ios", "chromebook"];
 const PLATFORMS: &[&str] = &["pc", "steam", "ps5", "ps4", "ps3", "psvr", "playstation", "playstation 5", "playstation 4", "xbox", "xbox one", "xbox series x", "xbox series s", "series x", "series s",
     "switch", "switch 2", "switch2", "nintendo switch", "nintendo switch 2", "steam deck", "mobile", "quest", "quest 2", "quest 3", "vr"];
 const CONSOLES: &[&str] = &["pc", "ps5", "ps4", "playstation", "playstation 5", "xbox", "xbox one", "xbox series x", "xbox series s", "series x", "series s", "switch 2", "nintendo switch", "steam deck"];
@@ -80,7 +80,6 @@ const BRANDED: &[&str] = &["bolt", "bolt euv", "soul", "fit", "leaf", "focus", "
     "golf r", "passat", "m3", "m4", "m5", "a3", "a4", "s4", "q5", "sierra", "charger", "challenger", "maverick", "odyssey", "pilot", "model 3", "model y", "model s", "model x", "tucson", "santa fe",
     "telluride", "wrangler", "outlander", "lancer", "evo", "sequoia", "kona", "niro", "tahoe", "gladiator", "durango", "sienna", "ioniq", "cooper", "is350", "is250", "rx350", "wrangler", "versa",
     "rogue", "civic si", "civic type r", "type r", "zx-6r", "ninja", "mt-07", "r6", "r1", "sportster"];
-const KINDS: &[&str] = &["car", "truck", "motorcycle", "motorbike", "pickup truck", "pickup", "suv", "van", "minivan", "scooter", "moped", "electric car", "ev"];
 const HOBBY_NAMES: &[&str] = &["reading", "books", "gaming", "video games", "videogames", "playing video games", "board games", "playing board games", "tabletop games", "ttrpgs", "dnd", "d&d",
     "dungeons and dragons", "cooking", "baking", "hiking", "camping", "fishing", "hunting", "gardening", "photography", "traveling", "travelling", "travel", "drawing", "painting", "sketching",
     "writing", "creative writing", "poetry", "writing poetry", "knitting", "crocheting", "crochet", "sewing", "quilting", "embroidery", "cross stitch", "woodworking", "pottery", "ceramics", "dancing",
@@ -200,7 +199,7 @@ fn system(m: &Match) -> Option<String> {
         "macos"
     } else if name == "android" {
         "android"
-    } else if name == "ios" || name == "iphone" {
+    } else if name == "ios" {
         "ios"
     } else if name.contains("chrome") {
         "chromeos"
@@ -296,7 +295,7 @@ fn build() -> Vec<Rule> {
     let systems = longest_first(LINUX.iter().chain(SYSTEMS).copied());
     let users = longest_first(LINUX.iter().chain(USERS).copied());
     let os_anchors = &["linux", "arch", "ubuntu", "fedora", "debian", "manjaro", "nixos", "gentoo", "pop", "suse", "cachy", "bazzite", "endeavour", "zorin", "elementary", "garuda", "artix",
-        "slackware", "windows", "win1", "mac", "os x", "osx", "android", "ios", "chrome", "iphone"];
+        "slackware", "windows", "win1", "mac", "os x", "osx", "android", "ios", "chrome"];
     let tools = r"(?![\w-]| (?:auto|studio|subsystem|terminal|emulator|vm|virtual|ready|keys?|defender|updates?|store|hello|explorer|commands?|server|partition|install|iso|usb|tablet|tv|apps?|version|port|release|build|side|phone|phones)\b)";
     add(&mut rules, "operating_system", &format!(r#"(?<!["“'])\bi(?:'ve been| have been|ve been)?{ADV} (?:use|using|run|running|daily drive|daily|main|switched to|moved to|migrated to|swapped to|switched over to|installed) (?:only )?({systems})\b{tools}"#), system, os_anchors);
     add(&mut rules, "operating_system", &format!(r"{OPEN}{HERE}({users}) user\b(?=\s*(?:$|[.,!;:)\n]|\b(?:here|btw|and|but|so|myself)\b))"), system, os_anchors);
@@ -478,12 +477,10 @@ fn build() -> Vec<Rule> {
     let makes = longest_first(MAKES.iter().copied());
     let models = longest_first(MODELS.iter().copied());
     let branded = longest_first(BRANDED.iter().copied());
-    let kinds = longest_first(KINDS.iter().copied());
     let drive = r"\b(?:i(?: (?:also|now|currently|still|just|recently|finally|actually|only))* (?:drive|own|have|bought|got|daily|daily drive|'ve got|ve got|have got)|my)";
     let trim = r"(?: (?:a|an|the|new|used|brand new|little|trusty|beloved|current|lifted|stock|modded|manual|automatic|white|black|red|blue|silver|grey|gray|green|awd|4x4|limited|sport|base|'?\d{2}|(?:19|20)\d{2}|\d(?:st|nd|rd|th) gen))*";
     let car = format!(r"(?:(?:({makes}) )?({models})|({makes}) ({branded})|({makes}))\b(?![\w'-]| (?:dealership|dealer|parts|commercial|ad|ads|stock|shares|factory|plant|logo|duty|duties|center|centre|engagement|pride|responsibility|responsibilities|life|society|groups?|leaders?|space|education|rights|sense|virtue)\b)");
     add(&mut rules, "vehicles", &format!(r"{drive}{trim} {car}"), named, &[]);
-    add(&mut rules, "vehicles", &format!(r"\bi(?: (?:also|now|currently|still|just|finally|actually|only))* (?:have|own|drive|bought|got) (?:a|an|my own) ({kinds})(?=\s*(?:$|[.,!;:)\n]|\b(?:and|so|but|now|too|that|which|lol|though|tho|myself|of my own|as well|already)\b))"), keep, &["car", "truck", "motor", "pickup", "suv", "van", "scooter", "moped", " ev"]);
 
     let enthusiasts = longest_first(ENTHUSIASTS.iter().copied());
     let amateurs = longest_first(AMATEURS.iter().copied());
@@ -545,9 +542,7 @@ pub fn interests(lowered: &[char], found: &mut Found) {
         if attribute == "cpu" {
             found.set("cpu", vendor(&value), position);
         } else {
-            let (brand, system) = handset(&value);
-            found.set("phone", brand, position);
-            found.set("operating_system", system, position);
+            found.set("phone", handset(&value), position);
         }
     }
 }
@@ -562,21 +557,21 @@ fn vendor(cpu: &str) -> &'static str {
     }
 }
 
-fn handset(phone: &str) -> (&'static str, &'static str) {
+fn handset(phone: &str) -> &'static str {
     if phone.contains("iphone") {
-        ("iphone", "ios")
+        "iphone"
     } else if phone.contains("pixel") {
-        ("pixel", "android")
+        "pixel"
     } else if phone.contains("galaxy") || phone.contains("samsung") || phone.starts_with('s') {
-        ("samsung", "android")
+        "samsung"
     } else if phone.contains("oneplus") {
-        ("oneplus", "android")
+        "oneplus"
     } else if phone.contains("xiaomi") || phone.contains("redmi") || phone.contains("poco") {
-        ("xiaomi", "android")
+        "xiaomi"
     } else if phone.contains("iqoo") {
-        ("iqoo", "android")
+        "iqoo"
     } else if phone.contains("nothing") {
-        ("nothing", "android")
+        "nothing"
     } else {
         panic!("phone {phone:?} has no brand")
     }

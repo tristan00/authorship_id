@@ -16,6 +16,14 @@ pub static SELF_HEDGE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
     r"\b(?:if|would|wish|hope|imagine|pretend|unless|whether|wanna|want to|trying to|going to|gonna|might|maybe|used to|not|never|no longer|anymore|",
     r"when i was|back when)\b|n't\b"
 )));
+static ASKED: LazyLock<Re> = LazyLock::new(|| Re::new(r"[^.!?\n,;]{0,40}\?"));
+static SUBORDINATE: LazyLock<Re> = LazyLock::new(|| Re::new(r"if|unless|whether|when i was|back when|before i was|wish|hope|imagine|pretend"));
+static NEGATION: LazyLock<Re> = LazyLock::new(|| Re::new(r"n't|not|never|no longer|anymore"));
+static SUBJECT: LazyLock<Re> = LazyLock::new(|| Re::new(r"i(?:m|ve)?\b"));
+static BRIDGE: LazyLock<Re> = LazyLock::new(|| Re::new(concat!(
+    r"^(?:\W*\b(?:think|thinks|thought|believe|believes|say|says|said|saying|mean|means|meant|sure|certain|convinced|know|knew|guess|feel|feels|felt|like|seem|seems|sound|sounds|",
+    r"look|looks|call|consider|claim|claiming|admit|realize|realise|remember|suppose|that|it|it's|its|is|was|be|to|even|really|actually|necessarily|exactly|honestly|so|too|quite)\b)*\W*$"
+)));
 pub static BOT_TEXT: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bi am a bot\b|\bperformed automatically\b|\bplease (?:make sure|include|read)\b|\bpost (?:has been |was )?removed\b|\bmust (?:include|contain)\b"));
 
 pub type Hedge = Option<&'static Re>;
@@ -57,10 +65,23 @@ pub fn question(text: &[char], end: usize) -> bool {
     end < stop && text[end..stop].contains(&'?')
 }
 
+pub fn asked(text: &[char], end: usize) -> bool {
+    ASKED.at(text, end).is_some()
+}
+
+fn qualifies(text: &[char], hedge: &Match, start: usize) -> bool {
+    let word = hedge.text();
+    if SUBJECT.at(text, start).is_none() || SUBORDINATE.fullmatch(word, 0, word.len()).is_some() {
+        return true;
+    }
+    let between = &text[hedge.end()..start];
+    BRIDGE.test(between) && !(NEGATION.fullmatch(word, 0, word.len()).is_some() && between.iter().all(|c| !c.is_alphanumeric()))
+}
+
 pub fn hedged(text: &[char], start: usize, end: usize, pattern: Hedge) -> bool {
     match pattern {
         None => false,
-        Some(pattern) => pattern.test_in(text, clause(text, start).max(start.saturating_sub(40)), start) || question(text, end),
+        Some(pattern) => pattern.iter_in(text, clause(text, start).max(start.saturating_sub(40)), start).any(|hedge| qualifies(text, &hedge, start)) || asked(text, end),
     }
 }
 

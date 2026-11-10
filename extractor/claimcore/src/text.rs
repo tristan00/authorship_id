@@ -357,12 +357,8 @@ pub fn strip_chars<'a>(s: &'a [char], set: &str) -> &'a [char] {
     &s[a..b]
 }
 
-pub fn py_round(x: f64) -> i64 {
-    x.round_ties_even() as i64
-}
-
 pub fn rounded(x: f64) -> String {
-    py_round(x).to_string()
+    (x.round() as i64).to_string()
 }
 
 pub fn split_ws(s: &[char]) -> Vec<&[char]> {

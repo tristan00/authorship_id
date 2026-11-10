@@ -2,7 +2,7 @@ use crate::*;
 use claimcore::*;
 use std::sync::LazyLock;
 
-static SPOKEN: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W*(?:i'm|im|i am)\b"));
+static SPOKEN: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:r/\w+:\s*)?\W*(?:i'm|im|i am)\b"));
 static MEASURE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*(?:(?!in\b){UNITS}\b|\d{{1,2}}\s?s\b|(?:a|per) (?:year|season|week|month)\b|away\b|(?:fee|fees|deal|transfer|contract|budget|views|plays|streams|subscribers|followers)\b)")));
 static HERE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W{0,2}(?:here|hmu|lmk|dm me)\b"));
 static THIS_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bthis $"));
@@ -10,8 +10,8 @@ static MY_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bmy\s?[\(\[]$"));
 static AGE_BEFORE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\bage\s*[:=-]\s*$"));
 static UNIT_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(&format!(r"\s*{UNITS}")));
 static ADDRESSED: LazyLock<Re> = LazyLock::new(|| Re::new(r"\b(?:you|your|u|ur)\b"));
-static LEADING_AGE: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W{0,3}\d{2}(?![\d%.,'/:-])"));
-static LEADING_TAG: LazyLock<Re> = LazyLock::new(|| Re::new(r"\W*\d{2},?\s|\W*[\[\(]\d{2}[\]\)]"));
+static LEADING_AGE: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:r/\w+:\s*)?\W{0,3}\d{2}(?![\d%.,'/:-])"));
+static LEADING_TAG: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:r/\w+:\s*)?(?:\W*\d{2},?\s|\W*[\[\(]\d{2}[\]\)])"));
 static RANGE_AFTER: LazyLock<Re> = LazyLock::new(|| Re::new(r"\s*(?:-|–|to|or)\s*\d(?!\d)"));
 static BODILY: LazyLock<Re> = LazyLock::new(|| Re::new(r"(?:/\w+)? (?:facial|body|pubic|chest|arm|leg|beard)\b"));
 static HAIR_HINT: LazyLock<Re> = LazyLock::new(|| Re::new(r"hair|blond|brunette|redhead|ginger|bald|shaved head"));
@@ -110,7 +110,7 @@ fn aged(lowered: &[char], automatic: bool, found: &mut Found) {
     let played = GAME.find(lowered).map_or(lowered.len(), |m| m.start());
     for m in AGED.iter_in(lowered, paired.start().saturating_sub(8), played) {
         let start = m.start();
-        if (m.group(2).map_or(false, |g| eq(g, "m")) && MEASURE_AFTER.at(&lowered[m.end()..], 0).is_some()) || DEGREES.at(&lowered[m.end()..], 0).is_some() {
+        if (m.group(2).map_or(false, |g| eq(g, "m")) && MEASURE_AFTER.at(&lowered[m.end()..], 0).is_some()) || DEGREES.at(&lowered[m.end()..], 0).is_some() || (m.nonempty(3).is_some() && chassis(lowered, m.start(), m.end())) {
             continue;
         }
         let (age, letter) = if m.nonempty(1).is_some() { (m.group(1), m.group(2)) } else { (m.group(4), m.group(3)) };
@@ -207,6 +207,9 @@ pub fn tags(_text: &[char], lowered: &[char], found: &mut Found) {
         }
     }
     for m in OPENING.iter(lowered) {
+        if m.group(2).is_some_and(|g| g.len() == 1) && (lowered.get(m.end()) == Some(&'-') || chassis(lowered, m.start(), m.end())) {
+            continue;
+        }
         if let Some(value) = get(&GENDERS, either(&m, &[2, 3])) {
             found.set("gender", value, m.start());
         }

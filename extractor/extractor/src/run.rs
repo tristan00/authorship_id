@@ -205,7 +205,7 @@ pub fn flairs(database: &Database, threads: usize) {
                 let mut out = Vec::new();
                 let mut found = 0u64;
                 for (subreddit, flair) in &batch {
-                    for (attribute, value) in flair_claims(flair) {
+                    for (attribute, value) in flair_claims(&format!("r/{subreddit}: {flair}")) {
                         let Some(value) = crate::contracted(&attribute, &value) else { continue };
                         put_string(&mut out, subreddit);
                         put_string(&mut out, flair);

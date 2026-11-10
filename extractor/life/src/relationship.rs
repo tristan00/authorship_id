@@ -8,7 +8,7 @@ pub const FOND: &str = concat!(
 );
 pub const SPOUSE: &str = r"(wife|husband|hubbys|hubby|hubs|wifey|spouse|wifes|husbands|girlfriend|boyfriend|gf|bf|partner|significant other|fianc[ée]e?)";
 pub const BARE: &str = r"(wife|wifey|hubby|husband|fianc[ée]e?|spouse|missus)";
-pub const OPENING: &str = r"(?:^\W*|[\n.!?]\s*|[\]\)]\s*|[-|:]\s+)";
+pub const OPENING: &str = r"(?:^(?:r/\w+:)?\W*|[\n.!?]\s*|[\]\)]\s*|[-|:]\s+)";
 pub const TAIL: &str = concat!(
     r"(?! (?:to (?:the|this|that|it|my (?:job|work|career))|by|about|in terms|aback|care|seriously|advantage|in (?:a|an|the|this|that|it|some|conversation|discussion|debate|activities|activity|work)|handedly|digit|file|minded|out|away|back|off|over|up|",
     r"with (?:the|this|that|it|work))\b)"
@@ -18,7 +18,7 @@ pub const FOLLOW: &str = concat!(
     r"(?=\s*(?:[.,!;:)(/\n]|$|\d|[mf]\s?\d{2}\b|(?:and|but|with|for|since|in|here|now|again|too|af|m|f|male|female|man|woman|guy|girl|gal|lady|dude|mom|mum|mother|dad|father|parent|bbw|milf|dilf|couple)\b",
     r"|\w+ (?:looking|seeking|here|male|female|man|woman|guy|girl|mom|dad)\b))"
 );
-pub const SOLO_AD: &str = r"^\W*(?:(?:\d{2}\s*[\]\)]?\s*)?[\[\(]?\s*(?:m|f|t|nb|tm|tf|mtf|ftm)\s*4\s*(?:[mfatr]|me|nb)\w*\s*[\]\)]?|\d{2}\s*(?:[mf]|yo|y/o|yrs?|years? old)\b|[mf]\s*\d{2}\b)";
+pub const SOLO_AD: &str = r"^(?:r/\w+:)?\W*(?:(?:\d{2}\s*[\]\)]?\s*)?[\[\(]?\s*(?:m|f|t|nb|tm|tf|mtf|ftm)\s*4\s*(?:[mfatr]|me|nb)\w*\s*[\]\)]?|\d{2}\s*(?:[mf]|yo|y/o|yrs?|years? old)\b|[mf]\s*\d{2}\b)";
 
 regex!(OTHERS, r"(?:^|\W)(?:your|ur|her|his|their|a|an|some|someone's|whose|ex|future|dream|trophy|of|another|every|any|no|perfect|ideal|ex-|good|loyal|cuck|friends?|friend's)\W*$");
 regex!(YOU, r"\byou\b");
@@ -26,7 +26,7 @@ regex!(ATTACHED, r"\b(?:married|wife|husband|hubby|my bf|my gf|my boyfriend|my g
 regex!(UNPARTNERED, r"\b(?:wife|husband|hubby|my bf|my gf|my boyfriend|my girlfriend|my partner|engaged|fianc[ée]e?)\b");
 regex!(NEVER_LEAD, r"(?:^|[.!?\n,;(]|\band|\bbut|\bi|\bi've|\bi have|\bi'm|\bim|\bi am|\bstill|\b(?:and|but) have)\s*$");
 regex!(BREAK_LEAD, r"(?:^|[.!?\n]\s*)(?:i )?(?:just |recently |finally )?$");
-regex!(STATUS_LEAD, r"(?:\b(?:as|being|i'm|im|i am|(?<!than )just|a fellow|as a fellow) an? |^\W*|[\n.!?]\s*|\b\d{2}\s*[mf]?\s*,?\s*|[\]\)]\s*)(?:(?!not|un|never|ex|former|soon|my|your|his|her|their|the|every|each|any|married|looking|seeking|for|want|need|lf|into|like|love|prefer|no|a|an)[\w-]+ ){0,2}$");
+regex!(STATUS_LEAD, r"(?:\b(?:as|being|i'm|im|i am|(?<!than )just|a fellow|as a fellow) an? |^(?:r/\w+:)?\W*|[\n.!?]\s*|\b\d{2}\s*[mf]?\s*,?\s*|[\]\)]\s*)(?:(?!not|un|never|ex|former|soon|my|your|his|her|their|the|every|each|any|married|looking|seeking|for|want|need|lf|into|like|love|prefer|no|a|an)[\w-]+ ){0,2}$");
 regex!(SPEAKER, r"\b(?:i|i'm|im|i've)\b");
 regex!(OPENER, r"\bop(?:'s)?\b");
 regex!(HUSBAND_WORD, r"\b(?:husband|hubby|hubs)\b");
@@ -240,12 +240,12 @@ pub fn build() -> Vec<Rule> {
           |m| if ENDED.test(m.string) { None } else { stated(m, &FUTURE, || kept(m, MARRIED)) }, TAGGED), &["married", "and i", "& i", "marriage", "wedding", "anniversary"]),
         needs(r("relationship_status", concat!(r"\b(?:i|we) (?:just |recently |finally )?(?:re-?married|married (?:in|on|last|this|young|at|back|\d|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december))\b|\b(?:and|but) (?:just |recently |finally )?got married\b|\bthe (?:person|man|woman|guy|girl|one|love of my life) i (?:married|'m married to|am married to)\b|\b(?:and|but) (?:currently|now|happily|also) married to (?:a|an|my|the|someone|him|her)\b|\bwe(?:'re| are) an? (?:\w+ )?married\b(?! (?:couples?|people)\b)",
           r"|(?:^|[\n.!?,]\s*)in (?:an? (?:\w+ )?|(?:dead|open|sexless|unhappy|loveless|happy|straight|bad|abusive) )marriage\b(?!\s*,)|\b(?:we're|we are|we've been|we have been|we went|we started|we're going|i'm|im|i am) (?:\w+ )?(?:in|to|doing|going to) marriage (?:counseling|counselling|therapy)\b",
-          r"|(?:^|[\n/|]\s*)married\s*[.!]?\s*(?:\n|$)|\bwith (?:the )?(?:wife|hubby|husband) (?:and|&) (?:the |our |my )?(?:\d+ |two |three |four )?(?:kids?|kiddos?|children|sons?|daughters?|boys|girls|baby)\b"),
+          r"|(?:^(?:r/\w+:\s*)?|[\n/|]\s*)married\s*[.!]?\s*(?:\n|$)|\bwith (?:the )?(?:wife|hubby|husband) (?:and|&) (?:the |our |my )?(?:\d+ |two |three |four )?(?:kids?|kiddos?|children|sons?|daughters?|boys|girls|baby)\b"),
           |m| if ENDED.test(m.string) || !SELF.test(m.string) { None } else { stated(m, &FUTURE, || kept(m, MARRIED)) }, TAGGED), &["married", "marriage", "wife", "hubby", "husband"]),
         needs(r("relationship_status", &format!(r"{AS} an? (?:(?!(?:future|good|bad|perfect|trophy|second|ex|not)\b)\w+ )?(?:wife|husband|married (?:man|woman|guy|lady|person|dad|mom|mum|father|mother))\b(?! (?:material|is|was|would|should|and mother|and father)\b)"), |m| if ENDED.test(m.string) { None } else { stated(m, &FUTURE, || kept(m, MARRIED)) }, TAGGED), &["wife", "husband", "married"]),
         r("relationship_status", r"\bmy late (?:wife|husband|hubby|spouse|partner)\b|\b(?:i lost|since i lost|after i lost|after losing|since losing) my (?:wife|husband|hubby|spouse)\b|\bmy (?:wife|husband|hubby|spouse) (?:passed away|died|passed)\b", |m| stated(m, &STATED, || Some("widowed")), TAGGED),
         r("relationship_status", r"\bmy (?:estranged|separated) (?:wife|husband|hubby|spouse)\b|\bmy (?:stbx\w*|soon[- ]to[- ]be[- ]ex(?:[- ]\w+)?)\b|\b(?:we're|we are|we've been|we have been|we recently|we just) (?:\w+ )?separated\b", |m| stated(m, &STATED, || Some("separated")), TAGGED),
-        r("relationship_status", r"(?:^\W*(?:\d{2}\s*)?(?:[\[\(]\w+[\]\)]\s*)?(?:(?!he |she |they |you |who |we |got |get |not |never |was |were |be |been |is |are |any |only |all )\w+ )?married\b(?! (?:men|women|people|guys|couples|folks|life|cock|or)\b))", |m| kept(m, MARRIED), TAGGED),
+        r("relationship_status", r"(?:^(?:r/\w+:)?\W*(?:\d{2}\s*)?(?:[\[\(]\w+[\]\)]\s*)?(?:(?!he |she |they |you |who |we |got |get |not |never |was |were |be |been |is |are |any |only |all )\w+ )?married\b(?! (?:men|women|people|guys|couples|folks|life|cock|or)\b))", |m| kept(m, MARRIED), TAGGED),
         needs(r("relationship_status", r"^[^\n]*?\b[mf]4[mfat]\w*[^\n]*?(?<![\w-])(?<!for )(?<!seeking )(?<!a )(?<!an )(?<!with )(?<!want )(?<!to )(?<!no )(?<!not )(?<!my )(?<!your )(?<!her )(?<!his )(?<!their )married (?:man|male|guy|dude|dad|daddy|woman|female|lady|gal|mom|mum|milf|dilf|bi|white|black|asian|latina|latino|professional|father|mother|wife|husband|hubby|m|f|\d{2})\b(?!s\b|'s\b)", |m| kept(m, MARRIED), TAGGED), &["married"]),
     ];
     rules.extend([
@@ -303,7 +303,7 @@ pub fn build() -> Vec<Rule> {
     rules
 }
 
-pub const HEADER: &str = r"(?:(?<![^\n])|(?<=[,;.!?(]))[^\w\n]*+(?:(?:hey|hi|hello|yo|me)\b[^\w\n]*+)?(?:(?:\d{2}(?![.)\d%])(?:\s*(?:[mf]|yo|y/o|yrs?[- ]old|years?[- ]old|yrs?))?|[mf]\s*\d{2}|[\[\(]?\s*(?:\d{2}\s*)?[mft]4[mfat]\w*\s*[\]\)]?|[\(\[]?(?:gay|bi)\b[\)\]]?)(?![\w'])[^\w\n]*+){1,3}";
+pub const HEADER: &str = r"(?:(?<![^\n])|(?<=[,;.!?(])|\Ar/\w+:)[^\w\n]*+(?:(?:hey|hi|hello|yo|me)\b[^\w\n]*+)?(?:(?:\d{2}(?![.)\d%])(?:\s*(?:[mf]|yo|y/o|yrs?[- ]old|years?[- ]old|yrs?))?|[mf]\s*\d{2}|[\[\(]?\s*(?:\d{2}\s*)?[mft]4[mfat]\w*\s*[\]\)]?|[\(\[]?(?:gay|bi)\b[\)\]]?)(?![\w'])[^\w\n]*+){1,3}";
 const DESCRIPTORS: &str = r"(?:(?!(?:looking|seeking|for|need|needs|want|wants|wanted|any|your|my|his|her|the|to|into|prefer|prefers|like|likes|love|loves|with|or|a|an|and|not|no|never|new|this|that|young|older|in|interested|seeks?|seeking|search|searching|suche|sucht|wannabe|aspiring|future|potential|would-be|want-to-be|lf|lfm|lf4|wanted|seeks)\b)(?!\d+\b)[\w'-]+[ \t,/]+){0,3}?";
 const SELF_ROLE: &str = r"(?:i'm|im|i am|i(?<!\wi) am) (?:(?!(?:not|never|no|looking|into|with|for|at|on|in|the|to|from|of|like|your|his|her|their|being|getting|get|got|gonna|going|wanna|gotta|about|trying|tryna|able|planning|willing|starting|up|over|off|reached|reach|stay|staying|finish|finished|end|ended|rank|ranked|placed|came|come|seeking|wanting|searching|want|need|after|craving|hunting|lf|lfm)\b)[\w%'-]+,? ){0,4}?";
 pub const LOOSE_FOLLOW: &str = r"(?![\w'-])(?!\s*[\d%])(?!\s*(?:of|line|half|tier|notch|shelf|up|out|price|priority|layer|floor|bunk|drawer|gear|gun|deck|story|dollar|pick|choice|score|seller|rated|level|end|row|left|right|corner|part|section|surgery|lip|lid|hat|coat|button|three|five|ten|twenty|percent|position|spot|place|rank|ranked|team|teams|players?|songs?|movies?|picks?|list|games?|console|lite|oled|owner|controller|terrier|riding|rider|market|dozer|dog|fight|fighter|ring|run|feeder|dweller|gesucht|wanted|needed|sought|required|search|hunt|hunter|hunting|lovers?|fans?|fantasy|fantasies|plots?|roleplay|rp|stories|story|captions?|content|vids?|videos?|pics?|porn|tributes?)\b)";
@@ -403,9 +403,9 @@ fn erotic(m: &Match, value: fn(&Match) -> V) -> V {
 fn roles(attribute: &'static str, role: &str, value: fn(&Match) -> V, anchors: &[&str]) -> Vec<Rule> {
     vec![
         needs(r(attribute, &format!(r"{HEADER}{DESCRIPTORS}({role}){LOOSE_FOLLOW}"), move |m| if spoken(m) && own_section(m) { value(m) } else { None }, TAGGED), anchors),
-        needs(r(attribute, &format!(r"(?<![^\n])[\W_]*{DESCRIPTORS}({role})(?= (?:here|looking|seeking|needs?|wants?|ready|hosting|available|can|into|for|from|in|lf|lf4|4)\b)"), move |m| erotic(m, value), TAGGED), anchors),
+        needs(r(attribute, &format!(r"(?:(?<![^\n])|\Ar/\w+:)[\W_]*{DESCRIPTORS}({role})(?= (?:here|looking|seeking|needs?|wants?|ready|hosting|available|can|into|for|from|in|lf|lf4|4)\b)"), move |m| erotic(m, value), TAGGED), anchors),
         needs(r(attribute, &format!(r"\b{SELF_ROLE}({role}){ROLE_FOLLOW}|\bas an? (?:(?!(?:not|never|no|former|ex|future)\b)[\w-]+ ){{0,2}}?({role}),? (?:i|i'm|im|i've|myself|my)\b|\bmyself as an? (?:[\w-]+ ){{0,2}}?({role}){ROLE_FOLLOW}"), move |m| if m.first().map_or(false, |role| DIRECT.fullmatch(role, 0, role.len()).is_some()) && spoken(m) { value(m) } else { erotic(m, value) }, self_hedge()), anchors),
-        needs(r(attribute, &format!(r"(?<![^\n|•])[ \t]*(?:\?[-*•][ \t]*)?({role})[ \t]*(?:[|\n]|$)|\b(?<!the )(?<!a )(?<!for )(?<!any )(?<!your )(?<!on )(?<!at )(?<!this )(?<!new )(?<!my )(?<!of )(?<!from )({role}) here\b"), move |m| if own_section(m) { erotic(m, value) } else { None }, TAGGED), anchors),
+        needs(r(attribute, &format!(r"(?:(?<![^\n|•])|\Ar/\w+:)[ \t]*(?:\?[-*•][ \t]*)?({role})[ \t]*(?:[|\n]|$)|\b(?<!the )(?<!a )(?<!for )(?<!any )(?<!your )(?<!on )(?<!at )(?<!this )(?<!new )(?<!my )(?<!of )(?<!from )({role}) here\b"), move |m| if own_section(m) { erotic(m, value) } else { None }, TAGGED), anchors),
     ]
 }
 
