@@ -14,7 +14,6 @@ const LANGUAGES: &str = "english spanish french german italian portuguese dutch 
 russian ukrainian turkish arabic hebrew persian farsi hindi urdu bengali punjabi tamil telugu marathi gujarati malayalam kannada chinese mandarin cantonese japanese \
 korean vietnamese thai tagalog filipino indonesian malay swahili afrikaans catalan basque icelandic estonian latvian lithuanian albanian";
 const SUBJECTS: &str = "cooking|cuisine|food|history|culture|literature|lit|politics|law|music|dance|dancing|art|calligraphy|recipes?|dishes|class|course|major";
-const FEDERAL: [&str; 4] = ["united states", "canada", "australia", "india"];
 const TITLE_REGIONS: [&str; 5] = ["united states", "canada", "australia", "india", "united kingdom"];
 
 fn spoken(word: Option<&[char]>) -> Option<String> {
@@ -36,8 +35,8 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
             |m| spoken(m.first()), hedge()), &["native", "language", "tongue"]),
         rule("native_language", r"\b(\w+) is the only language i (?:speak|know)\b|\bas (?:a )?native (\w+) speakers?\b",
             |m| spoken(m.first()), self_hedge()),
-        needs(rule("location", r"\b(?:(?:i|we)(?: (?:currently|now|also|still|actually))* (?:live|reside)|(?:i'm|im|i am|we're|we are) (?:currently |now |also |still )?(?:living|based|located)) in (?:the )?(europe|eastern europe|western europe|northern europe|southern europe|central europe|asia|east asia|southeast asia|south asia|central asia|africa|west africa|east africa|southern africa|north africa|south america|north america|central america|latin america|middle east|scandinavia|caribbean|balkans|oceania)\b(?![ -](?:union|countries|country|region|part|side)\b)",
-            |m| m.gs(1), hedge()), &["live", "reside", "living", "based", "located"]),
+        needs(rule("location", r"\b(?:(?:i|we)(?: (?:currently|now|also|still|actually))* (?:live|reside)|(?:i'm|im|i am|we're|we are) (?:currently |now |also |still )?(?:living|based|located)) in (?:the )?(europe|eastern europe|western europe|northern europe|southern europe|central europe|asia|east asia|southeast asia|south asia|central asia|africa|west africa|east africa|southern africa|north africa|south america|central america|latin america|middle east|scandinavia|caribbean|balkans|oceania)\b(?![ -](?:union|countries|country|region|part|side)\b)",
+            fixed("outside the united states"), hedge()), &["live", "reside", "living", "based", "located"]),
         needs(rule("other_languages", &format!(r"\b(?:{I}|i) (?:(?:currently|also|now|still|slowly|actively|just|been|started|starting|began|self[ -]taught)\s+)*(?:learning|studying(?! english\b)) \**(\w+)\b(?!\**\s+(?:{SUBJECTS})\b)"),
             |m| spoken(m.group(1)), hedge()), &["learning", "studying"]),
         needs(rule("other_languages", &format!(r"\b{I} (?:(?:also|now|pretty|very|quite|fully|almost|nearly|mostly|completely|totally|somewhat|reasonably|fairly|semi)[\s-]+)*(?:fluent|conversational|proficient) in \**(\w+)\b"),
@@ -475,18 +474,8 @@ fn titled(text: &[char], lowered: &[char], start: usize, end: usize, entry: &Ent
 }
 
 fn lived(entry: &Entry, end: usize, found: &mut Found, whole: bool) {
-    if entry.kind == "city" {
-        found.set("location", entry.value, end);
-    }
-    if matches!(entry.kind, "city" | "region")
-        && !entry.region.is_empty()
-        && (entry.kind == "region" || entry.country != "united kingdom")
-        && !(entry.kind == "city" && (ADMINISTRATIVE.test(&chars(entry.region)) || !FEDERAL.contains(&entry.country) && entry.region != entry.value))
-    {
-        found.set("location", entry.region, end);
-    }
-    if whole {
-        found.set("location", entry.country.trim_start_matches("the "), end);
+    if whole || entry.kind == "city" || entry.kind == "region" && !entry.region.is_empty() {
+        found.set("location", if entry.country == "united states" { "united states" } else { "outside the united states" }, end);
     }
 }
 

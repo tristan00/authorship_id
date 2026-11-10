@@ -77,7 +77,6 @@ pattern!(TAG_LEAD, 0, format!(r"(?:{FOR}|{TAG})\s*\Z"));
 pattern!(LAST, 0, r"[\W_]*\Z");
 pattern!(NEAR, 0, r"\b(?:in|from|near|around|aus)\s+\Z");
 pattern!(ASKING, 0, r"\b(?:for|looking|seeking|searching|want|wants|need|needs|into|with|like|likes|love|loves|any|anyone|you|you're|youre|your|if)\b");
-pattern!(ADMINISTRATIVE, 0, r"\b(?:region|city|province|district|county|governorate|prefecture|department|municipality|oblast|division|capital)\b");
 pattern!(LOOSE, 0, format!(r"\b(?:and|but|so)\s+(?:then\s+|just\s+|recently\s+|finally\s+|eventually\s+)?(?:moved|relocated)\s+(?:back\s+)?(?:here\s+)?to\s+{END}|(?<!be )(?<!it's )(?<!its )(?<!it )(?<!is )(?<!are )(?<!was )(?<!were )(?<!they're )\b(?:living|based|located|residing)\s+(?:here\s+)?{PREP}{END}|\b(?:currently|now)\s+(?:living\s+|based\s+)?in\s+{END}", END = &*S_END));
 pattern!(SELF_FROM, 0, format!(r"\b(?:i'm|im|i am)\s+(?:(?!(?:with|to|for|about|of|in|on|at|and|or|but|that|who|my|his|her|their|our|your|the|this|it|is|was|not|never|from|away|far|apart|miles?|mi|km|hours?|hrs|minutes?|mins?|drive|walk|days?|weeks?|months?|back|home|free|safe|different|done|off|out|coming|moved|relocated|transferred|graduated|returned|retired|escaped|fled|immigrated|emigrated|banned|removed|separated|divorced|exiled|kicked|evacuated|deported|isolated|disconnected|\w+ing)\b)[\w'/()-]+,?\s+){{1,8}}?from\s+{END}", END = &*S_END));
 pattern!(TAG_FROM, 0, format!(r"(?:^{flair}|[\s(\[\]/|,-])(?:\d{{2}}|{PERSON}|male|female|[mft]4[mfatr]\w*)\s+from\s+{END}", END = &*S_END, flair = claimcore::flair!()));
@@ -150,7 +149,7 @@ pub fn asked_frames() -> [Frame; 3] {
 pub fn all() -> Vec<&'static Re> {
     vec![
         &LIVE, &BEING, &BARE, &HERE, &MOVED, &ABROAD, &FROM, &GERMAN, &LEFT, &ORIGIN, &DOUBTED, &LATER, &START, &HERE_AFTER, &SELF, &BORN, &CITIZEN, &TITLE, &LEAD,
-        &TOWN_LEAD, &TAG_LEAD, &LAST, &NEAR, &ASKING, &ADMINISTRATIVE, &LOOSE, &SELF_FROM, &TAG_FROM, &AGED_IN, &ROLE, &OPENING, &AREA, &VENUE, &FLAIR, &TRIP, &TRADE, &COPULA, &OPENER,
+        &TOWN_LEAD, &TAG_LEAD, &LAST, &NEAR, &ASKING, &LOOSE, &SELF_FROM, &TAG_FROM, &AGED_IN, &ROLE, &OPENING, &AREA, &VENUE, &FLAIR, &TRIP, &TRADE, &COPULA, &OPENER,
         &OPENER_END, &WHERE, &LOCAL, &LOCAL_LEAD, &CITIZEN_AFTER, &HOME_COUNTRY, &HOSTING, &LOCATION, &HOMETOWN, &LIFE, &AUTOMATED, &REPOST, &SUBJECTIVE, &CHAIN,
         &GROUP, &NOUN_AFTER, &GROUP_END, &AGE_FRAME, &HELD_FRAME, &SELF_PAREN, &LABEL_FRAME, &COMPOUND_FRAME, &AM_FRAME, &AS_WIDE, &LOOSE_NATION, &AS_NATION, &AS_NATION_START,
         &SELF_DESCRIBED, &SELF_FROM_LEAD, &TAG_BEFORE, &TAG_AFTER, &NATION_HERE, &OPENS, &CLOSES, &OTHERS_LEAD, &CITIZEN_OF, &SELF_IN_LEAD,

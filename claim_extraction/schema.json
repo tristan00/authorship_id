@@ -420,8 +420,12 @@
   {
    "name": "location",
    "prompt": "person",
-   "kind": "set",
-   "describe": "Where does the writer live"
+   "kind": "one",
+   "describe": "Does the writer live in the United States or outside it",
+   "values": [
+    "united states",
+    "outside the united states"
+   ]
   },
   {
    "name": "nationality",
