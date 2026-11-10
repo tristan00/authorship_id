@@ -10,6 +10,28 @@ use std::sync::LazyLock;
 pub use rules::rules;
 pub use tags::tags;
 
+const ASSIGNED: &[(&str, &str)] = &[("trans woman", "amab"), ("transfem", "amab"), ("trans man", "afab"), ("transmasc", "afab")];
+const GENDER_FOLD: &[(&str, &str)] = &[("cis man", "man"), ("cis woman", "woman"), ("trans woman", "woman"), ("demiboy", "demiboy / demigirl"), ("demigirl", "demiboy / demigirl")];
+const GENDER_DROPPED: &[&str] = &["trans man", "transfem", "transmasc", "cis (gender unstated)", "trans (unspecified)", "transsexual", "egg"];
+
+pub fn settle(found: &mut Found) {
+    let implied: Vec<(&str, usize)> = found
+        .items
+        .iter()
+        .filter(|(attribute, _, _, _)| attribute == "gender")
+        .filter_map(|(_, value, position, _)| ASSIGNED.iter().find(|(gender, _)| gender == value).map(|(_, sex)| (*sex, *position)))
+        .collect();
+    for (sex, position) in implied {
+        found.set("assigned_sex_at_birth", sex, position);
+    }
+    found.items.retain(|(attribute, value, _, _)| attribute != "gender" || !GENDER_DROPPED.contains(&value.as_str()));
+    for (attribute, value, _, _) in &mut found.items {
+        if let Some((_, folded)) = GENDER_FOLD.iter().find(|(from, _)| attribute == "gender" && from == value) {
+            *value = folded.to_string();
+        }
+    }
+}
+
 pub const IM: &str = r"i(?<!\wi)(?:'m|m| am|am| m|'am|'?ve been|'ve always been)";
 pub const SPAN: &str = r"\s?(?:years?|yrs?|y)\s+(?:sober|clean|married|divorced|separated|together|widowed|single|celibate|abstinent|out|outside|in|into|on|off|post|past|from|behind|ahead|before|after|later|since|with|vegan|vegetarian|[a-z]+[- ]free|older|younger|apart|strong|outdated)\b";
 pub const UNITS: &str = r"(?:years? ago|yrs? ago|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|times|percent|%|lbs?|kgs?|pounds|miles|km|cm|dollars|bucks|k\b|grand|hp|mph|degrees|feet|ft|inches|in\b(?!\s+(?!(?:a|an|the|few|couple|two|three|four|five|six|weeks?|months?|years?|days?|hours?|minutes?|length|girth|long|thick|wide|tall|cut|uncut|soft|hard|erect)\b)[a-z]{3,})|seconds|secs?|euros?|points|pts|ounces|oz|inch)";

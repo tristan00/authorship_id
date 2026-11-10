@@ -55,7 +55,7 @@
   {
    "name": "gender",
    "prompt": "person",
-   "kind": "set",
+   "kind": "one",
    "describe": "What gender does the writer identify as",
    "values": [
     "man",
@@ -65,26 +65,8 @@
     "agender",
     "genderqueer",
     "bigender",
-    "demiboy",
-    "demigirl",
-    "xenogender",
-    "questioning",
-    "transmasc",
-    "transfem",
-    "genderflux",
-    "neutrois",
-    "two-spirit",
-    "demifluid",
-    "fluidflux",
-    "maverique",
-    "trans woman",
-    "trans man",
-    "cis woman",
-    "cis man",
-    "cis (gender unstated)",
-    "trans (unspecified)",
-    "transsexual",
-    "egg"
+    "demiboy / demigirl",
+    "xenogender"
    ]
   },
   {

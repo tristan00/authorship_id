@@ -211,6 +211,11 @@ fn sex(m: &Match) -> Option<String> {
     Some(value.to_string())
 }
 
+fn direction(m: &Match) -> Option<String> {
+    let word = st(m.first()?).replace(['-', ' '], "");
+    Some(if word.starts_with("m2f") || word.starts_with("maletofemale") || word.starts_with("transfem") || word == "transbian" { "amab" } else { "afab" }.to_string())
+}
+
 fn cis(m: &Match) -> Option<String> {
     let value = match m.group(1).map(st).as_deref() {
         Some("woman" | "girl" | "female" | "lady" | "f" | "gal") => "cis woman",
@@ -235,13 +240,11 @@ fn identity() -> Vec<Rule> {
         said("assigned_sex_at_birth", r"\bi (?:was|am|'m) (?:also )?(amab|afab|assigned (?:male|female) at birth)\b|\bas an? (amab|afab|intersex) (?:person|woman|man|girl|guy|individual|human|enby|nonbinary|non-binary|trans|transmasc|transfem)\b", sex, h()),
         said("assigned_sex_at_birth", concat!(r"(?:^", claimcore::flair!(), r"|(?<=[\n(\[|/,]))\s*(?:\d{2}\s*,?\s*)?(?:(?:nb|enby|nonbinary|non-binary|genderfluid|agender|transmasc|transfem|trans|demigirl|demiboy|bigender) )?\(?(?<!a[fm]ab/)(amab|afab)\b(?! to\b)(?!\s*/\s*a[fm]ab)(?=\s*(?:[,;|/)\]\n.!]|$|(?:nb|enby|nonbinary|non-binary|genderfluid|agender|transmasc|transfem|trans|woman|man|girl|guy|person|lesbian|here|cis|demigirl|demiboy|bigender)\b))"),
             alone(mine(sex)), sh()),
-        said("gender", &format!(r"{IM} (?:(?:also|just|still|actually|openly|proudly|a|an) ){{0,3}}(?:trans|transgender)\b(?![-'/])(?! (?:\w+ )?(?:woman|women|girl|girls|female|lady|gal|man|men|guy|guys|boy|male|dude|fem\w*|masc\w*|people|rights|folks|kids?|community|friends?|ally|allies|issues?|inclusive|healthcare|panic|athletes?|stuff|content|porn|ftm|mtf|f2m|m2f|nb|enby|nonbinary|non-binary|lesbian|gay)\b)"), sincere(fixed("trans (unspecified)")), h()),
-        said("gender", concat!(r"(?:^", claimcore::flair!(), r"|[.!?\n] *)being (?:trans|transgender)\b(?![-'/])(?! (?:\w+ )?(?:woman|girl|man|guy|people|is|isn't)\b)|\bas an? (?:trans|transgender) (?:person|individual|human|adult|teen|kid|enby)\b"), alone(fixed("trans (unspecified)")), h()),
-        said("gender", &format!(r"{IM} (?:(?:also|just|still|actually|a|an) ){{0,2}}transsexual\b(?! (?:people|woman|man|women|men)\b)|\bas an? transsexual\b(?! (?:people|woman|man)\b)"), fixed("transsexual"), h()),
+        said("assigned_sex_at_birth", &format!(r"{IM} (?:(?:also|just|still|actually|a|an) ){{0,2}}(m2f|male to female|transbian|trans[- ]?fem(?:me|inine|\w*)?|f2m|female to male|trans[- ]?masc(?:uline|\w*)?|tmasc)\b(?! (?:people|folks|persons|community|friends?)\b)"), direction, h()),
         said("gender", &format!(r"(?:{IM}|(?:^{flair}|[.!?\n] *)being) (?:an? )?(?:\d{{2}} ?(?:yo |y/o |year old )?)?(?:(?:white|black|straight|gay|bi|lesbian|young|old|het|hetero|middle aged) )?(?:cis|cisgender|cisgendered)[- ]?(?:het(?:ero)?(?:sexual)?[- ])?(woman|girl|female|lady|gal|man|guy|male|dude|boy|bloke)\b(?!'s| (?:people|perspective)\b)", flair = claimcore::flair!()), sincere(cis), h()),
-        said("gender", &format!(r"{IM} (?:(?:a|also|just|100%|fully|totally) )*(?:cis|cisgender|cishet|cis het|cis-het)\b(?![-'])(?! (?:\w+ )?(?:woman|women|girl|female|lady|gal|man|men|guy|male|dude|boy|people|folks|f|m)\b)"), sincere(cis), h()),
         said("gender", concat!(r"(?:^", claimcore::flair!(), r"|(?<=[\n(\[|/,]))\s*(?:\d{2}\s*,?\s*)?(?:cis|cisgender)[- ]?(f|m|female|male)\b(?=\s*(?:[,;|/)\]\n.!]|$))"), alone(mine(cis)), sh()),
-        said("gender", &format!(r"{IM} (?:(?:probably|definitely|still|just|totally) )?an egg(?=\s*(?:[.!,)]|$))"), |m: &Match| if TRANS_TEXT.test(m.string) { Some("egg".to_string()) } else { None }, h()),
+        said("gender", &format!(r"{IM} (?:(?:also|just|still|actually|a|an) ){{0,2}}(bigender|demi(?:boy|girl|guy|fem|masc)|xenogender|genderfae|kenochoric)\b(?! (?:people|folks|friends?|community)\b)"),
+            |m: &Match| { let word = st(m.first()?); Some(if word == "bigender" { "bigender" } else if word.starts_with("demi") { "demiboy / demigirl" } else { "xenogender" }.to_string()) }, h()),
         said("outness", &format!(r"{IM} (?:(?:also|still|a|an|totally|very|strictly|kinda|pretty|always|100%) )*(?:on the )?(dl|d/l|down low)\b(?! (?:with|about|on)\b)"), fixed("down low (dl)"), h()),
         said("outness", &format!(r"{LABEL_START}(?:(?:married|straight|str8|bi|gay|masc|white|black|curious|bicurious|bi-curious|discreet|closeted) )*(?<![a-z]/)(dl|down low)(?:,? (?:\w+ )?{PERSONS}|{LABEL_END})"), labeled(|m: &Match| if m.start() > 0 && m.string[m.start() - 1] == '/' { None } else { Some("down low (dl)".to_string()) }), sh()),
         said("outness", &format!(r"{IM} (?:(?:very|extremely|always|super|also|totally|100%|pretty|a) )*discre(?:et|te)\b(?![-'])"), discreet, h()),
