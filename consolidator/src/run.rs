@@ -157,6 +157,7 @@ fn count_tied(counts: &mut HashMap<(u32, u8), u64>, tied: Vec<(u32, u8)>) {
 struct Described {
     range: Option<(f64, f64)>,
     past: bool,
+    flair: bool,
 }
 
 fn described() -> HashMap<String, Described> {
@@ -169,6 +170,7 @@ fn described() -> HashMap<String, Described> {
             let described = Described {
                 range: attribute["low"].as_f64().zip(attribute["high"].as_f64()),
                 past: attribute["past"].as_bool() == Some(true),
+                flair: attribute["source"].as_str() == Some("flair"),
             };
             (attribute["name"].as_str().unwrap().to_string(), described)
         })
@@ -186,8 +188,8 @@ fn attributes(database: &Database, candidates: bool) -> Vec<Attribute> {
         let precision = f64::from_le_bytes(rows.fixed());
         let schema = described.get(&name);
         assert!(candidates || schema.is_some(), "{name} is claimed but not described in {SCHEMA}; only a measurement run passes --candidates");
-        let (range, past) = schema.map_or((None, false), |entry| (entry.range, entry.past));
-        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range, past });
+        let (range, past, flair) = schema.map_or((None, false, false), |entry| (entry.range, entry.past, entry.flair));
+        found.push(Attribute { name, kind, anchor, precision, unit: text(rows.bytes()), range, past, flair });
     }
     assert!(!found.is_empty(), "claim_attributes is empty; claim extraction publishes it");
     log(&format!("claim attributes={}", found.len()));

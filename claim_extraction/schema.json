@@ -286,6 +286,7 @@
    "name": "political_compass",
    "prompt": "person",
    "kind": "one",
+   "source": "flair",
    "describe": "Which political compass quadrant does the writer's r/PoliticalCompassMemes flair show",
    "values": [
     "auth-left",

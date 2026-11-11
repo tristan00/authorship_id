@@ -17,6 +17,7 @@ pub struct Attribute {
     pub unit: String,
     pub range: Option<(f64, f64)>,
     pub past: bool,
+    pub flair: bool,
 }
 
 fn years_per(attribute: &Attribute) -> f64 {
@@ -85,6 +86,7 @@ pub struct Vocabulary {
     set: Vec<bool>,
     marker: Vec<bool>,
     past: Vec<bool>,
+    flair: Vec<bool>,
     anchor: Vec<Option<Anchor>>,
     numbers: Vec<Option<f64>>,
     claim_ids: HashMap<Vec<u8>, u32>,
@@ -102,6 +104,7 @@ impl Vocabulary {
             set: Vec::new(),
             marker: Vec::new(),
             past: Vec::new(),
+            flair: Vec::new(),
             anchor: Vec::new(),
             numbers: Vec::new(),
             claim_ids: HashMap::new(),
@@ -114,6 +117,7 @@ impl Vocabulary {
             vocabulary.set.push(attribute.kind == "set");
             vocabulary.marker.push(attribute.kind == "marker");
             vocabulary.past.push(attribute.past);
+            vocabulary.flair.push(attribute.flair);
         }
         vocabulary.anchor = attributes.iter().map(|attribute| (!attribute.anchor.is_empty()).then(|| vocabulary.anchored(attributes, attribute))).collect();
         vocabulary
@@ -416,6 +420,9 @@ pub fn blocked(vocabulary: &Vocabulary, tallies: &Tallies) -> Blocked {
     let mut pools: BTreeMap<u32, (Vec<u32>, u64, u64, f64)> = BTreeMap::new();
     let mut judged = 0;
     for (&(subreddit, name), &(count, hits, expected)) in &scopes {
+        if vocabulary.flair[name as usize] {
+            continue;
+        }
         if count < GATE_COMPARISONS {
             let pool = pools.entry(name).or_default();
             pool.0.push(subreddit);

@@ -183,6 +183,10 @@ fn flair_claims(flair: &str) -> Vec<(String, String, Origin)> {
     }
     found.sort();
     found.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
+    let flair_only = |attribute: &str| claimcore::contract::SCHEMA.attribute(attribute).is_some_and(|known| known.flair_only());
+    if found.iter().any(|(attribute, _, _)| flair_only(attribute)) {
+        found.retain(|(attribute, _, _)| flair_only(attribute));
+    }
     found
 }
 

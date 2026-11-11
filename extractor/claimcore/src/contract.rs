@@ -35,6 +35,8 @@ pub struct Attribute {
     pub anchor: Option<String>,
     #[serde(default)]
     pub past: bool,
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -84,6 +86,10 @@ fn rounded(number: f64, precision: f64) -> String {
 }
 
 impl Attribute {
+    pub fn flair_only(&self) -> bool {
+        self.source.as_deref() == Some("flair")
+    }
+
     pub fn normal(&self, value: &str) -> Option<String> {
         let value = squeeze(value);
         if self.kind == "number" {
@@ -157,6 +163,7 @@ impl Attribute {
             assert!(schema.attributes.iter().any(|other| other.name == *anchor && other.kind == "number"), "{name}: anchor {anchor:?} is not a number attribute");
         }
         assert!(!self.past || self.kind == "number" && self.unit.as_deref() == Some("year"), "{name}: past is for year numbers");
+        assert!(matches!(self.source.as_deref(), None | Some("flair")), "{name}: source {:?} is not \"flair\"", self.source);
         let mut seen = HashSet::new();
         for value in &self.values {
             assert!(*value == squeeze(value) && !value.contains('|') && !value.is_empty(), "{name}: value {value:?} must be lowercase, trimmed and free of |");
