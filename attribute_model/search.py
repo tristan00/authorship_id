@@ -17,12 +17,13 @@ def suggested(trial):
 
 
 def stale(study):
-    best, count = float("inf"), 0
+    best, count, complete = float("inf"), 0, 0
     for trial in study.trials:
-        improved = trial.state == optuna.trial.TrialState.COMPLETE and best - trial.value >= MIN_IMPROVEMENT
-        best = min(best, trial.value) if trial.state == optuna.trial.TrialState.COMPLETE else best
-        if trial.number >= SEARCH_STARTUP:
-            count = 0 if improved else count + 1
+        done = trial.state == optuna.trial.TrialState.COMPLETE
+        if complete >= SEARCH_STARTUP:
+            count = 0 if done and best - trial.value >= MIN_IMPROVEMENT else count + 1
+        if done:
+            best, complete = min(best, trial.value), complete + 1
     return count
 
 
