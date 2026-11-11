@@ -11,5 +11,3 @@ huggingface_hub==0.36.2
 numpy==2.5.4
 pyarrow==26.0.0
 optuna==5.0.0
-smac==2.4.1
-botorch==0.18.1

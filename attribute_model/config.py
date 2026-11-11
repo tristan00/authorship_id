@@ -21,8 +21,8 @@ TEXT_PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank"
 MIN_IMPROVEMENT = 1e-4
 SEARCH_SPACE = {"width": (256, 2048, True), "depth": (0, 4, False), "expand": (1, 4, False), "dropout": (0., .5, False), "rank": (32, 512, True), "batch": (512, 16384, True),
                 "lr": (1e-4, 1e-2, True), "weight_decay": (1e-3, 1., True), "warmup": (.01, 1., True), "decay": (.1, .8, False)}
-SEARCH_PHASES = ("tpe", "smac", "botorch")
-SEARCH_PATIENCE = 10
+SEARCH_STARTUP = 10
+SEARCH_PATIENCE = 20
 
 
 def data():
