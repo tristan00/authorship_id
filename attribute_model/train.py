@@ -10,7 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import GPU_MEMORY, PARAMETERS, PUBLISH_MARGIN, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
+from .config import DECAY, GPU_MEMORY, MIN_IMPROVEMENT, PARAMETERS, PATIENCE, PUBLISH_MARGIN, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS, WARMUP
 from .data import load, read, reader
 from .evaluate import DEVICE, SET_WINDOW, WINDOW, Labeled, chosen, chunks, gather, groups, labeled, per_head, priors, report, totals, trunk
 from .model import AttributeModel, specifications
@@ -201,15 +201,15 @@ def fit(model, specs, data, parameters):
 def run_epochs(model, rows, parameters, loss_of, validate):
     batch = parameters["batch"]
     batches = rows // batch
-    steps = batches * parameters["epochs"]
-    warmup = max(1, round(.03 * steps))
-    rate = torch.tensor(parameters["lr"], device=DEVICE)
+    warmup = max(1, round(WARMUP * batches))
+    lr = parameters["lr"]
+    rate = torch.tensor(lr, device=DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=rate, weight_decay=parameters["weight_decay"], fused=True, capturable=True)
     index = torch.zeros(batch, dtype=torch.long, device=DEVICE)
     generator = torch.Generator(device=DEVICE).manual_seed(SEED)
 
     def schedule(number):
-        return parameters["lr"] * min(1, (number + 1) / warmup) * .5 * (1 + math.cos(math.pi * min(1, number / steps)))
+        return lr * min(1, (number + 1) / warmup)
 
     def step():
         with torch.autocast(DEVICE, dtype=torch.bfloat16, cache_enabled=False):
@@ -234,8 +234,9 @@ def run_epochs(model, rows, parameters, loss_of, validate):
     optimizer.zero_grad(set_to_none=True)
     with torch.cuda.graph(graph):
         loss, overflow = step()
-    best, saved, history, number, started = math.inf, None, [], 3, time.perf_counter()
-    for epoch in range(parameters["epochs"]):
+    best, saved, history, number, stale, started = math.inf, None, [], 3, 0, time.perf_counter()
+    while stale < PATIENCE:
+        epoch = len(history)
         if epoch:
             order = torch.randperm(rows, device=DEVICE, generator=generator)[:batches * batch].view(batches, batch)
         model.train()
@@ -252,10 +253,13 @@ def run_epochs(model, rows, parameters, loss_of, validate):
             raise FloatingPointError(f"Nonfinite attribute-model loss or {int(dropped)} labeled rows beyond the head capacity")
         trained = time.perf_counter() - started
         validation, fields = validate()
-        history.append({"epoch": epoch + 1, "training_loss": float(total) / (batches - (3 if epoch == 0 else 0)), "validation_score": validation, "fields": fields})
-        LOG.info("attribute model epoch=%d loss=%.5f validation=%.5f train_seconds=%.1f seconds=%.1f", epoch + 1, history[-1]["training_loss"], validation, trained, time.perf_counter() - started)
+        history.append({"epoch": epoch + 1, "lr": lr, "training_loss": float(total) / (batches - (3 if epoch == 0 else 0)), "validation_score": validation, "fields": fields})
+        LOG.info("attribute model epoch=%d lr=%.2e loss=%.5f validation=%.5f train_seconds=%.1f seconds=%.1f", epoch + 1, lr, history[-1]["training_loss"], validation, trained, time.perf_counter() - started)
+        improved = best - validation >= MIN_IMPROVEMENT
         if validation < best:
             best, saved = validation, {name: value.detach().clone() for name, value in model.state_dict().items()}
+        stale = 0 if improved else stale + 1
+        lr = lr if improved else lr * DECAY
     del graph
     model.load_state_dict(saved)
     return best, history
