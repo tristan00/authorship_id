@@ -16,8 +16,8 @@ SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,
 SPLIT_LABELS = 100
 TEMPERATURE_ROWS = 1 << 16
 THRESHOLDS = (.02, .05, .1, .15, .2, .3, .4, .5)
-PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "warmup": .2, "decay": .5, "patience": 2}
-TEXT_PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank": 128, "batch": 2048, "lr": .001, "weight_decay": .1, "warmup": .2, "decay": .5, "patience": 2}
+PARAMETERS = {"width": 409, "depth": 4, "expand": 3, "dropout": .0618, "rank": 467, "batch": 6627, "lr": .003, "weight_decay": .214, "warmup": .566, "decay": .214, "patience": 2}
+TEXT_PARAMETERS = {"width": 528, "depth": 4, "expand": 3, "dropout": .267, "rank": 155, "batch": 7584, "lr": .00455, "weight_decay": .00387, "warmup": .265, "decay": .154, "patience": 2}
 MIN_IMPROVEMENT = 1e-4
 SEARCH_SPACE = {"width": (256, 2048, True), "depth": (0, 4, False), "expand": (1, 4, False), "dropout": (0., .5, False), "rank": (32, 512, True), "batch": (512, 16384, True),
                 "lr": (1e-4, 1e-2, True), "weight_decay": (1e-3, 1., True), "warmup": (.01, 1., True), "decay": (.1, .8, False)}
