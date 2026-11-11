@@ -32,8 +32,11 @@ def search(directory, stem, base):
     with Hold(f"search {stem.name}"):
         torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
         manifest, specs, data = load_data(directory)
-        study = optuna.create_study(study_name=stem.name, storage=f"sqlite:///{stem.with_suffix('.db').as_posix()}", load_if_exists=True,
-                                    sampler=optuna.samplers.TPESampler(n_startup_trials=SEARCH_STARTUP, multivariate=True, seed=SEED))
+        study = optuna.create_study(study_name=stem.name, storage=f"sqlite:///{stem.with_suffix('.db').as_posix()}", load_if_exists=True)
+        for interrupted in study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.RUNNING,)):
+            study.tell(interrupted.number, state=optuna.trial.TrialState.FAIL)
+            LOG.warning("search %s trial=%d was interrupted and is marked failed", stem.name, interrupted.number)
+        study.sampler = optuna.samplers.TPESampler(n_startup_trials=SEARCH_STARTUP, multivariate=True, seed=SEED + len(study.trials))
         if not study.trials:
             study.enqueue_trial({name: base[name] for name in SEARCH_SPACE})
         started = time.perf_counter()
