@@ -28,9 +28,9 @@ INSERTERS = 2
 
 
 def schema(artifact):
-    targets = {name: artifact["targets"][name] for name in artifact["published"]}
+    targets = artifact["targets"]
     columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" for name, kind in targets.items())
-    comment = json.dumps({"model_id": artifact["model_id"], "source": artifact["source"], "targets": targets, "not_predictive": artifact["not_predictive"]})
+    comment = json.dumps({"model_id": artifact["model_id"], "source": artifact["source"], "targets": targets})
     return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
 
 
@@ -54,8 +54,6 @@ def load_model(path):
 
 def decided(artifact, outputs):
     for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
-        if spec["name"] not in artifact["published"]:
-            continue
         if spec["type"] == "numeric":
             yield spec, numeric(output, spec)
         elif spec["type"] == "set":
@@ -111,7 +109,7 @@ def slot_views(shared, sizes):
 
 @timed
 def stream(model, artifact, ranges, table, total, device):
-    columns = [next(spec for spec in artifact["specifications"] if spec["name"] == name) for name in artifact["published"]]
+    columns = artifact["specifications"]
     kinds = [kind(spec) for spec in columns]
     words = sum(-(-len(spec["values"]) // 64) for spec in columns if kind(spec) == "set")
     sizes = [PREDICTION_BATCH * width for width in (DIMENSIONS * 4, kinds.count("numeric") * 4, kinds.count("categorical") * 4, words * 8)]
@@ -171,7 +169,7 @@ def predict_table(model_path, device="cuda"):
     db.command("CREATE TABLE IF NOT EXISTS author_predictions AS author_predictions_next")
     db.command("EXCHANGE TABLES author_predictions_next AND author_predictions")
     db.command("DROP TABLE author_predictions_next")
-    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["published"]) + 1}
+    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["targets"]) + 1}
 
 
 @timed

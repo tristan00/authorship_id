@@ -10,7 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import DECAY, GPU_MEMORY, MIN_IMPROVEMENT, PARAMETERS, PATIENCE, PUBLISH_MARGIN, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS, WARMUP
+from .config import DECAY, GPU_MEMORY, MIN_IMPROVEMENT, PARAMETERS, PATIENCE, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS, WARMUP
 from .data import load, read, reader
 from .evaluate import DEVICE, SET_WINDOW, WINDOW, Labeled, chosen, chunks, gather, groups, labeled, per_head, priors, report, totals, trunk
 from .model import AttributeModel, specifications
@@ -278,12 +278,9 @@ def finish(model, manifest, specs, data, parameters, best, history, output):
     evaluation = report(model, *data["test"], specs, calibration)
     for name, fields in evaluation.items():
         LOG.info("attribute model test %s %s", name, json.dumps(fields))
-    published = [name for name, fields in evaluation.items() if fields["improvement"] >= PUBLISH_MARGIN]
-    not_predictive = {name: round(fields["improvement"], 4) for name, fields in evaluation.items() if name not in published}
-    LOG.info("attribute model published=%d margin=%s not_predictive=%s", len(published), PUBLISH_MARGIN, json.dumps(not_predictive))
     model_id = str(uuid.uuid4())
     artifact = {"model_id": model_id, "targets": manifest["targets"], "specifications": specs, "architecture": architecture(parameters, manifest), "parameters": parameters,
-                "model": {name: value.cpu() for name, value in model.state_dict().items()}, "calibration": calibration, "evaluation": evaluation, "published": published, "not_predictive": sorted(not_predictive), "history": history, "validation_score": best,
+                "model": {name: value.cpu() for name, value in model.state_dict().items()}, "calibration": calibration, "evaluation": evaluation, "history": history, "validation_score": best,
                 "source": manifest["source"], "authors": authors, "splits": SPLITS}
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
@@ -295,7 +292,7 @@ def finish(model, manifest, specs, data, parameters, best, history, output):
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    return {"model": str(output), "model_id": model_id, "parameters": parameters, "validation_score": best, "published": published, "not_predictive": not_predictive, "evaluation": evaluation}
+    return {"model": str(output), "model_id": model_id, "parameters": parameters, "validation_score": best, "evaluation": evaluation}
 
 
 @timed
