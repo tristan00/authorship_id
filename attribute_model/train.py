@@ -10,7 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import DECAY, GPU_MEMORY, MIN_IMPROVEMENT, PARAMETERS, PATIENCE, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS, WARMUP
+from .config import GPU_MEMORY, MIN_IMPROVEMENT, PARAMETERS, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
 from .data import load, read, reader
 from .evaluate import DEVICE, SET_WINDOW, WINDOW, Labeled, chosen, chunks, gather, groups, labeled, per_head, priors, report, totals, trunk
 from .model import AttributeModel, specifications
@@ -201,7 +201,7 @@ def fit(model, specs, data, parameters):
 def run_epochs(model, rows, parameters, loss_of, validate):
     batch = parameters["batch"]
     batches = rows // batch
-    warmup = max(1, round(WARMUP * batches))
+    warmup = max(1, round(parameters["warmup"] * batches))
     lr = parameters["lr"]
     rate = torch.tensor(lr, device=DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=rate, weight_decay=parameters["weight_decay"], fused=True, capturable=True)
@@ -235,7 +235,7 @@ def run_epochs(model, rows, parameters, loss_of, validate):
     with torch.cuda.graph(graph):
         loss, overflow = step()
     best, saved, history, number, stale, started = math.inf, None, [], 3, 0, time.perf_counter()
-    while stale < PATIENCE:
+    while stale < parameters["patience"]:
         epoch = len(history)
         if epoch:
             order = torch.randperm(rows, device=DEVICE, generator=generator)[:batches * batch].view(batches, batch)
@@ -259,7 +259,7 @@ def run_epochs(model, rows, parameters, loss_of, validate):
         if validation < best:
             best, saved = validation, {name: value.detach().clone() for name, value in model.state_dict().items()}
         stale = 0 if improved else stale + 1
-        lr = lr if improved else lr * DECAY
+        lr = lr if improved else lr * parameters["decay"]
     del graph
     model.load_state_dict(saved)
     return best, history

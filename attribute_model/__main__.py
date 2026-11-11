@@ -28,6 +28,8 @@ def main():
     table.add_argument("--model", type=Path)
     commands.add_parser("prepare-text")
     commands.add_parser("train-text")
+    commands.add_parser("search")
+    commands.add_parser("search-text")
     text = commands.add_parser("text")
     text.add_argument("text")
     text.add_argument("--model", type=Path)
@@ -58,6 +60,11 @@ def main():
         from .config import TEXT_PARAMETERS
         from .train import train
         result = train(text_data(), text_model(), TEXT_PARAMETERS)
+    elif args.command in ("search", "search-text"):
+        from .config import PARAMETERS, TEXT_PARAMETERS, searched
+        from .search import search
+        text = args.command == "search-text"
+        result = search(text_data() if text else data(), searched() / ("text_model" if text else "model"), TEXT_PARAMETERS if text else PARAMETERS)
     elif args.command == "text":
         from .text import predict_text
         result = predict_text(args.model, args.text)

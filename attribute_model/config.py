@@ -16,12 +16,13 @@ SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,
 SPLIT_LABELS = 100
 TEMPERATURE_ROWS = 1 << 16
 THRESHOLDS = (.02, .05, .1, .15, .2, .3, .4, .5)
-PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1}
-TEXT_PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank": 128, "batch": 2048, "lr": .001, "weight_decay": .1}
-WARMUP = .2
-DECAY = .5
-PATIENCE = 2
+PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .1, "rank": 256, "batch": 2048, "lr": .002, "weight_decay": .1, "warmup": .2, "decay": .5, "patience": 2}
+TEXT_PARAMETERS = {"width": 1024, "depth": 2, "expand": 1, "dropout": .3, "rank": 128, "batch": 2048, "lr": .001, "weight_decay": .1, "warmup": .2, "decay": .5, "patience": 2}
 MIN_IMPROVEMENT = 1e-4
+SEARCH_SPACE = {"width": (256, 2048, True), "depth": (0, 4, False), "expand": (1, 4, False), "dropout": (0., .5, False), "rank": (32, 512, True), "batch": (512, 16384, True),
+                "lr": (1e-4, 1e-2, True), "weight_decay": (1e-3, 1., True), "warmup": (.01, 1., True), "decay": (.1, .8, False)}
+SEARCH_PHASES = ("tpe", "smac", "botorch")
+SEARCH_PATIENCE = 10
 
 
 def data():
@@ -38,6 +39,10 @@ def text_data():
 
 def text_model():
     return ROOT / selected() / "text_model.pt"
+
+
+def searched():
+    return ROOT / selected() / "search"
 
 
 def validate(targets):
