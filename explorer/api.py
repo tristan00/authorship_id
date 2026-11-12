@@ -90,7 +90,7 @@ def profile(name):
     require_author(name)
     claims = store.stated(name)
     targets = store.prediction_targets()
-    row = None if targets is None else store.predicted(name, list(targets))
+    row = None if targets is None else store.predicted(name, targets)
     if row is None:
         return {"author": name, "published": False, "attributes": [{"name": key, "stated": claims[key]} for key in sorted(claims)]}
     return {"author": name, "published": True,
@@ -133,7 +133,7 @@ def predict(body):
         return {"status": "empty"}
     result = models.predict(body["text"])
     return {"status": "ready", "tokens": result["tokens"], "truncated": result["truncated"],
-            "attributes": [{"name": key, "predicted": store.shown(result["attributes"][key]["value"])} for key in sorted(result["attributes"])]}
+            "attributes": [{"name": key, "predicted": store.shown(result["attributes"][key])} for key in sorted(result["attributes"])]}
 
 
 def dispatch(method, parts, params, body):

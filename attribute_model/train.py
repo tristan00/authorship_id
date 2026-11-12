@@ -5,197 +5,156 @@ import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-import numpy as np
 import torch
-from torch.nn import functional as F
 
 from . import LOG, timed
-from .config import GPU_MEMORY, MIN_IMPROVEMENT, PARAMETERS, SEED, SPLIT_LABELS, SPLITS, TEMPERATURE_ROWS, THRESHOLDS
+from .config import CHOICES, GPU_MEMORY, MIN_IMPROVEMENT, PARAMETERS, SEED, SPLIT_LABELS, SPLITS
 from .data import load, read, reader
-from .evaluate import DEVICE, SET_WINDOW, WINDOW, Labeled, chosen, chunks, gather, groups, labeled, per_head, priors, report, totals, trunk
-from .model import AttributeModel, specifications
+from .evaluate import CHUNK, DEVICE, Evaluation, Split, calibrate, chunks, climate, objective, sentinel
+from .heads import RANKED, Grid, Number, Scale, Tree
+from .model import AttributeModel, choices_for, specifications
+from .structure import Graph, build, truth
 
-INPUTS = ("users",)
-
-
-def member_columns(sets, specs):
-    return [(column, indptr, values, torch.arange(int((indptr[1:] - indptr[:-1]).max()), device=indptr.device), len(specs[column]["values"])) for column, indptr, values in sets]
-
-
-def gathered(columns, rows):
-    result = {}
-    for column, indptr, values, offsets, size in columns:
-        start = indptr[rows]
-        positions = start[:, None] + offsets
-        stated = offsets < (indptr[rows + 1] - start)[:, None]
-        result[column] = torch.where(stated, values[positions.clamp(max=len(values) - 1)], size)
-    return result
-
-
-def score(model, inputs, labels, sets, specs, columns, batch=2048):
-    model.eval()
-    sums = counts = 0
-    with torch.inference_mode(), torch.autocast(DEVICE, dtype=torch.bfloat16):
-        for start in range(0, len(labels), batch):
-            rows = torch.arange(start, min(start + batch, len(labels)), device=labels.device)
-            target = labels[start:start + batch].to(DEVICE)
-            batch_sums, batch_counts, _ = model.terms(model(*(part[start:start + batch].to(DEVICE) for part in inputs)), target, gathered(columns, rows))
-            sums, counts = sums + batch_sums, counts + batch_counts
-    ratios = (sums / counts / model.baseline).tolist()
-    return float(np.mean(ratios)), dict(zip((spec["name"] for spec in specs), ratios))
-
-
-def sampled(data, limit, batch=WINDOW):
-    rows = data.rows
-    if len(rows) < limit:
-        return data
-    kept = int(torch.searchsorted(rows, (rows[limit - 1] // batch + 1) * batch))
-    return Labeled(rows[:kept], data.target[:kept], None, None)
-
-
-def temperatures(group, parts, lr=.1, iterations=100, tolerance_grad=1e-7, tolerance_change=1e-9):
-    target = group.target.long()
-
-    def evaluate(position):
-        position = position.detach().requires_grad_()
-        losses, grad, start = [], torch.zeros_like(position), 0
-        for owner, output in parts:
-            end = start + len(owner)
-            loss = F.cross_entropy(output / position.exp()[owner, None], target[start:end], reduction="none")
-            grad += torch.autograd.grad((loss / group.counts[owner]).sum(), position)[0]
-            losses.append(loss.detach())
-            start = end
-        return totals(torch.cat(losses), group.owner, group.counts) / group.counts, grad
-
-    position = torch.zeros(len(group.columns), device=DEVICE)
-    loss, grad = evaluate(position)
-    active = grad.abs() > tolerance_grad
-    scale = torch.ones_like(position)
-    for iteration in range(1, iterations + 1):
-        if iteration == 1:
-            direction = -grad
-            step = (1 / grad.abs()).clamp(max=1.) * lr
-        else:
-            change, moved = grad - previous, direction * step
-            curvature = change * moved
-            scale = torch.where(curvature > 1e-10, curvature / (change * change), scale)
-            direction = -grad * scale
-            step = torch.full_like(position, lr)
-        previous, last = grad, loss
-        active = active & (grad * direction <= -tolerance_change)
-        position = torch.where(active, position + step * direction, position)
-        if iteration == iterations or not bool(active.any()):
-            break
-        loss, grad = evaluate(position)
-        active = active & (grad.abs() > tolerance_grad) & ((direction * step).abs() > tolerance_change) & ((loss - last).abs() >= tolerance_change)
-    return position.exp().tolist()
-
-
-@timed
-def categorical(model, hidden, data, specs, columns):
-    group = gather([sampled(data[column], TEMPERATURE_ROWS) if column in columns else data[column] for column in range(len(data))], columns)
-    with torch.inference_mode(False):
-        parts = [(owner, output.clone()) for owner, output, _ in chunks(model, hidden, group, len(specs[columns[0]]["values"]), WINDOW)]
-        return {column: {"temperature": value} for column, value in zip(columns, temperatures(group, parts))}
-
-
-@timed
-def membership(model, hidden, data, specs, columns):
-    group = gather(data, columns)
-    heads, size = len(columns), len(specs[columns[0]]["values"])
-    prior = priors(specs, group)
-    guessed = torch.stack([chosen(prior, threshold) for threshold in THRESHOLDS])
-    model_pairs = torch.zeros(len(THRESHOLDS), 2, heads, dtype=torch.long, device=DEVICE)
-    actual = 0
-    stated = torch.zeros((heads, size), dtype=torch.long, device=DEVICE)
-    for owner, output, truth in chunks(model, hidden, group, size, SET_WINDOW):
-        probabilities = output.sigmoid()
-        for slot, threshold in enumerate(THRESHOLDS):
-            predicted = chosen(probabilities, threshold)
-            model_pairs[slot, 0] += per_head((predicted & truth).sum(1), owner, heads)
-            model_pairs[slot, 1] += per_head(predicted.sum(1), owner, heads)
-        actual = actual + per_head(truth.sum(1), owner, heads)
-        stated += per_head(truth, owner, heads)
-    pairs = torch.stack([model_pairs, torch.stack([(guessed * stated).sum(2), guessed.sum(2) * group.counts], 1)]).float()
-    scores = 2 * pairs[:, :, 0] / (pairs[:, :, 1] + actual.float())
-    best = scores.argmax(1).tolist()
-    values = scores.tolist()
-    return {column: {"threshold": THRESHOLDS[best[0][slot]], "f1": values[0][best[0][slot]][slot], "prior_threshold": THRESHOLDS[best[1][slot]], "prior_f1": values[1][best[1][slot]][slot]}
-            for slot, column in enumerate(columns)}
-
-
-@timed
-def calibrated(model, hidden, data, specs):
-    result = {column: {} for column, spec in enumerate(specs) if spec["type"] == "numeric"}
-    for columns in groups(specs, ("categorical", "embedding")):
-        result |= categorical(model, hidden, data, specs, columns)
-    for columns in groups(specs, ("set",)):
-        result |= membership(model, hidden, data, specs, columns)
-    for column, spec in enumerate(specs):
-        LOG.info("attribute model calibrated %s %s", spec["name"], json.dumps(result[column]))
-    return [result[column] for column in range(len(specs))]
-
-
-@timed
-def calibrate(model, inputs, labels, sets, specs):
-    return calibrated(model, trunk(model, inputs), labeled(labels, sets), specs)
+BASELINE_ROWS = 1 << 17
 
 
 @timed
 def place_split(arrays, sets, columns, readers, name, start, end):
     device = DEVICE if name in ("train", "validation") else "cpu"
-    members = []
+    members = {}
     for target, (indptr, values) in sets.items():
         offsets = read(indptr, start, end + 1, device, readers)
         low, high = int(offsets[0]), int(offsets[-1])
-        offsets -= low
-        members.append((columns[target], offsets, read(values, low, high, device, readers).long()))
-    return tuple(read(arrays[array], start, end, device, readers) for array in INPUTS), read(arrays["labels"], start, end, device, readers), members
+        members[columns[target]] = (offsets - low, read(values, low, high, device, readers).long())
+    return read(arrays["users"], start, end, device, readers), read(arrays["labels"], start, end, device, readers), members
+
+
+def splits_of(manifest, data, structures):
+    columns = {name: column for column, name in enumerate(manifest["targets"])}
+    graphs, found = {}, {}
+    for split, (inputs, labels, members) in data.items():
+        truths, raw = {}, {}
+        for name, structure in structures.items():
+            if structure["kind"] == "number":
+                continue
+            graph = None
+            if structure["kind"] == "tree":
+                graph = graphs.setdefault((name, labels.device.type), Graph(structure, labels.device))
+            truths[name] = (*truth(structure, columns[name], columns, labels, members, graph), sentinel(structure))
+            if manifest["targets"][name] == "set":
+                raw[name] = (*members[columns[name]], len(manifest["catalogs"][name]))
+        found[split] = Split(inputs, labels, truths, raw)
+    return found
 
 
 @timed
-def observed(manifest, train):
-    _, labels, members = train
-    names = list(manifest["targets"])
-    sets = {}
-    for column, indptr, values in members:
-        lengths = indptr.diff()
-        sets[names[column]] = (int((lengths > 0).sum()), int(lengths.max()), int(indptr[-1]), torch.bincount(values, minlength=len(manifest["catalogs"][names[column]])).cpu().numpy())
-    return [column[torch.isfinite(column)].cpu().numpy() for column in labels.T], sets
+def statistics(manifest, specs, structures, train):
+    columns = {name: column for column, name in enumerate(manifest["targets"])}
+    information, counts, climates = {}, {}, {}
+    for spec in specs:
+        name, structure = spec["name"], structures[spec["name"]]
+        column = train.labels[:, columns[name]]
+        if structure["kind"] == "number":
+            observed = column[torch.isfinite(column)]
+            low = math.floor(spec["low"])
+            counts[name] = {"bins": torch.bincount((observed - low).round().long(), minlength=math.ceil(spec["high"]) - low + 1).float()}
+            climates[name] = climate(spec, column.cpu())
+            continue
+        indptr, values, _ = train.truths[name]
+        found = {"authors": int((indptr.diff() > 0).sum())}
+        if structure["kind"] == "tree":
+            graph = Graph(structure, DEVICE)
+            information[name] = graph.information(indptr.to(DEVICE), values.to(DEVICE)).cpu()
+            found["nodes"] = torch.bincount(values, minlength=graph.size).float()
+            if name in train.raw:
+                found["values"] = torch.bincount(train.raw[name][1], minlength=len(spec["values"])).float()
+            else:
+                observed = column[torch.isfinite(column)].long()
+                found["values"] = torch.bincount(observed, minlength=len(spec["values"])).float()
+        else:
+            found["positions"] = torch.bincount(values, minlength=sentinel(structure)).float()
+        counts[name] = found
+    return information, counts, climates
 
 
-def load_splits(manifest, arrays, sets):
-    targets = manifest["targets"]
-    columns = {name: column for column, name in enumerate(targets)}
+def load_splits(manifest, arrays, sets, directory):
+    columns = {name: column for column, name in enumerate(manifest["targets"])}
     readers = reader()
     data = {name: place_split(arrays, sets, columns, readers, name, start, end) for name, (start, end) in manifest["splits"].items()}
-    specs = specifications(targets, manifest["catalogs"], *observed(manifest, data["train"]))
+    labels = data["train"][1]
+    specs = specifications(manifest["targets"], manifest["catalogs"], [column[torch.isfinite(column)].cpu().numpy() for column in labels.T])
     for slot, name in enumerate(SPLITS):
         short = [target for target, counts in manifest["split_labels"].items() if counts[slot] < SPLIT_LABELS]
-        if slot and short:
+        if short:
             raise ValueError(f"Fewer than {SPLIT_LABELS} {name} labels for {', '.join(short)}")
-    LOG.info("attribute model rows=%s", {name: len(split[1]) for name, split in data.items()})
-    return specs, data
+    structures = build(manifest, directory)
+    splits = splits_of(manifest, data, structures)
+    LOG.info("attribute model rows=%s", {name: len(split) for name, split in splits.items()})
+    return specs, structures, splits, statistics(manifest, specs, structures, splits["train"])
 
 
 @timed
 def load_data(directory):
     manifest, arrays, sets = load(directory)
-    return (manifest, *load_splits(manifest, arrays, sets))
+    if manifest["insufficient"]:
+        raise ValueError(f"Targets without enough labels: {sorted(manifest['insufficient'])}")
+    return (manifest, *load_splits(manifest, arrays, sets, directory))
 
 
-def capacities(model, specs, rows, batch):
-    rates = [specs[index]["training_labels"] / rows for index in model.embedding]
-    return [min(batch, 64 * math.ceil((rate * batch + 8 * math.sqrt(rate * (1 - rate) * batch)) / 64)) for rate in rates]
+def initialize(model, counts):
+    for head in model.heads.values():
+        if isinstance(head, Number):
+            head.initialize(counts[head.targets[0]]["bins"])
+        elif isinstance(head, Tree):
+            found = counts[head.targets[0]]
+            with torch.no_grad():
+                if head.mode == "flat" and head.single:
+                    head.output.offset().copy_(((found["values"] + .5) / (found["values"].sum() + .5 * len(found["values"]))).log().to(DEVICE))
+                elif head.mode == "flat":
+                    head.output.offset().copy_(((found["values"] + .5) / (found["authors"] + 1)).clamp(max=1 - 1e-4).logit().to(DEVICE))
+                elif head.mode == "tree":
+                    head.initialize(found["nodes"].to(DEVICE))
+        elif isinstance(head, (Scale, Grid)) and head.mode != "born":
+            head.initialize(counts[head.targets[0]]["positions"].to(DEVICE))
 
 
 @timed
-def fit(model, specs, data, parameters):
-    inputs, labels, sets = data["train"]
-    columns = {name: member_columns(data[name][2], specs) for name in ("train", "validation")}
-    capacity = capacities(model, specs, len(labels), parameters["batch"])
-    return run_epochs(model, len(labels), parameters, lambda index: model.loss(model(*(part[index] for part in inputs)), labels[index], gathered(columns["train"], index), capacity),
-                      lambda: score(model, *data["validation"], specs, columns["validation"]))
+def prepare_heads(model, specs, train, batch):
+    labeled = {spec["name"]: spec["training_labels"] for spec in specs}
+    sums = counts = present = 0
+    with torch.no_grad():
+        for start in range(0, min(BASELINE_ROWS, len(train)), CHUNK):
+            sample = train.batch(torch.arange(start, min(start + CHUNK, len(train)), device=train.labels.device))
+            found = model.terms(torch.zeros((len(sample.labels), model.input.out_features), device=DEVICE), sample, limited=False)
+            sums, counts = sums + found[0], counts + found[1]
+            present = present + torch.stack([head.present(sample).sum() for head in model.heads.values()])
+    present = (present.float() / min(BASELINE_ROWS, len(train))).tolist()
+    for head, rate in zip(model.heads.values(), present):
+        if head.size > RANKED:
+            head.capacity = min(batch, 64 * math.ceil((rate * batch + 8 * math.sqrt(rate * (1 - rate) * batch)) / 64))
+    weight = torch.tensor([sum(labeled[name] for name in head.targets) for head in model.heads.values()], dtype=torch.float32, device=DEVICE)
+    model.baseline.copy_(sums / counts.clamp_min(1))
+    model.weight.copy_(weight / weight.mean())
+
+
+@timed
+def validate(model, split):
+    sums = counts = 0
+    with torch.inference_mode():
+        for hidden, batch in chunks(model, split):
+            found = model.terms(hidden.float(), batch, limited=False)
+            sums, counts = sums + found[0], counts + found[1]
+    ratios = (sums / counts.clamp_min(1) / model.baseline).tolist()
+    fields = {}
+    for (key, head), ratio in zip(model.heads.items(), ratios):
+        fields |= {name: ratio for name in head.targets}
+    return sum(fields.values()) / len(fields), fields
+
+
+@timed
+def fit(model, splits, parameters):
+    train = splits["train"]
+    return run_epochs(model, len(train), parameters, lambda index: model.loss(model(train.inputs[index]), train.batch(index)), lambda: validate(model, splits["validation"]))
 
 
 def run_epochs(model, rows, parameters, loss_of, validate):
@@ -269,19 +228,40 @@ def architecture(parameters, manifest):
     return {**{key: parameters[key] for key in ("width", "depth", "expand", "dropout", "rank")}, "features": manifest["features"]}
 
 
+def built(manifest, specs, structures, choices, parameters, counts, train):
+    choices = {key: choices.get(key, found[0]) for key, found in choices_for(structures).items()}
+    LOG.info("attribute model choices=%s", json.dumps(choices))
+    torch.manual_seed(SEED)
+    model = AttributeModel(manifest["targets"], specs, structures, choices, **architecture(parameters, manifest)).to(DEVICE)
+    initialize(model, counts)
+    prepare_heads(model, specs, train, parameters["batch"])
+    return model
+
+
 @timed
-def finish(model, manifest, specs, data, parameters, best, history, output):
+def assess(model, splits, stats, names=("validation",)):
+    information, counts, climates = stats
+    fitted = calibrate(model, splits["calibration"])
+    evaluation = Evaluation(model, information, {name: found.get("positions") for name, found in counts.items()}, climates)
+    cutoffs = evaluation.cutoffs(splits["calibration"], fitted)
+    reports = {name: evaluation.score(splits[name], fitted, cutoffs) for name in names}
+    return fitted, cutoffs, reports
+
+
+@timed
+def finish(model, manifest, specs, structures, splits, stats, parameters, best, history, output):
     output = Path(output)
-    authors = {name: len(split[1]) for name, split in data.items()}
-    del data["train"]
-    calibration = calibrate(model, *data["calibration"], specs)
-    evaluation = report(model, *data["test"], specs, calibration)
-    for name, fields in evaluation.items():
+    fitted, cutoffs, reports = assess(model, splits, stats, ("validation", "test"))
+    for name, fields in reports["test"].items():
         LOG.info("attribute model test %s %s", name, json.dumps(fields))
-    model_id = str(uuid.uuid4())
-    artifact = {"model_id": model_id, "targets": manifest["targets"], "specifications": specs, "architecture": architecture(parameters, manifest), "parameters": parameters,
-                "model": {name: value.cpu() for name, value in model.state_dict().items()}, "calibration": calibration, "evaluation": evaluation, "history": history, "validation_score": best,
-                "source": manifest["source"], "authors": authors, "splits": SPLITS}
+    LOG.info("attribute model objective validation=%.5f test=%.5f", objective(reports["validation"]), objective(reports["test"]))
+    information, counts, _ = stats
+    artifact = {"model_id": str(uuid.uuid4()), "targets": manifest["targets"], "specifications": specs, "structures": structures, "choices": model.choices,
+                "architecture": architecture(parameters, manifest), "parameters": parameters, "model": {name: value.cpu() for name, value in model.state_dict().items()},
+                "calibration": fitted, "cutoffs": cutoffs, "information": {name: value.tolist() for name, value in information.items()},
+                "priors": {name: found["positions"].tolist() for name, found in counts.items() if "positions" in found},
+                "evaluation": reports["test"], "validation": reports["validation"], "objective": objective(reports["validation"]), "history": history, "validation_score": best,
+                "source": manifest["source"], "authors": {name: len(split) for name, split in splits.items()}, "splits": SPLITS}
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -292,14 +272,14 @@ def finish(model, manifest, specs, data, parameters, best, history, output):
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    return {"model": str(output), "model_id": model_id, "parameters": parameters, "validation_score": best, "evaluation": evaluation}
+    return {"model": str(output), "model_id": artifact["model_id"], "parameters": parameters, "choices": model.choices, "validation_score": best, "objective": artifact["objective"],
+            "test_objective": objective(reports["test"]), "evaluation": reports["test"]}
 
 
 @timed
-def train(directory, output, parameters=PARAMETERS):
+def train(directory, output, parameters=PARAMETERS, choices=CHOICES):
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
-    torch.manual_seed(SEED)
-    manifest, specs, data = load_data(directory)
-    model = AttributeModel(manifest["targets"], specs, **architecture(parameters, manifest)).to(DEVICE)
-    best, history = fit(model, specs, data, parameters)
-    return finish(model, manifest, specs, data, parameters, best, history, output)
+    manifest, specs, structures, splits, stats = load_data(directory)
+    model = built(manifest, specs, structures, choices, parameters, stats[1], splits["train"])
+    best, history = fit(model, splits, parameters)
+    return finish(model, manifest, specs, structures, splits, stats, parameters, best, history, output)

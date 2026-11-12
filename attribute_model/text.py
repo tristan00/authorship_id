@@ -20,7 +20,7 @@ from . import LOG, timed, write_json
 from .config import TEXT_ENCODE
 from .predict import BINARY, load_model, predict
 
-SHARED = ("labels.npy", "splits.npy", "authors.json")
+SHARED = ("labels.npy", "splits.npy", "authors.json", "parents.json")
 SPREAD_ROWS = 1 << 20
 
 

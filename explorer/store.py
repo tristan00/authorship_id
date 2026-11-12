@@ -4,6 +4,7 @@ import threading
 from database import NO_AUTHOR, client
 from reddit_dumps import timed
 
+ARROW = " › "
 QUICK = {"readonly": 2, "max_execution_time": 5}
 SLOW = {"readonly": 2, "max_execution_time": 30}
 TOP = 12
@@ -86,16 +87,25 @@ def prediction_targets():
 
 
 @timed
-def predicted(name, attributes):
-    columns = ", ".join(f"`{attribute}`" for attribute in attributes)
+def predicted(name, targets):
+    columns = ", ".join(f"`{target}`, `{target}_low`, `{target}_high`" if kind == "number" else f"`{target}`, `{target}_confidence`" for target, kind in targets.items())
     row = first(f"SELECT {columns} FROM author_predictions WHERE author = {{name:String}}", {"name": name})
-    return None if row is None else {key: shown(value) for key, value in row.items()}
+    if row is None:
+        return None
+    return {target: shown({"value": row[target], "low": row[target + "_low"], "high": row[target + "_high"]} if kind == "number"
+                          else [{"value": value, "confidence": chance} for value, chance in zip(row[target], row[target + "_confidence"])]) for target, kind in targets.items()}
 
 
-def shown(value):
-    if isinstance(value, list):
-        return ", ".join(value)
-    return round(value, 1) if isinstance(value, float) else value
+def shown(prediction):
+    if isinstance(prediction, dict):
+        return f"{prediction['value']:.0f} ({prediction['low']:.0f}–{prediction['high']:.0f})"
+    chance = {item["value"]: item["confidence"] for item in prediction}
+    leaves = [path for path in chance if not any(other.startswith(path + ARROW) for other in chance)]
+    chains = []
+    for path in leaves:
+        parts = path.split(ARROW)
+        chains.append(ARROW.join(f"{part} {chance[ARROW.join(parts[:depth + 1])]:.0%}" if ARROW.join(parts[:depth + 1]) in chance else part for depth, part in enumerate(parts)))
+    return "; ".join(chains)
 
 
 @timed

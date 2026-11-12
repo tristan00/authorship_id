@@ -37,7 +37,7 @@ def load(start, end):
 
 @timed
 def derive():
-    from attribute_model.config import TEXT_PARAMETERS, text_data, text_model
+    from attribute_model.config import TEXT_CHOICES, TEXT_PARAMETERS, text_data, text_model
     from attribute_model.data import prepare
     from attribute_model.predict import predict_table
     from attribute_model.text import prepare_text
@@ -53,7 +53,7 @@ def derive():
     train(data(), model())
     predict_table(model())
     prepare_text(text_data(), data())
-    train(text_data(), text_model(), TEXT_PARAMETERS)
+    train(text_data(), text_model(), TEXT_PARAMETERS, TEXT_CHOICES)
 
 
 @timed

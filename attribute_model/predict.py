@@ -9,42 +9,109 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from clickhouse_connect.driver.binding import format_str, quote_identifier
 
 from database import author_ranges, client, host, selected
 
 from . import LOG, timed
 from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, SPLITS, THREADS, VECTOR_RANGES, data
-from .evaluate import chosen
-from .model import AttributeModel, numeric
+from .evaluate import Space, calibrated, grid_choice, node_probabilities, number_scores, owners, scale_choice
+from .model import AttributeModel
 
-KIND = {"numeric": "Float32", "categorical": "LowCardinality(String)", "embedding": "LowCardinality(String)", "set": "Array(LowCardinality(String))"}
 BINARY = Path(__file__).resolve().parent / "io" / "target" / "release" / "attribute_io.exe"
 SLOTS = 6
 FETCHERS = 2
 ENCODERS = 4
 INSERTERS = 2
+ARROW = " › "
 
 
-def schema(artifact):
-    targets = artifact["targets"]
-    columns = "".join(f", {quote_identifier(name)} {KIND[kind]}" for name, kind in targets.items())
-    comment = json.dumps({"model_id": artifact["model_id"], "source": artifact["source"], "targets": targets})
-    return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
-
-
-def build(artifact):
-    model = AttributeModel(artifact["targets"], artifact["specifications"], **artifact["architecture"])
+def build(artifact, device):
+    model = AttributeModel(artifact["targets"], artifact["specifications"], artifact["structures"], artifact["choices"], **artifact["architecture"], device=device)
     model.load_state_dict(artifact["model"], strict=True)
-    return model.eval().requires_grad_(False)
+    return model.to(device).eval().requires_grad_(False)
+
+
+def paths(structure):
+    names, parents = structure["nodes"], next(iter(structure["groupings"].values()))
+
+    def path(node):
+        chain = [names[node]]
+        while parents[node] >= 0:
+            node = parents[node]
+            chain.append(names[node])
+        return ARROW.join(reversed(chain))
+    return [path(node) for node in range(len(names))]
+
+
+class Decoder:
+    def __init__(self, artifact, device):
+        self.model = build(artifact, device)
+        self.owners = owners(self.model)
+        self.fitted, self.cutoffs = artifact["calibration"], artifact["cutoffs"]
+        self.spaces, self.labels, self.slots, self.numbers = {}, {}, {}, []
+        for name, structure in artifact["structures"].items():
+            kind = structure["kind"]
+            if kind == "number":
+                self.numbers.append(name)
+            elif kind == "tree":
+                self.spaces[name] = Space(structure, artifact["information"][name], device)
+                self.labels[name], self.slots[name] = paths(structure), self.spaces[name].slots
+            else:
+                cells = {cell: value for value, cell in zip(structure["names"], structure["values"])} if kind == "grid" else dict(enumerate(structure["names"]))
+                self.labels[name], self.slots[name] = [cells[index] for index in range(len(cells))], 1
+        self.ranked = [name for name in artifact["structures"] if name not in self.numbers]
+
+    def decide(self, vectors):
+        hidden = self.model(vectors)
+        numbers, picked, chances = [], [], []
+        for name in self.model.structures:
+            key, head = self.owners[name]
+            fit = self.fitted[key]
+            logits = head(hidden).float()
+            if name in self.numbers:
+                _, middle, low, high = number_scores(head, logits, torch.zeros(len(logits), device=logits.device), fit)
+                numbers.append(torch.stack([middle, low, high], 1))
+                continue
+            structure = self.model.structures[name]
+            probability = node_probabilities(head, logits, fit, name)
+            if structure["kind"] == "tree":
+                space = self.spaces[name]
+                nodes = space.ordered(space.decode(probability, self.cutoffs[name]["cutoff"]))
+                chance = probability.gather(1, nodes.clamp_min(0))
+            else:
+                nodes = (scale_choice(probability) if structure["kind"] == "scale" else grid_choice(probability, structure["shape"]))[:, None]
+                chance = probability.gather(1, nodes)
+            picked.append(nodes)
+            chances.append(torch.where(nodes >= 0, calibrated(chance, self.cutoffs[name]["platt"]), 0.))
+        return torch.cat(numbers, 1), torch.cat(picked, 1).int(), torch.cat(chances, 1)
+
+    def readable(self, decided):
+        numbers, picked, chances = (part.cpu() for part in decided)
+        result = [{} for _ in range(len(picked))]
+        for slot, name in enumerate(self.numbers):
+            for row, (middle, low, high) in enumerate(numbers[:, 3 * slot:3 * slot + 3].tolist()):
+                result[row][name] = {"value": round(middle, 1), "low": round(low, 1), "high": round(high, 1)}
+        start = 0
+        for name in self.ranked:
+            width = self.slots[name]
+            for row, (nodes, scores) in enumerate(zip(picked[:, start:start + width].tolist(), chances[:, start:start + width].tolist())):
+                result[row][name] = [{"value": self.labels[name][node], "confidence": round(score, 3)} for node, score in zip(nodes, scores) if node >= 0]
+            start += width
+        return result
+
+
+def schema(decoder, artifact):
+    columns = "".join(f", {quote_identifier(name)} Float32, {quote_identifier(name + '_low')} Float32, {quote_identifier(name + '_high')} Float32" for name in decoder.numbers)
+    columns += "".join(f", {quote_identifier(name)} Array(LowCardinality(String)), {quote_identifier(name + '_confidence')} Array(Float32)" for name in decoder.ranked)
+    comment = json.dumps({"model_id": artifact["model_id"], "source": artifact["source"], "targets": {name: "number" if name in decoder.numbers else "ranked" for name in artifact["targets"]}})
+    return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
 
 
 @lru_cache(maxsize=1)
 def cached(path, modified):
     torch.set_num_threads(THREADS)
-    artifact = torch.load(path, map_location="cpu", weights_only=True)
-    return build(artifact), artifact
+    return Decoder(torch.load(path, map_location="cpu", weights_only=True), "cpu")
 
 
 def load_model(path):
@@ -52,72 +119,38 @@ def load_model(path):
     return cached(str(path), path.stat().st_mtime_ns)
 
 
-def decided(artifact, outputs):
-    for spec, fitted, output in zip(artifact["specifications"], artifact["calibration"], outputs):
-        if spec["type"] == "numeric":
-            yield spec, numeric(output, spec)
-        elif spec["type"] == "set":
-            yield spec, chosen(output.float().sigmoid(), fitted["threshold"])
-        else:
-            yield spec, output.argmax(1)
-
-
-def named(spec, decision):
-    if spec["type"] == "set":
-        return [[spec["values"][index] for index in row.nonzero().flatten().tolist()] for row in decision.cpu()]
-    return [spec["values"][index] for index in decision.tolist()]
-
-
 @timed
-def predict(loaded, vectors):
-    model, artifact = loaded
+def predict(decoder, vectors):
     values = np.asarray(vectors, dtype=np.float32)
-    if values.ndim != 2 or values.shape[1] != model.input.in_features or not np.isfinite(values).all():
-        raise ValueError(f"Expected finite {model.input.in_features}-dimensional inputs")
-    result = [{} for _ in values]
+    inputs = decoder.model.input.in_features
+    if values.ndim != 2 or values.shape[1] != inputs or not np.isfinite(values).all():
+        raise ValueError(f"Expected finite {inputs}-dimensional inputs")
+    result = []
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
-            for spec, decision in decided(artifact, model.outputs(model(torch.from_numpy(values[start:start + 1024])))):
-                for row, value in enumerate(decision.tolist() if spec["type"] == "numeric" else named(spec, decision), start):
-                    result[row][spec["name"]] = {"value": value}
+            result += decoder.readable(decoder.decide(torch.from_numpy(values[start:start + 1024])))
     return result
 
 
-def kind(spec):
-    return spec["type"] if spec["type"] in ("numeric", "set") else "categorical"
-
-
-def stacked(items, rows, device):
-    return torch.stack(items, 1) if items else torch.empty(rows, 0, device=device)
-
-
-@torch.inference_mode()
-def decide(model, artifact, columns, vectors, device):
-    decisions = {spec["name"]: decision for spec, decision in decided(artifact, model.outputs(model(vectors.to(device))))}
-    numeric = stacked([decisions[spec["name"]] for spec in columns if kind(spec) == "numeric"], len(vectors), device)
-    categorical = stacked([decisions[spec["name"]] for spec in columns if kind(spec) == "categorical"], len(vectors), device).int()
-    sets = torch.cat([F.pad(decisions[spec["name"]], (0, -len(spec["values"]) % 64)) for spec in columns if kind(spec) == "set"] or [torch.empty(len(vectors), 0, dtype=torch.bool, device=device)], 1)
-    packed = (sets.view(len(vectors), -1, 8).to(torch.uint8) << torch.arange(8, dtype=torch.uint8, device=device)).sum(2, dtype=torch.uint8)
-    return numeric, categorical, packed
-
-
-def slot_views(shared, sizes):
+def slot_views(shared, sizes, widths):
     memory = torch.frombuffer(shared, dtype=torch.uint8)
     slot_bytes, offsets = sum(sizes), np.cumsum([0, *sizes])
-    return [[memory[slot * slot_bytes + offsets[index]:slot * slot_bytes + offsets[index + 1]].view(dtype).view(PREDICTION_BATCH, -1) for index, dtype in enumerate((torch.float32, torch.float32, torch.int32, torch.uint8))] for slot in range(SLOTS)]
+    return [[memory[slot * slot_bytes + offsets[index]:slot * slot_bytes + offsets[index + 1]].view(dtype).view(PREDICTION_BATCH, width)
+             for index, (dtype, width) in enumerate(zip((torch.float32, torch.float32, torch.int32, torch.float32), widths))] for slot in range(SLOTS)]
 
 
 @timed
-def stream(model, artifact, ranges, table, total, device):
-    columns = artifact["specifications"]
-    kinds = [kind(spec) for spec in columns]
-    words = sum(-(-len(spec["values"]) // 64) for spec in columns if kind(spec) == "set")
-    sizes = [PREDICTION_BATCH * width for width in (DIMENSIONS * 4, kinds.count("numeric") * 4, kinds.count("categorical") * 4, words * 8)]
+def stream(decoder, ranges, table, total):
+    pairs = sum(decoder.slots[name] for name in decoder.ranked)
+    widths = (DIMENSIONS, 3 * len(decoder.numbers), pairs, pairs)
+    sizes = [PREDICTION_BATCH * width * 4 for width in widths]
     name = f"attribute_predict_{os.getpid()}"
     shared = mmap.mmap(-1, SLOTS * sum(sizes), tagname=name)
-    views = slot_views(shared, sizes)
+    views = slot_views(shared, sizes, widths)
+    columns = [{"name": number, "type": "numeric"} for target in decoder.numbers for number in (target, target + "_low", target + "_high")]
+    columns += [{"name": target, "type": "ranked", "values": decoder.labels[target], "slots": decoder.slots[target]} for target in decoder.ranked]
     layout = {"shared": name, "table": table, "batch": PREDICTION_BATCH, "slots": SLOTS, "fetchers": FETCHERS, "encoders": ENCODERS, "inserters": INSERTERS, "insert_rows": INSERT_ROWS,
-              "dimensions": DIMENSIONS, "slot_bytes": sum(sizes), "ranges": ranges, "columns": [{"name": spec["name"], "type": kind(spec), "values": spec.get("values", [])} for spec in columns]}
+              "dimensions": DIMENSIONS, "slot_bytes": sum(sizes), "ranges": ranges, "columns": columns}
     users, logged, started = 0, 0, time.perf_counter()
     with TemporaryDirectory() as directory:
         path = Path(directory) / "layout.json"
@@ -128,7 +161,9 @@ def stream(model, artifact, ranges, table, total, device):
                 if line == b"end\n":
                     break
                 slot, rows = map(int, line.split())
-                for target, source in zip(views[slot][1:], decide(model, artifact, columns, views[slot][0][:rows], device)):
+                with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                    decided = decoder.decide(views[slot][0][:rows].to("cuda"))
+                for target, source in zip(views[slot][1:], decided):
                     target[:rows].copy_(source)
                 process.stdin.write(b"%d\n" % slot)
                 process.stdin.flush()
@@ -149,27 +184,27 @@ def stream(model, artifact, ranges, table, total, device):
 
 
 @timed
-def predict_table(model_path, device="cuda"):
+def predict_table(model_path):
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY)
     artifact = torch.load(model_path, map_location="cpu", weights_only=True)
     splits = np.load(data() / "splits.npy", mmap_mode="r")
     prepared = {name: int(np.isin(splits, buckets).sum()) for name, buckets in SPLITS.items()}
     if artifact["authors"] != prepared:
         raise ValueError(f"{model_path} was trained on other prepared data ({artifact['authors']}) than {data()} ({prepared})")
-    model = build(artifact).to(device)
+    decoder = Decoder(artifact, "cuda")
     db = client()
     db.command("DROP TABLE IF EXISTS author_predictions_next")
-    db.command(schema(artifact))
+    db.command(schema(decoder, artifact))
     total = db.command("SELECT count() FROM author_vectors")
     if not total:
         raise ValueError("No author vectors to predict")
-    users = stream(model, artifact, author_ranges(db, "author_vectors", VECTOR_RANGES), "author_predictions_next", total, device)
+    users = stream(decoder, author_ranges(db, "author_vectors", VECTOR_RANGES), "author_predictions_next", total)
     if users != total:
         raise ValueError("Author vectors changed while predictions were written")
     db.command("CREATE TABLE IF NOT EXISTS author_predictions AS author_predictions_next")
     db.command("EXCHANGE TABLES author_predictions_next AND author_predictions")
     db.command("DROP TABLE author_predictions_next")
-    return {"model_id": artifact["model_id"], "users": users, "columns": len(artifact["targets"]) + 1}
+    return {"model_id": artifact["model_id"], "users": users, "targets": len(artifact["targets"])}
 
 
 @timed
@@ -177,7 +212,7 @@ def predict_file(model_path, input_path, output_path):
     input_path, output_path = Path(input_path), Path(output_path)
     if output_path.exists():
         raise FileExistsError(output_path)
-    loaded = load_model(model_path)
+    decoder = load_model(model_path)
     records = []
     with input_path.open(encoding="utf-8") as source:
         for number, line in enumerate(source, 1):
@@ -188,7 +223,7 @@ def predict_file(model_path, input_path, output_path):
                 records.append((number, record))
     if not records:
         raise ValueError("Input contains no vectors")
-    predictions = predict(loaded, [record["vector"] for _, record in records])
+    predictions = predict(decoder, [record["vector"] for _, record in records])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:

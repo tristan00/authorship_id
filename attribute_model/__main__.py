@@ -57,14 +57,14 @@ def main():
         from .text import prepare_text
         result = prepare_text(text_data(), data())
     elif args.command == "train-text":
-        from .config import TEXT_PARAMETERS
+        from .config import TEXT_CHOICES, TEXT_PARAMETERS
         from .train import train
-        result = train(text_data(), text_model(), TEXT_PARAMETERS)
+        result = train(text_data(), text_model(), TEXT_PARAMETERS, TEXT_CHOICES)
     elif args.command in ("search", "search-text"):
-        from .config import PARAMETERS, TEXT_PARAMETERS, searched
+        from .config import CHOICES, PARAMETERS, TEXT_CHOICES, TEXT_PARAMETERS, searched
         from .search import search
         text = args.command == "search-text"
-        result = search(text_data() if text else data(), searched() / ("text_model" if text else "model"), TEXT_PARAMETERS if text else PARAMETERS)
+        result = search(text_data() if text else data(), searched() / ("text_model" if text else "model"), TEXT_PARAMETERS if text else PARAMETERS, TEXT_CHOICES if text else CHOICES)
     elif args.command == "text":
         from .text import predict_text
         result = predict_text(args.model, args.text)

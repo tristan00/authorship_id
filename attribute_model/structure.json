@@ -1,0 +1,286 @@
+{
+  "religion": {
+    "tree": {
+      "religious": {
+        "christian": {
+          "catholic": {},
+          "orthodox christian": {},
+          "protestant": {
+            "baptist": {},
+            "lutheran": {},
+            "anglican / episcopalian": {},
+            "methodist": {},
+            "presbyterian": {},
+            "evangelical / pentecostal": {},
+            "nondenominational": {},
+            "quaker": {},
+            "seventh-day adventist": {}
+          },
+          "latter-day saint": {},
+          "jehovah's witness": {}
+        },
+        "muslim": {
+          "sunni": {},
+          "shia": {}
+        },
+        "jewish": {},
+        "hindu": {},
+        "buddhist": {},
+        "sikh": {},
+        "jain": {},
+        "taoist": {},
+        "shinto": {},
+        "zoroastrian": {},
+        "rastafari": {},
+        "unitarian": {},
+        "satanist": {},
+        "pagan": {
+          "heathen / norse pagan": {},
+          "druid": {},
+          "wiccan": {},
+          "witch": {},
+          "hellenic polytheist": {},
+          "kemetic": {}
+        }
+      },
+      "spiritual": {
+        "deist": {},
+        "pantheist": {}
+      },
+      "not religious": {
+        "atheist": {},
+        "agnostic": {},
+        "apatheist": {},
+        "secular humanist": {}
+      }
+    },
+    "aliases": {
+      "religious (unspecified)": "religious",
+      "christian (unspecified)": "christian",
+      "protestant (unspecified)": "protestant"
+    }
+  },
+  "political_ideology": {
+    "tree": {
+      "left": {
+        "centre-left": {
+          "liberal": {},
+          "progressive": {},
+          "social democrat": {}
+        },
+        "leftist": {
+          "socialist": {
+            "democratic socialist": {},
+            "libertarian socialist": {}
+          },
+          "communist": {},
+          "anarchist": {}
+        }
+      },
+      "centrist / moderate": {},
+      "right": {
+        "conservative": {},
+        "centre-right": {},
+        "libertarian": {
+          "anarcho-capitalist": {},
+          "classical liberal": {}
+        },
+        "nationalist": {},
+        "monarchist": {},
+        "maga / trump supporter": {}
+      },
+      "feminist": {},
+      "apolitical": {}
+    },
+    "aliases": {
+      "left-wing": "left",
+      "right-wing": "right",
+      "left-leaning / centre-left": "centre-left",
+      "right-leaning / centre-right": "centre-right"
+    }
+  },
+  "sexual_orientation": {
+    "tree": {
+      "straight": {
+        "heteroflexible": {},
+        "bi-curious": {}
+      },
+      "gay": {
+        "lesbian": {}
+      },
+      "bisexual": {
+        "pansexual": {},
+        "omnisexual": {}
+      },
+      "asexual": {
+        "demisexual": {},
+        "aegosexual": {}
+      },
+      "queer": {
+        "sapphic": {},
+        "fluid": {},
+        "androsexual": {}
+      }
+    }
+  },
+  "gender": {
+    "tree": {
+      "man": {},
+      "woman": {},
+      "nonbinary": {
+        "genderfluid": {},
+        "agender": {},
+        "genderqueer": {},
+        "demiboy / demigirl": {},
+        "bigender": {}
+      }
+    }
+  },
+  "employment_status": {
+    "tree": {
+      "working": {
+        "employed": {
+          "employed full-time": {},
+          "part-time": {},
+          "several jobs / temp": {},
+          "intern": {},
+          "apprentice": {},
+          "on leave": {}
+        },
+        "self-employed / freelance": {
+          "business owner": {}
+        }
+      },
+      "not working": {
+        "unemployed": {
+          "neet": {}
+        },
+        "retired": {},
+        "disabled / unable to work": {},
+        "gap year": {}
+      },
+      "caregiving": {
+        "stay-at-home parent": {},
+        "homemaker / housewife": {},
+        "carer / caregiver": {}
+      }
+    },
+    "aliases": {
+      "employed (hours unstated)": "employed"
+    }
+  },
+  "relationship_status": {
+    "tree": {
+      "partnered": {
+        "married": {},
+        "common-law / de facto": {},
+        "engaged": {},
+        "in a relationship": {},
+        "dating / seeing someone": {},
+        "situationship": {}
+      },
+      "single": {
+        "divorced": {},
+        "separated": {},
+        "widowed": {}
+      }
+    }
+  },
+  "ethnicity": {
+    "tree": {
+      "white": {},
+      "black": {},
+      "asian": {
+        "east asian": {},
+        "southeast asian": {},
+        "south asian / desi": {}
+      },
+      "hispanic or latino": {
+        "latino / latina": {},
+        "hispanic": {},
+        "mestizo / mestiza": {}
+      },
+      "arab / middle eastern": {
+        "persian / iranian": {},
+        "north african": {}
+      },
+      "indigenous": {},
+      "pacific islander": {},
+      "jewish (ethnic)": {},
+      "mixed": {}
+    }
+  },
+  "party_affiliation": {
+    "groupings": {
+      "country": {
+        "united states": {
+          "democrat": {},
+          "republican": {},
+          "libertarian party": {}
+        },
+        "united kingdom": {
+          "labour": {},
+          "liberal democrats": {},
+          "reform uk": {}
+        },
+        "conservative party (uk/canada)": {},
+        "green party": {},
+        "independent": {}
+      },
+      "bloc": {
+        "left bloc": {
+          "democrat": {},
+          "labour": {},
+          "liberal democrats": {},
+          "green party": {}
+        },
+        "right bloc": {
+          "republican": {},
+          "conservative party (uk/canada)": {},
+          "reform uk": {},
+          "libertarian party": {}
+        },
+        "independent": {}
+      }
+    }
+  },
+  "diet_type": {
+    "scale": ["vegan", "vegetarian", "pescatarian", "flexitarian", "omnivore", "carnivore"]
+  },
+  "generation": {
+    "scale": ["boomer", "gen jones", "gen x", "xennial", "millennial", "zillennial", "gen z", "gen alpha"],
+    "born": {"from": "birth_year", "starts": [1954, 1966, 1977, 1984, 1993, 1999, 2013]}
+  },
+  "political_compass": {
+    "grid": {
+      "rows": ["auth", "centre", "lib"],
+      "columns": ["left", "centre", "right"],
+      "cells": {
+        "auth-left": [0, 0],
+        "auth-center": [0, 1],
+        "auth-right": [0, 2],
+        "left": [1, 0],
+        "centrist": [1, 1],
+        "right": [1, 2],
+        "lib-left": [2, 0],
+        "lib-center": [2, 1],
+        "lib-right": [2, 2]
+      }
+    }
+  },
+  "mbti": {
+    "axes": ["mbti_ei", "mbti_ns", "mbti_tf", "mbti_jp"]
+  },
+  "location": {
+    "places": "gazetteer"
+  },
+  "origin_location": {
+    "places": "gazetteer"
+  },
+  "occupation": {
+    "groups": "occupation_group"
+  },
+  "hobbies": {
+    "groups": "hobby_group"
+  }
+}

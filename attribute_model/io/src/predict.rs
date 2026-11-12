@@ -44,8 +44,7 @@ impl Shared {
 
 enum Kind {
     Numeric,
-    Categorical(Keys),
-    Set(usize, Keys),
+    Ranked(usize, usize, Keys),
 }
 
 struct Keys {
@@ -75,6 +74,7 @@ impl Keys {
 
 struct Column {
     header: Vec<u8>,
+    confidence: Vec<u8>,
     kind: Kind,
 }
 
@@ -90,30 +90,36 @@ struct Layout {
     ranges: Vec<(String, String)>,
     columns: Vec<Column>,
     numeric: usize,
-    categorical: usize,
-    words: usize,
+    pairs: usize,
+}
+
+fn header(name: &str, type_name: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    put_bytes(&mut out, name.as_bytes());
+    put_bytes(&mut out, type_name.as_bytes());
+    out
 }
 
 impl Layout {
     fn read(path: &str) -> Layout {
         let value: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
         let number = |key: &str| value[key].as_u64().unwrap_or_else(|| panic!("layout needs {key}")) as usize;
-        let mut words = 0;
+        let mut pairs = 0;
         let columns: Vec<Column> = value["columns"].as_array().unwrap().iter().map(|column| {
-            let values = column["values"].as_array().unwrap();
-            let (kind, type_name) = match column["type"].as_str().unwrap() {
-                "numeric" => (Kind::Numeric, "Float32"),
-                "categorical" => (Kind::Categorical(Keys::new(values)), "LowCardinality(String)"),
-                "set" => {
-                    words += values.len().div_ceil(64);
-                    (Kind::Set(words - values.len().div_ceil(64), Keys::new(values)), "Array(LowCardinality(String))")
+            let name = column["name"].as_str().unwrap();
+            match column["type"].as_str().unwrap() {
+                "numeric" => Column { header: header(name, "Float32"), confidence: Vec::new(), kind: Kind::Numeric },
+                "ranked" => {
+                    let slots = column["slots"].as_u64().unwrap() as usize;
+                    pairs += slots;
+                    Column {
+                        header: header(name, "Array(LowCardinality(String))"),
+                        confidence: header(&format!("{name}_confidence"), "Array(Float32)"),
+                        kind: Kind::Ranked(pairs - slots, slots, Keys::new(column["values"].as_array().unwrap())),
+                    }
                 }
                 other => panic!("unknown column type {other}"),
-            };
-            let mut header = Vec::new();
-            put_bytes(&mut header, column["name"].as_str().unwrap().as_bytes());
-            put_bytes(&mut header, type_name.as_bytes());
-            Column { header, kind }
+            }
         }).collect();
         let layout = Layout {
             shared: value["shared"].as_str().unwrap().to_string(),
@@ -126,9 +132,8 @@ impl Layout {
             insert_rows: number("insert_rows"),
             ranges: value["ranges"].as_array().unwrap().iter().map(|pair| (pair[0].as_str().unwrap().to_string(), pair[1].as_str().unwrap().to_string())).collect(),
             numeric: columns.iter().filter(|column| matches!(column.kind, Kind::Numeric)).count(),
-            categorical: columns.iter().filter(|column| matches!(column.kind, Kind::Categorical(_))).count(),
             columns,
-            words,
+            pairs,
         };
         assert_eq!(number("dimensions"), DIMENSIONS);
         assert_eq!(number("slot_bytes"), layout.slot_bytes(), "slot layout differs from python");
@@ -136,7 +141,11 @@ impl Layout {
     }
 
     fn regions(&self) -> [usize; 4] {
-        [self.batch * DIMENSIONS * 4, self.batch * self.numeric * 4, self.batch * self.categorical * 4, self.batch * self.words * 8]
+        [self.batch * DIMENSIONS * 4, self.batch * self.numeric * 4, self.batch * self.pairs * 4, self.batch * self.pairs * 4]
+    }
+
+    fn written(&self) -> usize {
+        1 + self.columns.iter().map(|column| if matches!(column.kind, Kind::Ranked(..)) { 2 } else { 1 }).sum::<usize>()
     }
 
     fn slot_bytes(&self) -> usize {
@@ -238,45 +247,43 @@ fn fetch(database: &Database, layout: &Layout, shared: Shared, ranges: &Receiver
 fn encode(layout: &Layout, shared: Shared, batch: &Batch) -> Vec<u8> {
     let rows = batch.rows;
     let numeric = shared.slice(layout.region(batch.slot, 1), rows * layout.numeric * 4);
-    let categorical = shared.slice(layout.region(batch.slot, 2), rows * layout.categorical * 4);
-    let sets = shared.slice(layout.region(batch.slot, 3), rows * layout.words * 8);
+    let picked = shared.slice(layout.region(batch.slot, 2), rows * layout.pairs * 4);
+    let chances = shared.slice(layout.region(batch.slot, 3), rows * layout.pairs * 4);
     let mut out = Vec::with_capacity(batch.authors.len() + rows * 1024);
-    put_length(&mut out, layout.columns.len() + 1);
+    put_length(&mut out, layout.written());
     put_length(&mut out, rows);
     put_bytes(&mut out, b"author");
     put_bytes(&mut out, b"String");
     out.extend_from_slice(&batch.authors);
-    let (mut number, mut category, mut indexes) = (0, 0, Vec::with_capacity(rows * 4));
+    let (mut number, mut indexes, mut offsets, mut values) = (0, Vec::with_capacity(rows * 4), Vec::with_capacity(rows), Vec::with_capacity(rows * 16));
     for column in &layout.columns {
         out.extend_from_slice(&column.header);
-        indexes.clear();
         match &column.kind {
             Kind::Numeric => {
                 (0..rows).for_each(|row| out.extend_from_slice(&numeric[(row * layout.numeric + number) * 4..][..4]));
                 number += 1;
             }
-            Kind::Categorical(keys) => {
-                indexes.extend((0..rows).map(|row| u32::from_le_bytes(categorical[(row * layout.categorical + category) * 4..][..4].try_into().unwrap())));
-                out.extend_from_slice(&1u64.to_le_bytes());
-                keys.write(&mut out, &indexes);
-                category += 1;
-            }
-            Kind::Set(offset, keys) => {
-                out.extend_from_slice(&1u64.to_le_bytes());
+            Kind::Ranked(offset, slots, keys) => {
+                (indexes.clear(), offsets.clear(), values.clear());
                 for row in 0..rows {
-                    let start = (row * layout.words + offset) * 8;
-                    for (index, word) in sets[start..start + keys.count.div_ceil(64) * 8].chunks_exact(8).enumerate() {
-                        let mut bits = u64::from_le_bytes(word.try_into().unwrap());
-                        while bits != 0 {
-                            indexes.push((index * 64) as u32 + bits.trailing_zeros());
-                            bits &= bits - 1;
+                    for slot in 0..*slots {
+                        let at = (row * layout.pairs + offset + slot) * 4;
+                        let index = i32::from_le_bytes(picked[at..at + 4].try_into().unwrap());
+                        if index >= 0 {
+                            indexes.push(index as u32);
+                            values.extend_from_slice(&chances[at..at + 4]);
                         }
                     }
-                    out.extend_from_slice(&(indexes.len() as u64).to_le_bytes());
+                    offsets.push(indexes.len() as u64);
                 }
+                out.extend_from_slice(&1u64.to_le_bytes());
+                offsets.iter().for_each(|end| out.extend_from_slice(&end.to_le_bytes()));
                 if !indexes.is_empty() {
                     keys.write(&mut out, &indexes);
                 }
+                out.extend_from_slice(&column.confidence);
+                offsets.iter().for_each(|end| out.extend_from_slice(&end.to_le_bytes()));
+                out.extend_from_slice(&values);
             }
         }
     }

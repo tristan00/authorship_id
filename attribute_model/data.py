@@ -19,6 +19,8 @@ def prepare(directory):
     from pipeline.run import rust
     directory = Path(directory)
     rust("attribute_model/io", "attribute_io", "prepare", "attribute_prepare.log", str(directory))
+    from .structure import derive
+    derive(directory)
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     return {"authors": manifest["authors"], "directory": str(directory), "targets": manifest["targets"], "target_counts": manifest["target_counts"],
             "excluded_values": manifest["excluded_values"], "insufficient": manifest["insufficient"]}
