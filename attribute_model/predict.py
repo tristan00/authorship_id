@@ -66,14 +66,17 @@ class Decoder:
         self.model = build(artifact, device)
         self.owners = owners(self.model)
         self.fitted, self.cutoffs = artifact["calibration"], artifact["cutoffs"]
-        self.spaces, self.labels, self.slots, self.numbers = {}, {}, {}, []
+        self.spaces, self.labels, self.slots, self.numbers, self.groups = {}, {}, {}, [], {}
         for name, structure in artifact["structures"].items():
             kind = structure["kind"]
             if kind == "number":
                 self.numbers.append(name)
             elif kind == "tree":
                 self.spaces[name] = Space(structure, artifact["information"][name], device)
-                self.labels[name], self.slots[name] = paths(structure), self.spaces[name].slots
+                crossed = len(structure["groupings"]) > 1
+                self.labels[name], self.slots[name] = list(structure["nodes"]) if crossed else paths(structure), self.spaces[name].slots
+                if crossed:
+                    self.groups[name] = torch.ones(len(structure["nodes"]), dtype=torch.bool, device=device).index_fill_(0, torch.tensor(structure["values"], device=device), False)
             else:
                 cells = {cell: value for value, cell in zip(structure["names"], structure["values"])} if kind == "grid" else dict(enumerate(structure["names"]))
                 self.labels[name], self.slots[name] = [cells[index] for index in range(len(cells))], 1
@@ -99,6 +102,8 @@ class Decoder:
             if structure["kind"] == "tree":
                 space = self.spaces[name]
                 nodes = space.ordered(space.decode(probability, 0. if uncut else self.cutoffs[name]["cutoff"]))
+                if name in self.groups:
+                    nodes = torch.where((nodes >= 0) & ~self.groups[name][nodes.clamp_min(0)], nodes, -1)
                 chance = probability.gather(1, nodes.clamp_min(0))
             else:
                 nodes = (scale_choice(probability) if structure["kind"] == "scale" else grid_choice(probability, structure["shape"]))[:, None]
