@@ -14,9 +14,9 @@ PREDICTION_BATCH = 16384
 INSERT_ROWS = 1 << 20
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
 SPLIT_LABELS = 100
-CHOICES = {"age": "bins", "birth_year": "bins", "diet_plan": "tree", "diet_type": "flat", "dietary_restrictions": "tree", "employment_status": "flat", "ethnicity": "tree", "gender": "tree",
-           "generation": "flat", "hobbies": "tree", "hobby_group": "tree", "location": "levels", "love_language": "flat", "mbti": "joint", "nationality": "tree", "occupation": "levels",
-           "origin_location": "levels", "party_affiliation": "levels:country", "political_compass": "axes", "political_ideology": "flat", "relationship_status": "flat", "religion": "flat",
+CHOICES = {"age": "bins", "birth_year": "bins", "diet_plan": "tree", "diet_type": "flat", "dietary_restrictions": "flat", "employment_status": "flat", "ethnicity": "tree", "gender": "tree",
+           "generation": "ordinal", "hobbies": "levels", "hobby_group": "flat", "location": "levels", "love_language": "tree", "mbti": "joint", "nationality": "tree", "occupation": "levels",
+           "origin_location": "levels", "party_affiliation": "flat", "political_compass": "flat", "political_ideology": "flat", "relationship_status": "tree", "religion": "tree",
            "sexual_orientation": "tree", "subculture": "tree"}
 TEXT_CHOICES = CHOICES
 PARAMETERS = {"width": 262, "depth": 3, "expand": 4, "dropout": .387, "rank": 132, "batch": 1309, "lr": .0063, "weight_decay": .0127, "warmup": .525, "decay": .103, "patience": 2}
