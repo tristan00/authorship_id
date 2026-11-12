@@ -15,7 +15,9 @@ from database import author_ranges, client, host, selected
 
 from . import LOG, timed
 from .config import DIMENSIONS, GPU_MEMORY, INSERT_ROWS, PREDICTION_BATCH, SPLITS, THREADS, VECTOR_RANGES, data
-from .evaluate import Space, calibrated, grid_choice, node_probabilities, number_scores, owners, scale_choice
+from torch.nn import functional as F
+
+from .evaluate import INTERVAL, Space, calibrated, grid_choice, node_probabilities, number_scores, owners, scale_choice
 from .model import AttributeModel
 
 BINARY = Path(__file__).resolve().parent / "io" / "target" / "release" / "attribute_io.exe"
@@ -24,6 +26,21 @@ FETCHERS = 2
 ENCODERS = 4
 INSERTERS = 2
 ARROW = " › "
+SPAN = 8
+
+
+def window(head, logits, fit):
+    probability = (logits / fit.get("temperature", 1.)).softmax(1)
+    cumulative = F.pad(probability.cumsum(1), (1, 0))
+    found = [(cumulative[:, width:] - cumulative[:, :-width]).max(1) for width in range(1, min(SPAN + 1, probability.shape[1]) + 1)]
+    shares, starts = torch.stack([share for share, _ in found], 1), torch.stack([start for _, start in found], 1)
+    steps = torch.arange(shares.shape[1], device=logits.device)
+    extra = torch.where(shares >= INTERVAL, steps, shares.shape[1] - 1).min(1).values
+    start, share = starts.gather(1, extra[:, None]).squeeze(1), shares.gather(1, extra[:, None]).squeeze(1)
+    years = torch.arange(probability.shape[1], device=logits.device)
+    inside = (years >= start[:, None]) & (years <= (start + extra)[:, None])
+    middle = (probability * inside).argmax(1)
+    return torch.stack([middle, start, start + extra], 1).float() + head.low, share
 
 
 def build(artifact, device):
@@ -64,12 +81,16 @@ class Decoder:
 
     def decide(self, vectors, uncut=False):
         hidden = self.model(vectors)
-        numbers, picked, chances = [], [], []
+        numbers, picked, chances, shares = [], [], [], {}
         for name in self.model.structures:
             key, head = self.owners[name]
             fit = self.fitted[key]
             logits = head(hidden).float()
             if name in self.numbers:
+                if uncut and head.mode == "bins":
+                    found, shares[name] = window(head, logits, fit)
+                    numbers.append(found)
+                    continue
                 _, middle, low, high = number_scores(head, logits, torch.zeros(len(logits), device=logits.device), fit)
                 numbers.append(torch.stack([middle, low, high], 1))
                 continue
@@ -84,14 +105,15 @@ class Decoder:
                 chance = probability.gather(1, nodes)
             picked.append(nodes)
             chances.append(torch.where(nodes >= 0, calibrated(chance, self.cutoffs[name]["platt"]), 0.))
-        return torch.cat(numbers, 1), torch.cat(picked, 1).int(), torch.cat(chances, 1)
+        return torch.cat(numbers, 1), torch.cat(picked, 1).int(), torch.cat(chances, 1), shares
 
     def readable(self, decided):
-        numbers, picked, chances = (part.cpu() for part in decided)
+        numbers, picked, chances = (part.cpu() for part in decided[:3])
+        shares = {name: share.cpu().tolist() for name, share in decided[3].items()}
         result = [{} for _ in range(len(picked))]
         for slot, name in enumerate(self.numbers):
             for row, (middle, low, high) in enumerate(numbers[:, 3 * slot:3 * slot + 3].tolist()):
-                result[row][name] = {"value": round(middle, 1), "low": round(low, 1), "high": round(high, 1)}
+                result[row][name] = {"value": round(middle, 1), "low": round(low, 1), "high": round(high, 1)} | ({"confidence": round(shares[name][row], 3)} if name in shares else {})
         start = 0
         for name in self.ranked:
             width = self.slots[name]
@@ -163,7 +185,7 @@ def stream(decoder, ranges, table, total):
                 slot, rows = map(int, line.split())
                 with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                     decided = decoder.decide(views[slot][0][:rows].to("cuda"))
-                for target, source in zip(views[slot][1:], decided):
+                for target, source in zip(views[slot][1:], decided[:3]):
                     target[:rows].copy_(source)
                 process.stdin.write(b"%d\n" % slot)
                 process.stdin.flush()

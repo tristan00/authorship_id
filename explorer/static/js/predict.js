@@ -27,13 +27,16 @@ function chains(items) {
 
 function shown(row) {
   const predicted = row.predicted;
-  if (!Array.isArray(predicted)) return attributeValue(row.name, `${predicted.value.toFixed(0)} (${predicted.low.toFixed(0)}–${predicted.high.toFixed(0)})`, "no value");
+  if (!Array.isArray(predicted)) {
+    const range = `${predicted.value.toFixed(0)} (${predicted.low.toFixed(0)}–${predicted.high.toFixed(0)})`;
+    return predicted.confidence === undefined ? attributeValue(row.name, range, "no value") : `${attributeValue(row.name, range, "no value")} ${percent(predicted.confidence)}`;
+  }
   return attributeValue(row.name, predicted.length ? chains(predicted) : null, "no value");
 }
 
 function filtered(attributes) {
   return attributes.flatMap((row) => {
-    if (!Array.isArray(row.predicted)) return [row];
+    if (!Array.isArray(row.predicted)) return row.predicted.confidence === undefined || row.predicted.confidence >= threshold ? [row] : [];
     const kept = row.predicted.filter((item) => item.confidence >= threshold);
     return threshold === 0 || kept.length ? [{ name: row.name, predicted: kept }] : [];
   });
@@ -70,7 +73,7 @@ function result(data) {
   render();
   return [
     panel("Input", null, facts([["Tokens", count(data.tokens)], ["Truncated", data.truncated ? "yes" : "no"]])),
-    panel("Prediction", meta, h("div", { class: "filter" }, h("label", {}, "Minimum confidence", picker, readout), h("span", { class: "filter-note" }, "Ages and years show an 80% range and are always listed")), slot),
+    panel("Prediction", meta, h("div", { class: "filter" }, h("label", {}, "Minimum confidence", picker, readout)), slot),
   ];
 }
 
