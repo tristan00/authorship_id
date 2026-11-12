@@ -73,7 +73,7 @@ def search(directory, stem, base, chosen):
                 study.stop()
 
         if stale(study) < SEARCH_PATIENCE:
-            study.optimize(evaluate, callbacks=[report], catch=(FloatingPointError,))
+            study.optimize(evaluate, callbacks=[report], catch=(FloatingPointError, torch.OutOfMemoryError))
         splits = None
         torch.cuda.empty_cache()
         numbers, picked = separated(study.best_params)

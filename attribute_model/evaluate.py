@@ -103,7 +103,7 @@ def samples(model, split):
                 continue
             present = head.present(batch).nonzero().squeeze(1)[:SAMPLE - count]
             if len(present):
-                hiddens.append(hidden[present].clone())
+                hiddens.append(hidden[present].cpu())
                 batches.append(batch.take(present, head.targets))
                 kept[key] = (hiddens, batches, count + len(present))
     return {key: (torch.cat(hiddens), Batch(torch.cat([part.labels for part in batches]), *({name: torch.cat([getattr(part, field)[name] for part in batches])
@@ -133,7 +133,7 @@ def calibrate(model, split):
 
             def logits_of(rows):
                 with torch.autocast(DEVICE, dtype=torch.bfloat16):
-                    return head(hidden[rows]).float()
+                    return head(hidden[rows.cpu()].to(DEVICE)).float()
 
             if isinstance(head, Number) and head.mode != "bins":
                 fitted[key] = {"spread": number_spread(head, logits_of(torch.arange(len(hidden), device=DEVICE)), batch.labels[:, head.columns[0]])}
