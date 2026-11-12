@@ -16,6 +16,7 @@ def main():
     commands.add_parser("texts", help=f"Build author_texts with up to {TEXTS_PER_USER} distinct readable texts per author, unless its loaded months and code are unchanged.")
     vectors = commands.add_parser("vectors", help="Encode author_texts into author_vectors, resuming by author part and restarting when the texts or encoder change.")
     vectors.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    commands.add_parser("reduce", help="Build author_reduced, the 128-dimensional sketches that shortlist similar-author searches.")
     encode = commands.add_parser("encode", help="Read JSONL users and write JSONL vectors.", description=f'Each input line: {{"author": "name", "texts": ["text", ...]}}. Each author needs at least one usable text; up to {TEXTS_PER_USER} are sampled reproducibly. Output includes the 512-dimensional vector and sampled input indices.')
     encode.add_argument("--input", type=Path, required=True)
     encode.add_argument("--output", type=Path, required=True, help="A new JSONL output file.")
@@ -26,7 +27,7 @@ def main():
         command.add_argument("--output", type=Path, help="Write JSON to this file instead of stdout.")
         if name == "similar":
             command.add_argument("--limit", type=int, default=50, choices=range(1, 201), metavar="1..200")
-    for name in ("texts", "vectors", "similar", "vector"):
+    for name in ("texts", "vectors", "reduce", "similar", "vector"):
         commands.choices[name].add_argument("--database", required=True)
     args = parser.parse_args()
     setup_logging(LOGS / f"author_encoder_{args.command}.log")
@@ -41,11 +42,15 @@ def main():
     elif args.command == "vectors":
         from .predict import encode_store
         result = encode_store(args.device)
+    elif args.command == "reduce":
+        from .neighbours import reduce
+        result = reduce()
     elif args.command == "encode":
         from .predict import encode_file
         result = encode_file(args.input, args.output, args.device)
     else:
-        from .store import similar, vector
+        from .neighbours import similar
+        from .store import vector
         result = similar(args.author, args.limit) if args.command == "similar" else vector(args.author)
         if result is None:
             parser.error(f"No vector for {args.author}.")

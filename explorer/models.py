@@ -2,7 +2,7 @@ import threading
 
 from attribute_model.config import text_model
 from attribute_model.text import predict_text
-from author_encoder.store import similar
+from author_encoder.neighbours import similar
 from reddit_dumps import timed
 
 NEIGHBOURS = 20

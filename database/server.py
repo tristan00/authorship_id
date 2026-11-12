@@ -48,9 +48,11 @@ TABLES = [
     """CREATE TABLE IF NOT EXISTS records_by_subreddit (
         subreddit String CODEC(ZSTD(1)),
         created_utc DateTime('UTC') CODEC(Delta, ZSTD(1)),
-        record_type LowCardinality(String)
+        record_type LowCardinality(String),
+        author String CODEC(ZSTD(1)),
+        record_id String CODEC(ZSTD(1))
     ) ENGINE = MergeTree ORDER BY (subreddit, created_utc)""",
-    "CREATE MATERIALIZED VIEW IF NOT EXISTS records_by_subreddit_feed TO records_by_subreddit AS SELECT subreddit, created_utc, record_type FROM records",
+    "CREATE MATERIALIZED VIEW IF NOT EXISTS records_by_subreddit_feed TO records_by_subreddit AS SELECT subreddit, created_utc, record_type, author, record_id FROM records",
     """CREATE TABLE IF NOT EXISTS bodies (
         text_sha256 FixedString(32),
         text String CODEC(ZSTD(3)),

@@ -1,5 +1,5 @@
 import { post } from "./api.js";
-import { attributeName, attributeValue, count, failed, facts, h, loading, notice, panel, table } from "./ui.js";
+import { attributeName, attributeValue, count, failed, facts, h, loading, notice, panel, paths, table } from "./ui.js";
 
 const ARROW = " › ";
 let threshold = 0;
@@ -10,19 +10,14 @@ function percent(value) {
 
 function chains(items) {
   const chance = new Map(items.map((item) => [item.value, item.confidence]));
-  const paths = [...chance.keys()];
-  const leaves = paths.filter((path) => !paths.some((other) => other.startsWith(path + ARROW)));
-  return leaves
-    .map((path) => {
-      const parts = path.split(ARROW);
-      return parts
-        .map((part, depth) => {
-          const prefix = parts.slice(0, depth + 1).join(ARROW);
-          return chance.has(prefix) ? `${part} ${percent(chance.get(prefix))}` : part;
-        })
-        .join(ARROW);
-    })
-    .join("; ");
+  const all = [...chance.keys()];
+  return all.filter((path) => !all.some((other) => other.startsWith(path + ARROW))).map((path) => {
+    const parts = path.split(ARROW);
+    return parts.map((part, depth) => {
+      const prefix = parts.slice(0, depth + 1).join(ARROW);
+      return chance.has(prefix) ? `${part} ${percent(chance.get(prefix))}` : part;
+    });
+  });
 }
 
 function shown(row) {
@@ -31,7 +26,7 @@ function shown(row) {
     const range = `${predicted.value.toFixed(0)} (${predicted.low.toFixed(0)}–${predicted.high.toFixed(0)})`;
     return predicted.confidence === undefined ? attributeValue(row.name, range, "no value") : `${attributeValue(row.name, range, "no value")} ${percent(predicted.confidence)}`;
   }
-  return attributeValue(row.name, predicted.length ? chains(predicted) : null, "no value");
+  return predicted.length ? paths(chains(predicted)) : attributeValue(row.name, null, "no value");
 }
 
 function filtered(attributes) {

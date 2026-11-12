@@ -32,8 +32,8 @@ export function mountSearch(root) {
       const data = await get(`/api/search?q=${enc(query)}`);
       if (ticket !== sequence) return;
       hits.replaceChildren(
-        group("Subreddits", data.subreddits, "subreddit", (name) => links.subreddit(name, "patterns"), data.query.toLowerCase()),
-        group("Authors", data.authors, "author", (name) => links.author(name, "profile"), data.query));
+        group("Subreddits", data.subreddits, "subreddit", (name) => links.subreddit(name, "records"), data.query.toLowerCase()),
+        group("Authors", data.authors, "author", (name) => links.author(name, "records"), data.query));
     } catch (error) {
       if (ticket === sequence) hits.replaceChildren(failed(error));
     }

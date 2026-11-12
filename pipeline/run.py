@@ -43,12 +43,14 @@ def derive():
     from attribute_model.text import prepare_text
     from attribute_model.train import train
     from author_encoder.predict import encode_store
+    from author_encoder.neighbours import reduce
     from author_encoder.store import build
     rust("extractor", "claims", "run", "claim_extraction.log")
     rust("extractor", "claims", "flairs", "claim_extraction.log")
     rust("consolidator", "consolidate", "run", "consolidation.log")
     build()
     encode_store()
+    reduce()
     prepare(data())
     train(data(), model())
     predict_table(model())

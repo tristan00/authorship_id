@@ -66,11 +66,12 @@ class Decoder:
         self.model = build(artifact, device)
         self.owners = owners(self.model)
         self.fitted, self.cutoffs = artifact["calibration"], artifact["cutoffs"]
-        self.spaces, self.labels, self.slots, self.numbers, self.groups = {}, {}, {}, [], {}
+        self.spaces, self.labels, self.slots, self.numbers, self.groups, self.fields = {}, {}, {}, [], {}, {}
         for name, structure in artifact["structures"].items():
             kind = structure["kind"]
             if kind == "number":
                 self.numbers.append(name)
+                self.fields[name] = ("", "_low", "_high", "_confidence") if self.owners[name][1].mode == "bins" else ("", "_low", "_high")
             elif kind == "tree":
                 self.spaces[name] = Space(structure, artifact["information"][name], device)
                 crossed = len(structure["groupings"]) > 1
@@ -84,15 +85,15 @@ class Decoder:
 
     def decide(self, vectors, uncut=False):
         hidden = self.model(vectors)
-        numbers, picked, chances, shares = [], [], [], {}
+        numbers, picked, chances = [], [], []
         for name in self.model.structures:
             key, head = self.owners[name]
             fit = self.fitted[key]
             logits = head(hidden).float()
             if name in self.numbers:
-                if uncut and head.mode == "bins":
-                    found, shares[name] = window(head, logits, fit)
-                    numbers.append(found)
+                if head.mode == "bins":
+                    found, share = window(head, logits, fit)
+                    numbers.append(torch.cat([found, share[:, None]], 1))
                     continue
                 _, middle, low, high = number_scores(head, logits, torch.zeros(len(logits), device=logits.device), fit)
                 numbers.append(torch.stack([middle, low, high], 1))
@@ -110,15 +111,17 @@ class Decoder:
                 chance = probability.gather(1, nodes)
             picked.append(nodes)
             chances.append(torch.where(nodes >= 0, calibrated(chance, self.cutoffs[name]["platt"]), 0.))
-        return torch.cat(numbers, 1), torch.cat(picked, 1).int(), torch.cat(chances, 1), shares
+        return torch.cat(numbers, 1), torch.cat(picked, 1).int(), torch.cat(chances, 1)
 
     def readable(self, decided):
-        numbers, picked, chances = (part.cpu() for part in decided[:3])
-        shares = {name: share.cpu().tolist() for name, share in decided[3].items()}
+        numbers, picked, chances = (part.cpu() for part in decided)
         result = [{} for _ in range(len(picked))]
-        for slot, name in enumerate(self.numbers):
-            for row, (middle, low, high) in enumerate(numbers[:, 3 * slot:3 * slot + 3].tolist()):
-                result[row][name] = {"value": round(middle, 1), "low": round(low, 1), "high": round(high, 1)} | ({"confidence": round(shares[name][row], 3)} if name in shares else {})
+        start = 0
+        for name in self.numbers:
+            width = len(self.fields[name])
+            for row, found in enumerate(numbers[:, start:start + width].tolist()):
+                result[row][name] = {"value": round(found[0], 1), "low": round(found[1], 1), "high": round(found[2], 1)} | ({"confidence": round(found[3], 3)} if width == 4 else {})
+            start += width
         start = 0
         for name in self.ranked:
             width = self.slots[name]
@@ -129,9 +132,9 @@ class Decoder:
 
 
 def schema(decoder, artifact):
-    columns = "".join(f", {quote_identifier(name)} Float32, {quote_identifier(name + '_low')} Float32, {quote_identifier(name + '_high')} Float32" for name in decoder.numbers)
+    columns = "".join(f", {quote_identifier(name + field)} Float32" for name in decoder.numbers for field in decoder.fields[name])
     columns += "".join(f", {quote_identifier(name)} Array(LowCardinality(String)), {quote_identifier(name + '_confidence')} Array(Float32)" for name in decoder.ranked)
-    comment = json.dumps({"model_id": artifact["model_id"], "source": artifact["source"], "targets": {name: "number" if name in decoder.numbers else "ranked" for name in artifact["targets"]}})
+    comment = json.dumps({"model_id": artifact["model_id"], "source": artifact["source"], "targets": {name: ("window" if len(decoder.fields[name]) == 4 else "number") if name in decoder.numbers else "ranked" for name in artifact["targets"]}})
     return f"CREATE TABLE author_predictions_next (author String{columns}) ENGINE = MergeTree ORDER BY author COMMENT {format_str(comment)}"
 
 
@@ -169,12 +172,12 @@ def slot_views(shared, sizes, widths):
 @timed
 def stream(decoder, ranges, table, total):
     pairs = sum(decoder.slots[name] for name in decoder.ranked)
-    widths = (DIMENSIONS, 3 * len(decoder.numbers), pairs, pairs)
+    widths = (DIMENSIONS, sum(len(decoder.fields[name]) for name in decoder.numbers), pairs, pairs)
     sizes = [PREDICTION_BATCH * width * 4 for width in widths]
     name = f"attribute_predict_{os.getpid()}"
     shared = mmap.mmap(-1, SLOTS * sum(sizes), tagname=name)
     views = slot_views(shared, sizes, widths)
-    columns = [{"name": number, "type": "numeric"} for target in decoder.numbers for number in (target, target + "_low", target + "_high")]
+    columns = [{"name": target + field, "type": "numeric"} for target in decoder.numbers for field in decoder.fields[target]]
     columns += [{"name": target, "type": "ranked", "values": decoder.labels[target], "slots": decoder.slots[target]} for target in decoder.ranked]
     layout = {"shared": name, "table": table, "batch": PREDICTION_BATCH, "slots": SLOTS, "fetchers": FETCHERS, "encoders": ENCODERS, "inserters": INSERTERS, "insert_rows": INSERT_ROWS,
               "dimensions": DIMENSIONS, "slot_bytes": sum(sizes), "ranges": ranges, "columns": columns}
@@ -190,7 +193,7 @@ def stream(decoder, ranges, table, total):
                 slot, rows = map(int, line.split())
                 with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
                     decided = decoder.decide(views[slot][0][:rows].to("cuda"))
-                for target, source in zip(views[slot][1:], decided[:3]):
+                for target, source in zip(views[slot][1:], decided):
                     target[:rows].copy_(source)
                 process.stdin.write(b"%d\n" % slot)
                 process.stdin.flush()

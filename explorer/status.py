@@ -47,7 +47,7 @@ def claims(known):
         return check("Claims", False, "Claim extraction is older than the latest load.")
     if built.get("author_claims", 0) < extracted["finished"]:
         return check("Claims", False, "Consolidation is behind the latest claim extraction.")
-    return check("Claims", True, f"Claims are extracted and consolidated for all {len(known['months'])} loaded months.")
+    return check("Claims", True, None)
 
 
 def vectors(known):
@@ -62,7 +62,7 @@ def vectors(known):
         return check("Vectors", False, "Author vectors were encoded from other author texts or encoder code.")
     if encoded["finished"] < known["loaded"]:
         return check("Vectors", False, "Author vectors are older than the latest load.")
-    return check("Vectors", True, f"Author texts and vectors cover all {len(known['months'])} loaded months.")
+    return check("Vectors", True, None)
 
 
 def predictions(known):
@@ -75,13 +75,13 @@ def predictions(known):
     inputs = max(built.get("author_claims", 0), (known["encoded"] or {"finished": 0})["finished"])
     if built["author_predictions"] < inputs:
         return check("Predictions", False, "Predictions are older than the claims or vectors they were trained on.")
-    return check("Predictions", True, f"Predictions match the loaded months, claims and vectors for all {len(months)} months.")
+    return check("Predictions", True, None)
 
 
 def counts(known):
     if known["built"].get("author_counts", 0) < known["loaded"]:
         return check("Counts", False, "Counts are missing or older than the latest load.")
-    return check("Counts", True, f"Counts cover all {len(known['months'])} loaded months.")
+    return check("Counts", True, None)
 
 
 @timed
@@ -89,4 +89,4 @@ def checks():
     known = facts()
     if not known["months"]:
         return [check("Months", False, "No months are loaded.")]
-    return [check("Months", True, f"Loaded months: {listed(known['months'])}."), claims(known), vectors(known), predictions(known), counts(known)]
+    return [check("Months", True, None), claims(known), vectors(known), predictions(known), counts(known)]

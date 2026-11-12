@@ -8,7 +8,8 @@ import { notFound } from "./ui.js";
 const view = document.getElementById("view");
 
 function parts() {
-  return location.hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  const [path, search] = location.hash.replace(/^#\/?/, "").split("?");
+  return [path.split("/").map(decodeURIComponent), new URLSearchParams(search ?? "")];
 }
 
 function mark(section) {
@@ -20,9 +21,9 @@ function mark(section) {
 
 function route() {
   window.scrollTo(0, 0);
-  let path;
+  let path, params;
   try {
-    path = parts();
+    [path, params] = parts();
   } catch {
     mark(null);
     view.replaceChildren(notFound(`Malformed address ${location.hash}`));
@@ -38,7 +39,7 @@ function route() {
   } else if ((first === "author" || first === "subreddit") && name !== undefined && rest.length === 0) {
     mark(null);
     if (tab === undefined) location.replace(links[first](name, firstTab(first)));
-    else entity(view, first, name, tab);
+    else entity(view, first, name, tab, params);
   } else {
     mark(null);
     document.title = "Not found · explorer";

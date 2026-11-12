@@ -1,3 +1,4 @@
+import datetime
 import itertools
 
 from author_encoder import clean
@@ -40,11 +41,11 @@ def case_variants(text):
     return ["".join(chosen) for chosen in itertools.product(*forms)]
 
 
-def month_range(first, last):
-    year, month = map(int, first.split("-"))
-    while f"{year:04d}-{month:02d}" <= last:
-        yield f"{year:04d}-{month:02d}"
-        year, month = year + month // 12, month % 12 + 1
+def day_range(first, last):
+    day, end = datetime.date.fromisoformat(first), datetime.date.fromisoformat(last)
+    while day <= end:
+        yield day.isoformat()
+        day += datetime.timedelta(days=1)
 
 
 def counted(row, fields):
@@ -52,16 +53,95 @@ def counted(row, fields):
 
 
 def when(rows, fields):
-    found = {dimension: {row[dimension]: row for row in rows if row["dimension"] == dimension} for dimension in ("hour", "weekday", "month")}
-    months = found["month"]
+    found = {dimension: {row[dimension]: row for row in rows if row["dimension"] == dimension} for dimension in ("hour", "weekday", "day")}
+    days = found["day"]
     return {"hour": [{"hour": hour} | counted(found["hour"].get(hour), fields) for hour in range(24)],
             "weekday": [{"weekday": WEEKDAYS[day - 1]} | counted(found["weekday"].get(day), fields) for day in range(1, 8)],
-            "month": [{"month": month} | counted(months.get(month), fields) for month in (month_range(min(months), max(months)) if months else ())]}
+            "day": [{"day": day} | counted(days.get(day), fields) for day in (day_range(min(days), max(days)) if days else ())]}
+
+
+def single(params, name):
+    values = params.get(name, [])
+    if len(values) > 1:
+        raise Failure(400, f"Give the query parameter {name} at most once")
+    return values[0].strip() if values and values[0].strip() else None
+
+
+def date(params, name):
+    value = single(params, name)
+    if value is None:
+        return None
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        raise Failure(400, f"{name} must be a date like 2026-05-01")
+
+
+def midnight(day):
+    return int(datetime.datetime.combine(day, datetime.time(), datetime.UTC).timestamp())
+
+
+def filters(params):
+    found = {}
+    kind = single(params, "type")
+    if kind is not None:
+        if kind not in ("post", "comment"):
+            raise Failure(400, "type must be post or comment")
+        found["type"] = kind
+    for name in ("subreddit", "author"):
+        value = single(params, name)
+        if value is not None:
+            found[name] = value
+    start, end = date(params, "from"), date(params, "to")
+    if start is not None:
+        found["start"] = midnight(start)
+    if end is not None:
+        found["end"] = midnight(end + datetime.timedelta(days=1))
+    before = single(params, "before")
+    if before is not None:
+        at, _, record = before.partition(":")
+        if not at.isdigit() or not record:
+            raise Failure(400, "before must look like <unix seconds>:<record id>")
+        found |= {"before_at": int(at), "before_id": record}
+    return found
+
+
+def page(records):
+    return {"records": records, "next": f"{records[-1]['at']}:{records[-1]['record_id']}" if len(records) == store.PAGE else None}
 
 
 @timed
 def home():
-    return {"subreddits": store.top_subreddits(), "authors": store.top_authors()}
+    return {"subreddits": store.top_subreddits(), "authors": store.top_authors()} | store.overview()
+
+
+@timed
+def author_summary(name):
+    require_author(name)
+    return store.author_counts(name) | {"subreddits": store.author_subreddits(name)}
+
+
+@timed
+def subreddit_summary(name):
+    return require_subreddit(name)
+
+
+@timed
+def author_records(name, params):
+    require_author(name)
+    return page(store.author_records(name, filters(params)))
+
+
+@timed
+def subreddit_records(name, params):
+    require_subreddit(name)
+    return page(store.subreddit_records(name, filters(params)))
+
+
+@timed
+def subreddit_authors(name, params):
+    require_subreddit(name)
+    return {"subreddit": name, "authors": store.subreddit_authors(name, filters(params))}
 
 
 @timed
@@ -144,6 +224,16 @@ def dispatch(method, parts, params, body):
             return data_status()
         case "GET", ["search"]:
             return search(params)
+        case "GET", ["author", name, "summary"]:
+            return author_summary(name)
+        case "GET", ["author", name, "records"]:
+            return author_records(name, params)
+        case "GET", ["subreddit", name, "summary"]:
+            return subreddit_summary(name)
+        case "GET", ["subreddit", name, "records"]:
+            return subreddit_records(name, params)
+        case "GET", ["subreddit", name, "authors"]:
+            return subreddit_authors(name, params)
         case "GET", ["author", name, "profile"]:
             return profile(name)
         case "GET", ["author", name, "patterns"]:

@@ -22,7 +22,13 @@ export function post(path, body) {
   return call(path, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body) });
 }
 
+function query(params) {
+  const found = new URLSearchParams(Object.entries(params ?? {}).filter(([, value]) => value !== null && value !== undefined && value !== ""));
+  return found.size ? `?${found}` : "";
+}
+
 export const links = {
-  author: (name, tab) => `#/author/${enc(name)}/${tab}`,
-  subreddit: (name, tab) => `#/subreddit/${enc(name)}/${tab}`,
+  author: (name, tab, params) => `#/author/${enc(name)}/${tab}${query(params)}`,
+  subreddit: (name, tab, params) => `#/subreddit/${enc(name)}/${tab}${query(params)}`,
+  api: (path, params) => `${path}${query(params)}`,
 };
