@@ -14,9 +14,12 @@ PREDICTION_BATCH = 16384
 INSERT_ROWS = 1 << 20
 SPLITS = {"train": (0, 1, 2, 3, 4, 5, 6), "validation": (7,), "calibration": (8,), "test": (9,)}
 SPLIT_LABELS = 100
-CHOICES = {}
-TEXT_CHOICES = {}
-PARAMETERS = {"width": 409, "depth": 4, "expand": 3, "dropout": .0618, "rank": 467, "batch": 6627, "lr": .003, "weight_decay": .214, "warmup": .566, "decay": .214, "patience": 2}
+CHOICES = {"age": "quantile", "birth_year": "bins", "diet_plan": "tree", "diet_type": "flat", "dietary_restrictions": "flat", "employment_status": "flat", "ethnicity": "tree", "gender": "tree",
+           "generation": "ordinal", "hobbies": "levels", "hobby_group": "flat", "location": "levels", "love_language": "tree", "mbti": "joint", "nationality": "tree", "occupation": "levels",
+           "origin_location": "levels", "party_affiliation": "flat", "political_compass": "flat", "political_ideology": "flat", "relationship_status": "tree", "religion": "tree",
+           "sexual_orientation": "tree", "subculture": "tree"}
+TEXT_CHOICES = CHOICES
+PARAMETERS = {"width": 262, "depth": 3, "expand": 4, "dropout": .387, "rank": 132, "batch": 1309, "lr": .0063, "weight_decay": .0127, "warmup": .525, "decay": .103, "patience": 2}
 TEXT_PARAMETERS = {"width": 528, "depth": 4, "expand": 3, "dropout": .267, "rank": 155, "batch": 7584, "lr": .00455, "weight_decay": .00387, "warmup": .265, "decay": .154, "patience": 2}
 MIN_IMPROVEMENT = 1e-4
 SEARCH_SPACE = {"width": (256, 2048, True), "depth": (0, 4, False), "expand": (1, 4, False), "dropout": (0., .5, False), "rank": (32, 512, True), "batch": (512, 16384, True),
