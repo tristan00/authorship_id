@@ -2,7 +2,6 @@ import { post } from "./api.js";
 import { attributeName, attributeValue, count, failed, facts, h, loading, notice, panel, table } from "./ui.js";
 
 const ARROW = " › ";
-const THRESHOLDS = [0, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95];
 let threshold = 0;
 
 function percent(value) {
@@ -44,18 +43,12 @@ function result(data) {
   if (data.status === "empty") return notice("info", "The text is empty after cleaning.", null);
   const slot = h("div", {});
   const meta = h("span", {});
-  const picker = h(
-    "select",
-    { "aria-label": "Minimum prediction confidence" },
-    THRESHOLDS.map((value) => {
-      const option = h("option", { value: String(value) }, value === 0 ? "Any confidence" : `≥ ${percent(value)}`);
-      option.selected = value === threshold;
-      return option;
-    }),
-  );
+  const picker = h("input", { type: "range", min: "0", max: "100", step: "1", value: String(Math.round(threshold * 100)), "aria-label": "Minimum prediction confidence" });
+  const readout = h("output", {});
 
   function render() {
     const rows = filtered(data.attributes);
+    readout.textContent = percent(threshold);
     meta.textContent = `${count(rows.length)} of ${count(data.attributes.length)} attributes`;
     slot.replaceChildren(
       table({
@@ -70,14 +63,14 @@ function result(data) {
     );
   }
 
-  picker.addEventListener("change", () => {
-    threshold = Number(picker.value);
+  picker.addEventListener("input", () => {
+    threshold = Number(picker.value) / 100;
     render();
   });
   render();
   return [
     panel("Input", null, facts([["Tokens", count(data.tokens)], ["Truncated", data.truncated ? "yes" : "no"]])),
-    panel("Prediction", meta, h("div", { class: "filter" }, h("label", {}, "Minimum confidence", picker), h("span", { class: "filter-note" }, "Ages and years show an 80% range and are always listed")), slot),
+    panel("Prediction", meta, h("div", { class: "filter" }, h("label", {}, "Minimum confidence", picker, readout), h("span", { class: "filter-note" }, "Ages and years show an 80% range and are always listed")), slot),
   ];
 }
 
