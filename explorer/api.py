@@ -133,7 +133,7 @@ def predict(body):
         return {"status": "empty"}
     result = models.predict(body["text"])
     return {"status": "ready", "tokens": result["tokens"], "truncated": result["truncated"],
-            "attributes": [{"name": key, "predicted": store.shown(result["attributes"][key])} for key in sorted(result["attributes"])]}
+            "attributes": [{"name": key, "predicted": result["attributes"][key]} for key in sorted(result["attributes"])]}
 
 
 def dispatch(method, parts, params, body):

@@ -1,19 +1,83 @@
 import { post } from "./api.js";
-import { attributeName, attributeValue, count, failed, facts, h, loading, notice, panel, table, tally } from "./ui.js";
+import { attributeName, attributeValue, count, failed, facts, h, loading, notice, panel, table } from "./ui.js";
+
+const ARROW = " › ";
+const THRESHOLDS = [0, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95];
+let threshold = 0;
+
+function percent(value) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function chains(items) {
+  const chance = new Map(items.map((item) => [item.value, item.confidence]));
+  const paths = [...chance.keys()];
+  const leaves = paths.filter((path) => !paths.some((other) => other.startsWith(path + ARROW)));
+  return leaves
+    .map((path) => {
+      const parts = path.split(ARROW);
+      return parts
+        .map((part, depth) => {
+          const prefix = parts.slice(0, depth + 1).join(ARROW);
+          return chance.has(prefix) ? `${part} ${percent(chance.get(prefix))}` : part;
+        })
+        .join(ARROW);
+    })
+    .join("; ");
+}
+
+function shown(row) {
+  const predicted = row.predicted;
+  if (!Array.isArray(predicted)) return attributeValue(row.name, `${predicted.value.toFixed(0)} (${predicted.low.toFixed(0)}–${predicted.high.toFixed(0)})`, "no value");
+  return attributeValue(row.name, predicted.length ? chains(predicted) : null, "no value");
+}
+
+function filtered(attributes) {
+  return attributes.flatMap((row) => {
+    if (!Array.isArray(row.predicted)) return [row];
+    const kept = row.predicted.filter((item) => item.confidence >= threshold);
+    return threshold === 0 || kept.length ? [{ name: row.name, predicted: kept }] : [];
+  });
+}
 
 function result(data) {
   if (data.status === "empty") return notice("info", "The text is empty after cleaning.", null);
+  const slot = h("div", {});
+  const meta = h("span", {});
+  const picker = h(
+    "select",
+    { "aria-label": "Minimum prediction confidence" },
+    THRESHOLDS.map((value) => {
+      const option = h("option", { value: String(value) }, value === 0 ? "Any confidence" : `≥ ${percent(value)}`);
+      option.selected = value === threshold;
+      return option;
+    }),
+  );
+
+  function render() {
+    const rows = filtered(data.attributes);
+    meta.textContent = `${count(rows.length)} of ${count(data.attributes.length)} attributes`;
+    slot.replaceChildren(
+      table({
+        columns: [
+          { title: "Attribute", kind: "mono", cell: (row) => attributeName(row.name) },
+          { title: "Predicted", kind: "mono", cell: shown },
+        ],
+        rows,
+        empty: `No predictions at ${percent(threshold)} confidence or above`,
+        tall: true,
+      }),
+    );
+  }
+
+  picker.addEventListener("change", () => {
+    threshold = Number(picker.value);
+    render();
+  });
+  render();
   return [
     panel("Input", null, facts([["Tokens", count(data.tokens)], ["Truncated", data.truncated ? "yes" : "no"]])),
-    panel("Prediction", tally(data.attributes.length, "attribute", "attributes"), table({
-      columns: [
-        { title: "Attribute", kind: "mono", cell: (row) => attributeName(row.name) },
-        { title: "Predicted", kind: "mono", cell: (row) => attributeValue(row.name, row.predicted, "no value") },
-      ],
-      rows: data.attributes,
-      empty: "No attributes",
-      tall: true,
-    })),
+    panel("Prediction", meta, h("div", { class: "filter" }, h("label", {}, "Minimum confidence", picker), h("span", { class: "filter-note" }, "Ages and years show an 80% range and are always listed")), slot),
   ];
 }
 
