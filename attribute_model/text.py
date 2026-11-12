@@ -108,4 +108,4 @@ def predict_text(model_path, text):
     ids = tokenizer.encode(cleaned).ids
     with torch.inference_mode():
         features = model.pooled(torch.tensor([ids])).half().numpy()
-    return {"attributes": predict(load_model(model_path), features)[0], "tokens": len(ids), "truncated": len(ids) >= MAX_LENGTH}
+    return {"attributes": predict(load_model(model_path), features, True)[0], "tokens": len(ids), "truncated": len(ids) >= MAX_LENGTH}

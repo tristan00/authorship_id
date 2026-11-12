@@ -62,7 +62,7 @@ class Decoder:
                 self.labels[name], self.slots[name] = [cells[index] for index in range(len(cells))], 1
         self.ranked = [name for name in artifact["structures"] if name not in self.numbers]
 
-    def decide(self, vectors):
+    def decide(self, vectors, uncut=False):
         hidden = self.model(vectors)
         numbers, picked, chances = [], [], []
         for name in self.model.structures:
@@ -77,7 +77,7 @@ class Decoder:
             probability = node_probabilities(head, logits, fit, name)
             if structure["kind"] == "tree":
                 space = self.spaces[name]
-                nodes = space.ordered(space.decode(probability, self.cutoffs[name]["cutoff"]))
+                nodes = space.ordered(space.decode(probability, 0. if uncut else self.cutoffs[name]["cutoff"]))
                 chance = probability.gather(1, nodes.clamp_min(0))
             else:
                 nodes = (scale_choice(probability) if structure["kind"] == "scale" else grid_choice(probability, structure["shape"]))[:, None]
@@ -120,7 +120,7 @@ def load_model(path):
 
 
 @timed
-def predict(decoder, vectors):
+def predict(decoder, vectors, uncut=False):
     values = np.asarray(vectors, dtype=np.float32)
     inputs = decoder.model.input.in_features
     if values.ndim != 2 or values.shape[1] != inputs or not np.isfinite(values).all():
@@ -128,7 +128,7 @@ def predict(decoder, vectors):
     result = []
     with torch.inference_mode():
         for start in range(0, len(values), 1024):
-            result += decoder.readable(decoder.decide(torch.from_numpy(values[start:start + 1024])))
+            result += decoder.readable(decoder.decide(torch.from_numpy(values[start:start + 1024]), uncut))
     return result
 
 
